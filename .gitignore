@@ -1,1 +1,3 @@
 nimcache/
+main
+*.trace
