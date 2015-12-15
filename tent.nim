@@ -16,3 +16,6 @@ proc foobar[T](v: T) =
 foobar(a)
 foobar(b)
 foobar(c)
+
+
+template woot(

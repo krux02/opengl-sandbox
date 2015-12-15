@@ -41,6 +41,9 @@ template uniformType(t : type Vec2): string = "vec2"
 template uniformType(t : type Mat4x4): string = "mat4"
 template uniformType(t : type Mat3x3): string = "mat3"
 template uniformType(t : type Mat2x2): string = "mat2"
+template uniformType(t : type float): string = "float"
+template uniformType(t : type float32): string = "float"
+template uniformType(t : type float64): string = "float"
 
 template glslType(t : type seq[Vec4]): string = "vec4"
 template glslType(t : type seq[Vec3]): string = "vec3"
@@ -131,6 +134,19 @@ proc mat4f(mat: Mat4x4[float64]): Mat4x4[float32] =
    for j in 0..<4:
      result[i][j] = mat[i][j]
 
+proc uniform(location: GLint, mat: Mat4x4[float64]) =
+  var mat_float32 = mat4f(mat)
+  glUniformMatrix4fv(location, 1, false, cast[ptr GLfloat](mat_float32.addr))
+
+proc uniform(location: GLint, mat: var Mat4x4[float32]) =
+  glUniformMatrix4fv(location, 1, false, cast[ptr GLfloat](mat.addr))
+
+proc uniform(location: GLint, value: float32) =
+  glUniform1f(location, value)
+
+proc uniform(location: GLint, value: float64) =
+  glUniform1f(location, value)
+
 var vertex: seq[Vec3[float]] = @[
   vec3(+1.0, +1.0, -1.0), vec3(-1.0, +1.0, -1.0), vec3(-1.0, +1.0, +1.0),
   vec3(+1.0, +1.0, +1.0), vec3(+1.0, +1.0, -1.0), vec3(-1.0, +1.0, +1.0),
@@ -187,6 +203,22 @@ type Program =
 let sourceHeader = """
 #version 330
 #extension GL_ARB_explicit_uniform_location : enable
+#define M_PI 3.1415926535897932384626433832795
+
+vec4 mymix(vec4 color, float alpha) {
+  float a = 3*(alpha/3 - floor(alpha/3));
+
+  float x = 1 - min(1, min(a, 3-a));
+  float y = 1 - min(1, abs(a - 1));
+  float z = 1 - min(1, abs(a - 2));
+
+  float r = dot(vec4(x,y,z,0), color);
+  float g = dot(vec4(y,z,x,0), color);
+  float b = dot(vec4(z,x,y,0), color);
+
+  return vec4(r,g,b, color.a);
+}
+
 """
 
 proc vertexSource(prg: Program): string =
@@ -297,22 +329,14 @@ proc makeBuffer[T](buffer: var ArrayBuffer[T], index: GLuint, value: var seq[T],
   glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(value.len * sizeof(T)), value[0].addr, usage)
   glVertexAttribPointer(index, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
 
-discard """ template makeBuffer(
-
-    pos_buffer = newArrayBuffer[vertex[0].type]()
-    pos_buffer.bindIt
-    pos_buffer.data = vertex
-    glEnableVertexAttribArray(0)
-    glVertexAttribPointer(0, 3, cGL_DOUBLE, false, 0, nil)
- """
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
 
-  var mv_mat: Mat4x4[float]  = I4()
-  mv_mat = mv_mat.transform( vec3(2*sin(time), 2*cos(time), -7.0) )
-  mv_mat = mv_mat.rotate( vec3[float](0,0,1), time*1.1 )
-  mv_mat = mv_mat.rotate( vec3[float](0,1,0), time*1.2 )
-  mv_mat = mv_mat.rotate( vec3[float](1,0,0), time*1.3 )
+  var modelview_mat: Mat4x4[float]  = I4()
+  modelview_mat = modelview_mat.transform( vec3(2*sin(time), 2*cos(time), -7.0) )
+  modelview_mat = modelview_mat.rotate( vec3[float](0,0,1), time*1.1 )
+  modelview_mat = modelview_mat.rotate( vec3[float](0,1,0), time*1.2 )
+  modelview_mat = modelview_mat.rotate( vec3[float](1,0,0), time*1.3 )
 
   var vao {.global.}: VertexArrayObject
   var pos_buffer {.global.}: ArrayBuffer[vertex[0].type]
@@ -322,12 +346,14 @@ proc render() =
   if gl_program == 0:
     var myprog = Program(
       uniforms: @[ ("projection", projection_mat.type.uniformType),
-                   ("modelview", mv_mat.type.uniformType) ],
-      attributes: @[ ("pos", vertex.type.glslType), ("col", color.type.glslType) ],
+                   ("modelview", modelview_mat.type.uniformType),
+                   ("time", time.type.uniformType) ],
+      attributes: @[ ("pos", vertex.type.glslType),
+                     ("col", color.type.glslType) ],
       varyings: @[ ("v_col", "vec4") ],
       frag_out: @[ ("color", "vec4") ],
       vertex_prg: "gl_Position = projection * modelview * vec4(pos,1); v_col = vec4(col,1);",
-      fragment_prg: "color = v_col;"
+      fragment_prg: "color = mymix(v_col, time);"
     )
 
     gl_program = myprog.createCompileAndLink
@@ -341,16 +367,12 @@ proc render() =
       col_buffer.makeBuffer(1, color, GL_STATIC_DRAW)
       glBindBuffer(GL_ARRAY_BUFFER, 0)
 
-
-
-  var modelview_float32 = mv_mat.mat4f
-  var projection_float32 = mat4f(projection_mat)
-
   glUseProgram(gl_program)
 
   vao.blockBind:
-    glUniformMatrix4fv(0, 1, false, cast[ptr GLfloat](projection_float32.addr))
-    glUniformMatrix4fv(1, 1, false, cast[ptr GLfloat](modelview_float32.addr))
+    uniform(0, projection_mat)
+    uniform(1, modelview_mat)
+    uniform(2, time)
 
     glDrawArrays(GL_TRIANGLES, 0, GLsizei(vertex.len) )
 
