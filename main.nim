@@ -61,6 +61,11 @@ proc delete(vao: VertexArrayObject) =
   var raw_vao = GLuint(vao)
   glDeleteVertexArrays(1, raw_vao.addr)
 
+template blockBind(vao: VertexArrayObject, blk: stmt) : stmt =
+  vao.bindIt
+  blk
+  glBindVertexArray(0)
+
 type ArrayBuffer[T]        = distinct GLuint
 type ElementArrayBuffer[T] = distinct GLuint
 type UniformBuffer[T]      = distinct GLuint
@@ -98,28 +103,14 @@ proc test(buffer: ArrayBuffer[Vec3f], data: var seq[Vec3f]) =
   glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(Vec3f)), data[0].addr, GL_STATIC_DRAW)
 
 
-proc `data=`[T](buffer: ArrayBuffer[T], data: var seq[T]) =
+proc bufferData[T](buffer: ArrayBuffer[T], data: var seq[T]) =
   glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), data[0].addr, GL_STATIC_DRAW)
 
-proc `data=`[T](buffer: ElementArrayBuffer[T], data: seq[T]) =
+proc bufferData[T](buffer: ElementArrayBuffer[T], data: seq[T]) =
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), data[0].addr, GL_STATIC_DRAW)
 
-proc `data=`[T](buffer: UniformBuffer[T], data: T) =
+proc bufferData[T](buffer: UniformBuffer[T], data: T) =
   glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(sizeof(T)), data.addr, GL_STATIC_DRAW)
-
-
-#proc swap[T](buffer: ArrayBuffer[T]): ArrayBuffer =
-#  result = currentArrayBuffer[T]()
-#  buffer.bindBuffer
-#
-#proc swap[T](buffer: ElementArrayBuffer[T]): ElementArrayBuffer =
-#  result = currentElementArrayBuffer[T]()
-#  buffer.bindBuffer
-#
-#proc swap[T](buffer: UniformBuffer[T]): UniformBuffer =
-#  result = currentUniformBuffer()
-#  buffer.bindBuffer
-
 
 template withBuffer(buffer: expr, body: stmt): stmt {.immediate.} =
   var buf = buffer
@@ -135,22 +126,39 @@ proc I4() : Mat4x4[float] = mat4x4(
   vec4(0.0, 0, 0, 1)
 )
 
+proc mat4f(mat: Mat4x4[float64]): Mat4x4[float32] =
+  for i in 0..<4:
+   for j in 0..<4:
+     result[i][j] = mat[i][j]
+
 var vertex: seq[Vec3[float]] = @[
-  vec3(+1.0, +1.0, -1.0), vec3(-1.0, +1.0, -1.0), vec3(-1.0, +1.0, +1.0), vec3(+1.0, +1.0, +1.0), vec3(+1.0, +1.0, -1.0), vec3(-1.0, +1.0, +1.0),
-  vec3(+1.0, -1.0, +1.0), vec3(-1.0, -1.0, +1.0), vec3(-1.0, -1.0, -1.0), vec3(+1.0, -1.0, -1.0), vec3(+1.0, -1.0, +1.0), vec3(-1.0, -1.0, -1.0),
-  vec3(+1.0, +1.0, +1.0), vec3(-1.0, +1.0, +1.0), vec3(-1.0, -1.0, +1.0), vec3(+1.0, -1.0, +1.0), vec3(+1.0, +1.0, +1.0), vec3(-1.0, -1.0, +1.0),
-  vec3(+1.0, -1.0, -1.0), vec3(-1.0, -1.0, -1.0), vec3(-1.0, +1.0, -1.0), vec3(+1.0, +1.0, -1.0), vec3(+1.0, -1.0, -1.0), vec3(-1.0, +1.0, -1.0),
-  vec3(-1.0, +1.0, +1.0), vec3(-1.0, +1.0, -1.0), vec3(-1.0, -1.0, -1.0), vec3(-1.0, -1.0, +1.0), vec3(-1.0, +1.0, +1.0), vec3(-1.0, -1.0, -1.0),
-  vec3(+1.0, +1.0, -1.0), vec3(+1.0, +1.0, +1.0), vec3(+1.0, -1.0, +1.0), vec3(+1.0, -1.0, -1.0), vec3(+1.0, +1.0, -1.0), vec3(+1.0, -1.0, +1.0)
+  vec3(+1.0, +1.0, -1.0), vec3(-1.0, +1.0, -1.0), vec3(-1.0, +1.0, +1.0),
+  vec3(+1.0, +1.0, +1.0), vec3(+1.0, +1.0, -1.0), vec3(-1.0, +1.0, +1.0),
+  vec3(+1.0, -1.0, +1.0), vec3(-1.0, -1.0, +1.0), vec3(-1.0, -1.0, -1.0),
+  vec3(+1.0, -1.0, -1.0), vec3(+1.0, -1.0, +1.0), vec3(-1.0, -1.0, -1.0),
+  vec3(+1.0, +1.0, +1.0), vec3(-1.0, +1.0, +1.0), vec3(-1.0, -1.0, +1.0),
+  vec3(+1.0, -1.0, +1.0), vec3(+1.0, +1.0, +1.0), vec3(-1.0, -1.0, +1.0),
+  vec3(+1.0, -1.0, -1.0), vec3(-1.0, -1.0, -1.0), vec3(-1.0, +1.0, -1.0),
+  vec3(+1.0, +1.0, -1.0), vec3(+1.0, -1.0, -1.0), vec3(-1.0, +1.0, -1.0),
+  vec3(-1.0, +1.0, +1.0), vec3(-1.0, +1.0, -1.0), vec3(-1.0, -1.0, -1.0),
+  vec3(-1.0, -1.0, +1.0), vec3(-1.0, +1.0, +1.0), vec3(-1.0, -1.0, -1.0),
+  vec3(+1.0, +1.0, -1.0), vec3(+1.0, +1.0, +1.0), vec3(+1.0, -1.0, +1.0),
+  vec3(+1.0, -1.0, -1.0), vec3(+1.0, +1.0, -1.0), vec3(+1.0, -1.0, +1.0)
 ]
 
 var color: seq[Vec3[float]] = @[
-  vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0),
-  vec3(1.0, 0.5, 0.0), vec3(1.0, 0.5, 0.0), vec3(1.0, 0.5, 0.0), vec3(1.0, 0.5, 0.0), vec3(1.0, 0.5, 0.0), vec3(1.0, 0.5, 0.0),
-  vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0),
-  vec3(1.0, 1.0, 0.0), vec3(1.0, 1.0, 0.0), vec3(1.0, 1.0, 0.0), vec3(1.0, 1.0, 0.0), vec3(1.0, 1.0, 0.0), vec3(1.0, 1.0, 0.0),
-  vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0),
-  vec3(1.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0)
+  vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0),
+  vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0),
+  vec3(1.0, 0.5, 0.0), vec3(1.0, 0.5, 0.0), vec3(1.0, 0.5, 0.0),
+  vec3(1.0, 0.5, 0.0), vec3(1.0, 0.5, 0.0), vec3(1.0, 0.5, 0.0),
+  vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0),
+  vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0),
+  vec3(1.0, 1.0, 0.0), vec3(1.0, 1.0, 0.0), vec3(1.0, 1.0, 0.0),
+  vec3(1.0, 1.0, 0.0), vec3(1.0, 1.0, 0.0), vec3(1.0, 1.0, 0.0),
+  vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0),
+  vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0),
+  vec3(1.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0),
+  vec3(1.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0)
 ]
 
 type Attribute =
@@ -159,8 +167,10 @@ type Attribute =
 type Uniform =
   tuple[name: string, gl_type: string, location: int]
 
-proc attribute[T](name:string, t : seq[T], location: int = -1) : Attribute = (name, glslType(t), location)
-proc uniform[T](name:string, t : seq[T], location: int = -1) : Uniform = (name, glslType(t), location)
+proc attribute[T](name:string, t : seq[T], location: int = -1) : Attribute =
+  (name, glslType(t), location)
+proc uniform[T](name:string, t : seq[T], location: int = -1) : Uniform =
+  (name, glslType(t), location)
 
 type ShaderParam =
   tuple[name: string, gl_type: string]
@@ -174,8 +184,13 @@ type Program =
     vertex_prg: string
     fragment_prg: string
 
+let sourceHeader = """
+#version 330
+#extension GL_ARB_explicit_uniform_location : enable
+"""
+
 proc vertexSource(prg: Program): string =
-  result = "#version 330\n#extension GL_ARB_explicit_uniform_location : enable\n"
+  result = sourceHeader
   for i, u in prg.uniforms:
     result.add("layout(location = $3) uniform $2 $1;\n" % [u.name, u.gl_type, $(i)])
   for i, a in prg.attributes:
@@ -187,7 +202,7 @@ proc vertexSource(prg: Program): string =
   result.add("\n}")
 
 proc fragmentSource(prg: Program): string =
-  result = "#version 330\n#extension GL_ARB_explicit_uniform_location : enable\n"
+  result = sourceHeader
   for i, u in prg.uniforms:
     result.add("layout(location = $3) uniform $2 $1;\n" % [u.name, u.gl_type, $(i)])
   for v in prg.varyings:
@@ -233,17 +248,6 @@ proc programInfoLog(program: GLuint): string =
   result = newString(length.int)
   glGetProgramInfoLog(program, length, nil, result);
 
-var projection_mat : Mat4x4[float64]
-
-proc reshape(newWidth: cint, newHeight: cint) =
-  glViewport(0, 0, newWidth, newHeight)   # Set the viewport to cover the new window
-  glMatrixMode(GL_PROJECTION)             # To operate on the projection matrix
-
-  # Enable perspective projection with fovy, aspect, zNear and zFar
-  projection_mat = perspective(45.0, newWidth / newHeight, 0.1, 100.0)
-
-  glLoadMatrixd(cast[ptr GLdouble](projection_mat.addr))
-
 proc createShader(shaderType: GLenum, source: string): GLuint =
   result = glCreateShader(shaderType)
   result.shaderSource(source)
@@ -255,6 +259,52 @@ proc createShader(shaderType: GLenum, source: string): GLuint =
     showError(result.shaderInfoLog, source)
     echo "==== end Shader Problems ========================================="
 
+proc createCompileAndLink(prog: Program): GLuint =
+  let vertexShader = createShader(GL_VERTEX_SHADER, prog.vertexSource)
+  defer: glDeleteShader(vertexShader)
+
+  let fragmentShader = createShader(GL_FRAGMENT_SHADER, prog.fragmentSource)
+  defer: glDeleteShader(fragmentShader)
+
+  result = glCreateProgram()
+  glAttachShader(result, vertexShader)
+  glAttachShader(result, fragmentShader)
+  glLinkProgram(result)
+
+  if not result.linkStatus:
+    echo "Log: ", result.programInfoLog
+    glDeleteProgram(result)
+    result = 0
+
+var projection_mat : Mat4x4[float64]
+
+proc reshape(newWidth: cint, newHeight: cint) =
+  glViewport(0, 0, newWidth, newHeight)   # Set the viewport to cover the new window
+  glMatrixMode(GL_PROJECTION)             # To operate on the projection matrix
+
+  # Enable perspective projection with fovy, aspect, zNear and zFar
+  projection_mat = perspective(45.0, newWidth / newHeight, 0.1, 100.0)
+
+  glLoadMatrixd(cast[ptr GLdouble](projection_mat.addr))
+
+template attribSize(t: type Vec3[float64]) : GLint = 3
+template attribType(t: type Vec3[float64]) : GLenum = cGL_DOUBLE
+template attribNormalized(t: type Vec3[float64]) : bool = false
+
+proc makeBuffer[T](buffer: var ArrayBuffer[T], index: GLuint, value: var seq[T], usage: GLenum) =
+  buffer = newArrayBuffer[T]()
+  buffer.bindIt
+  glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(value.len * sizeof(T)), value[0].addr, usage)
+  glVertexAttribPointer(index, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
+
+discard """ template makeBuffer(
+
+    pos_buffer = newArrayBuffer[vertex[0].type]()
+    pos_buffer.bindIt
+    pos_buffer.data = vertex
+    glEnableVertexAttribArray(0)
+    glVertexAttribPointer(0, 3, cGL_DOUBLE, false, 0, nil)
+ """
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
 
@@ -263,18 +313,6 @@ proc render() =
   mv_mat = mv_mat.rotate( vec3[float](0,0,1), time*1.1 )
   mv_mat = mv_mat.rotate( vec3[float](0,1,0), time*1.2 )
   mv_mat = mv_mat.rotate( vec3[float](1,0,0), time*1.3 )
-
-  discard """ glMatrixMode(GL_MODELVIEW)                          # To operate on model-view matrix
-  glLoadMatrixd(cast[ptr GLdouble](mv_mat.addr))
-
-  glPushClientAttrib(GLbitfield(GL_CLIENT_ALL_ATTRIB_BITS))
-  glEnableClientState(GL_COLOR_ARRAY)
-  glEnableClientState(GL_VERTEX_ARRAY)
-  glVertexPointer(3, cGL_DOUBLE, 0, vertex[0].addr)
-  glColorPointer(3, cGL_DOUBLE, 0, color[0].addr)
-
-  glDrawArrays(GL_TRIANGLES, 0, GLsizei(vertex.len) )
-  glPopClientAttrib() """
 
   var vao {.global.}: VertexArrayObject
   var pos_buffer {.global.}: ArrayBuffer[vertex[0].type]
@@ -292,62 +330,32 @@ proc render() =
       fragment_prg: "color = v_col;"
     )
 
-    let vertexShader = createShader(GL_VERTEX_SHADER, myprog.vertexSource)
-    defer: glDeleteShader(vertexShader)
-    let fragmentShader = createShader(GL_FRAGMENT_SHADER, myprog.fragmentSource)
-    defer: glDeleteShader(fragmentShader)
-
-    echo "=== vertex source ==="
-    echo myprog.vertexSource
-    echo "=== fragment source ==="
-    echo myprog.fragmentSource
-    echo "=== end program ==="
-
-    gl_program = glCreateProgram()
-    glAttachShader(gl_program, vertexShader)
-    glAttachShader(gl_program, fragmentShader)
-    glLinkProgram(gl_program)
-
-    if not gl_program.linkStatus:
-      echo "Log: ", gl_program.programInfoLog
-
+    gl_program = myprog.createCompileAndLink
     glUseProgram(gl_program)
 
     vao = newVertexArrayObject()
-    vao.bindIt
+    vao.blockBind:
+      glEnableVertexAttribArray(0)
+      pos_buffer.makeBuffer(0, vertex, GL_STATIC_DRAW)
+      glEnableVertexAttribArray(1)
+      col_buffer.makeBuffer(1, color, GL_STATIC_DRAW)
+      glBindBuffer(GL_ARRAY_BUFFER, 0)
 
-    pos_buffer = newArrayBuffer[vertex[0].type]()
-    pos_buffer.bindIt
-    pos_buffer.data = vertex
-    glEnableVertexAttribArray(0)
-    glVertexAttribPointer(0, 3, cGL_DOUBLE, false, 0, nil)
 
-    col_buffer = newArraybuffer[color[0].type]()
-    col_buffer.bindIt
-    col_buffer.data = color
-    glEnableVertexAttribArray(1)
-    glVertexAttribPointer(1, 3, cGL_DOUBLE, false, 0, nil)
 
-    glBindBuffer(GL_ARRAY_BUFFER, 0)
-
-    glBindVertexArray(0)
+  var modelview_float32 = mv_mat.mat4f
+  var projection_float32 = mat4f(projection_mat)
 
   glUseProgram(gl_program)
-  vao.bindIt
 
-  var modelview_float32, projection_float32 : Mat4x4[float32]
-  for i in 0..<4:
-   for j in 0..<4:
-     modelview_float32[i][j] = mv_mat[i][j]
-     projection_float32[i][j] = projection_mat[i][j]
+  vao.blockBind:
+    glUniformMatrix4fv(0, 1, false, cast[ptr GLfloat](projection_float32.addr))
+    glUniformMatrix4fv(1, 1, false, cast[ptr GLfloat](modelview_float32.addr))
 
-  glUniformMatrix4fv(0, 1, false, cast[ptr GLfloat](projection_float32.addr))
-  glUniformMatrix4fv(1, 1, false, cast[ptr GLfloat](modelview_float32.addr))
+    glDrawArrays(GL_TRIANGLES, 0, GLsizei(vertex.len) )
 
-  glDrawArrays(GL_TRIANGLES, 0, GLsizei(vertex.len) )
-
-  glUseProgram(0);
-  glBindVertexArray(0)
+    glUseProgram(0);
+    glBindVertexArray(0)
 
   window.glSwapWindow # Swap the front and back frame buffers (double buffering)
 
@@ -392,3 +400,4 @@ while runGame:
   render()
 
   limitFrameRate()
+
