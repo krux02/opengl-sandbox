@@ -9,24 +9,7 @@ import strutils
 import nre
 import glm
 import typetraits
-
-discard sdl2.init(INIT_EVERYTHING)
-
-var screenWidth: cint = 640
-var screenHeight: cint = 480
-
-var time = 0.0
-var window = createWindow("SDL/OpenGL Skeleton", 100, 100, screenWidth, screenHeight, SDL_WINDOW_OPENGL or SDL_WINDOW_RESIZABLE)
-var context = window.glCreateContext()
-
-# Initialize OpenGL
-loadExtensions()
-glClearColor(0.0, 0.0, 0.0, 1.0)                  # Set background color to black and opaque
-glClearDepth(1.0)                                 # Set background depth to farthest
-glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-culling
-glDepthFunc(GL_LEQUAL)                            # Set the type of depth-test
-glShadeModel(GL_SMOOTH)                           # Enable smooth shading
-glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST) # Nice perspective corrections
+import macros
 
 type Vec4f = Vec4[float32]
 type Vec3f = Vec4[float32]
@@ -200,6 +183,24 @@ type Program =
     vertex_prg: string
     fragment_prg: string
 
+discard sdl2.init(INIT_EVERYTHING)
+
+var screenWidth: cint = 640
+var screenHeight: cint = 480
+
+var time = 0.0
+var window = createWindow("SDL/OpenGL Skeleton", 100, 100, screenWidth, screenHeight, SDL_WINDOW_OPENGL or SDL_WINDOW_RESIZABLE)
+var context = window.glCreateContext()
+
+# Initialize OpenGL
+loadExtensions()
+glClearColor(0.0, 0.0, 0.0, 1.0)                  # Set background color to black and opaque
+glClearDepth(1.0)                                 # Set background depth to farthest
+glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-culling
+glDepthFunc(GL_LEQUAL)                            # Set the type of depth-test
+glShadeModel(GL_SMOOTH)                           # Enable smooth shading
+glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST) # Nice perspective corrections
+
 let sourceHeader = """
 #version 330
 #extension GL_ARB_explicit_uniform_location : enable
@@ -221,29 +222,32 @@ vec4 mymix(vec4 color, float alpha) {
 
 """
 
-proc vertexSource(prg: Program): string =
+proc genShaderSource(
+    uniforms : seq[ShaderParam], uniformLocations : bool,
+    inParams : seq[ShaderParam], inLocations : bool,
+    outParams: seq[ShaderParam], mainSrc: string): string =
   result = sourceHeader
-  for i, u in prg.uniforms:
-    result.add("layout(location = $3) uniform $2 $1;\n" % [u.name, u.gl_type, $(i)])
-  for i, a in prg.attributes:
-    result.add("layout(location = $3) in $2 $1;\n" % [a.name, a.gl_type, $(i)])
-  for v in prg.varyings:
+  for i, u in uniforms:
+    if uniformLocations:
+      result.add("layout(location = $3) uniform $2 $1;\n" % [u.name, u.gl_type, $(i)])
+    else:
+      result.add("uniform $2 $1;\n" % [u.name, u.gl_type])
+  for i, a in inParams:
+    if inLocations:
+      result.add("layout(location = $3) in $2 $1;\n" % [a.name, a.gl_type, $(i)])
+    else:
+      result.add("in $2 $1;\n" % [a.name, a.gl_type, $(i)])
+  for v in outParams:
     result.add("out $2 $1;\n" % [v.name, v.gl_type])
   result.add("void main() {\n")
-  result.add(prg.vertex_prg)
+  result.add(mainSrc)
   result.add("\n}")
 
+proc vertexSource(prg: Program): string =
+  genShaderSource(prg.uniforms, true, prg.attributes, true, prg.varyings, prg.vertex_prg)
+
 proc fragmentSource(prg: Program): string =
-  result = sourceHeader
-  for i, u in prg.uniforms:
-    result.add("layout(location = $3) uniform $2 $1;\n" % [u.name, u.gl_type, $(i)])
-  for v in prg.varyings:
-    result.add("in $2 $1;\n" % [v.name, v.gl_type])
-  for v in prg.frag_out:
-    result.add("out $2 $1;\n" % [v.name, v.gl_type])
-  result.add("void main() {\n")
-  result.add(prg.fragment_prg)
-  result.add("\n}\n")
+  genShaderSource(prg.uniforms, true, prg.varyings, false, prg.frag_out, prg.fragment_prg)
 
 proc shaderSource(shader: GLuint, source: string) =
   var source_array: array[1, string] = [source]
@@ -376,14 +380,12 @@ proc render() =
 
     glDrawArrays(GL_TRIANGLES, 0, GLsizei(vertex.len) )
 
-    glUseProgram(0);
-    glBindVertexArray(0)
-
+  glUseProgram(0);
   window.glSwapWindow # Swap the front and back frame buffers (double buffering)
 
 # Frame rate limiter
 
-let targetFramePeriod: uint32 = 20 # 20 milliseconds corresponds to 50 fps
+let targetFramePeriod: uint32 = 10 # 10 milliseconds corresponds to 100 fps
 var frameTime: uint32 = 0
 
 proc limitFrameRate() =
