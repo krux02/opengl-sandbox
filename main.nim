@@ -333,6 +333,11 @@ proc makeBuffer[T](buffer: var ArrayBuffer[T], index: GLuint, value: var seq[T],
   glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(value.len * sizeof(T)), value[0].addr, usage)
   glVertexAttribPointer(index, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
 
+macro macro_test(statement: expr) : stmt =
+  echo treeRepr(statement)
+  echo repr(statement)
+  discard
+
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
 
@@ -359,6 +364,24 @@ proc render() =
       vertex_prg: "gl_Position = projection * modelview * vec4(pos,1); v_col = vec4(col,1);",
       fragment_prg: "color = mymix(v_col, time);"
     )
+
+    macro_test:
+      uniforms:
+        projection = projection_mat
+        modelview = modelview_mat
+        time
+      attributes:
+        pos = vertex
+        col = color
+      varyings:
+        var v_col : vec4
+      frag_out:
+        var color : vec4
+      vertex_prg:
+        gl_Position = projection * modelview * vec4(pos,1)
+        v_col = vec4(col,1)
+      fragment_prg:
+        color = mymix(v_col, time)
 
     gl_program = myprog.createCompileAndLink
     glUseProgram(gl_program)
