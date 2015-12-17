@@ -85,9 +85,6 @@ proc bindIt[T](buffer: ElementArrayBuffer[T]) =
 proc bindIt[T](buffer: UniformBuffer[T]) =
   glBindBuffer(GL_UNIFORM_BUFFER, GLuint(buffer))
 
-proc test(buffer: ArrayBuffer[Vec3f], data: var seq[Vec3f]) =
-  glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(Vec3f)), data[0].addr, GL_STATIC_DRAW)
-
 
 proc bufferData[T](buffer: ArrayBuffer[T], data: var seq[T]) =
   glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), data[0].addr, GL_STATIC_DRAW)
@@ -174,15 +171,6 @@ proc uniform[T](name:string, t : seq[T], location: int = -1) : Uniform =
 type ShaderParam =
   tuple[name: string, gl_type: string]
 
-type Program =
-  ref object
-    uniforms: seq[ShaderParam]
-    attributes: seq[ShaderParam]
-    varyings: seq[ShaderParam]
-    frag_out: seq[ShaderParam]
-    vertex_prg: string
-    fragment_prg: string
-
 discard sdl2.init(INIT_EVERYTHING)
 
 var screenWidth: cint = 640
@@ -194,6 +182,16 @@ var context = window.glCreateContext()
 
 # Initialize OpenGL
 loadExtensions()
+
+if 0 != glSetSwapInterval(-1):
+  echo "glSetSwapInterval -1 not supported"
+  echo sdl2.getError()
+  if 0 != glSetSwapInterval(1):
+    echo "but glSetSwapInterval 1 is ok"
+  else:
+    echo "even 1 is not ok"
+    echo sdl2.getError()
+
 glClearColor(0.0, 0.0, 0.0, 1.0)                  # Set background color to black and opaque
 glClearDepth(1.0)                                 # Set background depth to farthest
 glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-culling
@@ -219,35 +217,28 @@ vec4 mymix(vec4 color, float alpha) {
 
   return vec4(r,g,b, color.a);
 }
-
 """
 
 proc genShaderSource(
-    uniforms : seq[ShaderParam], uniformLocations : bool,
-    inParams : seq[ShaderParam], inLocations : bool,
-    outParams: seq[ShaderParam], mainSrc: string): string =
+    uniforms : openArray[ShaderParam], uniformLocations : bool,
+    inParams : openArray[ShaderParam], inLocations : bool,
+    outParams: openArray[ShaderParam], mainSrc: string): string =
   result = sourceHeader
   for i, u in uniforms:
     if uniformLocations:
-      result.add("layout(location = $3) uniform $2 $1;\n" % [u.name, u.gl_type, $(i)])
+      result.add format("layout(location = $3) uniform $2 $1;\n", u.name, u.gl_type, i)
     else:
-      result.add("uniform $2 $1;\n" % [u.name, u.gl_type])
+      result.add format("uniform $2 $1;\n", u.name, u.gl_type)
   for i, a in inParams:
     if inLocations:
-      result.add("layout(location = $3) in $2 $1;\n" % [a.name, a.gl_type, $(i)])
+      result.add format("layout(location = $3) in $2 $1;\n", a.name, a.gl_type, i)
     else:
-      result.add("in $2 $1;\n" % [a.name, a.gl_type, $(i)])
+      result.add format("in $2 $1;\n", a.name, a.gl_type, i)
   for v in outParams:
-    result.add("out $2 $1;\n" % [v.name, v.gl_type])
+    result.add format("out $2 $1;\n", v.name, v.gl_type)
   result.add("void main() {\n")
   result.add(mainSrc)
   result.add("\n}")
-
-proc vertexSource(prg: Program): string =
-  genShaderSource(prg.uniforms, true, prg.attributes, true, prg.varyings, prg.vertex_prg)
-
-proc fragmentSource(prg: Program): string =
-  genShaderSource(prg.uniforms, true, prg.varyings, false, prg.frag_out, prg.fragment_prg)
 
 proc shaderSource(shader: GLuint, source: string) =
   var source_array: array[1, string] = [source]
@@ -295,11 +286,11 @@ proc createShader(shaderType: GLenum, source: string): GLuint =
     showError(result.shaderInfoLog, source)
     echo "==== end Shader Problems ========================================="
 
-proc createCompileAndLink(prog: Program): GLuint =
-  let vertexShader = createShader(GL_VERTEX_SHADER, prog.vertexSource)
+proc createCompileAndLink(vertexSource: string, fragmentSource: string): GLuint =
+  let vertexShader = createShader(GL_VERTEX_SHADER, vertexSource)
   defer: glDeleteShader(vertexShader)
 
-  let fragmentShader = createShader(GL_FRAGMENT_SHADER, prog.fragmentSource)
+  let fragmentShader = createShader(GL_FRAGMENT_SHADER, fragmentSource)
   defer: glDeleteShader(fragmentShader)
 
   result = glCreateProgram()
@@ -353,18 +344,26 @@ proc render() =
   var gl_program {.global.}: GLuint  = 0;
 
   if gl_program == 0:
-    var myprog = Program(
-      uniforms: @[ ("projection", projection_mat.type.uniformType),
-                   ("modelview", modelview_mat.type.uniformType),
-                   ("time", time.type.uniformType) ],
-      attributes: @[ ("pos", vertex.type.glslType),
-                     ("col", color.type.glslType) ],
-      varyings: @[ ("v_col", "vec4") ],
-      frag_out: @[ ("color", "vec4") ],
-      vertex_prg: "gl_Position = projection * modelview * vec4(pos,1); v_col = vec4(col,1);",
-      fragment_prg: "color = mymix(v_col, time);"
-    )
-
+    var uniforms: seq[ShaderParam] = @[
+        ("projection", projection_mat.type.uniformType),
+        ("modelview", modelview_mat.type.uniformType),
+        ("time", time.type.uniformType),
+    ]
+    var attributes: seq[ShaderParam] = @[
+        ("pos", vertex.type.glslType),
+        ("col", color.type.glslType),
+    ]
+    var varyings: seq[ShaderParam] = @[ ("v_col", "vec4") ]
+    var fragOut: seq[ShaderParam] = @[ ("color", "vec4") ]
+    var vertexSrc: string =
+      """
+      gl_Position = projection * modelview * vec4(pos,1);
+      v_col = vec4(col,1);
+      """
+    var fragmentSrc: string =
+      """
+      color = mymix(v_col, time);
+      """
     macro_test:
       uniforms:
         projection = projection_mat
@@ -383,7 +382,11 @@ proc render() =
       fragment_prg:
         color = mymix(v_col, time)
 
-    gl_program = myprog.createCompileAndLink
+    gl_program = createCompileAndLink(
+      genShaderSource(uniforms, true, attributes, true, varyings, vertexSrc), # vertex program
+      genShaderSource(uniforms, true, varyings, false, fragOut, fragmentSrc) # fragment program
+    )
+
     glUseProgram(gl_program)
 
     vao = newVertexArrayObject()
@@ -406,17 +409,6 @@ proc render() =
   glUseProgram(0);
   window.glSwapWindow # Swap the front and back frame buffers (double buffering)
 
-# Frame rate limiter
-
-let targetFramePeriod: uint32 = 10 # 10 milliseconds corresponds to 100 fps
-var frameTime: uint32 = 0
-
-proc limitFrameRate() =
-  let now = getTicks()
-  if frameTime > now:
-    delay(frameTime - now) # Delay to maintain steady frame rate
-  frameTime += targetFramePeriod
-
 # Main loop
 
 var
@@ -424,6 +416,9 @@ var
   runGame = true
 
 reshape(screenWidth, screenHeight) # Set up initial viewport and projection
+
+var frameCounter = 0
+var frameCounterStartTime = 0.0
 
 while runGame:
   while pollEvent(evt):
@@ -441,10 +436,16 @@ while runGame:
       if keyboardEvent.keysym.scancode == SDL_SCANCODE_ESCAPE:
         runGame = false
         break
-
   time = float64( getTicks() ) / 1000.0
+  if time - frameCounterStartTime >= 1:
+    echo "FPS: ", frameCounter
+    frameCounter = 0
+    frameCounterStartTime = time
 
   render()
+  frameCounter += 1
 
-  limitFrameRate()
+
+
+  #limitFrameRate()
 
