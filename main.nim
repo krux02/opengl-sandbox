@@ -1,6 +1,6 @@
 # OpenGL example using SDL2
 
-import sdl2, opengl, math, sequtils, strutils, glm, typetraits, macros, fancygl
+import sdl2, opengl, math, glm, fancygl
 
 
 var vertex: seq[Vec3[float]] = @[
@@ -58,9 +58,7 @@ glClearColor(0.0, 0.0, 0.0, 1.0)                  # Set background color to blac
 glClearDepth(1.0)                                 # Set background depth to farthest
 glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-culling
 glDepthFunc(GL_LEQUAL)                            # Set the type of depth-test
-glShadeModel(GL_SMOOTH)                           # Enable smooth shading
 glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST) # Nice perspective corrections
-
 
 let glslCode = """
 vec4 mymix(vec4 color, float alpha) {
@@ -86,47 +84,54 @@ proc reshape(newWidth: cint, newHeight: cint) =
 
 var mouseX, mouseY: int32
 var time = 0.0
+var frameCounter = 0
 
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
 
-  var modelview_mat: Mat4x4[float]  = I4()
-  modelview_mat = modelview_mat.transform( vec3(2*sin(time), 2*cos(time), -7.0) )
-  modelview_mat = modelview_mat.rotate( vec3[float](0,0,1), time*1.1 )
-  modelview_mat = modelview_mat.rotate( vec3[float](0,1,0), time*1.2 )
-  modelview_mat = modelview_mat.rotate( vec3[float](1,0,0), time*1.3 )
-
   let mouseX_Norm = (mouseX.float32 / screenWidth.float32)
   let mouseY_Norm = (mouseY.float32 / screenHeight.float32)
   let mousePosNorm = vec2(mouseX_Norm, mouseY_Norm)
-  let mvp =  modelview_mat * projection_mat;
 
-  shadingDsl:
-    uniforms:
-      modelview = modelview_mat
-      projection = projection_mat
-      time
-      mousePosNorm
-    attributes:
-      pos = vertex
-      col = color
-    varyings:
-      var v_col : vec4
-    frag_out:
-      var color : vec4
-    includes:
-      glslCode
-    vertex_prg:
-      """
-      gl_Position = projection * modelview * vec4(pos,1);
-      v_col = vec4(col,1);
-      """
-    fragment_prg:
-      """
-      vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;
-      color = mymix(v_col, time + dot( vec2(cos(time),sin(time)), offset ));
-      """
 
+  for i in 0..<7:
+    let newTime = time * (1.0 + i.float64 / 5.0)
+
+    var modelview_mat: Mat4x4[float]  = I4()
+    modelview_mat = modelview_mat.transform( vec3(2*sin(newTime), 2*cos(newTime), -7.0) )
+    modelview_mat = modelview_mat.rotate( vec3[float](0,0,1), newTime )
+    modelview_mat = modelview_mat.rotate( vec3[float](0,1,0), newTime )
+    modelview_mat = modelview_mat.rotate( vec3[float](1,0,0), newTime )
+
+    let mvp =  modelview_mat * projection_mat;
+
+    shadingDsl:
+      uniforms:
+        mvp
+        time
+        mousePosNorm
+      attributes:
+        pos = vertex
+        col = color
+      varyings:
+        var v_col : vec4
+      frag_out:
+        var color : vec4
+      includes:
+        glslCode
+      vertex_prg:
+        """
+        gl_Position = mvp * vec4(pos,1);
+        v_col = vec4(col,1);
+        """
+      fragment_prg:
+        """
+        //vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;
+        //color = mymix(v_col, time + dot( vec2(cos(time),sin(time)), offset ));
+        color = v_col;
+        """
+
+  frameCounter += 1
   glSwapWindow(window) # Swap the front and back frame buffers (double buffering)
 
 # Main loop
@@ -134,8 +139,8 @@ proc render() =
 var
   evt = sdl2.defaultEvent
   runGame = true
-  frameCounter = 0
-  frameCounterStartTime = 0.0
+  fpsFrameCounter = 0
+  fpsFrameCounterStartTime = 0.0
 
 reshape(screenWidth, screenHeight) # Set up initial viewport and projection
 
@@ -161,13 +166,13 @@ while runGame:
       mouseY = mouseEvent.y
 
   time = float64( getTicks() ) / 1000.0
-  if time - frameCounterStartTime >= 1:
+  if time - fpsFrameCounterStartTime >= 1:
     echo "FPS: ", frameCounter
-    frameCounter = 0
-    frameCounterStartTime = time
+    fpsFrameCounter = 0
+    fpsFrameCounterStartTime = time
 
   render()
-  frameCounter += 1
+  fpsframeCounter += 1
 
 
 

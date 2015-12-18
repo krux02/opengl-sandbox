@@ -1,4 +1,4 @@
-import opengl, glm, strutils, nre, macros
+import opengl, glm, strutils, nre, macros, sdl2, sdl2/image
 
 #### glm additions ####
 
@@ -27,6 +27,88 @@ proc I4*() : Mat4d = mat4x4(
   vec4(0.0, 0, 1, 0),
   vec4(0.0, 0, 0, 1)
 )
+#### Sampler Types ####
+
+type Texture1D* = distinct GLuint
+type Texture2D* = distinct GLuint
+type Texture3D* = distinct GLuint
+type Texture1DArray* = distinct GLuint
+type Texture2DArray* = distinct GLuint
+type TextureRectangle* = distinct GLuint
+type TextureCubeMap* = distinct GLuint
+type TextureCubeMapArray* = distinct GLuint
+type TextureBuffer* = distinct GLuint
+type Texture2DMultisample* = distinct GLuint
+type Texture2DMultisampleArray* = distinct GLuint
+
+const nil_Texture1D* = Texture1D(0)
+const nil_Texture2D* = Texture2D(0)
+const nil_Texture3D* = Texture3D(0)
+const nil_Texture1DArray* = Texture1DArray(0)
+const nil_Texture2DArray* = Texture2DArray(0)
+const nil_TextureRectangle* = TextureRectangle(0)
+const nil_TextureCubeMap* = TextureCubeMap(0)
+const nil_TextureCubeMapArray* = TextureCubeMapArray(0)
+const nil_TextureBuffer* = TextureBuffer(0)
+const nil_Texture2DMultisample* = Texture2DMultisample(0)
+const nil_Texture2DMultisampleArray* = Texture2DMultisampleArray(0)
+
+proc bindIt(texture: Texture1D) =
+  glBindTexture(GL_Texture_1D, GLuint(texture))
+
+proc bindIt(texture: Texture2D) =
+  glBindTexture(GL_Texture_2D, GLuint(texture))
+
+proc bindIt(texture: Texture3D) =
+  glBindTexture(GL_Texture_3D, GLuint(texture))
+
+proc bindIt(texture: Texture1DArray) =
+  glBindTexture(GL_Texture_1D_ARRAY, GLuint(texture))
+
+proc bindIt(texture: Texture2DArray) =
+  glBindTexture(GL_TEXTURE_2D_ARRAY, GLuint(texture))
+
+proc bindIt(texture: TextureRectangle) =
+  glBindTexture(GL_TEXTURE_RECTANGLE , GLuint(texture))
+
+proc bindIt(texture: TextureCubeMap) =
+  glBindTexture(GL_TEXTURE_CUBE_MAP , GLuint(texture))
+
+proc bindIt(texture: TextureCubeMapArray) =
+  glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY , GLuint(texture))
+
+proc bindIt(texture: TextureBuffer) =
+  glBindTexture(GL_TEXTURE_BUFFER , GLuint(texture))
+
+proc bindIt(texture: Texture2DMultisample) =
+  glBindTexture(GL_TEXTURE_2D_MULTISAMPLE , GLuint(texture))
+
+proc bindIt(texture: Texture2DMultisampleArray) =
+  glBindTexture(GL_TEXTURE_2D_MULTISAMPLE_ARRAY , GLuint(texture))
+
+
+proc loadAndBindTextureRectangleFromFile*(filename: string): TextureRectangle =
+  let surface = image.load(filename)
+  defer: freeSurface(surface)
+  let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
+  defer: freeSurface(surface2)
+  glGenTextures(1, cast[ptr GLuint](result.addr))
+  result.bindIt()
+  glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGBA, surface2.w, surface2.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
+  glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+  glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+
+proc loadAndBindTexture2DFromFile*(filename: string): TextureRectangle =
+  let surface = image.load(filename)
+  defer: freeSurface(surface)
+  let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
+  defer: freeSurface(surface2)
+  glGenTextures(1, cast[ptr GLuint](result.addr))
+  result.bindIt()
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, surface2.w, surface2.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+  glGenerateMipmap(GL_TEXTURE_2D)
 
 #### nim -> glsl type mapping ####
 
@@ -39,6 +121,18 @@ template glslUniformType*(t : type Mat2x2): string = "mat2"
 template glslUniformType*(t : type float): string = "float"
 template glslUniformType*(t : type float32): string = "float"
 template glslUniformType*(t : type float64): string = "float"
+
+template glslUniformType*(t : type Texture1D): string = "sampler1D"
+template glslUniformType*(t : type Texture2D): string = "sampler2D"
+template glslUniformType*(t : type Texture3D): string = "sampler3D"
+template glslUniformType*(t : type Texture1DArray): string = "sampler1DArray"
+template glslUniformType*(t : type Texture2DArray): string = "sampler2DArray"
+template glslUniformType*(t : type TextureRectangle): string = "sampler2DRect"
+template glslUniformType*(t : type TextureCubeMap): string = "samplerCube"
+template glslUniformType*(t : type TextureCubeMapArray): string = "samplerCubeArray"
+template glslUniformType*(t : type TextureBuffer): string = "samplerBuffer"
+template glslUniformType*(t : type Texture2DMultisample): string = "sampler2D"
+template glslUniformType*(t : type Texture2DMultisampleArray): string = "sampler2DArray"
 
 template glslAttribType*(t : type seq[Vec4]): string = "vec4"
 template glslAttribType*(t : type seq[Vec3]): string = "vec3"
@@ -71,7 +165,9 @@ proc uniform*(location: GLint, value: Vec3f) =
 proc uniform*(location: GLint, value: Vec4f) =
   glUniform4f(location, value[0], value[1], value[2], value[3])
 
+
 #### Vertex Array Object ####
+
 
 type VertexArrayObject* = distinct GLuint
 
