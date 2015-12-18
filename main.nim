@@ -18,27 +18,29 @@ type Vec4d = Vec4[float64]
 type Vec3d = Vec4[float64]
 type Vec2d = Vec4[float64]
 
-template uniformType(t : type Vec4): string = "vec4"
-template uniformType(t : type Vec3): string = "vec3"
-template uniformType(t : type Vec2): string = "vec2"
-template uniformType(t : type Mat4x4): string = "mat4"
-template uniformType(t : type Mat3x3): string = "mat3"
-template uniformType(t : type Mat2x2): string = "mat2"
-template uniformType(t : type float): string = "float"
-template uniformType(t : type float32): string = "float"
-template uniformType(t : type float64): string = "float"
+template glslUniformType(t : type Vec4): string = "vec4"
+template glslUniformType(t : type Vec3): string = "vec3"
+template glslUniformType(t : type Vec2): string = "vec2"
+template glslUniformType(t : type Mat4x4): string = "mat4"
+template glslUniformType(t : type Mat3x3): string = "mat3"
+template glslUniformType(t : type Mat2x2): string = "mat2"
+template glslUniformType(t : type float): string = "float"
+template glslUniformType(t : type float32): string = "float"
+template glslUniformType(t : type float64): string = "float"
 
-template glslType(t : type seq[Vec4]): string = "vec4"
-template glslType(t : type seq[Vec3]): string = "vec3"
-template glslType(t : type seq[Vec2]): string = "vec2"
-template glslType(t : type seq[Mat4x4]): string = "mat4"
-template glslType(t : type seq[Mat3x3]): string = "mat3"
-template glslType(t : type seq[Mat2x2]): string = "mat2"
+template glslAttribType(t : type seq[Vec4]): string = "vec4"
+template glslAttribType(t : type seq[Vec3]): string = "vec3"
+template glslAttribType(t : type seq[Vec2]): string = "vec2"
+template glslAttribType(t : type seq[Mat4x4]): string = "mat4"
+template glslAttribType(t : type seq[Mat3x3]): string = "mat3"
+template glslAttribType(t : type seq[Mat2x2]): string = "mat2"
 
 type VertexArrayObject = distinct GLuint
 
 proc newVertexArrayObject() : VertexArrayObject =
   glGenVertexArrays(1, cast[ptr GLuint](result.addr))
+
+const nil_vao = VertexArrayObject(0)
 
 proc bindIt(vao: VertexArrayObject) =
   glBindVertexArray(GLuint(vao))
@@ -50,7 +52,7 @@ proc delete(vao: VertexArrayObject) =
 template blockBind(vao: VertexArrayObject, blk: stmt) : stmt =
   vao.bindIt
   blk
-  glBindVertexArray(0)
+  nil_vao.bindIt
 
 type ArrayBuffer[T]        = distinct GLuint
 type ElementArrayBuffer[T] = distinct GLuint
@@ -157,16 +159,17 @@ var color: seq[Vec3[float]] = @[
   vec3(1.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0)
 ]
 
-type Attribute =
-  tuple[name: string, gl_type: string, location: int]
+#type Attribute =
+#  tuple[name: string, gl_type: string, location: int]
 
-type Uniform =
-  tuple[name: string, gl_type: string, location: int]
+#type Uniform =
+#  tuple[name: string, gl_type: string, location: int]
 
-proc attribute[T](name:string, t : seq[T], location: int = -1) : Attribute =
-  (name, glslType(t), location)
-proc uniform[T](name:string, t : seq[T], location: int = -1) : Uniform =
-  (name, glslType(t), location)
+#proc attribute[T](name:string, t : seq[T], location: int = -1) : Attribute =
+#  (name, glslType(t), location)
+#
+#proc uniform[T](name:string, t : seq[T], location: int = -1) : Uniform =
+#  (name, glslType(t), location)
 
 type ShaderParam =
   tuple[name: string, gl_type: string]
@@ -275,7 +278,7 @@ proc programInfoLog(program: GLuint): string =
   result = newString(length.int)
   glGetProgramInfoLog(program, length, nil, result);
 
-proc createShader(shaderType: GLenum, source: string): GLuint =
+proc compileShader(shaderType: GLenum, source: string): GLuint =
   result = glCreateShader(shaderType)
   result.shaderSource(source)
   glCompileShader(result)
@@ -286,16 +289,12 @@ proc createShader(shaderType: GLenum, source: string): GLuint =
     showError(result.shaderInfoLog, source)
     echo "==== end Shader Problems ========================================="
 
-proc createCompileAndLink(vertexSource: string, fragmentSource: string): GLuint =
-  let vertexShader = createShader(GL_VERTEX_SHADER, vertexSource)
-  defer: glDeleteShader(vertexShader)
-
-  let fragmentShader = createShader(GL_FRAGMENT_SHADER, fragmentSource)
-  defer: glDeleteShader(fragmentShader)
-
+proc linkShader(shaders: varargs[GLuint]): GLuint =
   result = glCreateProgram()
-  glAttachShader(result, vertexShader)
-  glAttachShader(result, fragmentShader)
+
+  for shader in shaders:
+    glAttachShader(result, shader)
+    glDeleteShader(shader)
   glLinkProgram(result)
 
   if not result.linkStatus:
@@ -318,16 +317,17 @@ template attribSize(t: type Vec3[float64]) : GLint = 3
 template attribType(t: type Vec3[float64]) : GLenum = cGL_DOUBLE
 template attribNormalized(t: type Vec3[float64]) : bool = false
 
-proc makeBuffer[T](buffer: var ArrayBuffer[T], index: GLuint, value: var seq[T], usage: GLenum) =
+proc makeAndBindBuffer[T](buffer: var ArrayBuffer[T], index: GLuint, value: var seq[T], usage: GLenum) =
   buffer = newArrayBuffer[T]()
   buffer.bindIt
   glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(value.len * sizeof(T)), value[0].addr, usage)
   glVertexAttribPointer(index, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
 
 macro macro_test(statement: expr) : stmt =
-  echo treeRepr(statement)
-  echo repr(statement)
+  #echo treeRepr(statement)
+  #echo repr(statement)
   discard
+
 
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
@@ -338,76 +338,88 @@ proc render() =
   modelview_mat = modelview_mat.rotate( vec3[float](0,1,0), time*1.2 )
   modelview_mat = modelview_mat.rotate( vec3[float](1,0,0), time*1.3 )
 
-  var vao {.global.}: VertexArrayObject
-  var pos_buffer {.global.}: ArrayBuffer[vertex[0].type]
-  var col_buffer {.global.}: ArrayBuffer[color[0].type]
-  var gl_program {.global.}: GLuint  = 0;
+  macro_test:
+    uniforms:
+      projection = projection_mat
+      modelview = modelview_mat
+      time
+    attributes:
+      pos = vertex
+      col = color
+    varyings:
+      var v_col : vec4
+    frag_out:
+      var color : vec4
+    vertex_prg:
+      """
+      gl_Position = projection * modelview * vec4(pos,1)
+      v_col = vec4(col,1)
+      """
+    fragment_prg:
+      """
+      color = mymix(v_col, time)
+      """
 
-  if gl_program == 0:
-    var uniforms: seq[ShaderParam] = @[
-        ("projection", projection_mat.type.uniformType),
-        ("modelview", modelview_mat.type.uniformType),
-        ("time", time.type.uniformType),
-    ]
-    var attributes: seq[ShaderParam] = @[
-        ("pos", vertex.type.glslType),
-        ("col", color.type.glslType),
-    ]
-    var varyings: seq[ShaderParam] = @[ ("v_col", "vec4") ]
-    var fragOut: seq[ShaderParam] = @[ ("color", "vec4") ]
-    var vertexSrc: string =
-      """
-      gl_Position = projection * modelview * vec4(pos,1);
-      v_col = vec4(col,1);
-      """
-    var fragmentSrc: string =
-      """
-      color = mymix(v_col, time);
-      """
-    macro_test:
-      uniforms:
-        projection = projection_mat
-        modelview = modelview_mat
-        time
-      attributes:
-        pos = vertex
-        col = color
-      varyings:
-        var v_col : vec4
-      frag_out:
-        var color : vec4
-      vertex_prg:
-        gl_Position = projection * modelview * vec4(pos,1)
-        v_col = vec4(col,1)
-      fragment_prg:
-        color = mymix(v_col, time)
+  dumptree:
+    var vao {.global.}: VertexArrayObject
+    var gl_program {.global.}: GLuint  = 0
+    var pos_buffer {.global.}: ArrayBuffer[vertex[0].type]
+    var col_buffer {.global.}: ArrayBuffer[color[0].type]
 
-    gl_program = createCompileAndLink(
-      genShaderSource(uniforms, true, attributes, true, varyings, vertexSrc), # vertex program
-      genShaderSource(uniforms, true, varyings, false, fragOut, fragmentSrc) # fragment program
-    )
+    if gl_program == 0:
+      let uniforms: seq[ShaderParam] = @[
+          ("projection", glslUniformType(type(projection_mat))),
+          ("modelview", glslUniformType(type(modelview_mat))),
+          ("time", glslUniformType(type(time))),
+      ]
+      let attributes: seq[ShaderParam] = @[
+          ("pos", glslAttribType(type(vertex))),
+          ("col", glslAttribType(type(color))),
+      ]
+      let varyings: seq[ShaderParam] = @[ ("v_col", "vec4") ]
+      let fragOut: seq[ShaderParam] = @[ ("color", "vec4") ]
+      let vertexSrc: string =
+        """
+        gl_Position = projection * modelview * vec4(pos,1);
+        v_col = vec4(col,1);
+        """
+      let fragmentSrc: string =
+        """
+        color = mymix(v_col, time);
+        """
+
+      gl_program = linkShader(
+        compileShader(GL_VERTEX_SHADER,   genShaderSource(uniforms, true, attributes, true, varyings, vertexSrc)),
+        compileShader(GL_FRAGMENT_SHADER, genShaderSource(uniforms, true, varyings, false, fragOut, fragmentSrc)),
+      )
+
+      glUseProgram(gl_program)
+      vao = newVertexArrayObject()
+      bindIt(vao)
+
+      glEnableVertexAttribArray(0)
+      makeAndBindBuffer(pos_buffer, 0, vertex, GL_STATIC_DRAW)
+      glEnableVertexAttribArray(1)
+      makeAndBindBuffer(col_buffer, 1, color, GL_STATIC_DRAW)
+
+      glBindBuffer(GL_ARRAY_BUFFER, 0)
+      bindIt(nil_vao)
+      glUseProgram(0)
 
     glUseProgram(gl_program)
 
-    vao = newVertexArrayObject()
-    vao.blockBind:
-      glEnableVertexAttribArray(0)
-      pos_buffer.makeBuffer(0, vertex, GL_STATIC_DRAW)
-      glEnableVertexAttribArray(1)
-      col_buffer.makeBuffer(1, color, GL_STATIC_DRAW)
-      glBindBuffer(GL_ARRAY_BUFFER, 0)
+    bindIt(vao)
 
-  glUseProgram(gl_program)
-
-  vao.blockBind:
     uniform(0, projection_mat)
     uniform(1, modelview_mat)
     uniform(2, time)
 
-    glDrawArrays(GL_TRIANGLES, 0, GLsizei(vertex.len) )
+    glDrawArrays(GL_TRIANGLES, 0, GLsizei(len(vertex)))
 
-  glUseProgram(0);
-  window.glSwapWindow # Swap the front and back frame buffers (double buffering)
+    bindIt(nil_vao)
+    glUseProgram(0);
+
+  glSwapWindow(window) # Swap the front and back frame buffers (double buffering)
 
 # Main loop
 

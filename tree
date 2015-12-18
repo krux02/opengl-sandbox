@@ -1,0 +1,237 @@
+StmtList
+  VarSection
+    IdentDefs
+      PragmaExpr
+        Ident !"vao"
+        Pragma
+          Ident !"global"
+      Ident !"VertexArrayObject"
+      Empty
+  VarSection
+    IdentDefs
+      PragmaExpr
+        Ident !"gl_program"
+        Pragma
+          Ident !"global"
+      Ident !"GLuint"
+      IntLit 0
+  VarSection
+    IdentDefs
+      PragmaExpr
+        Ident !"pos_buffer"
+        Pragma
+          Ident !"global"
+      BracketExpr
+        Ident !"ArrayBuffer"
+        DotExpr
+          BracketExpr
+            Ident !"vertex"
+            IntLit 0
+          Ident !"type"
+      Empty
+  VarSection
+    IdentDefs
+      PragmaExpr
+        Ident !"col_buffer"
+        Pragma
+          Ident !"global"
+      BracketExpr
+        Ident !"ArrayBuffer"
+        DotExpr
+          BracketExpr
+            Ident !"color"
+            IntLit 0
+          Ident !"type"
+      Empty
+  IfStmt
+    ElifBranch
+      Infix
+        Ident !"=="
+        Ident !"gl_program"
+        IntLit 0
+      StmtList
+        LetSection
+          IdentDefs
+            Ident !"uniforms"
+            BracketExpr
+              Ident !"seq"
+              Ident !"ShaderParam"
+            Prefix
+              Ident !"@"
+              Bracket
+                Par
+                  StrLit projection
+                  Call
+                    Ident !"glslUniformType"
+                    Call
+                      Ident !"type"
+                      Ident !"projection_mat"
+                Par
+                  StrLit modelview
+                  Call
+                    Ident !"glslUniformType"
+                    Call
+                      Ident !"type"
+                      Ident !"modelview_mat"
+                Par
+                  StrLit time
+                  Call
+                    Ident !"glslUniformType"
+                    Call
+                      Ident !"type"
+                      Ident !"time"
+        LetSection
+          IdentDefs
+            Ident !"attributes"
+            BracketExpr
+              Ident !"seq"
+              Ident !"ShaderParam"
+            Prefix
+              Ident !"@"
+              Bracket
+                Par
+                  StrLit pos
+                  Call
+                    Ident !"glslAttribType"
+                    Call
+                      Ident !"type"
+                      Ident !"vertex"
+                Par
+                  StrLit col
+                  Call
+                    Ident !"glslAttribType"
+                    Call
+                      Ident !"type"
+                      Ident !"color"
+        LetSection
+          IdentDefs
+            Ident !"varyings"
+            BracketExpr
+              Ident !"seq"
+              Ident !"ShaderParam"
+            Prefix
+              Ident !"@"
+              Bracket
+                Par
+                  StrLit v_col
+                  StrLit vec4
+        LetSection
+          IdentDefs
+            Ident !"fragOut"
+            BracketExpr
+              Ident !"seq"
+              Ident !"ShaderParam"
+            Prefix
+              Ident !"@"
+              Bracket
+                Par
+                  StrLit color
+                  StrLit vec4
+        LetSection
+          IdentDefs
+            Ident !"vertexSrc"
+            Ident !"string"
+            TripleStrLit         gl_Position = projection * modelview * vec4(pos,1);
+        v_col = vec4(col,1);
+        LetSection
+          IdentDefs
+            Ident !"fragmentSrc"
+            Ident !"string"
+            TripleStrLit         color = mymix(v_col, time);
+        Asgn
+          Ident !"gl_program"
+          Call
+            Ident !"linkShader"
+            Call
+              Ident !"compileShader"
+              Ident !"GL_VERTEX_SHADER"
+              Call
+                Ident !"genShaderSource"
+                Ident !"uniforms"
+                Ident !"true"
+                Ident !"attributes"
+                Ident !"true"
+                Ident !"varyings"
+                Ident !"vertexSrc"
+            Call
+              Ident !"compileShader"
+              Ident !"GL_FRAGMENT_SHADER"
+              Call
+                Ident !"genShaderSource"
+                Ident !"uniforms"
+                Ident !"true"
+                Ident !"varyings"
+                Ident !"false"
+                Ident !"fragOut"
+                Ident !"fragmentSrc"
+        Call
+          Ident !"glUseProgram"
+          Ident !"gl_program"
+        Asgn
+          Ident !"vao"
+          Call
+            Ident !"newVertexArrayObject"
+        Call
+          Ident !"bindIt"
+          Ident !"vao"
+        Call
+          Ident !"glEnableVertexAttribArray"
+          IntLit 0
+        Call
+          Ident !"makeAndBindBuffer"
+          Ident !"pos_buffer"
+          IntLit 0
+          Ident !"vertex"
+          Ident !"GL_STATIC_DRAW"
+        Call
+          Ident !"glEnableVertexAttribArray"
+          IntLit 1
+        Call
+          Ident !"makeAndBindBuffer"
+          Ident !"col_buffer"
+          IntLit 1
+          Ident !"color"
+          Ident !"GL_STATIC_DRAW"
+        Call
+          Ident !"glBindBuffer"
+          Ident !"GL_ARRAY_BUFFER"
+          IntLit 0
+        Call
+          Ident !"bindIt"
+          Ident !"nil_vao"
+        Call
+          Ident !"glUseProgram"
+          IntLit 0
+  Call
+    Ident !"glUseProgram"
+    Ident !"gl_program"
+  Call
+    Ident !"bindIt"
+    Ident !"vao"
+  Call
+    Ident !"uniform"
+    IntLit 0
+    Ident !"projection_mat"
+  Call
+    Ident !"uniform"
+    IntLit 1
+    Ident !"modelview_mat"
+  Call
+    Ident !"uniform"
+    IntLit 2
+    Ident !"time"
+  Call
+    Ident !"glDrawArrays"
+    Ident !"GL_TRIANGLES"
+    IntLit 0
+    Call
+      Ident !"GLsizei"
+      Call
+        Ident !"len"
+        Ident !"vertex"
+  Call
+    Ident !"bindIt"
+    Ident !"nil_vao"
+  Call
+    Ident !"glUseProgram"
+    IntLit 0
