@@ -39,9 +39,8 @@ discard sdl2.init(INIT_EVERYTHING)
 var screenWidth: cint = 640
 var screenHeight: cint = 480
 
-var time = 0.0
-var window = createWindow("SDL/OpenGL Skeleton", 100, 100, screenWidth, screenHeight, SDL_WINDOW_OPENGL or SDL_WINDOW_RESIZABLE)
-var context = window.glCreateContext()
+let window = createWindow("SDL/OpenGL Skeleton", 100, 100, screenWidth, screenHeight, SDL_WINDOW_OPENGL or SDL_WINDOW_RESIZABLE)
+let context = window.glCreateContext()
 
 # Initialize OpenGL
 loadExtensions()
@@ -83,237 +82,10 @@ var projection_mat : Mat4x4[float64]
 
 proc reshape(newWidth: cint, newHeight: cint) =
   glViewport(0, 0, newWidth, newHeight)   # Set the viewport to cover the new window
-  glMatrixMode(GL_PROJECTION)             # To operate on the projection matrix
-
-  # Enable perspective projection with fovy, aspect, zNear and zFar
   projection_mat = perspective(45.0, newWidth / newHeight, 0.1, 100.0)
 
-  glLoadMatrixd(cast[ptr GLdouble](projection_mat.addr))
-
-template attribSize(t: type Vec3[float64]) : GLint = 3
-template attribType(t: type Vec3[float64]) : GLenum = cGL_DOUBLE
-template attribNormalized(t: type Vec3[float64]) : bool = false
-
-proc makeAndBindBuffer[T](buffer: var ArrayBuffer[T], index: GLuint, value: var seq[T], usage: GLenum) =
-  buffer = newArrayBuffer[T]()
-  buffer.bindIt
-  glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(value.len * sizeof(T)), value[0].addr, usage)
-  glVertexAttribPointer(index, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
-
-template renderBlockTemplate(globalsBlock, sequenceInitBlock,
-               bufferCreationBlock, setUniformsBlock: expr): stmt {. dirty .} =
-  block:
-    var vao {.global.}: VertexArrayObject
-    var glProgram {.global.}: GLuint  = 0
-
-    globalsBlock
-
-    if glProgram == 0:
-
-      sequenceInitBlock
-
-      gl_program = linkShader(
-        compileShader(GL_VERTEX_SHADER,   genShaderSource(uniforms, true, attributes, true, varyings, includes, vertexSrc)),
-        compileShader(GL_FRAGMENT_SHADER, genShaderSource(uniforms, true, varyings, false, fragOut, includes, fragmentSrc)),
-      )
-
-      glUseProgram(gl_program)
-      vao = newVertexArrayObject()
-      bindIt(vao)
-
-      bufferCreationBlock
-
-      glBindBuffer(GL_ARRAY_BUFFER, 0)
-      bindIt(nil_vao)
-      glUseProgram(0)
-
-    glUseProgram(gl_program)
-
-    bindIt(vao)
-
-    setUniformsBlock
-
-    glDrawArrays(GL_TRIANGLES, 0, GLsizei(len(vertex)))
-
-    bindIt(nil_vao)
-    glUseProgram(0);
-
-
-macro macro_test(statement: expr) : stmt =
-
-  let lhsName = "projection"
-  let rhsName = "projection_mat"
-
-  let attributesSection = newNimNode(nnkBracket)
-  let uniformsSection = newNimNode(nnkBracket)
-  let varyingsSection = newNimNode(nnkBracket)
-  let fragOutSection = newNimNode(nnkBracket)
-  let includesSection = newNimNode(nnkBracket)
-
-  let globalsBlock = newStmtList()
-  let bufferCreationBlock = newStmtList()
-  let setUniformsBlock = newStmtList()
-
-  var attribCount = 0;
-  proc addAttrib(lhsIdent, rhsIdent: NimNode): void =
-    let lhsStrLit = newLit($lhsIdent)
-    let bufferIdentNode = newIdentNode($lhsIdent & "Buffer")
-
-    let shaderParam = quote do:
-      (`lhsStrLit`, glslAttribType(type(`rhsIdent`)))
-
-    attributesSection.add(shaderParam)
-
-    template foobarTemplate( lhs, rhs : expr ) : stmt{.dirty.} =
-      var lhs {.global.}: ArrayBuffer[rhs[0].type]
-
-
-    let line = getAst(foobarTemplate( bufferIdentNode, rhsIdent ))
-
-    globalsBlock.add line
-    bufferCreationBlock.add(newCall("glEnableVertexAttribArray", newLit(attribCount)))
-    bufferCreationBlock.add(newCall("makeAndBindBuffer",
-        bufferIdentNode,
-        newLit(attribCount),
-        rhsIdent,
-        newIdentNode(!"GL_STATIC_DRAW")
-    ))
-
-    attribCount += 1
-
-  var uniformCount = 0
-  proc addUniform(lhsName, rhsName: string): void =
-    let shaderParam = "(\"" & lhsName & "\", glslUniformType(type(" & rhsName & ")))"
-    uniformsSection.add(parseExpr(shaderParam))
-
-    setUniformsBlock.add newCall("uniform", newLit(uniformCount), newIdentNode(rhsName))
-
-    uniformCount += 1
-
-  var varyingCount = 0
-  proc addVarying(name, typ: string): void =
-    let shaderParam = newPar( newLit(name), newLit(typ) )
-    varyingsSection.add shaderParam
-
-    varyingCount += 1
-
-  var fragOutCount = 0
-  proc addFragOut(name, typ: string): void =
-    let  shaderParam = newPar( newLit(name), newLit(typ) )
-    fragOutSection.add shaderParam
-
-    fragOutCount += 1
-
-  var vertexSourceNode = newLit("")
-  var fragmentSourceNode = newLit("")
-
-  #### BEGIN PARSE TREE ####
-
-  for section in statement.items:
-    section.expectKind nnkCall
-    let ident = section[0]
-    ident.expectKind nnkIdent
-    let stmtList = section[1]
-    stmtList.expectKind nnkStmtList
-    if $ident.ident == "uniforms":
-      for capture in stmtList.items:
-        capture.expectKind({nnkAsgn, nnkIdent})
-
-        if capture.kind == nnkAsgn:
-          capture.expectLen 2
-          capture[0].expectKind nnkIdent
-          capture[1].expectKind nnkIdent
-          addUniform($capture[0], $capture[1])
-        elif capture.kind == nnkIdent:
-          addUniform($capture, $capture)
-
-    elif $ident.ident == "attributes":
-      for capture in stmtList.items:
-        capture.expectKind({nnkAsgn, nnkIdent})
-
-        if capture.kind == nnkAsgn:
-          capture.expectLen 2
-          capture[0].expectKind nnkIdent
-          capture[1].expectKind nnkIdent
-          echo "addAttrib(", capture[0],",", capture[1], ")"
-          addAttrib(capture[0], capture[1])
-        elif capture.kind == nnkIdent:
-          addAttrib(capture, capture)
-
-    elif $ident.ident == "varyings":
-      warning("yay got varyings with StmtList")
-      for varSec in stmtList.items:
-        varSec.expectKind nnkVarSection
-        for def in varSec:
-          def.expectKind nnkIdentDefs
-          echo " varying "
-          def[0].expectKind nnkIdent
-          def[1].expectKind nnkIdent
-          addVarying( $def[0] , $def[1] )
-
-    elif $ident.ident == "frag_out":
-      warning("yay got frag_out with StmtList")
-      for varSec in stmtList.items:
-        varSec.expectKind nnkVarSection
-        for def in varSec:
-          def.expectKind nnkIdentDefs
-          def.expectKind nnkIdentDefs
-          echo " varying "
-          def[0].expectKind nnkIdent
-          def[1].expectKind nnkIdent
-          addFragOut( $def[0] , $def[1] )
-
-    elif $ident.ident == "vertex_prg":
-      stmtList.expectLen(1)
-      stmtList[0].expectKind({nnkTripleStrLit, nnkStrLit})
-      vertexSourceNode = stmtList[0]
-
-    elif $ident.ident ==  "fragment_prg":
-      stmtList.expectLen(1)
-      stmtList[0].expectKind({ nnkTripleStrLit, nnkStrLit })
-      fragmentSourceNode = stmtList[0]
-
-    elif $ident == "includes":
-      for statement in stmtList:
-        statement.expectKind( nnkIdent )
-        includesSection.add statement
-
-    else:
-      error("unknown section " & $ident.ident)
-
-  #### END PARSE TREE ####
-
-  let sequenceInitBlock = newStmtList()
-
-  var statement:NimNode
-
-  statement = parseStmt(" let attributes: seq[ShaderParam] = @[] ")
-  statement[0][0][2][1] = attributesSection
-  sequenceInitBlock.add statement
-
-  statement = parseStmt(" let uniforms: seq[ShaderParam] = @[] ")
-  statement[0][0][2][1] = uniformsSection
-  sequenceInitBlock.add statement
-
-  statement = parseStmt(" let varyings: seq[ShaderParam] = @[] ")
-  statement[0][0][2][1] = varyingsSection
-  sequenceInitBlock.add statement
-
-  statement = parseStmt(" let fragOut: seq[ShaderParam] = @[] ")
-  statement[0][0][2][1] = fragOutSection
-  sequenceInitBlock.add statement
-
-  statement = parseStmt(" let includes: seq[string] = @[] ")
-  statement[0][0][2][1] = includesSection
-  sequenceInitBlock.add statement
-
-  sequenceInitBlock.add newLetStmt(newIdentNode("vertexSrc"), vertexSourceNode)
-  sequenceInitBlock.add newLetStmt(newIdentNode("fragmentSrc"), fragmentSourceNode)
-
-  result = getAst( renderBlockTemplate(globalsBlock, sequenceInitBlock,
-                                       bufferCreationBlock, setUniformsBlock))
-
 var mouseX, mouseY: int32
+var time = 0.0
 
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
@@ -329,9 +101,10 @@ proc render() =
   let mousePosNorm = vec2(mouseX_Norm, mouseY_Norm)
   let mvp =  modelview_mat * projection_mat;
 
-  macro_test:
+  shadingDsl:
     uniforms:
-      mvp
+      modelview = modelview_mat
+      projection = projection_mat
       time
       mousePosNorm
     attributes:
@@ -345,7 +118,7 @@ proc render() =
       glslCode
     vertex_prg:
       """
-      gl_Position = mvp * vec4(pos,1);
+      gl_Position = projection * modelview * vec4(pos,1);
       v_col = vec4(col,1);
       """
     fragment_prg:
