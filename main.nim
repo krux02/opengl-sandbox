@@ -558,72 +558,13 @@ proc render() =
       var color : vec4
     vertex_prg:
       """
-      gl_Position = projection * modelview * vec4(pos,1)
-      v_col = vec4(col,1)
+      gl_Position = projection * modelview * vec4(pos,1);
+      v_col = vec4(col,1);
       """
     fragment_prg:
       """
-      color = mymix(v_col, time)
+      color = mymix(v_col, time);
       """
-
-  discard:
-    var vao {.global.}: VertexArrayObject
-    var gl_program {.global.}: GLuint  = 0
-    var pos_buffer {.global.}: ArrayBuffer[vertex[0].type]
-    var col_buffer {.global.}: ArrayBuffer[color[0].type]
-
-    if gl_program == 0:
-      let uniforms: seq[ShaderParam] = @[
-          ("projection", glslUniformType(type(projection_mat))),
-          ("modelview", glslUniformType(type(modelview_mat))),
-          ("time", glslUniformType(type(time))),
-      ]
-      let attributes: seq[ShaderParam] = @[
-          ("pos", glslAttribType(type(vertex))),
-          ("col", glslAttribType(type(color))),
-      ]
-      let varyings: seq[ShaderParam] = @[ ("v_col", "vec4") ]
-      let fragOut: seq[ShaderParam] = @[ ("color", "vec4") ]
-      let vertexSrc: string =
-        """
-        gl_Position = projection * modelview * vec4(pos,1);
-        v_col = vec4(col,1);
-        """
-      let fragmentSrc: string =
-        """
-        color = mymix(v_col, time);
-        """
-
-      gl_program = linkShader(
-        compileShader(GL_VERTEX_SHADER,   genShaderSource(uniforms, true, attributes, true, varyings, vertexSrc)),
-        compileShader(GL_FRAGMENT_SHADER, genShaderSource(uniforms, true, varyings, false, fragOut, fragmentSrc)),
-      )
-
-      glUseProgram(gl_program)
-      vao = newVertexArrayObject()
-      bindIt(vao)
-
-      glEnableVertexAttribArray(0)
-      makeAndBindBuffer(pos_buffer, 0, vertex, GL_STATIC_DRAW)
-      glEnableVertexAttribArray(1)
-      makeAndBindBuffer(col_buffer, 1, color, GL_STATIC_DRAW)
-
-      glBindBuffer(GL_ARRAY_BUFFER, 0)
-      bindIt(nil_vao)
-      glUseProgram(0)
-
-    glUseProgram(gl_program)
-
-    bindIt(vao)
-
-    uniform(0, projection_mat)
-    uniform(1, modelview_mat)
-    uniform(2, time)
-
-    glDrawArrays(GL_TRIANGLES, 0, GLsizei(len(vertex)))
-
-    bindIt(nil_vao)
-    glUseProgram(0);
 
   glSwapWindow(window) # Swap the front and back frame buffers (double buffering)
 
