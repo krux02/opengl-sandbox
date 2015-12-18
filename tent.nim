@@ -73,6 +73,11 @@ macro macro_test(statement: expr) : stmt =
 
     fragOutCount += 1
 
+  var vertexSourceNode = newLit("")
+  var fragmentSourceNode = newLit("")
+
+  #### BEGIN PARSE TREE ####
+
   for section in statement.items:
     section.expectKind nnkCall
     let ident = section[0]
@@ -108,27 +113,35 @@ macro macro_test(statement: expr) : stmt =
         varSec.expectKind nnkVarSection
         for def in varSec:
           def.expectKind nnkIdentDefs
-          warning("  yay got IdentDefs")
+          echo " varying "
+          def[0].expectKind nnkIdent
+          def[1].expectKind nnkIdent
+          addVarying( $def[0] , $def[1] )
+
     elif $ident.ident == "frag_out":
       warning("yay got frag_out with StmtList")
       for varSec in stmtList.items:
         varSec.expectKind nnkVarSection
         for def in varSec:
           def.expectKind nnkIdentDefs
-          warning("  yay got IdentDefs")
+          def.expectKind nnkIdentDefs
+          echo " varying "
+          def[0].expectKind nnkIdent
+          def[1].expectKind nnkIdent
+          addFragOut( $def[0] , $def[1] )
+
     elif $ident.ident == "vertex_prg":
-      if stmtList.len == 1 and stmtList[0].kind == nnkTripleStrLit:
-        let tripleStrLit = stmtList[0]
-        echo "vertvex_prg"
-        echo tripleStrLit.strVal
+      stmtList.expectLen(1)
+      stmtList[0].expectKind({nnkTripleStrLit, nnkStrLit})
+      vertexSourceNode = stmtList[0]
     elif $ident.ident ==  "fragment_prg":
-      stmtList.expectLen 1
-      let tripleStrLit = stmtList[0]
-      tripleStrLit.expectKind nnkTripleStrLit
-      echo "fragment_prg"
-      echo tripleStrLit.strVal
+      stmtList.expectLen(1)
+      stmtList[0].expectKind({ nnkTripleStrLit, nnkStrLit })
+      fragmentSourceNode = stmtList[0]
     else:
       error("unknown section " & $ident.ident)
+
+  #### END PARSE TREE ####
 
   for item in bufferCreationBlockPost:
     bufferCreationBlock.add(item)
@@ -138,13 +151,31 @@ macro macro_test(statement: expr) : stmt =
   result = quote do:
     echo "hallo Welt!"
 
-  # parseExpr(" let attributes: seq[ShaderParam] = @[] ")
-  # parseExpr(" let uniforms: seq[ShaderParam] = @[] ")
-  # parseExpr(" let varyings: seq[ShaderParam] = @[] ")
-  # parseExpr(" let fragOut: seq[ShaderParam] = @[] ")
+  let sequenceInitSection = newStmtList()
+
+  var statement:NimNode
+
+  statement = parseStmt(" let attributes: seq[ShaderParam] = @[] ")
+  statement[0][0][2][1] = attributesSection
+  sequenceInitSection.add statement
+
+  statement = parseStmt(" let uniforms: seq[ShaderParam] = @[] ")
+  statement[0][0][2][1] = uniformsSection
+  sequenceInitSection.add statement
+
+  statement = parseStmt(" let varyings: seq[ShaderParam] = @[] ")
+  statement[0][0][2][1] = varyingsSection
+  sequenceInitSection.add statement
+
+  statement = parseStmt(" let fragOut: seq[ShaderParam] = @[] ")
+  statement[0][0][2][1] = fragOutSection
+  sequenceInitSection.add statement
+
+  sequenceInitSection.add newLetStmt(newIdentNode("vertexSrc"), vertexSourceNode)
+  sequenceInitSection.add newLetStmt(newIdentNode("fragmentSrc"), fragmentSourceNode)
 
   echo "------------------------"
-  echo repr(result)
+  echo repr(sequenceInitSection)
   echo "------------------------"
   echo repr(bufferCreationBlock)
   echo "------------------------"
