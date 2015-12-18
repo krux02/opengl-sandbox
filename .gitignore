@@ -2,3 +2,4 @@ nimcache/
 main
 *.trace
 tent
+fancygl
