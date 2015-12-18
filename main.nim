@@ -1,22 +1,13 @@
 # OpenGL example using SDL2
 
-import sdl2
-import opengl
-import glu
-import math
-import sequtils
-import strutils
-import nre
-import glm
-import typetraits
-import macros
+import sdl2, opengl, math, sequtils, strutils, nre, glm, typetraits, macros
 
 type Vec4f = Vec4[float32]
-type Vec3f = Vec4[float32]
-type Vec2f = Vec4[float32]
+type Vec3f = Vec3[float32]
+type Vec2f = Vec2[float32]
 type Vec4d = Vec4[float64]
-type Vec3d = Vec4[float64]
-type Vec2d = Vec4[float64]
+type Vec3d = Vec3[float64]
+type Vec2d = Vec2[float64]
 
 template glslUniformType(t : type Vec4): string = "vec4"
 template glslUniformType(t : type Vec3): string = "vec3"
@@ -128,6 +119,16 @@ proc uniform(location: GLint, value: float32) =
 
 proc uniform(location: GLint, value: float64) =
   glUniform1f(location, value)
+
+proc uniform(location: GLint, value: Vec2f) =
+  glUniform2f(location, value[0], value[1])
+
+proc uniform(location: GLint, value: Vec3f) =
+  glUniform3f(location, value[0], value[1], value[2])
+
+proc uniform(location: GLint, value: Vec4f) =
+  glUniform4f(location, value[0], value[1], value[2], value[3])
+
 
 var vertex: seq[Vec3[float]] = @[
   vec3(+1.0, +1.0, -1.0), vec3(-1.0, +1.0, -1.0), vec3(-1.0, +1.0, +1.0),
@@ -438,9 +439,9 @@ macro macro_test(statement: expr) : stmt =
     let stmtList = section[1]
     stmtList.expectKind nnkStmtList
     if $ident.ident == "uniforms":
-      warning("yay got uniforms with StmtList")
       for capture in stmtList.items:
         capture.expectKind({nnkAsgn, nnkIdent})
+
         if capture.kind == nnkAsgn:
           capture.expectLen 2
           capture[0].expectKind nnkIdent
@@ -489,10 +490,12 @@ macro macro_test(statement: expr) : stmt =
       stmtList.expectLen(1)
       stmtList[0].expectKind({nnkTripleStrLit, nnkStrLit})
       vertexSourceNode = stmtList[0]
+
     elif $ident.ident ==  "fragment_prg":
       stmtList.expectLen(1)
       stmtList[0].expectKind({ nnkTripleStrLit, nnkStrLit })
       fragmentSourceNode = stmtList[0]
+
     else:
       error("unknown section " & $ident.ident)
 
@@ -521,19 +524,10 @@ macro macro_test(statement: expr) : stmt =
   sequenceInitBlock.add newLetStmt(newIdentNode("vertexSrc"), vertexSourceNode)
   sequenceInitBlock.add newLetStmt(newIdentNode("fragmentSrc"), fragmentSourceNode)
 
-  echo "------------------------"
-  echo repr(globalsBlock)
-  echo "------------------------"
-  echo repr(sequenceInitBlock)
-  echo "------------------------"
-  echo repr(bufferCreationBlock)
-  echo "------------------------"
-  echo repr(setUniformsBlock)
-  echo "------------------------"
-
   result = getAst( renderBlockTemplate(globalsBlock, sequenceInitBlock,
                                        bufferCreationBlock, setUniformsBlock))
 
+var mouseX, mouseY: int32
 
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
@@ -544,11 +538,16 @@ proc render() =
   modelview_mat = modelview_mat.rotate( vec3[float](0,1,0), time*1.2 )
   modelview_mat = modelview_mat.rotate( vec3[float](1,0,0), time*1.3 )
 
+  let mouseX_Norm = (mouseX.float32 / screenWidth.float32)
+  let mouseY_Norm = (mouseY.float32 / screenHeight.float32)
+  let mousePosNorm = vec2(mouseX_Norm, mouseY_Norm)
+  let mvp =  modelview_mat * projection_mat;
+
   macro_test:
     uniforms:
-      projection = projection_mat
-      modelview = modelview_mat
+      mvp
       time
+      mousePosNorm
     attributes:
       pos = vertex
       col = color
@@ -558,12 +557,13 @@ proc render() =
       var color : vec4
     vertex_prg:
       """
-      gl_Position = projection * modelview * vec4(pos,1);
+      gl_Position = mvp * vec4(pos,1);
       v_col = vec4(col,1);
       """
     fragment_prg:
       """
-      color = mymix(v_col, time);
+      vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;
+      color = mymix(v_col, time + dot( vec2(cos(time),sin(time)), offset ));
       """
 
   glSwapWindow(window) # Swap the front and back frame buffers (double buffering)
@@ -573,11 +573,10 @@ proc render() =
 var
   evt = sdl2.defaultEvent
   runGame = true
+  frameCounter = 0
+  frameCounterStartTime = 0.0
 
 reshape(screenWidth, screenHeight) # Set up initial viewport and projection
-
-var frameCounter = 0
-var frameCounterStartTime = 0.0
 
 while runGame:
   while pollEvent(evt):
@@ -585,16 +584,21 @@ while runGame:
       runGame = false
       break
     if evt.kind == WindowEvent:
-      var windowEvent = cast[WindowEventPtr](addr(evt))
+      let windowEvent = cast[WindowEventPtr](addr(evt))
       if windowEvent.event == WindowEvent_Resized:
         let newWidth = windowEvent.data1
         let newHeight = windowEvent.data2
         reshape(newWidth, newHeight)
     if evt.kind == KeyDown:
-      var keyboardEvent = cast[KeyboardEventPtr](addr(evt))
+      let keyboardEvent = cast[KeyboardEventPtr](addr(evt))
       if keyboardEvent.keysym.scancode == SDL_SCANCODE_ESCAPE:
         runGame = false
         break
+    if evt.kind == MouseMotion:
+      let mouseEvent = cast[MouseMotionEventPtr](addr(evt))
+      mouseX = mouseEvent.x
+      mouseY = mouseEvent.y
+
   time = float64( getTicks() ) / 1000.0
   if time - frameCounterStartTime >= 1:
     echo "FPS: ", frameCounter
