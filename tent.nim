@@ -7,6 +7,48 @@ type ArrayBuffer[T]        = distinct uint32
 type ShaderParam =
   tuple[name: string, gl_type: string]
 
+
+##### THE_TEMPLATE #####
+
+template renderBlockTemplate(globalsBlock, sequenceInitBlock,
+               bufferCreationBlock, setUniformsBlock: expr): stmt {. dirty .} =
+  block:
+    var vao {.global.}: VertexArrayObject
+    var glProgram {.global.}: GLuint  = 0
+
+    globalsBlock
+
+    if glProgram == 0:
+
+      sequenceInitBlock
+
+      gl_program = linkShader(
+        compileShader(GL_VERTEX_SHADER,   genShaderSource(uniforms, true, attributes, true, varyings, vertexSrc)),
+        compileShader(GL_FRAGMENT_SHADER, genShaderSource(uniforms, true, varyings, false, fragOut, fragmentSrc)),
+      )
+
+      glUseProgram(gl_program)
+      vao = newVertexArrayObject()
+      bindIt(vao)
+
+      bufferCreationBlock
+
+      glBindBuffer(GL_ARRAY_BUFFER, 0)
+      bindIt(nil_vao)
+      glUseProgram(0)
+
+    glUseProgram(gl_program)
+
+    bindIt(vao)
+
+    setUniformsBlock
+
+    glDrawArrays(GL_TRIANGLES, 0, GLsizei(len(vertex)))
+
+    bindIt(nil_vao)
+    glUseProgram(0);
+
+
 macro macro_test(statement: expr) : stmt =
 
   let lhsName = "projection"
@@ -17,29 +59,24 @@ macro macro_test(statement: expr) : stmt =
   let varyingsSection = newNimNode(nnkBracket)
   let fragOutSection = newNimNode(nnkBracket)
 
-  let globalsBlock = quote do:
-    var vao {. global .} : VertexArrayObject
-    var gl_program {.global.}: GLuint  = 0
-
-  let bufferCreationBlock = quote do:
-    glUseProgram(gl_program)
-    vao = newVertexArrayObject()
-    bindIt(vao)
-
-  let bufferCreationBlockPost = quote do:
-    glBindBuffer(GL_ARRAY_BUFFER, 0)
-    bindIt(nil_vao)
-    glUseProgram(0)
-
+  let globalsBlock = newStmtList()
+  let bufferCreationBlock = newStmtList()
   let setUniformsBlock = newStmtList()
 
   var attribCount = 0;
-  proc addAttrib(lhsName, rhsName: string): void =
-    let shaderParam = "(\"" & lhsName & "\", glslAttribType(type(" & rhsName & ")))"
-    attributesSection.add(parseExpr(shaderParam))
+  proc addAttrib(lhsIdent, rhsIdent: NimNode): void =
+    let lhsStrLit = newLit($lhsIdent)
+    let shaderParam = quote do:
+      (`lhsStrLit`, glslAttribType(type(`rhsIdent`)))
 
-    let line = "var " & lhsName & "_buffer {.global.}: ArrayBuffer[" & rhsName & "[0].type]"
-    globalsBlock.add parseStmt(line)
+    attributesSection.add(shaderParam)
+
+    template foobarTemplate( lhs, rhs : expr ) : stmt{.dirty.} =
+      var lhs {.global.}: ArrayBuffer[rhs[0].type]
+
+    let line = getAst(foobarTemplate( newIdentNode($lhsIdent & "Buffer"), rhsIdent ))
+
+    globalsBlock.add line
     bufferCreationBlock.add(newCall("glEnableVertexAttribArray", newLit(attribCount)))
     bufferCreationBlock.add(newCall("makeAndBindBuffer",
         newIdentNode(!(lhsName & "_buffer")),
@@ -103,9 +140,9 @@ macro macro_test(statement: expr) : stmt =
           capture.expectLen 2
           capture[0].expectKind nnkIdent
           capture[1].expectKind nnkIdent
-          addAttrib($capture[0], $capture[1])
+          addAttrib(capture[0], capture[1])
         elif capture.kind == nnkIdent:
-          addAttrib($capture, $capture)
+          addAttrib(capture, capture)
 
     elif $ident.ident == "varyings":
       warning("yay got varyings with StmtList")
@@ -143,58 +180,44 @@ macro macro_test(statement: expr) : stmt =
 
   #### END PARSE TREE ####
 
-  for item in bufferCreationBlockPost:
-    bufferCreationBlock.add(item)
-
-  echo repr(globalsBlock)
-
-  result = quote do:
-    echo "hallo Welt!"
-
-  let sequenceInitSection = newStmtList()
+  let sequenceInitBlock = newStmtList()
 
   var statement:NimNode
 
   statement = parseStmt(" let attributes: seq[ShaderParam] = @[] ")
   statement[0][0][2][1] = attributesSection
-  sequenceInitSection.add statement
+  sequenceInitBlock.add statement
 
   statement = parseStmt(" let uniforms: seq[ShaderParam] = @[] ")
   statement[0][0][2][1] = uniformsSection
-  sequenceInitSection.add statement
+  sequenceInitBlock.add statement
 
   statement = parseStmt(" let varyings: seq[ShaderParam] = @[] ")
   statement[0][0][2][1] = varyingsSection
-  sequenceInitSection.add statement
+  sequenceInitBlock.add statement
 
   statement = parseStmt(" let fragOut: seq[ShaderParam] = @[] ")
   statement[0][0][2][1] = fragOutSection
-  sequenceInitSection.add statement
+  sequenceInitBlock.add statement
 
-  sequenceInitSection.add newLetStmt(newIdentNode("vertexSrc"), vertexSourceNode)
-  sequenceInitSection.add newLetStmt(newIdentNode("fragmentSrc"), fragmentSourceNode)
+  sequenceInitBlock.add newLetStmt(newIdentNode("vertexSrc"), vertexSourceNode)
+  sequenceInitBlock.add newLetStmt(newIdentNode("fragmentSrc"), fragmentSourceNode)
 
   echo "------------------------"
-  echo repr(sequenceInitSection)
+  echo repr(globalsBlock)
+  echo "------------------------"
+  echo repr(sequenceInitBlock)
   echo "------------------------"
   echo repr(bufferCreationBlock)
   echo "------------------------"
-  echo repr(attributesSection)
+  echo repr(setUniformsBlock)
   echo "------------------------"
 
-discard """ dumpTree:
-  var myprog = Program(
-    uniforms: @[ ("projection", projection_mat.type.uniformType),
-                 ("modelview", modelview_mat.type.uniformType),
-                 ("time", time.type.uniformType) ],
-    attributes: @[ ("pos", vertex.type.glslType),
-                   ("col", color.type.glslType) ],
-    varyings: @[ ("v_col", "vec4") ],
-    frag_out: @[ ("color", "vec4") ],
-    vertex_prg: "gl_Position = projection * modelview * vec4(pos,1); v_col = vec4(col,1);",
-    fragment_prg: "color = mymix(v_col, time);"
-  )
-  """
+  result = getAst( renderBlockTemplate(globalsBlock, sequenceInitBlock,
+                                       bufferCreationBlock, setUniformsBlock))
+
+  echo repr(result)
+
 
 macro_test:
   uniforms:
