@@ -2,7 +2,6 @@
 
 import sdl2, opengl, math, glm, fancygl
 
-
 var vertex: seq[Vec3[float]] = @[
   vec3(+1.0, +1.0, -1.0), vec3(-1.0, +1.0, -1.0), vec3(-1.0, +1.0, +1.0),
   vec3(+1.0, +1.0, +1.0), vec3(+1.0, +1.0, -1.0), vec3(-1.0, +1.0, +1.0),
@@ -33,7 +32,6 @@ var color: seq[Vec3[float]] = @[
   vec3(1.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0)
 ]
 
-
 discard sdl2.init(INIT_EVERYTHING)
 
 var screenWidth: cint = 640
@@ -44,6 +42,9 @@ let context = window.glCreateContext()
 
 # Initialize OpenGL
 loadExtensions()
+
+var crateTexture = loadAndBindTexture2DFromFile("crate.png")
+nil_Texture2D.bindIt
 
 if 0 != glSetSwapInterval(-1):
   echo "glSetSwapInterval -1 not supported"
@@ -86,13 +87,13 @@ var mouseX, mouseY: int32
 var time = 0.0
 var frameCounter = 0
 
+
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
 
   let mouseX_Norm = (mouseX.float32 / screenWidth.float32)
   let mouseY_Norm = (mouseY.float32 / screenHeight.float32)
   let mousePosNorm = vec2(mouseX_Norm, mouseY_Norm)
-
 
   for i in 0..<7:
     let newTime = time * (1.0 + i.float64 / 5.0)
@@ -106,6 +107,8 @@ proc render() =
     let mvp =  modelview_mat * projection_mat;
 
     shadingDsl:
+      samplers:
+        crateTexture
       uniforms:
         mvp
         time

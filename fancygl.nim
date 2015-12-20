@@ -29,63 +29,43 @@ proc I4*() : Mat4d = mat4x4(
 )
 #### Sampler Types ####
 
-type Texture1D* = distinct GLuint
-type Texture2D* = distinct GLuint
-type Texture3D* = distinct GLuint
-type Texture1DArray* = distinct GLuint
-type Texture2DArray* = distinct GLuint
-type TextureRectangle* = distinct GLuint
-type TextureCubeMap* = distinct GLuint
-type TextureCubeMapArray* = distinct GLuint
-type TextureBuffer* = distinct GLuint
-type Texture2DMultisample* = distinct GLuint
-type Texture2DMultisampleArray* = distinct GLuint
+macro nilName(name:expr) : expr =
+  name.expectKind(nnkIdent)
+  newIdentNode("nil_" & $name)
 
-const nil_Texture1D* = Texture1D(0)
-const nil_Texture2D* = Texture2D(0)
-const nil_Texture3D* = Texture3D(0)
-const nil_Texture1DArray* = Texture1DArray(0)
-const nil_Texture2DArray* = Texture2DArray(0)
-const nil_TextureRectangle* = TextureRectangle(0)
-const nil_TextureCubeMap* = TextureCubeMap(0)
-const nil_TextureCubeMapArray* = TextureCubeMapArray(0)
-const nil_TextureBuffer* = TextureBuffer(0)
-const nil_Texture2DMultisample* = Texture2DMultisample(0)
-const nil_Texture2DMultisampleArray* = Texture2DMultisampleArray(0)
+template textureTypeTemplate(name, nilName, target:expr, shadername:string): stmt =
+  type name* = distinct GLuint
+  const nilName* = name(0)
+  proc bindIt*(texture: name) =
+    glBindTexture(target, GLuint(texture))
+  template glslUniformType*(t : type name): string = shadername
 
-proc bindIt(texture: Texture1D) =
-  glBindTexture(GL_Texture_1D, GLuint(texture))
+template textureTypeTemplate(name: expr, target:expr, shadername:string): stmt =
+  textureTypeTemplate(name, nilName(name), target, shadername)
 
-proc bindIt(texture: Texture2D) =
-  glBindTexture(GL_Texture_2D, GLuint(texture))
 
-proc bindIt(texture: Texture3D) =
-  glBindTexture(GL_Texture_3D, GLuint(texture))
-
-proc bindIt(texture: Texture1DArray) =
-  glBindTexture(GL_Texture_1D_ARRAY, GLuint(texture))
-
-proc bindIt(texture: Texture2DArray) =
-  glBindTexture(GL_TEXTURE_2D_ARRAY, GLuint(texture))
-
-proc bindIt(texture: TextureRectangle) =
-  glBindTexture(GL_TEXTURE_RECTANGLE , GLuint(texture))
-
-proc bindIt(texture: TextureCubeMap) =
-  glBindTexture(GL_TEXTURE_CUBE_MAP , GLuint(texture))
-
-proc bindIt(texture: TextureCubeMapArray) =
-  glBindTexture(GL_TEXTURE_CUBE_MAP_ARRAY , GLuint(texture))
-
-proc bindIt(texture: TextureBuffer) =
-  glBindTexture(GL_TEXTURE_BUFFER , GLuint(texture))
-
-proc bindIt(texture: Texture2DMultisample) =
-  glBindTexture(GL_TEXTURE_2D_MULTISAMPLE , GLuint(texture))
-
-proc bindIt(texture: Texture2DMultisampleArray) =
-  glBindTexture(GL_TEXTURE_2D_MULTISAMPLE_ARRAY , GLuint(texture))
-
+textureTypeTemplate(Texture1D,                 nil_Texture1D,
+    GL_TEXTURE_1D, "sampler1D")
+textureTypeTemplate(Texture2D,                 nil_Texture2D,
+    GL_TEXTURE_2D, "sampler2D")
+textureTypeTemplate(Texture3D,                 nil_Texture3D,
+    GL_TEXTURE_3D, "sampler3D")
+textureTypeTemplate(Texture1DArray,             nil_Texture1DArray,
+    GL_Texture_1D_ARRAY, "sampler2D")
+textureTypeTemplate(Texture2DArray,            nil_Texture2DArray,
+    GL_TEXTURE_2D_ARRAY, "sampler2D")
+textureTypeTemplate(TextureRectangle,          nil_TextureRectangle,
+    GL_TEXTURE_RECTANGLE, "sampler2D")
+textureTypeTemplate(TextureCubeMap,            nil_TextureCubeMap,
+    GL_TEXTURE_CUBE_MAP, "sampler2D")
+textureTypeTemplate(TextureCubeMapArray,       nil_TextureCubeMapArray,
+    GL_TEXTURE_CUBE_MAP_ARRAY , "sampler2D")
+textureTypeTemplate(TextureBuffer,             nil_TextureBuffer,
+    GL_TEXTURE_BUFFER, "sampler2D")
+textureTypeTemplate(Texture2DMultisample,      nil_Texture2DMultisample,
+    GL_TEXTURE_2D_MULTISAMPLE, "sampler2D")
+textureTypeTemplate(Texture2DMultisampleArray, nil_Texture2DMultisampleArray,
+    GL_TEXTURE_2D_MULTISAMPLE_ARRAY, "sampler2D")
 
 proc loadAndBindTextureRectangleFromFile*(filename: string): TextureRectangle =
   let surface = image.load(filename)
@@ -98,7 +78,7 @@ proc loadAndBindTextureRectangleFromFile*(filename: string): TextureRectangle =
   glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
   glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 
-proc loadAndBindTexture2DFromFile*(filename: string): TextureRectangle =
+proc loadAndBindTexture2DFromFile*(filename: string): Texture2D =
   let surface = image.load(filename)
   defer: freeSurface(surface)
   let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
@@ -121,18 +101,6 @@ template glslUniformType*(t : type Mat2x2): string = "mat2"
 template glslUniformType*(t : type float): string = "float"
 template glslUniformType*(t : type float32): string = "float"
 template glslUniformType*(t : type float64): string = "float"
-
-template glslUniformType*(t : type Texture1D): string = "sampler1D"
-template glslUniformType*(t : type Texture2D): string = "sampler2D"
-template glslUniformType*(t : type Texture3D): string = "sampler3D"
-template glslUniformType*(t : type Texture1DArray): string = "sampler1DArray"
-template glslUniformType*(t : type Texture2DArray): string = "sampler2DArray"
-template glslUniformType*(t : type TextureRectangle): string = "sampler2DRect"
-template glslUniformType*(t : type TextureCubeMap): string = "samplerCube"
-template glslUniformType*(t : type TextureCubeMapArray): string = "samplerCubeArray"
-template glslUniformType*(t : type TextureBuffer): string = "samplerBuffer"
-template glslUniformType*(t : type Texture2DMultisample): string = "sampler2D"
-template glslUniformType*(t : type Texture2DMultisampleArray): string = "sampler2DArray"
 
 template glslAttribType*(t : type seq[Vec4]): string = "vec4"
 template glslAttribType*(t : type seq[Vec3]): string = "vec3"
@@ -384,9 +352,6 @@ template renderBlockTemplate(globalsBlock, sequenceInitBlock,
 
 macro shadingDsl*(statement: expr) : stmt =
 
-  let lhsName = "projection"
-  let rhsName = "projection_mat"
-
   let attributesSection = newNimNode(nnkBracket)
   let uniformsSection = newNimNode(nnkBracket)
   let varyingsSection = newNimNode(nnkBracket)
@@ -424,14 +389,13 @@ macro shadingDsl*(statement: expr) : stmt =
 
     attribCount += 1
 
-  var uniformCount = 0
-  proc addUniform(lhsName, rhsName: string): void =
-    let shaderParam = "(\"" & lhsName & "\", glslUniformType(type(" & rhsName & ")))"
-    uniformsSection.add(parseExpr(shaderParam))
-
-    setUniformsBlock.add newCall("uniform", newLit(uniformCount), newIdentNode(rhsName))
-
-    uniformCount += 1
+  var uniformslist : seq[ tuple[lhsName:string, value: NimNode] ] = @[]
+  #var uniformCount = 0
+  #proc addUniform(lhsName, rhsName: string): void =
+  #  let shaderParam = "(\"" & lhsName & "\", glslUniformType(type(" & rhsName & ")))"
+  #  uniformsSection.add(parseExpr(shaderParam))
+  #  setUniformsBlock.add newCall("uniform", newLit(uniformCount), newIdentNode(rhsName))
+  #  uniformCount += 1
 
   var varyingCount = 0
   proc addVarying(name, typ: string): void =
@@ -458,19 +422,23 @@ macro shadingDsl*(statement: expr) : stmt =
     ident.expectKind nnkIdent
     let stmtList = section[1]
     stmtList.expectKind nnkStmtList
-    if $ident.ident == "uniforms":
+
+    case $ident
+    of "samplers":
+      discard
+    of "uniforms":
       for capture in stmtList.items:
         capture.expectKind({nnkAsgn, nnkIdent})
-
         if capture.kind == nnkAsgn:
           capture.expectLen 2
           capture[0].expectKind nnkIdent
           capture[1].expectKind nnkIdent
-          addUniform($capture[0], $capture[1])
+          uniformslist.add( ($capture[0], capture[1] ) )
         elif capture.kind == nnkIdent:
-          addUniform($capture, $capture)
+          uniformslist.add( ($capture, capture) )
 
-    elif $ident.ident == "attributes":
+
+    of "attributes":
       for capture in stmtList.items:
         capture.expectKind({nnkAsgn, nnkIdent})
 
@@ -483,7 +451,8 @@ macro shadingDsl*(statement: expr) : stmt =
         elif capture.kind == nnkIdent:
           addAttrib(capture, capture)
 
-    elif $ident.ident == "varyings":
+
+    of "varyings":
       warning("yay got varyings with StmtList")
       for varSec in stmtList.items:
         varSec.expectKind nnkVarSection
@@ -494,7 +463,8 @@ macro shadingDsl*(statement: expr) : stmt =
           def[1].expectKind nnkIdent
           addVarying( $def[0] , $def[1] )
 
-    elif $ident.ident == "frag_out":
+
+    of "frag_out":
       warning("yay got frag_out with StmtList")
       for varSec in stmtList.items:
         varSec.expectKind nnkVarSection
@@ -506,17 +476,18 @@ macro shadingDsl*(statement: expr) : stmt =
           def[1].expectKind nnkIdent
           addFragOut( $def[0] , $def[1] )
 
-    elif $ident.ident == "vertex_prg":
+
+    of "vertex_prg":
       stmtList.expectLen(1)
       stmtList[0].expectKind({nnkTripleStrLit, nnkStrLit})
       vertexSourceNode = stmtList[0]
 
-    elif $ident.ident ==  "fragment_prg":
+    of  "fragment_prg":
       stmtList.expectLen(1)
       stmtList[0].expectKind({ nnkTripleStrLit, nnkStrLit })
       fragmentSourceNode = stmtList[0]
 
-    elif $ident == "includes":
+    of "includes":
       for statement in stmtList:
         statement.expectKind( nnkIdent )
         includesSection.add statement
@@ -534,7 +505,21 @@ macro shadingDsl*(statement: expr) : stmt =
   statement[0][0][2][1] = attributesSection
   sequenceInitBlock.add statement
 
-  statement = parseStmt(" let uniforms: seq[ShaderParam] = @[] ")
+  statement = quote do:
+    let uniforms: seq[ShaderParam] = @[]
+
+  for tt in uniformslist:
+    let lhsName = tt.lhsName
+    let value = tt.value
+    statement.add quote do:
+      system.add(uniforms, (name : `lhsName`, gl_type: glslUniformType(type(`value`))) )
+
+  for tt in uniformslist:
+    let lhsName = tt.lhsName
+    let value = tt.value
+    echo lhsName, " <---> ", value
+
+  echo repr(statement)
   statement[0][0][2][1] = uniformsSection
   sequenceInitBlock.add statement
 
