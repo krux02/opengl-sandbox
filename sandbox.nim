@@ -1,36 +1,36 @@
 # OpenGL example using SDL2
 
-import sdl2, opengl, math, glm, fancygl
+import sdl2, opengl, math, glm, fancygl, sequtils
 
-var vertex: seq[Vec3[float]] = @[
-  vec3(+1.0, +1.0, -1.0), vec3(-1.0, +1.0, -1.0), vec3(-1.0, +1.0, +1.0),
-  vec3(+1.0, +1.0, +1.0), vec3(+1.0, +1.0, -1.0), vec3(-1.0, +1.0, +1.0),
-  vec3(+1.0, -1.0, +1.0), vec3(-1.0, -1.0, +1.0), vec3(-1.0, -1.0, -1.0),
-  vec3(+1.0, -1.0, -1.0), vec3(+1.0, -1.0, +1.0), vec3(-1.0, -1.0, -1.0),
-  vec3(+1.0, +1.0, +1.0), vec3(-1.0, +1.0, +1.0), vec3(-1.0, -1.0, +1.0),
-  vec3(+1.0, -1.0, +1.0), vec3(+1.0, +1.0, +1.0), vec3(-1.0, -1.0, +1.0),
-  vec3(+1.0, -1.0, -1.0), vec3(-1.0, -1.0, -1.0), vec3(-1.0, +1.0, -1.0),
-  vec3(+1.0, +1.0, -1.0), vec3(+1.0, -1.0, -1.0), vec3(-1.0, +1.0, -1.0),
-  vec3(-1.0, +1.0, +1.0), vec3(-1.0, +1.0, -1.0), vec3(-1.0, -1.0, -1.0),
-  vec3(-1.0, -1.0, +1.0), vec3(-1.0, +1.0, +1.0), vec3(-1.0, -1.0, -1.0),
-  vec3(+1.0, +1.0, -1.0), vec3(+1.0, +1.0, +1.0), vec3(+1.0, -1.0, +1.0),
-  vec3(+1.0, -1.0, -1.0), vec3(+1.0, +1.0, -1.0), vec3(+1.0, -1.0, +1.0)
-]
+var vertex: seq[Vec3f] = @[
+  [+1, +1, -1], [-1, +1, -1], [-1, +1, +1],
+  [+1, +1, +1], [+1, +1, -1], [-1, +1, +1],
+  [+1, -1, +1], [-1, -1, +1], [-1, -1, -1],
+  [+1, -1, -1], [+1, -1, +1], [-1, -1, -1],
+  [+1, +1, +1], [-1, +1, +1], [-1, -1, +1],
+  [+1, -1, +1], [+1, +1, +1], [-1, -1, +1],
+  [+1, -1, -1], [-1, -1, -1], [-1, +1, -1],
+  [+1, +1, -1], [+1, -1, -1], [-1, +1, -1],
+  [-1, +1, +1], [-1, +1, -1], [-1, -1, -1],
+  [-1, -1, +1], [-1, +1, +1], [-1, -1, -1],
+  [+1, +1, -1], [+1, +1, +1], [+1, -1, +1],
+  [+1, -1, -1], [+1, +1, -1], [+1, -1, +1]
+].map( proc(x:array[3,int] ): Vec3f =  [x[0].float32, x[1].float32, x[2].float32].Vec3f )
 
-var color: seq[Vec3[float]] = @[
-  vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0),
-  vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0), vec3(0.0, 1.0, 0.0),
-  vec3(1.0, 0.5, 0.0), vec3(1.0, 0.5, 0.0), vec3(1.0, 0.5, 0.0),
-  vec3(1.0, 0.5, 0.0), vec3(1.0, 0.5, 0.0), vec3(1.0, 0.5, 0.0),
-  vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0),
-  vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 0.0),
-  vec3(1.0, 1.0, 0.0), vec3(1.0, 1.0, 0.0), vec3(1.0, 1.0, 0.0),
-  vec3(1.0, 1.0, 0.0), vec3(1.0, 1.0, 0.0), vec3(1.0, 1.0, 0.0),
-  vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0),
-  vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0),
-  vec3(1.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0),
-  vec3(1.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0), vec3(1.0, 0.0, 1.0)
-]
+var color: seq[Vec3f] = @[
+  [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0],
+  [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0],
+  [1.0, 0.5, 0.0], [1.0, 0.5, 0.0], [1.0, 0.5, 0.0],
+  [1.0, 0.5, 0.0], [1.0, 0.5, 0.0], [1.0, 0.5, 0.0],
+  [1.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 0.0, 0.0],
+  [1.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 0.0, 0.0],
+  [1.0, 1.0, 0.0], [1.0, 1.0, 0.0], [1.0, 1.0, 0.0],
+  [1.0, 1.0, 0.0], [1.0, 1.0, 0.0], [1.0, 1.0, 0.0],
+  [0.0, 0.0, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, 1.0],
+  [0.0, 0.0, 1.0], [0.0, 0.0, 1.0], [0.0, 0.0, 1.0],
+  [1.0, 0.0, 1.0], [1.0, 0.0, 1.0], [1.0, 0.0, 1.0],
+  [1.0, 0.0, 1.0], [1.0, 0.0, 1.0], [1.0, 0.0, 1.0]
+].map( proc(x:array[3,float] ): Vec3f =  [x[0].float32, x[1].float32, x[2].float32].Vec3f )
 
 discard sdl2.init(INIT_EVERYTHING)
 
@@ -61,7 +61,7 @@ glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-c
 glDepthFunc(GL_LEQUAL)                            # Set the type of depth-test
 glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST) # Nice perspective corrections
 
-let glslCode = """
+const glslCode = """
 vec4 mymix(vec4 color, float alpha) {
   float a = 3*(alpha/3 - floor(alpha/3));
 
@@ -77,7 +77,7 @@ vec4 mymix(vec4 color, float alpha) {
 }
 """
 
-var projection_mat : Mat4x4[float64]
+var projection_mat : Mat4x4[float32]
 
 proc reshape(newWidth: cint, newHeight: cint) =
   glViewport(0, 0, newWidth, newHeight)   # Set the viewport to cover the new window
@@ -96,15 +96,15 @@ proc render() =
   let mousePosNorm = vec2(mouseX_Norm, mouseY_Norm)
 
   for i in 0..<7:
-    let newTime = time * (1.0 + i.float64 / 5.0)
+    let newTime = float32(time * (1.0 + i.float64 / 5.0))
 
-    var modelview_mat: Mat4x4[float]  = I4()
-    modelview_mat = modelview_mat.transform( vec3(2*sin(newTime), 2*cos(newTime), -7.0) )
-    modelview_mat = modelview_mat.rotate( vec3[float](0,0,1), newTime )
-    modelview_mat = modelview_mat.rotate( vec3[float](0,1,0), newTime )
-    modelview_mat = modelview_mat.rotate( vec3[float](1,0,0), newTime )
+    var modelview_mat: Mat4x4[float32]  = I4f()
+    modelview_mat = modelview_mat.translate( vec3[float32](2*sin(newTime).float32, 2*cos(newTime).float32, -7) )
+    modelview_mat = modelview_mat.rotate( vec3[float32](0,0,1), newTime )
+    modelview_mat = modelview_mat.rotate( vec3[float32](0,1,0), newTime )
+    modelview_mat = modelview_mat.rotate( vec3[float32](1,0,0), newTime )
 
-    let mvp =  modelview_mat * projection_mat;
+    let mvp : Mat4x4[float32] =  modelview_mat * projection_mat;
 
     shadingDsl:
       samplers:

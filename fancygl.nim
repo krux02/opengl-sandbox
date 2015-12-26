@@ -27,6 +27,14 @@ proc I4*() : Mat4d = mat4x4(
   vec4(0.0, 0, 1, 0),
   vec4(0.0, 0, 0, 1)
 )
+
+proc I4f*() : Mat4f = mat4x4[float32](
+  vec4[float32](1.0, 0, 0, 0),
+  vec4[float32](0.0, 1, 0, 0),
+  vec4[float32](0.0, 0, 1, 0),
+  vec4[float32](0.0, 0, 0, 1)
+)
+
 #### Sampler Types ####
 
 macro nilName(name:expr) : expr =
@@ -38,7 +46,6 @@ template textureTypeTemplate(name, nilName, target:expr, shadername:string): stm
   const nilName* = name(0)
   proc bindIt*(texture: name) =
     glBindTexture(target, GLuint(texture))
-  template glslUniformType*(t : type name): string = shadername
 
 template textureTypeTemplate(name: expr, target:expr, shadername:string): stmt =
   textureTypeTemplate(name, nilName(name), target, shadername)
@@ -92,22 +99,28 @@ proc loadAndBindTexture2DFromFile*(filename: string): Texture2D =
 
 #### nim -> glsl type mapping ####
 
-template glslUniformType*(t : type Vec4): string = "vec4"
-template glslUniformType*(t : type Vec3): string = "vec3"
-template glslUniformType*(t : type Vec2): string = "vec2"
-template glslUniformType*(t : type Mat4x4): string = "mat4"
-template glslUniformType*(t : type Mat3x3): string = "mat3"
-template glslUniformType*(t : type Mat2x2): string = "mat2"
-template glslUniformType*(t : type float): string = "float"
-template glslUniformType*(t : type float32): string = "float"
-template glslUniformType*(t : type float64): string = "float"
+template glslUniformType(t : float32): string = "float"
+template glslUniformType(t : float64): string = "float"
+template glslUniformType(t : Vec3f): string = "vec3"
+template glslUniformType(t : Vec4f): string = "vec4"
+template glslUniformType(t : Mat4f): string = "mat4"
 
-template glslAttribType*(t : type seq[Vec4]): string = "vec4"
-template glslAttribType*(t : type seq[Vec3]): string = "vec3"
-template glslAttribType*(t : type seq[Vec2]): string = "vec2"
-template glslAttribType*(t : type seq[Mat4x4]): string = "mat4"
-template glslAttribType*(t : type seq[Mat3x3]): string = "mat3"
-template glslAttribType*(t : type seq[Mat2x2]): string = "mat2"
+template glslAttribType(t : seq[float32]): string = "float"
+template glslAttribType(t : seq[float64]): string = "float"
+template glslAttribType(t : seq[Vec3f]): string = "vec3"
+template glslAttribType(t : seq[Vec4f]): string = "vec4"
+
+proc glslUniformType(value : NimNode): string =
+  let tpe = value.getType
+  ($tpe).toLower
+
+proc glslAttribType(value : NimNode): string =
+  # result = getAst(glslAttribType(value))[0].strVal
+  let tpe = value.getType
+  if $tpe[0] == "seq":
+    ($tpe[1]).toLower
+  else:
+    "(error not a seq[..])"
 
 #### Uniform ####
 
@@ -349,72 +362,95 @@ template renderBlockTemplate(globalsBlock, sequenceInitBlock,
     bindIt(nil_vao)
     glUseProgram(0);
 
+################################################################################
+## Shading Dsl #################################################################
+################################################################################
+
+proc shaderArg[T](name: string, value: T): int = 0
+proc attributes(args : varargs[int]) : int = 0
+proc uniforms(args: varargs[int]): int = 0
+proc varyings(args: varargs[int]): int = 0
+proc fragOut(args: varargs[int]): int = 0
+proc vertexMain(src: string): int = 0
+proc fragmentMain(src: string): int = 0
+proc includes(args: varargs[int]): int = 0
+proc incl(arg: string): int = 0
+
+################################################################################
+## Shading Dsl Inner ###########################################################
+################################################################################
+
+macro shadingDslInner( statement: varargs[typed] ) : stmt =
+  var uniformsSection : seq[string] = @[]
+  var attributesSection : seq[string] = @[]
+  var varyingsSection : seq[string] = @[]
+  var fragOutSection : seq[string] = @[]
+  var includesSection : seq[string] = @[]
+
+  #### BEGIN PARSE TREE ####
+
+  echo "shadingDslInner"
+  for call in statement.items:
+    call.expectKind nnkCall
+    case $call[0]
+    of "uniforms":
+      for innerCall in call[1][1].items:
+        innerCall[1].expectKind nnkStrLit
+        let name = $innerCall[1]
+        let value = innerCall[2]
+        echo "uniform ", value.glslUniformType, " ", name
+
+    of "attributes":
+      for innerCall in call[1][1].items:
+        innerCall[1].expectKind nnkStrLit
+        let name = $innerCall[1]
+        let value = innerCall[2]
+        echo "attribute ", value.glslAttribType, " ", name
+
+    of "varyings":
+      echo "varyings"
+
+      #echo call.treeRepr
+      echo call[1].treeRepr
+
+
+    of "fragOut":
+      echo "fragOut"
+
+      echo call.treeRepr
+
+    of "includes":
+      echo "includes"
+
+      for innerCall in call[1][1].items:
+        if innerCall[1].kind == nnkSym:
+          let sym = innerCall[1].symbol
+          echo sym.getImpl.strVal
+          includesSection.add(sym.getImpl.strVal)
+
+
+    of "vertexMain":
+      echo "vertexMain"
+
+      echo call[1].strVal
+
+    of "fragmentMain":
+      echo "fragmentMain"
+
+      echo call[1].strVal
+
+    else:
+      echo "unknownSection"
+
+  result = newStmtList()
+
+################################################################################
+## Shading Dsl Outer ###########################################################
+################################################################################
 
 macro shadingDsl*(statement: expr) : stmt =
 
-  let attributesSection = newNimNode(nnkBracket)
-  let uniformsSection = newNimNode(nnkBracket)
-  let varyingsSection = newNimNode(nnkBracket)
-  let fragOutSection = newNimNode(nnkBracket)
-  let includesSection = newNimNode(nnkBracket)
-
-  let globalsBlock = newStmtList()
-  let bufferCreationBlock = newStmtList()
-  let setUniformsBlock = newStmtList()
-
-  var attribCount = 0;
-  proc addAttrib(lhsIdent, rhsIdent: NimNode): void =
-    let lhsStrLit = newLit($lhsIdent)
-    let bufferIdentNode = newIdentNode($lhsIdent & "Buffer")
-
-    let shaderParam = quote do:
-      (`lhsStrLit`, glslAttribType(type(`rhsIdent`)))
-
-    attributesSection.add(shaderParam)
-
-    template foobarTemplate( lhs, rhs : expr ) : stmt{.dirty.} =
-      var lhs {.global.}: ArrayBuffer[rhs[0].type]
-
-
-    let line = getAst(foobarTemplate( bufferIdentNode, rhsIdent ))
-
-    globalsBlock.add line
-    bufferCreationBlock.add(newCall("glEnableVertexAttribArray", newLit(attribCount)))
-    bufferCreationBlock.add(newCall("makeAndBindBuffer",
-        bufferIdentNode,
-        newLit(attribCount),
-        rhsIdent,
-        newIdentNode(!"GL_STATIC_DRAW")
-    ))
-
-    attribCount += 1
-
-  var uniformslist : seq[ tuple[lhsName:string, value: NimNode] ] = @[]
-  #var uniformCount = 0
-  #proc addUniform(lhsName, rhsName: string): void =
-  #  let shaderParam = "(\"" & lhsName & "\", glslUniformType(type(" & rhsName & ")))"
-  #  uniformsSection.add(parseExpr(shaderParam))
-  #  setUniformsBlock.add newCall("uniform", newLit(uniformCount), newIdentNode(rhsName))
-  #  uniformCount += 1
-
-  var varyingCount = 0
-  proc addVarying(name, typ: string): void =
-    let shaderParam = newPar( newLit(name), newLit(typ) )
-    varyingsSection.add shaderParam
-
-    varyingCount += 1
-
-  var fragOutCount = 0
-  proc addFragOut(name, typ: string): void =
-    let  shaderParam = newPar( newLit(name), newLit(typ) )
-    fragOutSection.add shaderParam
-
-    fragOutCount += 1
-
-  var vertexSourceNode = newLit("")
-  var fragmentSourceNode = newLit("")
-
-  #### BEGIN PARSE TREE ####
+  result = newCall(bindSym"shadingDslInner")
 
   for section in statement.items:
     section.expectKind nnkCall
@@ -427,117 +463,80 @@ macro shadingDsl*(statement: expr) : stmt =
     of "samplers":
       discard
     of "uniforms":
+      let uniformsCall = newCall(bindSym"uniforms")
+
       for capture in stmtList.items:
         capture.expectKind({nnkAsgn, nnkIdent})
         if capture.kind == nnkAsgn:
           capture.expectLen 2
           capture[0].expectKind nnkIdent
-          capture[1].expectKind nnkIdent
-          uniformslist.add( ($capture[0], capture[1] ) )
+          uniformsCall.add( newCall(bindSym"shaderArg", newLit($capture[0]), capture[1] ) )
         elif capture.kind == nnkIdent:
-          uniformslist.add( ($capture, capture) )
+          uniformsCall.add( newCall(bindSym"shaderArg",  newLit($capture), capture) )
 
+      result.add(uniformsCall)
 
     of "attributes":
+      let attributesCall = newCall(bindSym"attributes")
+
       for capture in stmtList.items:
         capture.expectKind({nnkAsgn, nnkIdent})
 
         if capture.kind == nnkAsgn:
           capture.expectLen 2
           capture[0].expectKind nnkIdent
-          capture[1].expectKind nnkIdent
-          echo "addAttrib(", capture[0],",", capture[1], ")"
-          addAttrib(capture[0], capture[1])
+          attributesCall.add( newCall(bindSym"shaderArg", newLit($capture[0]), capture[1] ) )
         elif capture.kind == nnkIdent:
-          addAttrib(capture, capture)
+          attributesCall.add( newCall(bindSym"shaderArg",  newLit($capture), capture) )
 
+      result.add(attributesCall)
 
     of "varyings":
-      warning("yay got varyings with StmtList")
+      let varyingsCall = newCall(bindSym"varyings")
+
       for varSec in stmtList.items:
         varSec.expectKind nnkVarSection
         for def in varSec:
           def.expectKind nnkIdentDefs
-          echo " varying "
           def[0].expectKind nnkIdent
           def[1].expectKind nnkIdent
-          addVarying( $def[0] , $def[1] )
+          varyingsCall.add( newCall(bindSym"shaderArg", newLit($def[0]) , newLit($def[1]) ) )
 
+      result.add(varyingsCall)
 
     of "frag_out":
-      warning("yay got frag_out with StmtList")
+      let fragOutCall = newCall(bindSym"fragOut")
+
       for varSec in stmtList.items:
         varSec.expectKind nnkVarSection
         for def in varSec:
           def.expectKind nnkIdentDefs
           def.expectKind nnkIdentDefs
-          echo " varying "
           def[0].expectKind nnkIdent
           def[1].expectKind nnkIdent
-          addFragOut( $def[0] , $def[1] )
+          fragOutCall.add newCall(bindSym"shaderArg", newLit($def[0]) , newLit($def[1]) )
 
+      result.add(fragOutCall)
 
     of "vertex_prg":
       stmtList.expectLen(1)
       stmtList[0].expectKind({nnkTripleStrLit, nnkStrLit})
-      vertexSourceNode = stmtList[0]
+      result.add( newCall(bindSym"vertexMain", stmtList[0]) )
 
     of  "fragment_prg":
       stmtList.expectLen(1)
       stmtList[0].expectKind({ nnkTripleStrLit, nnkStrLit })
-      fragmentSourceNode = stmtList[0]
+      result.add( newCall(bindSym"fragmentMain", stmtList[0]) )
 
     of "includes":
+      let includesCall = newCall(bindSym"includes")
+
       for statement in stmtList:
         statement.expectKind( nnkIdent )
-        includesSection.add statement
 
+        includesCall.add( newCall(bindSym"incl", statement) )
+
+      result.add(includesCall)
     else:
       error("unknown section " & $ident.ident)
-
-  #### END PARSE TREE ####
-
-  let sequenceInitBlock = newStmtList()
-
-  var statement:NimNode
-
-  statement = parseStmt(" let attributes: seq[ShaderParam] = @[] ")
-  statement[0][0][2][1] = attributesSection
-  sequenceInitBlock.add statement
-
-  statement = quote do:
-    let uniforms: seq[ShaderParam] = @[]
-
-  for tt in uniformslist:
-    let lhsName = tt.lhsName
-    let value = tt.value
-    statement.add quote do:
-      system.add(uniforms, (name : `lhsName`, gl_type: glslUniformType(type(`value`))) )
-
-  for tt in uniformslist:
-    let lhsName = tt.lhsName
-    let value = tt.value
-    echo lhsName, " <---> ", value
-
-  echo repr(statement)
-  statement[0][0][2][1] = uniformsSection
-  sequenceInitBlock.add statement
-
-  statement = parseStmt(" let varyings: seq[ShaderParam] = @[] ")
-  statement[0][0][2][1] = varyingsSection
-  sequenceInitBlock.add statement
-
-  statement = parseStmt(" let fragOut: seq[ShaderParam] = @[] ")
-  statement[0][0][2][1] = fragOutSection
-  sequenceInitBlock.add statement
-
-  statement = parseStmt(" let includes: seq[string] = @[] ")
-  statement[0][0][2][1] = includesSection
-  sequenceInitBlock.add statement
-
-  sequenceInitBlock.add newLetStmt(newIdentNode("vertexSrc"), vertexSourceNode)
-  sequenceInitBlock.add newLetStmt(newIdentNode("fragmentSrc"), fragmentSourceNode)
-
-  result = getAst( renderBlockTemplate(globalsBlock, sequenceInitBlock,
-                                       bufferCreationBlock, setUniformsBlock))
 

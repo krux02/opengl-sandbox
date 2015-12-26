@@ -1,5 +1,54 @@
 import macros, strutils
 
+
+
+
+macro isInt(x: typed): stmt =
+  if macros.sameType( getType(int), x.getType):
+    echo "yea"
+  else:
+    echo "nope"
+  discard
+
+let i = 0
+
+isInt(i)  # yea
+
+type MyVec3[T] = tuple[x,y,z:T]
+
+macro isMyVec3(x: typed): stmt =
+  if macros.sameType( getType(MyVec3[float])[1], x.getType):
+    echo "yea"
+  else:
+    echo "nope"
+  discard
+
+let v : MyVec3[float] = (1.0,2.0,3.0)
+
+isMyVec3(v) # nope
+
+
+const banana = join(["bana", "na"])
+
+
+proc foo(arg:string): int = 0
+
+macro foobar(arg: typed): stmt =
+  # it's not the root node I am working on.
+  let subNode = arg[1]      #
+  echo subNode.treeRepr     # Sym "banana"
+  echo subNode.getType.repr # string
+  #echo subNode.strVal       # Error: field 'strVal' cannot be found
+
+  let sym = subNode.symbol
+  echo sym.repr             # banana
+  #echo sym.kind             # Error: type mismatch: got (NimSym), expected macros.kind(n: NimNode)
+  #echo sym.strVal           # Error: type mismatch: got (NimSym), expected macros.strVal(n: NimNode)
+  echo sym.getImpl.strVal
+
+
+foobar(foo(banana))
+
 #counter that will be used to generate unique intermediate macro name
 #and avoid name collision
 var macroCount {.compileTime.} = 0
@@ -47,9 +96,6 @@ macro bindFunction*(arg: varargs[untyped]): stmt =
 proc mulv(a, b: int): int = discard
 proc mulv(a, b: float): float = discard
 proc abc(a: string): string = discard
-
-var i : int
-
 
 bindFunction(mulv, abc, i)
 
