@@ -249,42 +249,42 @@ proc genShaderSource*(
   result.add(mainSrc)
   result.add("\n}")
 
-proc shaderSource*(shader: GLuint, source: string) =
+proc shaderSource(shader: GLuint, source: string) =
   var source_array: array[1, string] = [source]
   var c_source_array = allocCStringArray(source_array)
   defer: deallocCStringArray(c_source_array)
   glShaderSource(shader, 1, c_source_array, nil)
 
-proc compileStatus*(shader:GLuint): bool =
+proc compileStatus(shader:GLuint): bool =
   var status: GLint
   glGetShaderiv(shader, GL_COMPILE_STATUS, status.addr)
   status != 0
 
-proc linkStatus*(program:GLuint): bool =
+proc linkStatus(program:GLuint): bool =
   var status: GLint
   glGetProgramiv(program, GL_LINK_STATUS, status.addr)
   status != 0
 
-proc shaderInfoLog*(shader: GLuint): string =
+proc shaderInfoLog(shader: GLuint): string =
   var length: GLint = 0
   glGetShaderiv(shader, GL_INFO_LOG_LENGTH, length.addr)
   result = newString(length.int)
   glGetShaderInfoLog(shader, length, nil, result)
 
-proc showError*(log: string, source: string): void =
+proc showError(log: string, source: string): void =
   let lines = source.splitLines
   for match in log.findIter(re"(\d+)\((\d+)\).*"):
     let line_nr = match.captures[1].parseInt;
     echo lines[line_nr - 1]
     echo match.match
 
-proc programInfoLog*(program: GLuint): string =
+proc programInfoLog(program: GLuint): string =
   var length: GLint = 0
   glGetProgramiv(program, GL_INFO_LOG_LENGTH, length.addr);
   result = newString(length.int)
   glGetProgramInfoLog(program, length, nil, result);
 
-proc compileShader*(shaderType: GLenum, source: string): GLuint =
+proc compileShader(shaderType: GLenum, source: string): GLuint =
   result = glCreateShader(shaderType)
   result.shaderSource(source)
   glCompileShader(result)
@@ -300,7 +300,7 @@ proc compileShader*(shaderType: GLenum, source: string): GLuint =
     showError(result.shaderInfoLog, source)
     echo "==== end Shader Problems ========================================="
 
-proc linkShader*(shaders: varargs[GLuint]): GLuint =
+proc linkShader(shaders: varargs[GLuint]): GLuint =
   result = glCreateProgram()
 
   for shader in shaders:
@@ -318,13 +318,13 @@ template attribSize(t: type Vec3[float64]) : GLint = 3
 template attribType(t: type Vec3[float64]) : GLenum = cGL_DOUBLE
 template attribNormalized(t: type Vec3[float64]) : bool = false
 
-proc makeAndBindBuffer*[T](buffer: var ArrayBuffer[T], index: GLuint, value: var seq[T], usage: GLenum) =
+proc makeAndBindBuffer[T](buffer: var ArrayBuffer[T], index: GLuint, value: var seq[T], usage: GLenum) =
   buffer = newArrayBuffer[T]()
   buffer.bindIt
   glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(value.len * sizeof(T)), value[0].addr, usage)
   glVertexAttribPointer(index, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
 
-template renderBlockTemplate(globalsBlock, sequenceInitBlock,
+template renderBlockTemplate(globalsBlock, linkShaderBlock,
                bufferCreationBlock, setUniformsBlock: expr): stmt {. dirty .} =
   block:
     var vao {.global.}: VertexArrayObject
@@ -334,12 +334,7 @@ template renderBlockTemplate(globalsBlock, sequenceInitBlock,
 
     if glProgram == 0:
 
-      sequenceInitBlock
-
-      gl_program = linkShader(
-        compileShader(GL_VERTEX_SHADER,   genShaderSource(uniforms, true, attributes, true, varyings, includes, vertexSrc)),
-        compileShader(GL_FRAGMENT_SHADER, genShaderSource(uniforms, true, varyings, false, fragOut, includes, fragmentSrc)),
-      )
+      gl_program = linkShaderBlock
 
       glUseProgram(gl_program)
       vao = newVertexArrayObject()
@@ -357,7 +352,7 @@ template renderBlockTemplate(globalsBlock, sequenceInitBlock,
 
     setUniformsBlock
 
-    glDrawArrays(GL_TRIANGLES, 0, GLsizei(len(vertex)))
+    glDrawArrays(GL_TRIANGLES, 0, GLsizei(6*2*3))
 
     bindIt(nil_vao)
     glUseProgram(0);
@@ -369,8 +364,8 @@ template renderBlockTemplate(globalsBlock, sequenceInitBlock,
 proc shaderArg[T](name: string, value: T): int = 0
 proc attributes(args : varargs[int]) : int = 0
 proc uniforms(args: varargs[int]): int = 0
-proc varyings(args: varargs[int]): int = 0
-proc fragOut(args: varargs[int]): int = 0
+proc vertex_out(args: varargs[int]): int = 0
+proc fragment_out(args: varargs[int]): int = 0
 proc vertexMain(src: string): int = 0
 proc fragmentMain(src: string): int = 0
 proc includes(args: varargs[int]): int = 0
@@ -381,11 +376,18 @@ proc incl(arg: string): int = 0
 ################################################################################
 
 macro shadingDslInner( statement: varargs[typed] ) : stmt =
-  var uniformsSection : seq[string] = @[]
-  var attributesSection : seq[string] = @[]
-  var varyingsSection : seq[string] = @[]
-  var fragOutSection : seq[string] = @[]
+  var uniformsSection : seq[ShaderParam] = @[]
+  var setUniformsBlock = newStmtList()
+  var attributesSection : seq[ShaderParam] = @[]
+  var globalsBlock = newStmtList()
+  var bufferCreationBlock = newStmtList()
+  var vertexOutSection : seq[ShaderParam] = @[]
+  var fragmentOutSection : seq[ShaderParam] = @[]
   var includesSection : seq[string] = @[]
+  var vertexMain: string
+  var fragmentMain: string
+
+  # var sequenceInitBlock = newStmtBlock
 
   #### BEGIN PARSE TREE ####
 
@@ -398,26 +400,53 @@ macro shadingDslInner( statement: varargs[typed] ) : stmt =
         innerCall[1].expectKind nnkStrLit
         let name = $innerCall[1]
         let value = innerCall[2]
-        echo "uniform ", value.glslUniformType, " ", name
+
+        setUniformsBlock.add( newCall( bindSym"uniform", newLit(uniformsSection.len), value ) )
+        uniformsSection.add( (name: name, gl_type: value.glslUniformType) )
+
+        #echo "uniform ", value.glslUniformType, " ", name
 
     of "attributes":
       for innerCall in call[1][1].items:
         innerCall[1].expectKind nnkStrLit
         let name = $innerCall[1]
         let value = innerCall[2]
+        let buffername = !(name & "Buffer")
+
         echo "attribute ", value.glslAttribType, " ", name
 
-    of "varyings":
-      echo "varyings"
+        template foobarTemplate( lhs, rhs : expr ) : stmt {.dirty.} =
+          var lhs {.global.}: ArrayBuffer[rhs[0].type]
 
-      #echo call.treeRepr
-      echo call[1].treeRepr
+        globalsBlock.add(getAst(foobarTemplate( newIdentNode(buffername), value )))
+
+        let attribCount = attributesSection.len
+
+        bufferCreationBlock.add(newCall(bindSym"glEnableVertexAttribArray", newLit(attribCount)))
+        bufferCreationBlock.add(newCall(bindSym"makeAndBindBuffer",
+            newIdentNode(buffername),
+            newLit(attribCount),
+            value,
+            bindSym"GL_STATIC_DRAW"
+        ))
+
+        attributesSection.add( (name: name, gl_type: value.glslAttribType) )
+
+    of "vertex_out":
+      echo "vertex_out"
+
+      for innerCall in call[1][1].items:
+        echo "varying ", innerCall[2].strVal, " ",innerCall[1].strVal , ";"
+        vertexOutSection.add( (name: innerCall[1].strVal, gl_Type: innerCall[2].strVal) )
 
 
-    of "fragOut":
-      echo "fragOut"
+    of "fragment_out":
+      echo "fragment_out"
 
-      echo call.treeRepr
+      for innerCall in call[1][1].items:
+        echo "out ", innerCall[2].strVal, " ", innerCall[1].strVal, ";"
+        fragmentOutSection.add( (name: innerCall[1].strVal, gl_Type: innerCall[2].strVal) )
+
 
     of "includes":
       echo "includes"
@@ -433,16 +462,33 @@ macro shadingDslInner( statement: varargs[typed] ) : stmt =
       echo "vertexMain"
 
       echo call[1].strVal
+      vertexMain = call[1].strVal
 
     of "fragmentMain":
       echo "fragmentMain"
 
       echo call[1].strVal
+      fragmentMain = call[1].strVal
 
     else:
       echo "unknownSection"
 
-  result = newStmtList()
+  let vertexShaderSource = genShaderSource(uniformsSection, true, attributesSection, true, vertexOutSection, includesSection, vertexMain)
+  let fragmentShaderSource = genShaderSource(uniformsSection, true, vertexOutSection, false, fragmentOutSection, includesSection, fragmentMain)
+
+  #echo "vertexShaderSource"
+  #echo vertexShaderSource
+  #echo "fragmentShaderSource"
+  #echo fragmentShaderSource
+  #echo "source_end"
+
+  let linkShaderBlock = newCall( bindSym"linkShader",
+    newCall( bindSym"compileShader", bindSym"GL_VERTEX_SHADER", newLit(vertexShaderSource) ),
+    newCall( bindSym"compileShader", bindSym"GL_FRAGMENT_SHADER", newLit(fragmentShaderSource) ),
+  )
+
+  result = getAst(renderBlockTemplate(globalsBlock, linkShaderBlock, bufferCreationBlock, setUniformsBlock))
+  echo result.repr
 
 ################################################################################
 ## Shading Dsl Outer ###########################################################
@@ -491,8 +537,8 @@ macro shadingDsl*(statement: expr) : stmt =
 
       result.add(attributesCall)
 
-    of "varyings":
-      let varyingsCall = newCall(bindSym"varyings")
+    of "vertex_out":
+      let varyingsCall = newCall(bindSym"vertex_out")
 
       for varSec in stmtList.items:
         varSec.expectKind nnkVarSection
@@ -504,8 +550,8 @@ macro shadingDsl*(statement: expr) : stmt =
 
       result.add(varyingsCall)
 
-    of "frag_out":
-      let fragOutCall = newCall(bindSym"fragOut")
+    of "fragment_out":
+      let fragOutCall = newCall(bindSym"fragment_out")
 
       for varSec in stmtList.items:
         varSec.expectKind nnkVarSection

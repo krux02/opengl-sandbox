@@ -116,9 +116,9 @@ proc render() =
       attributes:
         pos = vertex
         col = color
-      varyings:
+      vertex_out:
         var v_col : vec4
-      frag_out:
+      fragment_out:
         var color : vec4
       includes:
         glslCode
