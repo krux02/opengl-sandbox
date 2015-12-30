@@ -365,9 +365,11 @@ proc shaderArg[T](name: string, value: T): int = 0
 proc attributes(args : varargs[int]) : int = 0
 proc uniforms(args: varargs[int]): int = 0
 proc vertex_out(args: varargs[int]): int = 0
+proc geometry_out(args: varargs[int]): int = 0
 proc fragment_out(args: varargs[int]): int = 0
 proc vertexMain(src: string): int = 0
 proc fragmentMain(src: string): int = 0
+proc geometryMain(src: string): int = 0
 proc includes(args: varargs[int]): int = 0
 proc incl(arg: string): int = 0
 
@@ -382,12 +384,12 @@ macro shadingDslInner( statement: varargs[typed] ) : stmt =
   var globalsBlock = newStmtList()
   var bufferCreationBlock = newStmtList()
   var vertexOutSection : seq[ShaderParam] = @[]
+  var geometryOutSection : seq[ShaderParam] = @[]
   var fragmentOutSection : seq[ShaderParam] = @[]
   var includesSection : seq[string] = @[]
   var vertexMain: string
+  var geometryMain: string
   var fragmentMain: string
-
-  # var sequenceInitBlock = newStmtBlock
 
   #### BEGIN PARSE TREE ####
 
@@ -436,8 +438,14 @@ macro shadingDslInner( statement: varargs[typed] ) : stmt =
       echo "vertex_out"
 
       for innerCall in call[1][1].items:
-        echo "varying ", innerCall[2].strVal, " ",innerCall[1].strVal , ";"
+        #echo "varying ", innerCall[2].strVal, " ",innerCall[1].strVal , ";"
         vertexOutSection.add( (name: innerCall[1].strVal, gl_Type: innerCall[2].strVal) )
+
+    of "geometry_out":
+      echo "geometry_out"
+
+      for innerCall in call[1][1].items:
+        geometryOutSection.add( (name: innerCall[1].strVal, gl_Type: innerCall[2].strVal) )
 
 
     of "fragment_out":
@@ -460,32 +468,50 @@ macro shadingDslInner( statement: varargs[typed] ) : stmt =
 
     of "vertexMain":
       echo "vertexMain"
-
       echo call[1].strVal
+
       vertexMain = call[1].strVal
 
     of "fragmentMain":
       echo "fragmentMain"
-
       echo call[1].strVal
+
       fragmentMain = call[1].strVal
+
+    of "geometryMain":
+      echo "geometryMain"
+      echo call[1].strVal
+
+      geometryMain = call[1].strVal
 
     else:
       echo "unknownSection"
 
+
   let vertexShaderSource = genShaderSource(uniformsSection, true, attributesSection, true, vertexOutSection, includesSection, vertexMain)
-  let fragmentShaderSource = genShaderSource(uniformsSection, true, vertexOutSection, false, fragmentOutSection, includesSection, fragmentMain)
 
-  #echo "vertexShaderSource"
-  #echo vertexShaderSource
-  #echo "fragmentShaderSource"
-  #echo fragmentShaderSource
-  #echo "source_end"
+  var linkShaderBlock : NimNode
 
-  let linkShaderBlock = newCall( bindSym"linkShader",
-    newCall( bindSym"compileShader", bindSym"GL_VERTEX_SHADER", newLit(vertexShaderSource) ),
-    newCall( bindSym"compileShader", bindSym"GL_FRAGMENT_SHADER", newLit(fragmentShaderSource) ),
-  )
+  if geometryMain == nil:
+
+    let fragmentShaderSource = genShaderSource(uniformsSection, true, vertexOutSection, false, fragmentOutSection, includesSection, fragmentMain)
+
+    linkShaderBlock = newCall( bindSym"linkShader",
+      newCall( bindSym"compileShader", bindSym"GL_VERTEX_SHADER", newLit(vertexShaderSource) ),
+      newCall( bindSym"compileShader", bindSym"GL_FRAGMENT_SHADER", newLit(fragmentShaderSource) ),
+    )
+
+  else:
+
+    let geometryShaderSource = genShaderSource(uniformsSection, true, vertexOutSection, false, geometryOutSection, includesSection, geometryMain)
+    let fragmentShaderSource = genShaderSource(uniformsSection, true, geometryOutSection, false, fragmentOutSection, includesSection, fragmentMain)
+
+
+    linkShaderBlock = newCall( bindSym"linkShader",
+      newCall( bindSym"compileShader", bindSym"GL_VERTEX_SHADER", newLit(vertexShaderSource) ),
+      newCall( bindSym"compileShader", bindSym"GL_GEOMETRY_SHADER", newLit(geometryShaderSource) ),
+      newCall( bindSym"compileShader", bindSym"GL_FRAGMENT_SHADER", newLit(fragmentShaderSource) ),
+    )
 
   result = getAst(renderBlockTemplate(globalsBlock, linkShaderBlock, bufferCreationBlock, setUniformsBlock))
   echo result.repr
@@ -569,7 +595,12 @@ macro shadingDsl*(statement: expr) : stmt =
       stmtList[0].expectKind({nnkTripleStrLit, nnkStrLit})
       result.add( newCall(bindSym"vertexMain", stmtList[0]) )
 
-    of  "fragment_prg":
+    of "geometry_prg":
+      stmtList.expectLen(1)
+      stmtList[0].expectKind({nnkTripleStrLit, nnkStrLit})
+      result.add( newCall(bindSym"geometryMain", stmtList[0]) )
+
+    of "fragment_prg":
       stmtList.expectLen(1)
       stmtList[0].expectKind({ nnkTripleStrLit, nnkStrLit })
       result.add( newCall(bindSym"fragmentMain", stmtList[0]) )
