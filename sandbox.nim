@@ -106,13 +106,12 @@ proc render() =
 
     let mvp : Mat4x4[float32] =  modelview_mat * projection_mat;
 
-    shadingDsl:
-      samplers:
-        crateTexture
+    shadingDsl(GL_TRIANGLES, vertex.len):
       uniforms:
         mvp
         time
         mousePosNorm
+        crateTexture
       attributes:
         pos = vertex
         col = color

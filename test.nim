@@ -1,105 +1,66 @@
-import macros, strutils
+import macros, typetraits
 
+type Foo = distinct int
+type Bar = distinct int
+type Baz = int
 
+let foo = 0.Foo
+let bar = 1.Bar
+let baz = 2.Baz
 
+type MyType[T] = distinct tuple[a,b:T]
+type MySimpleType = distinct tuple[a,b: int]
 
-macro isInt(x: typed): stmt =
-  if macros.sameType( getType(int), x.getType):
-    echo "yea"
-  else:
-    echo "nope"
-  discard
+var v: seq[int]
+var vv: seq[float]
+var t: MyType[int]
+var tt: MyType[float]
+var s: MySimpleType
 
-let i = 0
+echo "############"
+echo "#### gt ####"
+echo "############"
 
-isInt(i)  # yea
+macro gt(a: typed): string =
+  let b = a.getType
+  var str = "gt(" & $a & "):\t" & b.repr
+  if b.kind == nnkSym: # bad predicat to check weather the type has an implementation
+    str = str & ", " & b.getType.repr  # append the implementation to the result
+  result = newLit(str)
 
-type MyVec3[T] = tuple[x,y,z:T]
+echo gt(Foo) # typeDesc[Foo]
+echo gt(Bar) # typeDesc[Bar]
+echo gt(Baz) # typeDesc[int]     shouldn't it be typeDesc[Baz]?
+echo gt(foo) # distinct[int]     I would prefer Foo, distinct[int]
+echo gt(bar) # distinct[int]     I would prefer Bar, distinct[int]
+echo gt(baz) # int, int          I would prefer Baz, int
 
-macro isMyVec3(x: typed): stmt =
-  if macros.sameType( getType(MyVec3[float])[1], x.getType):
-    echo "yea"
-  else:
-    echo "nope"
-  discard
+echo gt(v)   # seq[int], ok
+echo gt(vv)  # seq[float], ok
+echo gt(t)   # MyType, distinct[tuple[int, int]]      I would prefer MyType[int],   distinct[tuple[int, int]]
+echo gt(tt)  # MyType, distinct[tuple[float, float]]  I would prefer MyType[float], distinct[tuple[int, int]]
+echo gt(s)   # distinct[tuple[int, int]]              I would prefer MySimpleType, distinct[tuple[int,int]]
 
-let v : MyVec3[float] = (1.0,2.0,3.0)
+echo "#############"
+echo "#### gt2 ####"
+echo "#############"
 
-isMyVec3(v) # nope
+# get type name via typetraits
 
+macro gt2(a: typed): string =
+  let prefix = "gt2(" & $a & "): \t"
+  result = quote do:
+    `prefix` & `a`.type.name
 
-const banana = join(["bana", "na"])
+echo gt2(Foo) # Foo  shouldn't this be typeDesc[Foo] ?
+echo gt2(Bar) # Bar  shouldn't this be typeDesc[Bar] ?
+echo gt2(Baz) # Baz  shouldn't this be typeDesc[Baz] ?
+echo gt2(foo) # Foo
+echo gt2(bar) # Bar
+echo gt2(baz) # Baz
 
-
-proc foo(arg:string): int = 0
-
-macro foobar(arg: typed): stmt =
-  # it's not the root node I am working on.
-  let subNode = arg[1]      #
-  echo subNode.treeRepr     # Sym "banana"
-  echo subNode.getType.repr # string
-  #echo subNode.strVal       # Error: field 'strVal' cannot be found
-
-  let sym = subNode.symbol
-  echo sym.repr             # banana
-  #echo sym.kind             # Error: type mismatch: got (NimSym), expected macros.kind(n: NimNode)
-  #echo sym.strVal           # Error: type mismatch: got (NimSym), expected macros.strVal(n: NimNode)
-  echo sym.getImpl.strVal
-
-
-foobar(foo(banana))
-
-#counter that will be used to generate unique intermediate macro name
-#and avoid name collision
-var macroCount {.compileTime.} = 0
-
-#this proc is exported because of the NLBFunc macro expansion
-#occured on bindFunction caller module
-proc bindFuncImpl*(arg: openArray[NimNode]): NimNode {.compileTime.} =
-  result = newNimNode(nnkStmtList)
-  for n in arg:
-    if n.kind == nnkSym:
-      echo getImpl(n.symbol).repr #see what the symbol actually is
-      echo getType(n)
-      #from here you can use getType/getImpl combination
-    else:
-      #overloaded symbol
-      for k in children(n):
-        echo getImpl(k.symbol).repr #see what the symbol actually is
-
-  #here you can put your glue code generator
-
-macro bindFunction*(arg: varargs[untyped]): stmt =
-  result = newNimNode(nnkStmtList)
-
-  #generate intermediate macro to utilize
-  #bindSym that can only accept string literal
-  let macroName = "NLBFunc" & $macroCount
-  var nlb = "macro " & macroName & "(): stmt =\n"
-  nlb.add "  let procList = [\n"
-
-  var i = 0
-  for k in children(arg):
-    let comma = if i < arg.len-1: "," else: ""
-    nlb.add "    bindSym\"$1\"$2\n" % [$k, comma]
-    inc i
-
-  nlb.add "  ]\n"
-  nlb.add "  result = bindFuncImpl(procList)\n"
-  nlb.add macroName & "()\n"  #don't forget to call the intermediate macro
-
-  result.add parseStmt(nlb)
-  echo nlb #inspect the generated code, you can remove it safely
-  inc macroCount
-
-
-proc mulv(a, b: int): int = discard
-proc mulv(a, b: float): float = discard
-proc abc(a: string): string = discard
-
-bindFunction(mulv, abc, i)
-
-#you can do something like this if you modified bindFunction properly
-#bindFunction:
-#  mulv -> "newname"
-#  abc
+echo gt2(v)   # seq[int]
+echo gt2(vv)  # seq[float]
+echo gt2(t)   # MyType[system.int]      why is it system.int and not just int like in seq?
+echo gt2(tt)  # MyType[system.float]    why is it system.float and not just float like in seq?
+echo gt2(s)   # MySimpleType

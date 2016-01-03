@@ -58,21 +58,31 @@ textureTypeTemplate(Texture2D,                 nil_Texture2D,
 textureTypeTemplate(Texture3D,                 nil_Texture3D,
     GL_TEXTURE_3D, "sampler3D")
 textureTypeTemplate(Texture1DArray,             nil_Texture1DArray,
-    GL_Texture_1D_ARRAY, "sampler2D")
+    GL_Texture_1D_ARRAY, "sampler1DArray")
 textureTypeTemplate(Texture2DArray,            nil_Texture2DArray,
-    GL_TEXTURE_2D_ARRAY, "sampler2D")
+    GL_TEXTURE_2D_ARRAY, "sampler2DArray")
 textureTypeTemplate(TextureRectangle,          nil_TextureRectangle,
-    GL_TEXTURE_RECTANGLE, "sampler2D")
+    GL_TEXTURE_RECTANGLE, "sampler2DRect")
 textureTypeTemplate(TextureCubeMap,            nil_TextureCubeMap,
-    GL_TEXTURE_CUBE_MAP, "sampler2D")
+    GL_TEXTURE_CUBE_MAP, "samplerCube")
 textureTypeTemplate(TextureCubeMapArray,       nil_TextureCubeMapArray,
-    GL_TEXTURE_CUBE_MAP_ARRAY , "sampler2D")
+    GL_TEXTURE_CUBE_MAP_ARRAY , "samplerCubeArray")
 textureTypeTemplate(TextureBuffer,             nil_TextureBuffer,
-    GL_TEXTURE_BUFFER, "sampler2D")
+    GL_TEXTURE_BUFFER, "samplerBuffer")
 textureTypeTemplate(Texture2DMultisample,      nil_Texture2DMultisample,
-    GL_TEXTURE_2D_MULTISAMPLE, "sampler2D")
+    GL_TEXTURE_2D_MULTISAMPLE, "sampler2DMS")
 textureTypeTemplate(Texture2DMultisampleArray, nil_Texture2DMultisampleArray,
-    GL_TEXTURE_2D_MULTISAMPLE_ARRAY, "sampler2D")
+    GL_TEXTURE_2D_MULTISAMPLE_ARRAY, "sampler2DMSArray")
+
+
+textureTypeTemplate(Texture1DShadow,        nil_Texture1DShadow,        GL_TEXTURE_1D,             "sampler1DShadow​")
+textureTypeTemplate(Texture2DShadow,        nil_Texture2DShadow,        GL_TEXTURE_2D,             "sampler2DShadow​")
+textureTypeTemplate(TextureCubeShadow,      nil_TextureCubeShadow,      GL_TEXTURE_CUBE_MAP,       "samplerCubeShadow​")
+textureTypeTemplate(Texture2DRectShadow,    nil_Texture2DRectShadow,    GL_TEXTURE_RECTANGLE,      "sampler2DRectShadow​")
+textureTypeTemplate(Texture1DArrayShadow,   nil_Texture1DArrayShadow,   GL_TEXTURE_1D_ARRAY,       "sampler1DArrayShadow​")
+textureTypeTemplate(Texture2DArrayShadow,   nil_Texture2DArrayShadow,   GL_TEXTURE_2D_ARRAY,       "sampler2DArrayShadow​")
+textureTypeTemplate(TextureCubeArrayShadow, nil_TextureCubeArrayShadow, GL_TEXTURE_CUBE_MAP_ARRAY, "samplerCubeArrayShadow​")
+
 
 proc loadAndBindTextureRectangleFromFile*(filename: string): TextureRectangle =
   let surface = image.load(filename)
@@ -99,19 +109,9 @@ proc loadAndBindTexture2DFromFile*(filename: string): Texture2D =
 
 #### nim -> glsl type mapping ####
 
-template glslUniformType(t : float32): string = "float"
-template glslUniformType(t : float64): string = "float"
-template glslUniformType(t : Vec3f): string = "vec3"
-template glslUniformType(t : Vec4f): string = "vec4"
-template glslUniformType(t : Mat4f): string = "mat4"
-
-template glslAttribType(t : seq[float32]): string = "float"
-template glslAttribType(t : seq[float64]): string = "float"
-template glslAttribType(t : seq[Vec3f]): string = "vec3"
-template glslAttribType(t : seq[Vec4f]): string = "vec4"
-
 proc glslUniformType(value : NimNode): string =
   let tpe = value.getType
+  echo tpe.treeRepr
   ($tpe).toLower
 
 proc glslAttribType(value : NimNode): string =
@@ -324,8 +324,8 @@ proc makeAndBindBuffer[T](buffer: var ArrayBuffer[T], index: GLuint, value: var 
   glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(value.len * sizeof(T)), value[0].addr, usage)
   glVertexAttribPointer(index, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
 
-template renderBlockTemplate(globalsBlock, linkShaderBlock,
-               bufferCreationBlock, setUniformsBlock: expr): stmt {. dirty .} =
+template renderBlockTemplate(globalsBlock, linkShaderBlock, bufferCreationBlock,
+               setUniformsBlock, drawCommand: expr): stmt {. dirty .} =
   block:
     var vao {.global.}: VertexArrayObject
     var glProgram {.global.}: GLuint  = 0
@@ -352,7 +352,7 @@ template renderBlockTemplate(globalsBlock, linkShaderBlock,
 
     setUniformsBlock
 
-    glDrawArrays(GL_TRIANGLES, 0, GLsizei(6*2*3))
+    drawCommand
 
     bindIt(nil_vao)
     glUseProgram(0);
@@ -377,7 +377,7 @@ proc incl(arg: string): int = 0
 ## Shading Dsl Inner ###########################################################
 ################################################################################
 
-macro shadingDslInner( statement: varargs[typed] ) : stmt =
+macro shadingDslInner(mode: int, count: int, statement: varargs[typed] ) : stmt =
   var uniformsSection : seq[ShaderParam] = @[]
   var setUniformsBlock = newStmtList()
   var attributesSection : seq[ShaderParam] = @[]
@@ -513,16 +513,19 @@ macro shadingDslInner( statement: varargs[typed] ) : stmt =
       newCall( bindSym"compileShader", bindSym"GL_FRAGMENT_SHADER", newLit(fragmentShaderSource) ),
     )
 
-  result = getAst(renderBlockTemplate(globalsBlock, linkShaderBlock, bufferCreationBlock, setUniformsBlock))
+  echo mode.repr
+  let drawCommand = newCall( bindSym"glDrawArrays", mode, newLit(0), count )
+
+  result = getAst(renderBlockTemplate(globalsBlock, linkShaderBlock, bufferCreationBlock, setUniformsBlock, drawCommand))
   echo result.repr
 
 ################################################################################
 ## Shading Dsl Outer ###########################################################
 ################################################################################
 
-macro shadingDsl*(statement: expr) : stmt =
+macro shadingDsl*(mode:GLenum, count: GLsizei, statement: stmt) : stmt {.immediate.} =
 
-  result = newCall(bindSym"shadingDslInner")
+  result = newCall(bindSym"shadingDslInner", mode, count)
 
   for section in statement.items:
     section.expectKind nnkCall
@@ -532,8 +535,6 @@ macro shadingDsl*(statement: expr) : stmt =
     stmtList.expectKind nnkStmtList
 
     case $ident
-    of "samplers":
-      discard
     of "uniforms":
       let uniformsCall = newCall(bindSym"uniforms")
 
