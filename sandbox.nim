@@ -143,7 +143,7 @@ proc render() =
         glslCode
       vertexMain:
         """
-        gl_Position = projection * modelview * vec4(pos,1);
+        gl_Position = projection * modelview * vec4(pos, 1);
         v_col = vec4(col,1);
         t_coord = texcoord;
         """

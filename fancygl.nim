@@ -165,29 +165,29 @@ proc glslAttribType(value : NimNode): string =
 
 #### Uniform ####
 
-proc uniform*(location: GLint, mat: Mat4x4[float64]) =
+proc uniform(location: GLint, mat: Mat4x4[float64]) =
   var mat_float32 = mat4f(mat)
   glUniformMatrix4fv(location, 1, false, cast[ptr GLfloat](mat_float32.addr))
 
-proc uniform*(location: GLint, mat: var Mat4x4[float32]) =
+proc uniform(location: GLint, mat: var Mat4x4[float32]) =
   glUniformMatrix4fv(location, 1, false, cast[ptr GLfloat](mat.addr))
 
-proc uniform*(location: GLint, value: float32) =
+proc uniform(location: GLint, value: float32) =
   glUniform1f(location, value)
 
-proc uniform*(location: GLint, value: float64) =
+proc uniform(location: GLint, value: float64) =
   glUniform1f(location, value)
 
-proc uniform*(location: GLint, value: int32) =
+proc uniform(location: GLint, value: int32) =
   glUniform1i(location, value)
 
-proc uniform*(location: GLint, value: Vec2f) =
+proc uniform(location: GLint, value: Vec2f) =
   glUniform2f(location, value[0], value[1])
 
-proc uniform*(location: GLint, value: Vec3f) =
+proc uniform(location: GLint, value: Vec3f) =
   glUniform3f(location, value[0], value[1], value[2])
 
-proc uniform*(location: GLint, value: Vec4f) =
+proc uniform(location: GLint, value: Vec4f) =
   glUniform4f(location, value[0], value[1], value[2], value[3])
 
 
@@ -383,17 +383,23 @@ proc attribSize(t: typedesc[Vec2f]) : GLint = 2
 proc attribType(t: typedesc[Vec2f]) : GLenum = cGL_FLOAT
 proc attribNormalized(t: typedesc[Vec2f]) : bool = false
 
-proc makeAndBindBuffer[T](buffer: var ArrayBuffer[T], index: GLuint, value: var seq[T], usage: GLenum) =
-  buffer = newArrayBuffer[T]()
-  buffer.bindIt
-  glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(value.len * sizeof(T)), value[0].addr, usage)
-  glVertexAttribPointer(index, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
+proc makeAndBindBuffer[T](buffer: var ArrayBuffer[T], index: GLint, value: var seq[T], usage: GLenum) =
+  if index >= 0:
+    buffer = newArrayBuffer[T]()
+    buffer.bindIt
+    glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(value.len * sizeof(T)), value[0].addr, usage)
+    glVertexAttribPointer(index.GLuint, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
 
-template renderBlockTemplate(globalsBlock, linkShaderBlock, bufferCreationBlock,
+proc myEnableVertexAttribArray(index: GLint): void =
+  if index >= 0:
+    glEnableVertexAttribArray(index.GLuint)
+
+template renderBlockTemplate(numLocations: int, globalsBlock, linkShaderBlock, bufferCreationBlock,
                initUniformsBlock, setUniformsBlock, drawCommand: expr): stmt {. dirty .} =
   block:
     var vao {.global.}: VertexArrayObject
     var glProgram {.global.}: GLuint  = 0
+    var locations {.global.}: array[numLocations, GLint]
 
     globalsBlock
 
@@ -412,6 +418,8 @@ template renderBlockTemplate(globalsBlock, linkShaderBlock, bufferCreationBlock,
       glBindBuffer(GL_ARRAY_BUFFER, 0)
       bindIt(nil_vao)
       glUseProgram(0)
+
+
 
     glUseProgram(gl_program)
 
@@ -446,6 +454,7 @@ proc incl(arg: string): int = 0
 
 macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) : stmt =
   var numSamplers = 0
+  var numLocations = 0
   var uniformsSection : seq[string] = @[]
   var initUniformsBlock = newStmtList()
   var setUniformsBlock = newStmtList()
@@ -462,6 +471,9 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
 
   #### BEGIN PARSE TREE ####
 
+  proc locations(i: int) : NimNode =
+    newTree(nnkBracketExpr, newIdentNode("locations"), newLit(i))
+
   echo "shadingDslInner"
   for call in statement.items:
     call.expectKind nnkCall
@@ -475,8 +487,14 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
 
         let (glslType, isSample) = value.glslUniformType
         let baseString = "uniform " & glslType & " " & name
+
+        initUniformsBlock.add( newAssignment(
+          locations(numLocations),
+          newCall( bindSym"glGetUniformLocation", newIdentNode("glProgram"), newLit(name) )
+        ))
+
         if isSample:
-          initUniformsBlock.add( newCall( bindSym"glUniform1i", newLit(uniformsSection.len), newLit(numSamplers) ) )
+          initUniformsBlock.add( newCall( bindSym"glUniform1i", locations(numLocations), newLit(numSamplers) ) )
 
           proc activeTexture(texture: int): void =
             glActiveTexture( (GL_TEXTURE0 + texture).GLenum )
@@ -485,10 +503,11 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
           setUniformsBlock.add( newCall( bindSym"bindIt", value ) )
           numSamplers += 1
         else:
-          setUniformsBlock.add( newCall( bindSym"uniform", newLit(uniformsSection.len), value ) )
+          setUniformsBlock.add( newCall( bindSym"uniform", locations(numLocations), value ) )
 
         uniformsSection.add( baseString )
-        #echo "uniform ", value.glslUniformType, " ", name
+
+        numLocations += 1
 
     of "attributes":
       for innerCall in call[1][1].items:
@@ -506,15 +525,23 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
 
         let attribCount = attributesSection.len
 
-        bufferCreationBlock.add(newCall(bindSym"glEnableVertexAttribArray", newLit(attribCount)))
+        bufferCreationBlock.add( newAssignment(
+          locations(numLocations),
+          newCall( bindSym"glGetAttribLocation", newIdentNode("glProgram"), newLit(name) )
+        ))
+
+        bufferCreationBlock.add(newCall(bindSym"myEnableVertexAttribArray", locations(numLocations)))
+
         bufferCreationBlock.add(newCall(bindSym"makeAndBindBuffer",
             newIdentNode(buffername),
-            newLit(attribCount),
+            locations(numLocations),
             value,
             bindSym"GL_STATIC_DRAW"
         ))
 
         attributesSection.add( format("in $1 $2", value.glslAttribType, name) )
+
+        numLocations += 1
 
     of "vertex_out":
       echo "vertex_out"
@@ -566,13 +593,13 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
       echo "unknownSection"
 
 
-  let vertexShaderSource = genShaderSource(uniformsSection, true, attributesSection, true, vertexOutSection, includesSection, vertexMain)
+  let vertexShaderSource = genShaderSource(uniformsSection, false, attributesSection, false, vertexOutSection, includesSection, vertexMain)
 
   var linkShaderBlock : NimNode
 
   if geometryMain == nil:
 
-    let fragmentShaderSource = genShaderSource(uniformsSection, true, vertexOutSection, false, fragmentOutSection, includesSection, fragmentMain)
+    let fragmentShaderSource = genShaderSource(uniformsSection, false, vertexOutSection, false, fragmentOutSection, includesSection, fragmentMain)
 
     linkShaderBlock = newCall( bindSym"linkShader",
       newCall( bindSym"compileShader", bindSym"GL_VERTEX_SHADER", newLit(vertexShaderSource) ),
@@ -594,8 +621,9 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
   echo mode.repr
   let drawCommand = newCall( bindSym"glDrawArrays", mode, newLit(0), count )
 
-  result = getAst(renderBlockTemplate(globalsBlock, linkShaderBlock, bufferCreationBlock,
-                                      initUniformsBlock, setUniformsBlock, drawCommand))
+  result = getAst(renderBlockTemplate(numLocations, globalsBlock, linkShaderBlock,
+         bufferCreationBlock, initUniformsBlock, setUniformsBlock, drawCommand))
+
   echo result.repr
 
 ################################################################################
