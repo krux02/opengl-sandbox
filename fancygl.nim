@@ -129,7 +129,7 @@ proc glslUniformType(value : NimNode): (string, bool) =
     of "Vec2":
       ("vec2", false)
     else:
-      ("(unknown:"& $tpe[0] &")", false)
+      ("(unknown:" & $tpe[0] & ")", false)
   else:
     case $tpe
     of "Texture1D":
@@ -146,8 +146,68 @@ proc glslUniformType(value : NimNode): (string, bool) =
       ("mat3", false)
     of "Mat2d", "Mat2f":
       ("mat2", false)
+    of "Vec4d", "Vec4f":
+      ("vec4", false)
+    of "Vec3d", "Vec3f":
+      ("vec3", false)
+    of "Vec2d", "Vec2f":
+      ("vec2", false)
     else:
       (($tpe).toLower, false)
+
+# returns size and type
+proc glVertexAttribPointerParam(value : NimNode): (GLint, GLenum) =
+  echo "glVertexAttribPointerParam"
+  echo value.getType2.repr
+  let tpe = value.getType2[1]
+  echo tpe.repr
+
+  if tpe.kind == nnkBracketExpr:
+    var
+      size: GLint
+      gltype: GLenum
+
+    case $tpe[0]
+    of "Vec4":
+      size = 4
+    of "Vec3":
+      size = 3
+    of "Vec2":
+      size = 2
+
+    case $tpe[1]
+    of "float32":
+      gltype = cGL_FLOAT
+    of "float64":
+      gltype = cGL_DOUBLE
+
+    result = (size, gltype)
+  else:
+    case $tpe
+    of "Vec4d":
+      result[0] = 4
+      result[1] = cGL_DOUBLE
+    of "Vec4f":
+      result[0] = 4
+      result[1] = cGL_FLOAT
+    of "Vec3d":
+      result[0] = 3
+      result[1] = cGL_DOUBLE
+    of "Vec3f":
+      result[0] = 3
+      result[1] = cGL_FLOAT
+    of "Vec2d":
+      result[0] = 2
+      result[1] = cGL_DOUBLE
+    of "Vec2f":
+      result[0] = 2
+      result[1] = cGL_FLOAT
+    of "float64":
+      result[0] = 1
+      result[1] = cGL_DOUBLE
+    of "float32":
+      result[0] = 1
+      result[1] = cGL_FLOAT
 
 proc glslAttribType(value : NimNode): string =
   # result = getAst(glslAttribType(value))[0].strVal
@@ -480,7 +540,14 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
             value,
             bindSym"GL_STATIC_DRAW"
         ))
+
+        let (size, gltype) = glVertexAttribPointerParam(value)
+        echo "size: ", size
+        echo "gltype: ", gltype
+        bufferCreationBlock.add newCall(bindSym"glVertexAttribPointer",
+          newLit(attribCount), newLit(size), newLit(gltype.int), newLit(false), newLit(0), newNilLit() )
         attributesSection.add( (name: name, gl_type: value.glslAttribType) )
+
 
     of "vertex_out":
       echo "vertex_out"

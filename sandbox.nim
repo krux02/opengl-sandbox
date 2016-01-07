@@ -87,7 +87,6 @@ var mouseX, mouseY: int32
 var time = 0.0
 var frameCounter = 0
 
-
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
 
@@ -95,14 +94,17 @@ proc render() =
   let mouseY_Norm = (mouseY.float32 / screenHeight.float32)
   let mousePosNorm = vec2(mouseX_Norm, mouseY_Norm)
 
-  for i in 0..<7:
-    let newTime = (time * (1.0 + i.float64 / 5.0))
+  #for i in 0..<7:
+  block:
+    #let newTime = time * (1.0 + i.float64 / 5.0))
+    let newTime = time
 
     var modelview_mat = I4()
-    modelview_mat = modelview_mat.translate( vec3[float](2*sin(newTime), 2*cos(newTime), -7) )
+    modelview_mat = modelview_mat.translate( vec3[float](sin(newTime)*2, cos(newTime)*2, -7) )
     modelview_mat = modelview_mat.rotate( vec3[float](0,0,1), newTime )
     modelview_mat = modelview_mat.rotate( vec3[float](0,1,0), newTime )
     modelview_mat = modelview_mat.rotate( vec3[float](1,0,0), newTime )
+    #modelview_mat = modelview_mat.scale( vec3[float](50,50,50) )
 
     #let mvp : Mat4x4[float32] =  modelview_mat * projection_mat;
 
@@ -112,7 +114,7 @@ proc render() =
         projection = projection_mat
         time
         mousePosNorm
-        crateTexture
+        #crateTexture
       attributes:
         pos = vertex
         col = color
@@ -129,10 +131,10 @@ proc render() =
         """
       fragment_prg:
         """
-        //vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;
-        //color = mymix(v_col, time + dot( vec2(cos(time),sin(time)), offset ));
+        vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;
+        color = mymix(v_col, time + dot( vec2(cos(time),sin(time)), offset ));
         //color = v_col;
-        color = vec4(1,1,1,1);
+        //color = vec4(1,1,1,1);
         """
 
   frameCounter += 1
