@@ -141,13 +141,13 @@ proc render() =
         var color : vec4
       includes:
         glslCode
-      vertex_prg:
+      vertexMain:
         """
         gl_Position = projection * modelview * vec4(pos,1);
         v_col = vec4(col,1);
         t_coord = texcoord;
         """
-      fragment_prg:
+      fragmentMain:
         """
         vec4 t_col = texture(crateTexture, t_coord);
         vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;

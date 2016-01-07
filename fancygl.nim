@@ -271,22 +271,24 @@ let sourceHeader = """
 
 proc genShaderSource*(
     uniforms : openArray[string], uniformLocations : bool,
-    inParams : openArray[ShaderParam], inLocations : bool,
-    outParams: openArray[ShaderParam],
+    inParams : openArray[string], inLocations : bool,
+    outParams: openArray[string],
     includes: openArray[string], mainSrc: string): string =
   result = sourceHeader
+
   for i, u in uniforms:
     if uniformLocations:
       result.add format("layout(location = $2) $1;\n", u, i)
     else:
       result.add( u & ";\n" )
-  for i, a in inParams:
+  for i, paramRaw in inParams:
+    let param = paramRaw.replaceWord("out", "in")
     if inLocations:
-      result.add format("layout(location = $3) in $2 $1;\n", a.name, a.gl_type, i)
+      result.add format("layout(location = $2) $1;\n", param, i)
     else:
-      result.add format("in $2 $1;\n", a.name, a.gl_type, i)
-  for v in outParams:
-    result.add format("out $2 $1;\n", v.name, v.gl_type)
+      result.add(param & ";\n")
+  for param in outParams:
+    result.add(param & ";\n")
   for incl in includes:
     result.add incl
   result.add("void main() {\n")
@@ -429,9 +431,9 @@ template renderBlockTemplate(globalsBlock, linkShaderBlock, bufferCreationBlock,
 proc shaderArg[T](name: string, value: T): int = 0
 proc attributes(args : varargs[int]) : int = 0
 proc uniforms(args: varargs[int]): int = 0
-proc vertex_out(args: varargs[int]): int = 0
-proc geometry_out(args: varargs[int]): int = 0
-proc fragment_out(args: varargs[int]): int = 0
+proc vertex_out(args: varargs[string]): int = 0
+proc geometry_out(args: varargs[string]): int = 0
+proc fragment_out(args: varargs[string]): int = 0
 proc vertexMain(src: string): int = 0
 proc fragmentMain(src: string): int = 0
 proc geometryMain(src: string): int = 0
@@ -447,12 +449,12 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
   var uniformsSection : seq[string] = @[]
   var initUniformsBlock = newStmtList()
   var setUniformsBlock = newStmtList()
-  var attributesSection : seq[ShaderParam] = @[]
+  var attributesSection : seq[string] = @[]
   var globalsBlock = newStmtList()
   var bufferCreationBlock = newStmtList()
-  var vertexOutSection : seq[ShaderParam] = @[]
-  var geometryOutSection : seq[ShaderParam] = @[]
-  var fragmentOutSection : seq[ShaderParam] = @[]
+  var vertexOutSection : seq[string] = @[]
+  var geometryOutSection : seq[string] = @[]
+  var fragmentOutSection : seq[string] = @[]
   var includesSection : seq[string] = @[]
   var vertexMain: string
   var geometryMain: string
@@ -512,35 +514,25 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
             bindSym"GL_STATIC_DRAW"
         ))
 
-        #let (size, gltype) = glVertexAttribPointerParam(value)
-        #echo "size: ", size
-        #echo "gltype: ", gltype
-        #bufferCreationBlock.add newCall(bindSym"glVertexAttribPointer",
-        #  newLit(attribCount), newLit(size), newLit(gltype.int), newLit(false), newLit(0), newNilLit() )
-        attributesSection.add( (name: name, gl_type: value.glslAttribType) )
-
+        attributesSection.add( format("in $1 $2", value.glslAttribType, name) )
 
     of "vertex_out":
       echo "vertex_out"
 
       for innerCall in call[1][1].items:
-        #echo "varying ", innerCall[2].strVal, " ",innerCall[1].strVal , ";"
-        vertexOutSection.add( (name: innerCall[1].strVal, gl_Type: innerCall[2].strVal) )
+        vertexOutSection.add( innerCall.strVal )
 
     of "geometry_out":
       echo "geometry_out"
 
       for innerCall in call[1][1].items:
-        geometryOutSection.add( (name: innerCall[1].strVal, gl_Type: innerCall[2].strVal) )
-
+        geometryOutSection.add( innerCall.strVal )
 
     of "fragment_out":
       echo "fragment_out"
 
       for innerCall in call[1][1].items:
-        echo "out ", innerCall[2].strVal, " ", innerCall[1].strVal, ";"
-        fragmentOutSection.add( (name: innerCall[1].strVal, gl_Type: innerCall[2].strVal) )
-
+        fragmentOutSection.add( innerCall.strVal )
 
     of "includes":
       echo "includes"
@@ -651,8 +643,14 @@ macro shadingDsl*(mode:GLenum, count: GLsizei, statement: stmt) : stmt {.immedia
 
       result.add(attributesCall)
 
-    of "vertex_out":
-      let varyingsCall = newCall(bindSym"vertex_out")
+    of "vertex_out", "geometry_out", "fragment_out":
+
+      let outCall =
+        case $ident
+        of "vertex_out": newCall(bindSym"vertex_out")
+        of "geometry_out": newCall(bindSym"geometry_out")
+        of "fragment_out": newCall(bindSym"fragment_out")
+        else: nil
 
       for varSec in stmtList.items:
         varSec.expectKind nnkVarSection
@@ -660,35 +658,21 @@ macro shadingDsl*(mode:GLenum, count: GLsizei, statement: stmt) : stmt {.immedia
           def.expectKind nnkIdentDefs
           def[0].expectKind nnkIdent
           def[1].expectKind nnkIdent
-          varyingsCall.add( newCall(bindSym"shaderArg", newLit($def[0]) , newLit($def[1]) ) )
+          outCall.add newLit( format("out $2 $1", $def[0], $def[1]) )
 
-      result.add(varyingsCall)
+      result.add(outCall)
 
-    of "fragment_out":
-      let fragOutCall = newCall(bindSym"fragment_out")
-
-      for varSec in stmtList.items:
-        varSec.expectKind nnkVarSection
-        for def in varSec:
-          def.expectKind nnkIdentDefs
-          def.expectKind nnkIdentDefs
-          def[0].expectKind nnkIdent
-          def[1].expectKind nnkIdent
-          fragOutCall.add newCall(bindSym"shaderArg", newLit($def[0]) , newLit($def[1]) )
-
-      result.add(fragOutCall)
-
-    of "vertex_prg":
+    of "vertexMain":
       stmtList.expectLen(1)
       stmtList[0].expectKind({nnkTripleStrLit, nnkStrLit})
       result.add( newCall(bindSym"vertexMain", stmtList[0]) )
 
-    of "geometry_prg":
+    of "geometryMain":
       stmtList.expectLen(1)
       stmtList[0].expectKind({nnkTripleStrLit, nnkStrLit})
       result.add( newCall(bindSym"geometryMain", stmtList[0]) )
 
-    of "fragment_prg":
+    of "fragmentMain":
       stmtList.expectLen(1)
       stmtList[0].expectKind({ nnkTripleStrLit, nnkStrLit })
       result.add( newCall(bindSym"fragmentMain", stmtList[0]) )
