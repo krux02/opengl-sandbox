@@ -134,10 +134,10 @@ proc render() =
         pos = vertex
         col = color
         texcoord
-      vertex_out:
-        var v_col : vec4
+      vertexOut:
+        "out vec4 v_col"
         var t_coord : vec2
-      fragment_out:
+      fragmentOut:
         var color : vec4
       includes:
         glslCode

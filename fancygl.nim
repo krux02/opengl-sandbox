@@ -419,6 +419,9 @@ template renderBlockTemplate(numLocations: int, globalsBlock, linkShaderBlock, b
       bindIt(nil_vao)
       glUseProgram(0)
 
+      #for i, loc in locations:
+      #  echo "location(", i, "): ", loc
+
 
 
     glUseProgram(gl_program)
@@ -439,9 +442,9 @@ template renderBlockTemplate(numLocations: int, globalsBlock, linkShaderBlock, b
 proc shaderArg[T](name: string, value: T): int = 0
 proc attributes(args : varargs[int]) : int = 0
 proc uniforms(args: varargs[int]): int = 0
-proc vertex_out(args: varargs[string]): int = 0
-proc geometry_out(args: varargs[string]): int = 0
-proc fragment_out(args: varargs[string]): int = 0
+proc vertexOut(args: varargs[string]): int = 0
+proc geometryOut(args: varargs[string]): int = 0
+proc fragmentOut(args: varargs[string]): int = 0
 proc vertexMain(src: string): int = 0
 proc fragmentMain(src: string): int = 0
 proc geometryMain(src: string): int = 0
@@ -543,20 +546,20 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
 
         numLocations += 1
 
-    of "vertex_out":
-      echo "vertex_out"
+    of "vertexOut":
+      echo "vertexOut"
 
       for innerCall in call[1][1].items:
         vertexOutSection.add( innerCall.strVal )
 
-    of "geometry_out":
-      echo "geometry_out"
+    of "geometryOut":
+      echo "geometryOut"
 
       for innerCall in call[1][1].items:
         geometryOutSection.add( innerCall.strVal )
 
-    of "fragment_out":
-      echo "fragment_out"
+    of "fragmentOut":
+      echo "fragmentOut"
 
       for innerCall in call[1][1].items:
         fragmentOutSection.add( innerCall.strVal )
@@ -671,22 +674,32 @@ macro shadingDsl*(mode:GLenum, count: GLsizei, statement: stmt) : stmt {.immedia
 
       result.add(attributesCall)
 
-    of "vertex_out", "geometry_out", "fragment_out":
+    of "vertexOut", "geometryOut", "fragmentOut":
 
       let outCall =
         case $ident
-        of "vertex_out": newCall(bindSym"vertex_out")
-        of "geometry_out": newCall(bindSym"geometry_out")
-        of "fragment_out": newCall(bindSym"fragment_out")
+        of "vertexOut": newCall(bindSym"vertexOut")
+        of "geometryOut": newCall(bindSym"geometryOut")
+        of "fragmentOut": newCall(bindSym"fragmentOut")
         else: nil
 
-      for varSec in stmtList.items:
-        varSec.expectKind nnkVarSection
-        for def in varSec:
-          def.expectKind nnkIdentDefs
-          def[0].expectKind nnkIdent
-          def[1].expectKind nnkIdent
-          outCall.add newLit( format("out $2 $1", $def[0], $def[1]) )
+      for section in stmtList.items:
+        section.expectKind({nnkVarSection, nnkStrLit, nnkTripleStrLit})
+        case section.kind
+        of nnkVarSection:
+          for def in section:
+            def.expectKind nnkIdentDefs
+            def[0].expectKind nnkIdent
+            def[1].expectKind nnkIdent
+            outCall.add format("out $2 $1", $def[0], $def[1]).newLit
+        of nnkStrLit:
+          outCall.add section
+        of nnkTripleStrLit:
+          for line in section.strVal.splitLines:
+            outCall.add line.strip.newLit
+        else:
+          error("unreachable")
+
 
       result.add(outCall)
 
