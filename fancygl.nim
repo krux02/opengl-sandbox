@@ -411,10 +411,29 @@ proc linkShader(shaders: varargs[GLuint]): GLuint =
     glDeleteProgram(result)
     result = 0
 
+proc attribSize(t: typedesc[Vec4d]) : GLint = 4
+proc attribType(t: typedesc[Vec4d]) : GLenum = cGL_DOUBLE
+proc attribNormalized(t: typedesc[Vec4d]) : bool = false
 
-template attribSize(t: type Vec3[float64]) : GLint = 3
-template attribType(t: type Vec3[float64]) : GLenum = cGL_DOUBLE
-template attribNormalized(t: type Vec3[float64]) : bool = false
+proc attribSize(t: typedesc[Vec3d]) : GLint = 3
+proc attribType(t: typedesc[Vec3d]) : GLenum = cGL_DOUBLE
+proc attribNormalized(t: typedesc[Vec3d]) : bool = false
+
+proc attribSize(t: typedesc[Vec2d]) : GLint = 2
+proc attribType(t: typedesc[Vec2d]) : GLenum = cGL_DOUBLE
+proc attribNormalized(t: typedesc[Vec2d]) : bool = false
+
+proc attribSize(t: typedesc[Vec4f]) : GLint = 4
+proc attribType(t: typedesc[Vec4f]) : GLenum = cGL_FLOAT
+proc attribNormalized(t: typedesc[Vec4f]) : bool = false
+
+proc attribSize(t: typedesc[Vec3f]) : GLint = 3
+proc attribType(t: typedesc[Vec3f]) : GLenum = cGL_FLOAT
+proc attribNormalized(t: typedesc[Vec3f]) : bool = false
+
+proc attribSize(t: typedesc[Vec2f]) : GLint = 2
+proc attribType(t: typedesc[Vec2f]) : GLenum = cGL_FLOAT
+proc attribNormalized(t: typedesc[Vec2f]) : bool = false
 
 proc makeAndBindBuffer[T](buffer: var ArrayBuffer[T], index: GLuint, value: var seq[T], usage: GLenum) =
   buffer = newArrayBuffer[T]()
@@ -510,6 +529,12 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
         let baseString = "uniform " & glslType & " " & name
         if isSample:
           initUniformsBlock.add( newCall( bindSym"glUniform1i", newLit(uniformsSection.len), newLit(numSamplers) ) )
+
+          proc activeTexture(texture: int): void =
+            glActiveTexture( (GL_TEXTURE0 + texture).GLenum )
+
+          setUniformsBlock.add( newCall( bindSym"activeTexture", newLit(numSamplers) ) )
+          setUniformsBlock.add( newCall( bindSym"bindIt", value ) )
           numSamplers += 1
         else:
           setUniformsBlock.add( newCall( bindSym"uniform", newLit(uniformsSection.len), value ) )
@@ -541,11 +566,11 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
             bindSym"GL_STATIC_DRAW"
         ))
 
-        let (size, gltype) = glVertexAttribPointerParam(value)
-        echo "size: ", size
-        echo "gltype: ", gltype
-        bufferCreationBlock.add newCall(bindSym"glVertexAttribPointer",
-          newLit(attribCount), newLit(size), newLit(gltype.int), newLit(false), newLit(0), newNilLit() )
+        #let (size, gltype) = glVertexAttribPointerParam(value)
+        #echo "size: ", size
+        #echo "gltype: ", gltype
+        #bufferCreationBlock.add newCall(bindSym"glVertexAttribPointer",
+        #  newLit(attribCount), newLit(size), newLit(gltype.int), newLit(false), newLit(0), newNilLit() )
         attributesSection.add( (name: name, gl_type: value.glslAttribType) )
 
 

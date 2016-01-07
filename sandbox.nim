@@ -32,6 +32,21 @@ var color: seq[Vec3f] = @[
   [1.0, 0.0, 1.0], [1.0, 0.0, 1.0], [1.0, 0.0, 1.0]
 ].map( proc(x:array[3,float] ): Vec3f =  [x[0].float32, x[1].float32, x[2].float32].Vec3f )
 
+var texcoord: seq[Vec2f] = @[
+  [1, 0], [0, 0], [0, 1],
+  [1, 1], [1, 0], [0, 1],
+  [1, 1], [0, 1], [0, 0],
+  [1, 0], [1, 1], [0, 0],
+  [1, 1], [0, 1], [0, 0],
+  [1, 0], [1, 1], [0, 0],
+  [1, 0], [0, 0], [0, 1],
+  [1, 1], [1, 0], [0, 1],
+  [1, 1], [1, 0], [0, 0],
+  [0, 1], [1, 1], [0, 0],
+  [1, 0], [1, 1], [0, 1],
+  [0, 0], [1, 0], [0, 1]
+].map( proc(x:array[2,int] ): Vec2f =  [x[0].float32, x[1].float32].Vec2f )
+
 discard sdl2.init(INIT_EVERYTHING)
 
 var screenWidth: cint = 640
@@ -114,12 +129,14 @@ proc render() =
         projection = projection_mat
         time
         mousePosNorm
-        #crateTexture
+        crateTexture
       attributes:
         pos = vertex
         col = color
+        texcoord
       vertex_out:
         var v_col : vec4
+        var t_coord : vec2
       fragment_out:
         var color : vec4
       includes:
@@ -128,13 +145,14 @@ proc render() =
         """
         gl_Position = projection * modelview * vec4(pos,1);
         v_col = vec4(col,1);
+        t_coord = texcoord;
         """
       fragment_prg:
         """
+        vec4 t_col = texture(crateTexture, t_coord);
         vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;
-        color = mymix(v_col, time + dot( vec2(cos(time),sin(time)), offset ));
-        //color = v_col;
-        //color = vec4(1,1,1,1);
+        vec4 mix_col = mymix(v_col, time + dot( vec2(cos(time),sin(time)), offset ));
+        color = t_col * mix_col;
         """
 
   frameCounter += 1
