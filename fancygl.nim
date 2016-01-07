@@ -50,6 +50,22 @@ template textureTypeTemplate(name, nilName, target:expr, shadername:string): stm
 template textureTypeTemplate(name: expr, target:expr, shadername:string): stmt =
   textureTypeTemplate(name, nilName(name), target, shadername)
 
+proc numVertsPerPrimitive(mode: GLenum): int =
+  case mode
+  of GL_POINTS: 1
+  of GL_LINE_STRIP: 2
+  of GL_LINE_LOOP: 2
+  of GL_LINES: 2
+  of GL_LINE_STRIP_ADJACENCY: 4
+  of GL_LINES_ADJACENCY: 4
+  of GL_TRIANGLE_STRIP: 3
+  of GL_TRIANGLE_FAN: 3
+  of GL_TRIANGLES: 3
+  of GL_TRIANGLE_STRIP_ADJACENCY: 6
+  of GL_TRIANGLES_ADJACENCY: 6
+  of GL_PATCHES: -1
+  else: -1
+
 
 textureTypeTemplate(Texture1D,                 nil_Texture1D,
     GL_TEXTURE_1D, "sampler1D")
@@ -270,30 +286,28 @@ let sourceHeader = """
 """
 
 proc genShaderSource*(
-    uniforms : openArray[string], uniformLocations : bool,
-    inParams : openArray[string], inLocations : bool,
+    uniforms : openArray[string],
+    inParams : openArray[string], arrayLength: int,  # for geometry shader, -1 otherwise
     outParams: openArray[string],
     includes: openArray[string], mainSrc: string): string =
   result = sourceHeader
 
   for i, u in uniforms:
-    if uniformLocations:
-      result.add format("layout(location = $2) $1;\n", u, i)
-    else:
-      result.add( u & ";\n" )
+    result.add( u & ";\n" )
   for i, paramRaw in inParams:
     let param = paramRaw.replaceWord("out", "in")
-    if inLocations:
-      result.add format("layout(location = $2) $1;\n", param, i)
+    if arrayLength >= 0:
+      result.add format("$1[$2];\n", param, arrayLength)
     else:
       result.add(param & ";\n")
   for param in outParams:
     result.add(param & ";\n")
   for incl in includes:
     result.add incl
+
   result.add("void main() {\n")
   result.add(mainSrc)
-  result.add("\n}")
+  result.add("\n}\n")
 
 proc shaderSource(shader: GLuint, source: string) =
   var source_array: array[1, string] = [source]
@@ -596,13 +610,13 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
       echo "unknownSection"
 
 
-  let vertexShaderSource = genShaderSource(uniformsSection, false, attributesSection, false, vertexOutSection, includesSection, vertexMain)
+  let vertexShaderSource = genShaderSource(uniformsSection, attributesSection, -1, vertexOutSection, includesSection, vertexMain)
 
   var linkShaderBlock : NimNode
 
   if geometryMain == nil:
 
-    let fragmentShaderSource = genShaderSource(uniformsSection, false, vertexOutSection, false, fragmentOutSection, includesSection, fragmentMain)
+    let fragmentShaderSource = genShaderSource(uniformsSection, vertexOutSection, -1, fragmentOutSection, includesSection, fragmentMain)
 
     linkShaderBlock = newCall( bindSym"linkShader",
       newCall( bindSym"compileShader", bindSym"GL_VERTEX_SHADER", newLit(vertexShaderSource) ),
@@ -611,8 +625,8 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
 
   else:
 
-    let geometryShaderSource = genShaderSource(uniformsSection, true, vertexOutSection, false, geometryOutSection, includesSection, geometryMain)
-    let fragmentShaderSource = genShaderSource(uniformsSection, true, geometryOutSection, false, fragmentOutSection, includesSection, fragmentMain)
+    let geometryShaderSource = genShaderSource(uniformsSection, vertexOutSection, numVertsPerPrimitive(mode.intVal.GLenum), geometryOutSection, includesSection, geometryMain)
+    let fragmentShaderSource = genShaderSource(uniformsSection, geometryOutSection, -1, fragmentOutSection, includesSection, fragmentMain)
 
 
     linkShaderBlock = newCall( bindSym"linkShader",
@@ -621,7 +635,6 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
       newCall( bindSym"compileShader", bindSym"GL_FRAGMENT_SHADER", newLit(fragmentShaderSource) ),
     )
 
-  echo mode.repr
   let drawCommand = newCall( bindSym"glDrawArrays", mode, newLit(0), count )
 
   result = getAst(renderBlockTemplate(numLocations, globalsBlock, linkShaderBlock,

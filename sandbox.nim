@@ -136,7 +136,7 @@ proc render() =
         texcoord
       vertexOut:
         "out vec4 v_col"
-        var t_coord : vec2
+        "out vec2 t_coord"
       fragmentOut:
         var color : vec4
       includes:
