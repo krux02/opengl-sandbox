@@ -109,16 +109,51 @@ proc loadAndBindTexture2DFromFile*(filename: string): Texture2D =
 
 #### nim -> glsl type mapping ####
 
-proc glslUniformType(value : NimNode): string =
-  let tpe = value.getType
+
+# returns a string
+proc glslUniformType(value : NimNode): (string, bool) =
+  let tpe = value.getType2
   echo tpe.treeRepr
-  ($tpe).toLower
+  if tpe.kind == nnkBracketExpr:
+    case $tpe[0]
+    of "Mat4x4":
+      ("mat4", false)
+    of "Mat3x3":
+      ("mat3", false)
+    of "Mat2x2":
+      ("mat2", false)
+    of "Vec4":
+      ("vec4", false)
+    of "Vec3":
+      ("vec3", false)
+    of "Vec2":
+      ("vec2", false)
+    else:
+      ("(unknown:"& $tpe[0] &")", false)
+  else:
+    case $tpe
+    of "Texture1D":
+      ("sampler1D", true)
+    of "Texture2D":
+      ("sampler2D", true)
+    of "Texture3D":
+      ("sampler3D", true)
+    of "float32", "float64", "float":
+      ("float", false)
+    of "Mat4d", "Mat4f":
+      ("mat4", false)
+    of "Mat3d", "Mat3f":
+      ("mat3", false)
+    of "Mat2d", "Mat2f":
+      ("mat2", false)
+    else:
+      (($tpe).toLower, false)
 
 proc glslAttribType(value : NimNode): string =
   # result = getAst(glslAttribType(value))[0].strVal
   let tpe = value.getType
-  if $tpe[0] == "seq":
-    ($tpe[1]).toLower
+  if $tpe[0] == "seq" or $tpe[0] == "ArrayBuffer":
+    tpe[1].glslUniformType[0]
   else:
     "(error not a seq[..])"
 
@@ -136,6 +171,9 @@ proc uniform*(location: GLint, value: float32) =
 
 proc uniform*(location: GLint, value: float64) =
   glUniform1f(location, value)
+
+proc uniform*(location: GLint, value: int32) =
+  glUniform1i(location, value)
 
 proc uniform*(location: GLint, value: Vec2f) =
   glUniform2f(location, value[0], value[1])
@@ -226,16 +264,16 @@ let sourceHeader = """
 """
 
 proc genShaderSource*(
-    uniforms : openArray[ShaderParam], uniformLocations : bool,
+    uniforms : openArray[string], uniformLocations : bool,
     inParams : openArray[ShaderParam], inLocations : bool,
     outParams: openArray[ShaderParam],
     includes: openArray[string], mainSrc: string): string =
   result = sourceHeader
   for i, u in uniforms:
     if uniformLocations:
-      result.add format("layout(location = $3) uniform $2 $1;\n", u.name, u.gl_type, i)
+      result.add format("layout(location = $2) $1;\n", u, i)
     else:
-      result.add format("uniform $2 $1;\n", u.name, u.gl_type)
+      result.add( u & ";\n" )
   for i, a in inParams:
     if inLocations:
       result.add format("layout(location = $3) in $2 $1;\n", a.name, a.gl_type, i)
@@ -325,7 +363,7 @@ proc makeAndBindBuffer[T](buffer: var ArrayBuffer[T], index: GLuint, value: var 
   glVertexAttribPointer(index, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
 
 template renderBlockTemplate(globalsBlock, linkShaderBlock, bufferCreationBlock,
-               setUniformsBlock, drawCommand: expr): stmt {. dirty .} =
+               initUniformsBlock, setUniformsBlock, drawCommand: expr): stmt {. dirty .} =
   block:
     var vao {.global.}: VertexArrayObject
     var glProgram {.global.}: GLuint  = 0
@@ -335,8 +373,10 @@ template renderBlockTemplate(globalsBlock, linkShaderBlock, bufferCreationBlock,
     if glProgram == 0:
 
       gl_program = linkShaderBlock
-
       glUseProgram(gl_program)
+
+      initUniformsBlock
+
       vao = newVertexArrayObject()
       bindIt(vao)
 
@@ -377,8 +417,10 @@ proc incl(arg: string): int = 0
 ## Shading Dsl Inner ###########################################################
 ################################################################################
 
-macro shadingDslInner(mode: int, count: int, statement: varargs[typed] ) : stmt =
-  var uniformsSection : seq[ShaderParam] = @[]
+macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) : stmt =
+  var numSamplers = 0
+  var uniformsSection : seq[string] = @[]
+  var initUniformsBlock = newStmtList()
   var setUniformsBlock = newStmtList()
   var attributesSection : seq[ShaderParam] = @[]
   var globalsBlock = newStmtList()
@@ -403,9 +445,16 @@ macro shadingDslInner(mode: int, count: int, statement: varargs[typed] ) : stmt 
         let name = $innerCall[1]
         let value = innerCall[2]
 
-        setUniformsBlock.add( newCall( bindSym"uniform", newLit(uniformsSection.len), value ) )
-        uniformsSection.add( (name: name, gl_type: value.glslUniformType) )
 
+        let (glslType, isSample) = value.glslUniformType
+        let baseString = "uniform " & glslType & " " & name
+        if isSample:
+          initUniformsBlock.add( newCall( bindSym"glUniform1i", newLit(uniformsSection.len), newLit(numSamplers) ) )
+          numSamplers += 1
+        else:
+          setUniformsBlock.add( newCall( bindSym"uniform", newLit(uniformsSection.len), value ) )
+
+        uniformsSection.add( baseString )
         #echo "uniform ", value.glslUniformType, " ", name
 
     of "attributes":
@@ -431,7 +480,6 @@ macro shadingDslInner(mode: int, count: int, statement: varargs[typed] ) : stmt 
             value,
             bindSym"GL_STATIC_DRAW"
         ))
-
         attributesSection.add( (name: name, gl_type: value.glslAttribType) )
 
     of "vertex_out":
@@ -516,7 +564,8 @@ macro shadingDslInner(mode: int, count: int, statement: varargs[typed] ) : stmt 
   echo mode.repr
   let drawCommand = newCall( bindSym"glDrawArrays", mode, newLit(0), count )
 
-  result = getAst(renderBlockTemplate(globalsBlock, linkShaderBlock, bufferCreationBlock, setUniformsBlock, drawCommand))
+  result = getAst(renderBlockTemplate(globalsBlock, linkShaderBlock, bufferCreationBlock,
+                                      initUniformsBlock, setUniformsBlock, drawCommand))
   echo result.repr
 
 ################################################################################

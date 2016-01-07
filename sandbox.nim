@@ -77,7 +77,7 @@ vec4 mymix(vec4 color, float alpha) {
 }
 """
 
-var projection_mat : Mat4x4[float32]
+var projection_mat : Mat4x4[float]
 
 proc reshape(newWidth: cint, newHeight: cint) =
   glViewport(0, 0, newWidth, newHeight)   # Set the viewport to cover the new window
@@ -96,19 +96,20 @@ proc render() =
   let mousePosNorm = vec2(mouseX_Norm, mouseY_Norm)
 
   for i in 0..<7:
-    let newTime = float32(time * (1.0 + i.float64 / 5.0))
+    let newTime = (time * (1.0 + i.float64 / 5.0))
 
-    var modelview_mat: Mat4x4[float32]  = I4f()
-    modelview_mat = modelview_mat.translate( vec3[float32](2*sin(newTime).float32, 2*cos(newTime).float32, -7) )
-    modelview_mat = modelview_mat.rotate( vec3[float32](0,0,1), newTime )
-    modelview_mat = modelview_mat.rotate( vec3[float32](0,1,0), newTime )
-    modelview_mat = modelview_mat.rotate( vec3[float32](1,0,0), newTime )
+    var modelview_mat = I4()
+    modelview_mat = modelview_mat.translate( vec3[float](2*sin(newTime), 2*cos(newTime), -7) )
+    modelview_mat = modelview_mat.rotate( vec3[float](0,0,1), newTime )
+    modelview_mat = modelview_mat.rotate( vec3[float](0,1,0), newTime )
+    modelview_mat = modelview_mat.rotate( vec3[float](1,0,0), newTime )
 
-    let mvp : Mat4x4[float32] =  modelview_mat * projection_mat;
+    #let mvp : Mat4x4[float32] =  modelview_mat * projection_mat;
 
-    shadingDsl(GL_TRIANGLES, vertex.len):
+    shadingDsl(GL_TRIANGLES, vertex.len.GLsizei):
       uniforms:
-        mvp
+        modelview = modelview_mat
+        projection = projection_mat
         time
         mousePosNorm
         crateTexture
@@ -123,14 +124,15 @@ proc render() =
         glslCode
       vertex_prg:
         """
-        gl_Position = mvp * vec4(pos,1);
+        gl_Position = projection * modelview * vec4(pos,1);
         v_col = vec4(col,1);
         """
       fragment_prg:
         """
         //vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;
         //color = mymix(v_col, time + dot( vec2(cos(time),sin(time)), offset ));
-        color = v_col;
+        //color = v_col;
+        color = vec4(1,1,1,1);
         """
 
   frameCounter += 1
@@ -169,7 +171,7 @@ while runGame:
 
   time = float64( getTicks() ) / 1000.0
   if time - fpsFrameCounterStartTime >= 1:
-    echo "FPS: ", frameCounter
+    echo "FPS: ", fpsFrameCounter
     fpsFrameCounter = 0
     fpsFrameCounterStartTime = time
 
