@@ -155,60 +155,6 @@ proc glslUniformType(value : NimNode): (string, bool) =
     else:
       (($tpe).toLower, false)
 
-# returns size and type
-proc glVertexAttribPointerParam(value : NimNode): (GLint, GLenum) =
-  echo "glVertexAttribPointerParam"
-  echo value.getType2.repr
-  let tpe = value.getType2[1]
-  echo tpe.repr
-
-  if tpe.kind == nnkBracketExpr:
-    var
-      size: GLint
-      gltype: GLenum
-
-    case $tpe[0]
-    of "Vec4":
-      size = 4
-    of "Vec3":
-      size = 3
-    of "Vec2":
-      size = 2
-
-    case $tpe[1]
-    of "float32":
-      gltype = cGL_FLOAT
-    of "float64":
-      gltype = cGL_DOUBLE
-
-    result = (size, gltype)
-  else:
-    case $tpe
-    of "Vec4d":
-      result[0] = 4
-      result[1] = cGL_DOUBLE
-    of "Vec4f":
-      result[0] = 4
-      result[1] = cGL_FLOAT
-    of "Vec3d":
-      result[0] = 3
-      result[1] = cGL_DOUBLE
-    of "Vec3f":
-      result[0] = 3
-      result[1] = cGL_FLOAT
-    of "Vec2d":
-      result[0] = 2
-      result[1] = cGL_DOUBLE
-    of "Vec2f":
-      result[0] = 2
-      result[1] = cGL_FLOAT
-    of "float64":
-      result[0] = 1
-      result[1] = cGL_DOUBLE
-    of "float32":
-      result[0] = 1
-      result[1] = cGL_FLOAT
-
 proc glslAttribType(value : NimNode): string =
   # result = getAst(glslAttribType(value))[0].strVal
   let tpe = value.getType
