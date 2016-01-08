@@ -17,6 +17,21 @@ var vertex: seq[Vec3f] = @[
   [+1, -1, -1], [+1, +1, -1], [+1, -1, +1]
 ].map( proc(x:array[3,int] ): Vec3f =  [x[0].float32, x[1].float32, x[2].float32].Vec3f )
 
+var normal: seq[Vec3f] = @[
+  [ 0, +1,  0], [ 0, +1,  0], [ 0, +1,  0],
+  [ 0, +1,  0], [ 0, +1,  0], [ 0, +1,  0],
+  [ 0, -1,  0], [ 0, -1,  0], [ 0, -1,  0],
+  [ 0, -1,  0], [ 0, -1,  0], [ 0, -1,  0],
+  [ 0,  0, +1], [ 0,  0, +1], [ 0,  0, +1],
+  [ 0,  0, +1], [ 0,  0, +1], [ 0,  0, +1],
+  [ 0,  0, -1], [ 0,  0, -1], [ 0,  0, -1],
+  [ 0,  0, -1], [ 0,  0, -1], [ 0,  0, -1],
+  [-1,  0,  0], [-1,  0,  0], [-1,  0,  0],
+  [-1,  0,  0], [-1,  0,  0], [-1,  0,  0],
+  [+1,  0,  0], [+1,  0,  0], [+1,  0,  0],
+  [+1,  0,  0], [+1,  0,  0], [+1,  0,  0]
+].map( proc(x:array[3,int] ): Vec3f =  [x[0].float32, x[1].float32, x[2].float32].Vec3f )
+
 var color: seq[Vec3f] = @[
   [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0],
   [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0],
@@ -134,9 +149,15 @@ proc render() =
         pos = vertex
         col = color
         texcoord
+        normal
       vertexOut:
         "out vec4 v_col"
-        "out vec2 t_coord"
+        "out vec2 v_texcoord"
+        "out vec4 v_eyenormal"
+      geometryOut:
+        "out vec4 g_col"
+        "out vec2 g_texcoord"
+        "out vec4 g_eyenormal"
       fragmentOut:
         var color : vec4
       includes:
@@ -144,15 +165,30 @@ proc render() =
       vertexMain:
         """
         gl_Position = projection * modelview * vec4(pos, 1);
+        v_eyenormal = modelview * vec4(normal, 0);
         v_col = vec4(col,1);
-        t_coord = texcoord;
+        v_texcoord = texcoord;
+        """
+      geometryMain:
+        "layout(triangle_strip, max_vertices=3) out"
+        """
+        for(int i = 0; i < gl_in.length(); i++) {
+          gl_Position = gl_in[i].gl_Position;
+
+          g_col = v_col[i];
+          g_texcoord = v_texcoord[i];
+          g_eyenormal = v_eyenormal[i];
+          EmitVertex();
+        }
+        EndPrimitive();
         """
       fragmentMain:
         """
-        vec4 t_col = texture(crateTexture, t_coord);
+        vec4 t_col = texture(crateTexture, g_texcoord);
         vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;
-        vec4 mix_col = mymix(v_col, time + dot( vec2(cos(time),sin(time)), offset ));
-        color = t_col * mix_col;
+        vec4 mix_col = mymix(g_col, time + dot( vec2(cos(time),sin(time)), offset ));
+        //color = t_col * mix_col;
+        color = (g_eyenormal + vec4(1)) * 0.5;
         """
 
   frameCounter += 1

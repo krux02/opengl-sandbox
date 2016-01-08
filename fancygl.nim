@@ -50,7 +50,7 @@ template textureTypeTemplate(name, nilName, target:expr, shadername:string): stm
 template textureTypeTemplate(name: expr, target:expr, shadername:string): stmt =
   textureTypeTemplate(name, nilName(name), target, shadername)
 
-proc numVertsPerPrimitive(mode: GLenum): int =
+proc geometryNumVerts(mode: GLenum): int =
   case mode
   of GL_POINTS: 1
   of GL_LINE_STRIP: 2
@@ -66,6 +66,20 @@ proc numVertsPerPrimitive(mode: GLenum): int =
   of GL_PATCHES: -1
   else: -1
 
+proc geometryPrimitiveLayout(mode: GLenum): string =
+  case mode
+  of GL_POINTS:
+    "points"
+  of GL_LINE_STRIP, GL_LINE_LOOP, GL_LINES:
+    "lines"
+  of GL_LINE_STRIP_ADJACENCY, GL_LINES_ADJACENCY:
+    "lines_adjacency"
+  of GL_TRIANGLE_STRIP, GL_TRIANGLE_FAN, GL_TRIANGLES:
+    "triangles"
+  of GL_TRIANGLE_STRIP_ADJACENCY, GL_TRIANGLES_ADJACENCY:
+    "triangles_adjacency"
+  else:
+    ""
 
 textureTypeTemplate(Texture1D,                 nil_Texture1D,
     GL_TEXTURE_1D, "sampler1D")
@@ -286,6 +300,7 @@ let sourceHeader = """
 """
 
 proc genShaderSource*(
+    sourceHeader: string,
     uniforms : openArray[string],
     inParams : openArray[string], arrayLength: int,  # for geometry shader, -1 otherwise
     outParams: openArray[string],
@@ -461,7 +476,7 @@ proc geometryOut(args: varargs[string]): int = 0
 proc fragmentOut(args: varargs[string]): int = 0
 proc vertexMain(src: string): int = 0
 proc fragmentMain(src: string): int = 0
-proc geometryMain(src: string): int = 0
+proc geometryMain(layout, src: string): int = 0
 proc includes(args: varargs[int]): int = 0
 proc incl(arg: string): int = 0
 
@@ -483,6 +498,7 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
   var fragmentOutSection : seq[string] = @[]
   var includesSection : seq[string] = @[]
   var vertexMain: string
+  var geometryLayout: string
   var geometryMain: string
   var fragmentMain: string
 
@@ -596,27 +612,28 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
 
     of "fragmentMain":
       echo "fragmentMain"
+
       echo call[1].strVal
 
       fragmentMain = call[1].strVal
 
     of "geometryMain":
       echo "geometryMain"
-      echo call[1].strVal
 
-      geometryMain = call[1].strVal
+      geometryLayout = call[1].strVal
+      geometryMain = call[2].strVal
 
     else:
       echo "unknownSection"
 
 
-  let vertexShaderSource = genShaderSource(uniformsSection, attributesSection, -1, vertexOutSection, includesSection, vertexMain)
+  let vertexShaderSource = genShaderSource(sourceHeader, uniformsSection, attributesSection, -1, vertexOutSection, includesSection, vertexMain)
 
   var linkShaderBlock : NimNode
 
   if geometryMain == nil:
 
-    let fragmentShaderSource = genShaderSource(uniformsSection, vertexOutSection, -1, fragmentOutSection, includesSection, fragmentMain)
+    let fragmentShaderSource = genShaderSource(sourceHeader, uniformsSection, vertexOutSection, -1, fragmentOutSection, includesSection, fragmentMain)
 
     linkShaderBlock = newCall( bindSym"linkShader",
       newCall( bindSym"compileShader", bindSym"GL_VERTEX_SHADER", newLit(vertexShaderSource) ),
@@ -624,10 +641,9 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
     )
 
   else:
-
-    let geometryShaderSource = genShaderSource(uniformsSection, vertexOutSection, numVertsPerPrimitive(mode.intVal.GLenum), geometryOutSection, includesSection, geometryMain)
-    let fragmentShaderSource = genShaderSource(uniformsSection, geometryOutSection, -1, fragmentOutSection, includesSection, fragmentMain)
-
+    let geometryHeader = format("$1\nlayout($2) in;\n$3;\n", sourceHeader, geometryPrimitiveLayout(mode.intVal.GLenum), geometryLayout)
+    let geometryShaderSource = genShaderSource(geometryHeader, uniformsSection, vertexOutSection, geometryNumVerts(mode.intVal.GLenum), geometryOutSection, includesSection, geometryMain)
+    let fragmentShaderSource = genShaderSource(sourceHeader, uniformsSection, geometryOutSection, -1, fragmentOutSection, includesSection, fragmentMain)
 
     linkShaderBlock = newCall( bindSym"linkShader",
       newCall( bindSym"compileShader", bindSym"GL_VERTEX_SHADER", newLit(vertexShaderSource) ),
@@ -647,6 +663,7 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
 ################################################################################
 
 macro shadingDsl*(mode:GLenum, count: GLsizei, statement: stmt) : stmt {.immediate.} =
+  echo statement.treeRepr
 
   result = newCall(bindSym"shadingDslInner", mode, count)
 
@@ -722,9 +739,10 @@ macro shadingDsl*(mode:GLenum, count: GLsizei, statement: stmt) : stmt {.immedia
       result.add( newCall(bindSym"vertexMain", stmtList[0]) )
 
     of "geometryMain":
-      stmtList.expectLen(1)
+      stmtList.expectLen(2)
       stmtList[0].expectKind({nnkTripleStrLit, nnkStrLit})
-      result.add( newCall(bindSym"geometryMain", stmtList[0]) )
+      stmtList[1].expectKind({nnkTripleStrLit, nnkStrLit})
+      result.add( newCall(bindSym"geometryMain", stmtList[0], stmtList[1]) )
 
     of "fragmentMain":
       stmtList.expectLen(1)
