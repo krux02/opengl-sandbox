@@ -113,9 +113,10 @@ proc reshape(newWidth: cint, newHeight: cint) =
   glViewport(0, 0, newWidth, newHeight)   # Set the viewport to cover the new window
   projection_mat = perspective(45.0, newWidth / newHeight, 0.1, 100.0)
 
-var mouseX, mouseY: int32
-var time = 0.0
-var frameCounter = 0
+var
+  mouseX, mouseY: int32
+  simulationTime = 0.0
+  frameCounter = 0
 
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
@@ -127,13 +128,13 @@ proc render() =
   #for i in 0..<7:
   block:
     #let newTime = time * (1.0 + i.float64 / 5.0))
-    let newTime = time
+    let time = simulationTime
 
     var modelview_mat = I4()
-    modelview_mat = modelview_mat.translate( vec3[float](sin(newTime)*2, cos(newTime)*2, -7) )
-    modelview_mat = modelview_mat.rotate( vec3[float](0,0,1), newTime )
-    modelview_mat = modelview_mat.rotate( vec3[float](0,1,0), newTime )
-    modelview_mat = modelview_mat.rotate( vec3[float](1,0,0), newTime )
+    modelview_mat = modelview_mat.translate( vec3[float](sin(time)*2, cos(time)*2, -7) )
+    modelview_mat = modelview_mat.rotate( vec3[float](0,0,1), time )
+    modelview_mat = modelview_mat.rotate( vec3[float](0,1,0), time )
+    modelview_mat = modelview_mat.rotate( vec3[float](1,0,0), time )
     #modelview_mat = modelview_mat.scale( vec3[float](50,50,50) )
 
     #let mvp : Mat4x4[float32] =  modelview_mat * projection_mat;
@@ -150,46 +151,78 @@ proc render() =
         col = color
         texcoord
         normal
-      vertexOut:
-        "out vec4 v_col"
-        "out vec2 v_texcoord"
-        "out vec4 v_eyenormal"
-      geometryOut:
-        "out vec4 g_col"
-        "out vec2 g_texcoord"
-        "out vec4 g_eyenormal"
-      fragmentOut:
-        var color : vec4
+
+
       includes:
         glslCode
+
       vertexMain:
         """
         gl_Position = projection * modelview * vec4(pos, 1);
+        v_eyepos = modelview * vec4(pos,1);
         v_eyenormal = modelview * vec4(normal, 0);
         v_col = vec4(col,1);
         v_texcoord = texcoord;
         """
-      geometryMain:
-        "layout(triangle_strip, max_vertices=3) out"
-        """
-        for(int i = 0; i < gl_in.length(); i++) {
-          gl_Position = gl_in[i].gl_Position;
 
-          g_col = v_col[i];
-          g_texcoord = v_texcoord[i];
-          g_eyenormal = v_eyenormal[i];
-          EmitVertex();
-        }
-        EndPrimitive();
+      vertexOut:
+        "out vec4 v_col"
+        "out vec2 v_texcoord"
+        "out vec4 v_eyepos"
+        "out vec4 v_eyenormal"
+
+      fragmentMain:
+        """
+        vec4 t_col = texture(crateTexture, v_texcoord);
+        vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;
+        vec4 mix_col = mymix(t_col, time + dot( vec2(cos(time),sin(time)), offset ));
+        color = v_col * mix_col;
+        //color = (v_eyenormal + vec4(1)) * 0.5;
+        """
+
+      fragmentOut:
+        "out vec4 color"
+
+
+    # render face normals using the geometry shader
+    shadingDsl(GL_TRIANGLES, vertex.len.GLsizei):
+      uniforms:
+        modelview = modelview_mat
+        projection = projection_mat
+      attributes:
+        pos = vertex
+        normal
+
+      vertexMain:
+        """
+        gl_Position = modelview * vec4(pos, 1);
+        v_eyepos = modelview * vec4(pos,1);
+        """
+
+      vertexOut:
+        "out vec4 v_eyepos"
+
+      geometryMain:
+        "layout(line_strip, max_vertices=2) out"
+        """
+        vec4 center = v_eyepos[0] + v_eyepos[1] + v_eyepos[2];
+
+        vec3 v1 = (v_eyepos[1] - v_eyepos[0]).xyz;
+        vec3 v2 = (v_eyepos[2] - v_eyepos[0]).xyz;
+        vec4 normal = vec4(cross(v1,v2),0);
+
+        gl_Position = projection * center;
+        EmitVertex();
+        gl_Position = projection * (center + normal);
+        EmitVertex();
         """
       fragmentMain:
         """
-        vec4 t_col = texture(crateTexture, g_texcoord);
-        vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;
-        vec4 mix_col = mymix(g_col, time + dot( vec2(cos(time),sin(time)), offset ));
-        //color = t_col * mix_col;
-        color = (g_eyenormal + vec4(1)) * 0.5;
+        color = vec4(1);
         """
+
+      fragmentOut:
+        "out vec4 color"
 
   frameCounter += 1
   glSwapWindow(window) # Swap the front and back frame buffers (double buffering)
@@ -199,12 +232,16 @@ proc render() =
 var
   evt = sdl2.defaultEvent
   runGame = true
+  gamePaused = false
+  simulationTimeOffset = 0.0
   fpsFrameCounter = 0
   fpsFrameCounterStartTime = 0.0
 
 reshape(screenWidth, screenHeight) # Set up initial viewport and projection
 
 while runGame:
+  let time = float64( getTicks() ) / 1000.0
+
   while pollEvent(evt):
     if evt.kind == QuitEvent:
       runGame = false
@@ -220,12 +257,22 @@ while runGame:
       if keyboardEvent.keysym.scancode == SDL_SCANCODE_ESCAPE:
         runGame = false
         break
+      if keyboardEvent.keysym.scancode == SDL_SCANCODE_PAUSE:
+        if gamePaused:
+          gamePaused = false
+          simulationTimeOffset = time - simulationTime
+        else:
+          gamePaused = true
+
     if evt.kind == MouseMotion:
       let mouseEvent = cast[MouseMotionEventPtr](addr(evt))
       mouseX = mouseEvent.x
       mouseY = mouseEvent.y
 
-  time = float64( getTicks() ) / 1000.0
+
+  if not gamePaused:
+    simulationTime = time - simulationTimeOffset
+
   if time - fpsFrameCounterStartTime >= 1:
     echo "FPS: ", fpsFrameCounter
     fpsFrameCounter = 0

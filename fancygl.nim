@@ -626,7 +626,6 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
     else:
       echo "unknownSection"
 
-
   let vertexShaderSource = genShaderSource(sourceHeader, uniformsSection, attributesSection, -1, vertexOutSection, includesSection, vertexMain)
 
   var linkShaderBlock : NimNode
