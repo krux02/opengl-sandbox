@@ -9,6 +9,13 @@ type Vec4d* = Vec4[float64]
 type Vec3d* = Vec3[float64]
 type Vec2d* = Vec2[float64]
 
+proc vec4f*(x,y,z,w: float32) : Vec4f = [x,y,z,w].Vec4f
+proc vec3f*(x,y,z:   float32) : Vec3f = [x,y,z].Vec3f
+proc vec2f*(x,y:     float32) : Vec2f = [x,y].Vec2f
+proc vec4d*(x,y,z,w: float64) : Vec4d = [x,y,z,w].Vec4d
+proc vec3d*(x,y,z:   float64) : Vec3d = [x,y,z].Vec3d
+proc vec2d*(x,y:     float64) : Vec2d = [x,y].Vec2d
+
 type Mat4f* = Mat4x4[float32]
 type Mat3f* = Mat3x3[float32]
 type Mat2f* = Mat2x2[float32]
