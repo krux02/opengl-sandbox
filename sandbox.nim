@@ -81,13 +81,26 @@ let context = window.glCreateContext()
 # Initialize OpenGL
 loadExtensions()
 
-var crateTexture = loadAndBindTexture2DFromFile("crate.png")
-nil_Texture2D.bindIt
-var crateTextureRect = loadAndBindTextureRectangleFromFile("crate.png")
-#glTexParameteri(GL_TEXTURE_RECTANGLE,  GL_TEXTURE_WRAP_R, GL_REPEAT)
-#glTexParameteri(GL_TEXTURE_RECTANGLE,  GL_TEXTURE_WRAP_T, GL_REPEAT)
+let crateTexture = loadAndBindTexture2DFromFile("crate.png")
+let crateTextureRect = loadAndBindTextureRectangleFromFile("crate.png")
+let renderedTexture = createAndBindEmptyTexture2D( windowsize )
 
+var framebufferName : GLuint
+glGenFramebuffers(1, framebufferName.addr)
+glBindFramebuffer(GL_FRAMEBUFFER, framebufferName)
 
+var depthrenderbuffer: GLuint
+glGenRenderbuffers(1, depthrenderbuffer.addr)
+glBindRenderbuffer(GL_RENDERBUFFER, depthrenderbuffer)
+glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, windowsize.x.GLsizei, windowsize.y.GLsizei)
+
+glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthrenderbuffer)
+glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderedTexture.GLuint, 0)
+
+var drawBuffers: array[1, GLenum] = [ GL_COLOR_ATTACHMENT0.GLenum ]
+glDrawBuffers(1, drawBuffers[0].addr)
+
+glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
 if 0 != glSetSwapInterval(-1):
   echo "glSetSwapInterval -1 not supported"
@@ -153,46 +166,6 @@ proc render() =
     let time = simulationTime
     #let time = simulationTime * ( 1.0 + i.float32 / 10 )
 
-    shadingDsl(GL_TRIANGLES, 3):
-      uniforms:
-        mouse
-        crateTexture
-        time
-        viewport
-        crateSize = crateTexture.size
-
-      attributes:
-        pos = screenSpaceTriangleVerts
-        texcoord = screenSpaceTriangleTexcoords
-
-      vertexMain:
-        """
-        gl_Position = pos;
-        v_texcoord = texcoord;
-        """
-
-      vertexOut:
-        "out vec2 v_texcoord"
-
-      fragmentMain:
-        """
-        mat2 rot = mat2( cos(time), -sin(time), sin(time), cos(time) );
-        float m_dist = length(gl_FragCoord.xy - mouse);
-        float f =  time*1.1 + m_dist * 0.01 * sin(time*0.1) + sin(m_dist*0.01)*sin(time);
-        mat2 rot2 = mat2( cos(f), -sin(f), sin(f), cos(f) );
-        float offset = sin(time + (rot * gl_FragCoord.xy).x / 32.0) * sin(time * 0.123) * 0.5 + 1;
-        vec2 texcoord = (v_texcoord * viewport.zw - mouse) / crateSize * rot2;
-        vec4 t_col = texture(crateTexture, texcoord);
-        vec2 tile = texcoord - floor(texcoord);
-        //vec4 t_col = texture(crateTexture, v_texcoord / crateSize * viewport.zw);
-        color = t_col;
-        """
-
-      fragmentOut:
-        "out vec4 color"
-
-
-
     var modelview_mat = I4()
     modelview_mat = modelview_mat.translate( vec3[float](sin(time)*2, cos(time)*2, -7) )
     modelview_mat = modelview_mat.rotate( vec3[float](0,0,1), time )
@@ -201,6 +174,8 @@ proc render() =
     #modelview_mat = modelview_mat.scale( vec3[float](50,50,50) )
 
     #let mvp : Mat4x4[float32] =  modelview_mat * projection_mat;
+
+    glBindFramebuffer(GL_FRAMEBUFFER, framebufferName)
 
     shadingDsl(GL_TRIANGLES, vertex.len.GLsizei):
       uniforms:
@@ -247,6 +222,40 @@ proc render() =
       fragmentOut:
         "out vec4 color"
 
+    glBindFramebuffer(GL_FRAMEBUFFER, 0)
+    renderedTexture.bindIt
+    glGenerateMipmap(GL_TEXTURE_2D)
+
+    shadingDsl(GL_TRIANGLES, 3):
+      uniforms:
+        mouse
+        tex = renderedTexture
+        time
+        viewport
+        texSize = crateTexture.size
+
+      attributes:
+        pos = screenSpaceTriangleVerts
+        texcoord = screenSpaceTriangleTexcoords
+
+      vertexMain:
+        """
+        gl_Position = pos;
+        v_texcoord = texcoord;
+        """
+
+      vertexOut:
+        "out vec2 v_texcoord"
+
+      fragmentMain:
+        """
+        vec2 texcoord = (v_texcoord * viewport.zw + vec2(sin(time * 5 + gl_FragCoord.y / 8) * 8, 0) ) / texSize;
+        vec4 t_col = texture(tex, texcoord);
+        color = t_col;
+        """
+
+      fragmentOut:
+        "out vec4 color"
 
     # render face normals using the geometry shader
     shadingDsl(GL_TRIANGLES, vertex.len.GLsizei):
