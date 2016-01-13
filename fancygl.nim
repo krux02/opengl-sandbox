@@ -54,6 +54,7 @@ template textureTypeTemplate(name, nilName, target:expr, shadername:string): stm
   proc bindIt*(texture: name) =
     glBindTexture(target, GLuint(texture))
 
+
 template textureTypeTemplate(name: expr, target:expr, shadername:string): stmt =
   textureTypeTemplate(name, nilName(name), target, shadername)
 
@@ -161,12 +162,27 @@ proc size*(tex: Texture2D): Vec2f =
   result = vec2f(w.float32, h.float32)
   glBindTexture(GL_TEXTURE_2D, outer_tex.GLuint)
 
-proc saveToBmpFile*(tex: Texture2D, filename: string): void =
+proc size*(tex: TextureRectangle): Vec2f =
+  var outer_tex : GLint
+  glGetIntegerv(GL_TEXTURE_BINDING_RECTANGLE, outer_tex.addr)
   tex.bindIt
   var w,h: GLint
-  glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, w.addr)
-  glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, h.addr)
-  var surface = createRGBSurface(0, w, h, 32, 0xff000000.uint32, 0x00ff0000, 0x0000ff00, 0x000000ff)  # no alpha, rest default
+  glGetTexLevelParameteriv(GL_TEXTURE_RECTANGLE, 0, GL_TEXTURE_WIDTH, w.addr)
+  glGetTexLevelParameteriv(GL_TEXTURE_RECTANGLE, 0, GL_TEXTURE_HEIGHT, h.addr)
+  result = vec2f(w.float32, h.float32)
+  glBindTexture(GL_TEXTURE_RECTANGLE, outer_tex.GLuint)
+
+proc saveToBmpFile*(tex: Texture2D, filename: string): void =
+  tex.bindIt
+  let s = tex.size
+  var surface = createRGBSurface(0, s.x.int32, s.y.int32, 32, 0xff000000.uint32, 0x00ff0000, 0x0000ff00, 0x000000ff)  # no alpha, rest default
+  glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface.pixels)
+  saveBMP(surface, filename)
+
+proc saveToBmpFile*(tex: TextureRectangle, filename: string): void =
+  tex.bindIt
+  let s = tex.size
+  var surface = createRGBSurface(0, s.x.int32, s.y.int32, 32, 0xff000000.uint32, 0x00ff0000, 0x0000ff00, 0x000000ff)  # no alpha, rest default
   glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface.pixels)
   saveBMP(surface, filename)
 
@@ -330,7 +346,6 @@ type ShaderParam* = tuple[name: string, gl_type: string]
 
 let sourceHeader = """
 #version 330
-#extension GL_ARB_explicit_uniform_location : enable
 #define M_PI 3.1415926535897932384626433832795
 """
 

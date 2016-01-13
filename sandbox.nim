@@ -83,11 +83,13 @@ loadExtensions()
 
 let crateTexture = loadAndBindTexture2DFromFile("crate.png")
 let crateTextureRect = loadAndBindTextureRectangleFromFile("crate.png")
-let renderedTexture = createAndBindEmptyTexture2D( windowsize )
+
 
 var framebufferName : GLuint
 glGenFramebuffers(1, framebufferName.addr)
 glBindFramebuffer(GL_FRAMEBUFFER, framebufferName)
+
+let renderedTexture = createAndBindEmptyTexture2D( windowsize )
 
 var depthrenderbuffer: GLuint
 glGenRenderbuffers(1, depthrenderbuffer.addr)
@@ -176,6 +178,8 @@ proc render() =
     #let mvp : Mat4x4[float32] =  modelview_mat * projection_mat;
 
     glBindFramebuffer(GL_FRAMEBUFFER, framebufferName)
+    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+    #glViewport(viewport.x.GLint, viewport.y.GLint, viewport.z.GLsizei, viewport.w.GLsizei)
 
     shadingDsl(GL_TRIANGLES, vertex.len.GLsizei):
       uniforms:
@@ -220,7 +224,7 @@ proc render() =
         """
 
       fragmentOut:
-        "out vec4 color"
+        "layout(location = 0) out vec4 color"
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0)
     renderedTexture.bindIt
@@ -232,7 +236,7 @@ proc render() =
         tex = renderedTexture
         time
         viewport
-        texSize = crateTexture.size
+        texSize = renderedTexture.size
 
       attributes:
         pos = screenSpaceTriangleVerts
@@ -249,8 +253,9 @@ proc render() =
 
       fragmentMain:
         """
-        vec2 texcoord = (v_texcoord * viewport.zw + vec2(sin(time * 5 + gl_FragCoord.y / 8) * 8, 0) ) / texSize;
-        vec4 t_col = texture(tex, texcoord);
+        vec2 offset = vec2(sin(time * 5 + gl_FragCoord.y / 8) * 0.01, 0);
+        vec2 texcoord = (v_texcoord * viewport.zw ) / texSize;
+        vec4 t_col = texture(tex, texcoord + offset);
         color = t_col;
         """
 
@@ -358,7 +363,4 @@ while runGame:
   render()
   fpsframeCounter += 1
 
-
-
   #limitFrameRate()
-
