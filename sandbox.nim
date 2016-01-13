@@ -74,6 +74,7 @@ let context = window.glCreateContext()
 loadExtensions()
 
 var crateTexture = loadAndBindTexture2DFromFile("crate.png")
+
 nil_Texture2D.bindIt
 
 if 0 != glSetSwapInterval(-1):
@@ -90,6 +91,10 @@ glClearDepth(1.0)                                 # Set background depth to fart
 glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-culling
 glDepthFunc(GL_LEQUAL)                            # Set the type of depth-test
 glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST) # Nice perspective corrections
+
+#glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+#glEnable(GL_CULL_FACE)
+#glCullFace(GL_BACK)
 
 const glslCode = """
 vec4 mymix(vec4 color, float alpha) {
@@ -152,7 +157,6 @@ proc render() =
         texcoord
         normal
 
-
       includes:
         glslCode
 
@@ -178,6 +182,7 @@ proc render() =
         vec4 mix_col = mymix(t_col, time + dot( vec2(cos(time),sin(time)), offset ));
         color = v_col * mix_col;
         //color = (v_eyenormal + vec4(1)) * 0.5;
+        //color.rg = vec2(float(int(gl_FragCoord.x) % 256) / 255.0, float(int(gl_FragCoord.y) % 256) / 255.0);
         """
 
       fragmentOut:
@@ -212,13 +217,17 @@ proc render() =
         vec4 normal = vec4(cross(v1,v2),0);
 
         gl_Position = projection * center;
+        g_color = abs(normal);
         EmitVertex();
         gl_Position = projection * (center + normal);
+        g_color = abs(normal);
         EmitVertex();
         """
+      geometryOut:
+        "out vec4 g_color"
       fragmentMain:
         """
-        color = vec4(1);
+        color = g_color;
         """
 
       fragmentOut:

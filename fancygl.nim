@@ -144,6 +144,15 @@ proc loadAndBindTexture2DFromFile*(filename: string): Texture2D =
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
   glGenerateMipmap(GL_TEXTURE_2D)
 
+proc saveToBmpFile*(tex: Texture2D, filename: string): void =
+  tex.bindIt
+  var w,h: GLint
+  glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, w.addr)
+  glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, h.addr)
+  var surface = createRGBSurface(0, w, h, 32, 0xff000000.uint32, 0x00ff0000, 0x0000ff00, 0x000000ff)  # no alpha, rest default
+  glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface.pixels)
+  saveBMP(surface, filename)
+
 #### nim -> glsl type mapping ####
 
 
