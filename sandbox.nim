@@ -72,10 +72,10 @@ var screenSpaceTriangleTexcoords = @[
 
 discard sdl2.init(INIT_EVERYTHING)
 
-
+var windowsize = vec2f(640,480)
 var viewport = vec4f(0,0,640,480)
 
-let window = createWindow("SDL/OpenGL Skeleton", 100, 100, viewport.z.cint, viewport.w.cint, SDL_WINDOW_OPENGL or SDL_WINDOW_RESIZABLE)
+let window = createWindow("SDL/OpenGL Skeleton", 100, 100, windowsize.x.cint, windowsize.y.cint, SDL_WINDOW_OPENGL or SDL_WINDOW_RESIZABLE)
 let context = window.glCreateContext()
 
 # Initialize OpenGL
@@ -127,8 +127,13 @@ vec4 mymix(vec4 color, float alpha) {
 var projection_mat : Mat4x4[float]
 
 proc reshape() =
-  glViewport(viewport.x.cint, viewport.y.cint, viewport.z.cint, viewport.w.cint)   # Set the viewport to cover the new window
-  projection_mat = perspective(45.0, viewport.z / viewport.w, 0.1, 100.0)
+  viewport.x = 0
+  viewport.y = 0
+  viewport.z = windowsize.x
+  viewport.w = windowsize.y
+  # Set the viewport to cover the new window
+  glViewport(viewport.x.GLint, viewport.y.GLint, windowsize.x.GLint, windowsize.y.GLint)
+  projection_mat = perspective(45.0, windowsize.x / windowsize.y, 0.1, 100.0)
 
 var
   mouseX, mouseY: int32
@@ -138,18 +143,19 @@ var
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
 
-  let mouse = vec2f(mouseX.float32, mouseY.float32)
+  let mouse = vec2f(mouseX.float32, windowsize.y - mouseY.float32)
   #let mouseX_Norm = (mouseX.float32 / screenWidth.float32)
   #let mouseY_Norm = (mouseY.float32 / screenHeight.float32)
   let mousePosNorm = (mouse - viewport.xy) / viewport.zw
 
-  #for i in 0..<7:
+  #for i in 0..<5:
   block:
-    #let newTime = time * (1.0 + i.float64 / 5.0))
     let time = simulationTime
+    #let time = simulationTime * ( 1.0 + i.float32 / 10 )
 
     shadingDsl(GL_TRIANGLES, 3):
       uniforms:
+        mouse
         crateTexture
         time
         viewport
@@ -171,9 +177,13 @@ proc render() =
       fragmentMain:
         """
         mat2 rot = mat2( cos(time), -sin(time), sin(time), cos(time) );
-        mat2 rot2 = mat2( cos(time*1.1), -sin(time*1.1), sin(time*1.1), cos(time*1.1) );
+        float m_dist = length(gl_FragCoord.xy - mouse);
+        float f =  time*1.1 + m_dist * 0.01 * sin(time*0.1) + sin(m_dist*0.01)*sin(time);
+        mat2 rot2 = mat2( cos(f), -sin(f), sin(f), cos(f) );
         float offset = sin(time + (rot * gl_FragCoord.xy).x / 32.0) * sin(time * 0.123) * 0.5 + 1;
-        vec4 t_col = texture(crateTexture, v_texcoord / crateSize * viewport.zw + rot2 * vec2(offset, 0));
+        vec2 texcoord = (v_texcoord * viewport.zw - mouse) / crateSize * rot2;
+        vec4 t_col = texture(crateTexture, texcoord);
+        vec2 tile = texcoord - floor(texcoord);
         //vec4 t_col = texture(crateTexture, v_texcoord / crateSize * viewport.zw);
         color = t_col;
         """
@@ -307,8 +317,8 @@ while runGame:
     if evt.kind == WindowEvent:
       let windowEvent = cast[WindowEventPtr](addr(evt))
       if windowEvent.event == WindowEvent_Resized:
-        viewport.z = windowEvent.data1.float32
-        viewport.w = windowEvent.data2.float32
+        windowsize.x = windowEvent.data1.float32
+        windowsize.y = windowEvent.data2.float32
         reshape()
     if evt.kind == KeyDown:
       let keyboardEvent = cast[KeyboardEventPtr](addr(evt))

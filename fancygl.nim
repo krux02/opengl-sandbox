@@ -144,6 +144,13 @@ proc loadAndBindTexture2DFromFile*(filename: string): Texture2D =
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
   glGenerateMipmap(GL_TEXTURE_2D)
 
+proc createAndBindEmptyTexture2D(size: Vec2f) : Texture2D =
+  glGenTextures(1, cast[ptr GLuint](result.addr))
+  result.bindIt
+  glTexImage2D(GL_TEXTURE_2D, 0,GL_RGB, size.x.GLsizei, size.y.GLsizei, 0,GL_RGB, cGL_UNSIGNED_BYTE, nil)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+
 proc size*(tex: Texture2D): Vec2f =
   var outer_tex : GLint
   glGetIntegerv(GL_TEXTURE_BINDING_2D, outer_tex.addr)
