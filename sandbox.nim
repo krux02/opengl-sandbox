@@ -62,20 +62,32 @@ var texcoord = @[
   vec2f(0, 0), vec2f(1, 0), vec2f(0, 1)
 ]
 
+var screenSpaceTriangleVerts = @[
+  vec4f(-1,-1,1,1), vec4f(3,-1,1,1), vec4f(-1,3,1,1)
+]
+
+var screenSpaceTriangleTexcoords = @[
+  vec2f(0,0), vec2f(2,0), vec2f(0,2)
+]
+
 discard sdl2.init(INIT_EVERYTHING)
 
-var screenWidth: cint = 640
-var screenHeight: cint = 480
 
-let window = createWindow("SDL/OpenGL Skeleton", 100, 100, screenWidth, screenHeight, SDL_WINDOW_OPENGL or SDL_WINDOW_RESIZABLE)
+var viewport = vec4f(0,0,640,480)
+
+let window = createWindow("SDL/OpenGL Skeleton", 100, 100, viewport.z.cint, viewport.w.cint, SDL_WINDOW_OPENGL or SDL_WINDOW_RESIZABLE)
 let context = window.glCreateContext()
 
 # Initialize OpenGL
 loadExtensions()
 
 var crateTexture = loadAndBindTexture2DFromFile("crate.png")
-
 nil_Texture2D.bindIt
+var crateTextureRect = loadAndBindTextureRectangleFromFile("crate.png")
+#glTexParameteri(GL_TEXTURE_RECTANGLE,  GL_TEXTURE_WRAP_R, GL_REPEAT)
+#glTexParameteri(GL_TEXTURE_RECTANGLE,  GL_TEXTURE_WRAP_T, GL_REPEAT)
+
+
 
 if 0 != glSetSwapInterval(-1):
   echo "glSetSwapInterval -1 not supported"
@@ -114,9 +126,9 @@ vec4 mymix(vec4 color, float alpha) {
 
 var projection_mat : Mat4x4[float]
 
-proc reshape(newWidth: cint, newHeight: cint) =
-  glViewport(0, 0, newWidth, newHeight)   # Set the viewport to cover the new window
-  projection_mat = perspective(45.0, newWidth / newHeight, 0.1, 100.0)
+proc reshape() =
+  glViewport(viewport.x.cint, viewport.y.cint, viewport.z.cint, viewport.w.cint)   # Set the viewport to cover the new window
+  projection_mat = perspective(45.0, viewport.z / viewport.w, 0.1, 100.0)
 
 var
   mouseX, mouseY: int32
@@ -126,14 +138,45 @@ var
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
 
-  let mouseX_Norm = (mouseX.float32 / screenWidth.float32)
-  let mouseY_Norm = (mouseY.float32 / screenHeight.float32)
-  let mousePosNorm = vec2(mouseX_Norm, mouseY_Norm)
+  let mouse = vec2f(mouseX.float32, mouseY.float32)
+  #let mouseX_Norm = (mouseX.float32 / screenWidth.float32)
+  #let mouseY_Norm = (mouseY.float32 / screenHeight.float32)
+  let mousePosNorm = (mouse - viewport.xy) / viewport.zw
 
   #for i in 0..<7:
   block:
     #let newTime = time * (1.0 + i.float64 / 5.0))
     let time = simulationTime
+
+    shadingDsl(GL_TRIANGLES, 3):
+      uniforms:
+        crateTexture
+        crateTextureRect
+        viewport
+        crateSize = crateTexture.size
+      attributes:
+        pos = screenSpaceTriangleVerts
+        texcoord = screenSpaceTriangleTexcoords
+      vertexMain:
+        """
+        gl_Position = pos;
+        v_texcoord = texcoord;
+        """
+
+      vertexOut:
+        "out vec2 v_texcoord"
+
+      fragmentMain:
+        """
+        vec4 t_col = texture(crateTexture, v_texcoord / crateSize * viewport.zw);
+        vec4 t_col_2 = texture(crateTextureRect, gl_FragCoord.xy);
+        color = t_col;
+        """
+
+      fragmentOut:
+        "out vec4 color"
+
+
 
     var modelview_mat = I4()
     modelview_mat = modelview_mat.translate( vec3[float](sin(time)*2, cos(time)*2, -7) )
@@ -178,9 +221,10 @@ proc render() =
       fragmentMain:
         """
         vec4 t_col = texture(crateTexture, v_texcoord);
-        vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;
-        vec4 mix_col = mymix(t_col, time + dot( vec2(cos(time),sin(time)), offset ));
-        color = v_col * mix_col;
+        //vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;
+        //vec4 mix_col = mymix(t_col, time + dot( vec2(cos(time),sin(time)), offset ));
+        //color = v_col * mix_col;
+        color = t_col;
         //color = (v_eyenormal + vec4(1)) * 0.5;
         //color.rg = vec2(float(int(gl_FragCoord.x) % 256) / 255.0, float(int(gl_FragCoord.y) % 256) / 255.0);
         """
@@ -246,7 +290,7 @@ var
   fpsFrameCounter = 0
   fpsFrameCounterStartTime = 0.0
 
-reshape(screenWidth, screenHeight) # Set up initial viewport and projection
+reshape() # Set up initial viewport and projection
 
 while runGame:
   let time = float64( getTicks() ) / 1000.0
@@ -258,9 +302,9 @@ while runGame:
     if evt.kind == WindowEvent:
       let windowEvent = cast[WindowEventPtr](addr(evt))
       if windowEvent.event == WindowEvent_Resized:
-        let newWidth = windowEvent.data1
-        let newHeight = windowEvent.data2
-        reshape(newWidth, newHeight)
+        viewport.z = windowEvent.data1.float32
+        viewport.w = windowEvent.data2.float32
+        reshape()
     if evt.kind == KeyDown:
       let keyboardEvent = cast[KeyboardEventPtr](addr(evt))
       if keyboardEvent.keysym.scancode == SDL_SCANCODE_ESCAPE:

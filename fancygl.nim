@@ -71,7 +71,7 @@ proc geometryNumVerts(mode: GLenum): int =
   of GL_TRIANGLE_STRIP_ADJACENCY: 6
   of GL_TRIANGLES_ADJACENCY: 6
   of GL_PATCHES: -1
-  else: -1
+  else: -1128
 
 proc geometryPrimitiveLayout(mode: GLenum): string =
   case mode
@@ -144,6 +144,16 @@ proc loadAndBindTexture2DFromFile*(filename: string): Texture2D =
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
   glGenerateMipmap(GL_TEXTURE_2D)
 
+proc size*(tex: Texture2D): Vec2f =
+  var outer_tex : GLint
+  glGetIntegerv(GL_TEXTURE_BINDING_2D, outer_tex.addr)
+  tex.bindIt
+  var w,h: GLint
+  glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, w.addr)
+  glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, h.addr)
+  result = vec2f(w.float32, h.float32)
+  glBindTexture(GL_TEXTURE_2D, outer_tex.GLuint)
+
 proc saveToBmpFile*(tex: Texture2D, filename: string): void =
   tex.bindIt
   var w,h: GLint
@@ -156,7 +166,7 @@ proc saveToBmpFile*(tex: Texture2D, filename: string): void =
 #### nim -> glsl type mapping ####
 
 
-# returns a string
+# returns a string, and true if it is a sample type
 proc glslUniformType(value : NimNode): (string, bool) =
   let tpe = value.getType2
   echo tpe.treeRepr
@@ -184,6 +194,8 @@ proc glslUniformType(value : NimNode): (string, bool) =
       ("sampler2D", true)
     of "Texture3D":
       ("sampler3D", true)
+    of "TextureRectangle":
+      ("sampler2DRect", true)
     of "float32", "float64", "float":
       ("float", false)
     of "Mat4d", "Mat4f":
