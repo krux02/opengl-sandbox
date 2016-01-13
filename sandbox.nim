@@ -151,12 +151,14 @@ proc render() =
     shadingDsl(GL_TRIANGLES, 3):
       uniforms:
         crateTexture
-        crateTextureRect
+        time
         viewport
         crateSize = crateTexture.size
+
       attributes:
         pos = screenSpaceTriangleVerts
         texcoord = screenSpaceTriangleTexcoords
+
       vertexMain:
         """
         gl_Position = pos;
@@ -168,8 +170,11 @@ proc render() =
 
       fragmentMain:
         """
-        vec4 t_col = texture(crateTexture, v_texcoord / crateSize * viewport.zw);
-        vec4 t_col_2 = texture(crateTextureRect, gl_FragCoord.xy);
+        mat2 rot = mat2( cos(time), -sin(time), sin(time), cos(time) );
+        mat2 rot2 = mat2( cos(time*1.1), -sin(time*1.1), sin(time*1.1), cos(time*1.1) );
+        float offset = sin(time + (rot * gl_FragCoord.xy).x / 32.0) * sin(time * 0.123) * 0.5 + 1;
+        vec4 t_col = texture(crateTexture, v_texcoord / crateSize * viewport.zw + rot2 * vec2(offset, 0));
+        //vec4 t_col = texture(crateTexture, v_texcoord / crateSize * viewport.zw);
         color = t_col;
         """
 
@@ -221,10 +226,10 @@ proc render() =
       fragmentMain:
         """
         vec4 t_col = texture(crateTexture, v_texcoord);
-        //vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;
-        //vec4 mix_col = mymix(t_col, time + dot( vec2(cos(time),sin(time)), offset ));
-        //color = v_col * mix_col;
-        color = t_col;
+        vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;
+        vec4 mix_col = mymix(t_col, time + dot( vec2(cos(time),sin(time)), offset ));
+        color = v_col * mix_col;
+        //color = t_col;
         //color = (v_eyenormal + vec4(1)) * 0.5;
         //color.rg = vec2(float(int(gl_FragCoord.x) % 256) / 255.0, float(int(gl_FragCoord.y) % 256) / 255.0);
         """
