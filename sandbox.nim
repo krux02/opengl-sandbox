@@ -84,19 +84,13 @@ loadExtensions()
 let crateTexture = loadAndBindTexture2DFromFile("crate.png")
 let crateTextureRect = loadAndBindTextureRectangleFromFile("crate.png")
 
-
-var framebufferName : GLuint
-glGenFramebuffers(1, framebufferName.addr)
-glBindFramebuffer(GL_FRAMEBUFFER, framebufferName)
+let framebufferName = createFrameBuffer()
+framebufferName.bindIt
 
 let renderedTexture = createAndBindEmptyTexture2D( windowsize )
+let depthrenderbuffer = createAndBindDepthRenderBuffer( windowsize )
 
-var depthrenderbuffer: GLuint
-glGenRenderbuffers(1, depthrenderbuffer.addr)
-glBindRenderbuffer(GL_RENDERBUFFER, depthrenderbuffer)
-glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, windowsize.x.GLsizei, windowsize.y.GLsizei)
-
-glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthrenderbuffer)
+glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthrenderbuffer.GLuint )
 glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderedTexture.GLuint, 0)
 
 var drawBuffers: array[1, GLenum] = [ GL_COLOR_ATTACHMENT0.GLenum ]
@@ -177,9 +171,8 @@ proc render() =
 
     #let mvp : Mat4x4[float32] =  modelview_mat * projection_mat;
 
-    glBindFramebuffer(GL_FRAMEBUFFER, framebufferName)
+    framebufferName.bindIt
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
-    #glViewport(viewport.x.GLint, viewport.y.GLint, viewport.z.GLsizei, viewport.w.GLsizei)
 
     shadingDsl(GL_TRIANGLES, vertex.len.GLsizei):
       uniforms:

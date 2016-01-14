@@ -89,6 +89,7 @@ proc geometryPrimitiveLayout(mode: GLenum): string =
   else:
     ""
 
+
 textureTypeTemplate(Texture1D,                 nil_Texture1D,
     GL_TEXTURE_1D, "sampler1D")
 textureTypeTemplate(Texture2D,                 nil_Texture2D,
@@ -145,13 +146,6 @@ proc loadAndBindTexture2DFromFile*(filename: string): Texture2D =
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
   glGenerateMipmap(GL_TEXTURE_2D)
 
-proc createAndBindEmptyTexture2D*(size: Vec2f) : Texture2D =
-  glGenTextures(1, cast[ptr GLuint](result.addr))
-  result.bindIt
-  glTexImage2D(GL_TEXTURE_2D, 0,GL_RGB, size.x.GLsizei, size.y.GLsizei, 0,GL_RGB, cGL_UNSIGNED_BYTE, nil)
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
-
 proc size*(tex: Texture2D): Vec2f =
   var outer_tex : GLint
   glGetIntegerv(GL_TEXTURE_BINDING_2D, outer_tex.addr)
@@ -161,6 +155,17 @@ proc size*(tex: Texture2D): Vec2f =
   glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, h.addr)
   result = vec2f(w.float32, h.float32)
   glBindTexture(GL_TEXTURE_2D, outer_tex.GLuint)
+
+#proc `size=`(tex: Texture2D, size: Vec2f) =
+#  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, size.x.GLsizei, size.y.GLsizei, 0,GL_RGB, cGL_UNSIGNED_BYTE, nil)
+
+proc createAndBindEmptyTexture2D*(size: Vec2f) : Texture2D =
+  glGenTextures(1, cast[ptr GLuint](result.addr))
+  result.bindIt
+  glTexImage2D(GL_TEXTURE_2D, 0,GL_RGB, size.x.GLsizei, size.y.GLsizei, 0,GL_RGB, cGL_UNSIGNED_BYTE, nil)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+
 
 proc size*(tex: TextureRectangle): Vec2f =
   var outer_tex : GLint
@@ -185,6 +190,44 @@ proc saveToBmpFile*(tex: TextureRectangle, filename: string): void =
   var surface = createRGBSurface(0, s.x.int32, s.y.int32, 32, 0xff000000.uint32, 0x00ff0000, 0x0000ff00, 0x000000ff)  # no alpha, rest default
   glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface.pixels)
   saveBMP(surface, filename)
+
+#### framebuffer ####
+
+type DepthRenderbuffer* = distinct GLuint
+
+proc bindIt*(drb: DepthRenderbuffer): void =
+  glBindRenderbuffer(GL_RENDERBUFFER, drb.GLuint)
+
+proc `storage=`(drb: DepthRenderbuffer, size:Vec2f) =
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, size.x.GLsizei, size.y.GLsizei)
+
+proc createAndBindDepthRenderBuffer*(size: Vec2f) : DepthRenderbuffer =
+  glGenRenderbuffers(1, cast[ptr GLuint](result.addr))
+  result.bindIt
+  result.storage = size
+
+type FrameBuffer* = distinct GLuint
+
+proc bindIt*(fb: FrameBuffer): void =
+  glBindFramebuffer(GL_FRAMEBUFFER, fb.GLuint)
+
+proc createFrameBuffer*(): FrameBuffer =
+  glGenFramebuffers(1, cast[ptr GLuint](result.addr))
+
+#let renderedTexture = createAndBindEmptyTexture2D( windowsize )
+
+#var depthrenderbuffer: GLuint
+
+#glBindRenderbuffer(GL_RENDERBUFFER, depthrenderbuffer)
+#glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, windowsize.x.GLsizei, windowsize.y.GLsizei)
+
+#glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthrenderbuffer)
+#glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderedTexture.GLuint, 0)
+
+#var drawBuffers: array[1, GLenum] = [ GL_COLOR_ATTACHMENT0.GLenum ]
+#glDrawBuffers(1, drawBuffers[0].addr)
+
+#glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
 #### nim -> glsl type mapping ####
 
