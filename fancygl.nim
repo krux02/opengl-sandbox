@@ -214,6 +214,11 @@ proc bindIt*(fb: FrameBuffer): void =
 proc createFrameBuffer*(): FrameBuffer =
   glGenFramebuffers(1, cast[ptr GLuint](result.addr))
 
+proc drawBuffers*(args : varargs[GLenum]) =
+  var tmp : seq[GLenum] = args.toSeq
+  if tmp.len > 0:
+    glDrawBuffers(tmp.len.GLsizei, tmp[0].addr)
+
 #let renderedTexture = createAndBindEmptyTexture2D( windowsize )
 
 #var depthrenderbuffer: GLuint

@@ -93,8 +93,7 @@ let depthrenderbuffer = createAndBindDepthRenderBuffer( windowsize )
 glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthrenderbuffer.GLuint )
 glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderedTexture.GLuint, 0)
 
-var drawBuffers: array[1, GLenum] = [ GL_COLOR_ATTACHMENT0.GLenum ]
-glDrawBuffers(1, drawBuffers[0].addr)
+drawBuffers( GL_COLOR_ATTACHMENT0.GLenum )
 
 glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
@@ -113,9 +112,8 @@ glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-c
 glDepthFunc(GL_LEQUAL)                            # Set the type of depth-test
 glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST) # Nice perspective corrections
 
-#glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
-#glEnable(GL_CULL_FACE)
-#glCullFace(GL_BACK)
+glEnable(GL_CULL_FACE)
+glCullFace(GL_BACK)
 
 const glslCode = """
 vec4 mymix(vec4 color, float alpha) {
