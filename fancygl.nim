@@ -29,17 +29,17 @@ proc mat4f*(mat: Mat4d): Mat4f =
      result[i][j] = mat[i][j]
 
 proc I4*() : Mat4d = mat4x4(
-  vec4(1.0, 0, 0, 0),
-  vec4(0.0, 1, 0, 0),
-  vec4(0.0, 0, 1, 0),
-  vec4(0.0, 0, 0, 1)
+  vec4d(1, 0, 0, 0),
+  vec4d(0, 1, 0, 0),
+  vec4d(0, 0, 1, 0),
+  vec4d(0, 0, 0, 1)
 )
 
 proc I4f*() : Mat4f = mat4x4[float32](
-  vec4[float32](1.0, 0, 0, 0),
-  vec4[float32](0.0, 1, 0, 0),
-  vec4[float32](0.0, 0, 1, 0),
-  vec4[float32](0.0, 0, 0, 1)
+  vec4f(1, 0, 0, 0),
+  vec4f(0, 1, 0, 0),
+  vec4f(0, 0, 1, 0),
+  vec4f(0, 0, 0, 1)
 )
 
 #### Sampler Types ####
@@ -198,13 +198,10 @@ type DepthRenderbuffer* = distinct GLuint
 proc bindIt*(drb: DepthRenderbuffer): void =
   glBindRenderbuffer(GL_RENDERBUFFER, drb.GLuint)
 
-proc `storage=`(drb: DepthRenderbuffer, size:Vec2f) =
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, size.x.GLsizei, size.y.GLsizei)
-
 proc createAndBindDepthRenderBuffer*(size: Vec2f) : DepthRenderbuffer =
   glGenRenderbuffers(1, cast[ptr GLuint](result.addr))
-  result.bindIt
-  result.storage = size
+  glBindRenderbuffer(GL_RENDERBUFFER, result.GLuint)
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, size.x.GLsizei, size.y.GLsizei)
 
 type FrameBuffer* = distinct GLuint
 
@@ -215,7 +212,10 @@ proc createFrameBuffer*(): FrameBuffer =
   glGenFramebuffers(1, cast[ptr GLuint](result.addr))
 
 proc drawBuffers*(args : varargs[GLenum]) =
-  var tmp : seq[GLenum] = args.toSeq
+  var tmp = newSeq[GLenum](args.len)
+  for i, arg in args:
+    tmp[i] = arg
+
   if tmp.len > 0:
     glDrawBuffers(tmp.len.GLsizei, tmp[0].addr)
 
@@ -387,6 +387,13 @@ proc bufferData*[T](buffer: ElementArrayBuffer[T], data: seq[T]) =
 
 proc bufferData*[T](buffer: UniformBuffer[T], data: T) =
   glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(sizeof(T)), data.addr, GL_STATIC_DRAW)
+
+
+#### framebuffer ####
+
+
+
+const currentFramebuffer* = 0
 
 #### etc ####
 
@@ -582,7 +589,7 @@ proc incl(arg: string): int = 0
 ## Shading Dsl Inner ###########################################################
 ################################################################################
 
-macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) : stmt =
+macro shadingDslInner(mode: GLenum, count: GLSizei, framebuffer: static[int], statement: varargs[typed] ) : stmt =
   var numSamplers = 0
   var numLocations = 0
   var uniformsSection : seq[string] = @[]
@@ -762,7 +769,7 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, statement: varargs[typed] ) 
 macro shadingDsl*(mode:GLenum, count: GLsizei, statement: stmt) : stmt {.immediate.} =
   echo statement.treeRepr
 
-  result = newCall(bindSym"shadingDslInner", mode, count)
+  result = newCall(bindSym"shadingDslInner", mode, count, newIdentNode("currentFramebuffer"))
 
   for section in statement.items:
     section.expectKind nnkCall

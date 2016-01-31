@@ -1,6 +1,6 @@
 # OpenGL example using SDL2
 
-import sdl2, opengl, math, glm, fancygl, sequtils
+import sdl2, opengl, math, glm, fancygl, sequtils, macros
 
 var vertex = @[
   vec3f(+1, +1, -1), vec3f(-1, +1, -1), vec3f(-1, +1, +1),
@@ -95,6 +95,16 @@ glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderedTexture.GLuin
 
 drawBuffers( GL_COLOR_ATTACHMENT0.GLenum )
 
+
+template framebuffertest(args:untyped) : stmt =
+  discard
+
+
+framebuffertest:
+  color : texture
+
+
+
 glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
 if 0 != glSetSwapInterval(-1):
@@ -169,53 +179,54 @@ proc render() =
 
     #let mvp : Mat4x4[float32] =  modelview_mat * projection_mat;
 
-    framebufferName.bindIt
-    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+    block: # render to framebuffer
+      framebufferName.bindIt
+      glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-    shadingDsl(GL_TRIANGLES, vertex.len.GLsizei):
-      uniforms:
-        modelview = modelview_mat
-        projection = projection_mat
-        time
-        mousePosNorm
-        crateTexture
-      attributes:
-        pos = vertex
-        col = color
-        texcoord
-        normal
+      shadingDsl(GL_TRIANGLES, vertex.len.GLsizei):
+        uniforms:
+          modelview = modelview_mat
+          projection = projection_mat
+          time
+          mousePosNorm
+          crateTexture
+        attributes:
+          pos = vertex
+          col = color
+          texcoord
+          normal
 
-      includes:
-        glslCode
+        includes:
+          glslCode
 
-      vertexMain:
-        """
-        gl_Position = projection * modelview * vec4(pos, 1);
-        v_eyepos = modelview * vec4(pos,1);
-        v_eyenormal = modelview * vec4(normal, 0);
-        v_col = vec4(col,1);
-        v_texcoord = texcoord;
-        """
+        vertexMain:
+          """
+          gl_Position = projection * modelview * vec4(pos, 1);
+          v_eyepos = modelview * vec4(pos,1);
+          v_eyenormal = modelview * vec4(normal, 0);
+          v_col = vec4(col,1);
+          v_texcoord = texcoord;
+          """
 
-      vertexOut:
-        "out vec4 v_col"
-        "out vec2 v_texcoord"
-        "out vec4 v_eyepos"
-        "out vec4 v_eyenormal"
+        vertexOut:
+          "out vec4 v_col"
+          "out vec2 v_texcoord"
+          "out vec4 v_eyepos"
+          "out vec4 v_eyenormal"
 
-      fragmentMain:
-        """
-        vec4 t_col = texture(crateTexture, v_texcoord);
-        vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;
-        vec4 mix_col = mymix(t_col, time + dot( vec2(cos(time),sin(time)), offset ));
-        color = v_col * mix_col;
-        //color = t_col;
-        //color = (v_eyenormal + vec4(1)) * 0.5;
-        //color.rg = vec2(float(int(gl_FragCoord.x) % 256) / 255.0, float(int(gl_FragCoord.y) % 256) / 255.0);
-        """
+        fragmentMain:
+          """
+          vec4 t_col = texture(crateTexture, v_texcoord);
+          vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;
+          vec4 mix_col = mymix(t_col, time + dot( vec2(cos(time),sin(time)), offset ));
+          color = v_col * mix_col;
+          //color = t_col;
+          //color = (v_eyenormal + vec4(1)) * 0.5;
+          //color.rg = vec2(float(int(gl_FragCoord.x) % 256) / 255.0, float(int(gl_FragCoord.y) % 256) / 255.0);
+          """
 
-      fragmentOut:
-        "layout(location = 0) out vec4 color"
+        fragmentOut:
+          "layout(location = 0) out vec4 color"
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0)
     renderedTexture.bindIt
