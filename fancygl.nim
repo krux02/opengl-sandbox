@@ -1,4 +1,4 @@
-import opengl, glm, strutils, nre, macros, sdl2, sdl2/image
+import opengl, glm, strutils, nre, macros, macroutils, sdl2, sdl2/image
 
 #### glm additions ####
 
@@ -46,7 +46,7 @@ proc I4f*() : Mat4f = mat4x4[float32](
 
 macro nilName(name:expr) : expr =
   name.expectKind(nnkIdent)
-  newIdentNode("nil_" & $name)
+  !!("nil_" & $name)
 
 template textureTypeTemplate(name, nilName, target:expr, shadername:string): stmt =
   type name* = distinct GLuint
@@ -240,7 +240,6 @@ proc drawBuffers*(args : varargs[GLenum]) =
 # returns a string, and true if it is a sample type
 proc glslUniformType(value : NimNode): (string, bool) =
   let tpe = value.getType2
-  echo tpe.treeRepr
   if tpe.kind == nnkBracketExpr:
     case $tpe[0]
     of "Mat4x4":
@@ -469,10 +468,6 @@ proc compileShader(shaderType: GLenum, source: string): GLuint =
   result.shaderSource(source)
   glCompileShader(result)
 
-  echo "*****"
-  echo source
-  echo "*****"
-
   if not result.compileStatus:
     echo "==== start Shader Problems ======================================="
     echo source
@@ -610,9 +605,8 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, framebuffer: static[int], st
   #### BEGIN PARSE TREE ####
 
   proc locations(i: int) : NimNode =
-    newTree(nnkBracketExpr, newIdentNode("locations"), newLit(i))
+    newTree(nnkBracketExpr, !!"locations", newLit(i))
 
-  echo "shadingDslInner"
   for call in statement.items:
     call.expectKind nnkCall
     case $call[0]
@@ -628,7 +622,7 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, framebuffer: static[int], st
 
         initUniformsBlock.add( newAssignment(
           locations(numLocations),
-          newCall( bindSym"glGetUniformLocation", newIdentNode("glProgram"), newLit(name) )
+          newCall( bindSym"glGetUniformLocation", !!"glProgram", newLit(name) )
         ))
 
         if isSample:
@@ -654,24 +648,24 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, framebuffer: static[int], st
         let value = innerCall[2]
         let buffername = !(name & "Buffer")
 
-        echo "attribute ", value.glslAttribType, " ", name
+        #echo "attribute ", value.glslAttribType, " ", name
 
         template foobarTemplate( lhs, rhs : expr ) : stmt {.dirty.} =
           var lhs {.global.}: ArrayBuffer[rhs[0].type]
 
-        globalsBlock.add(getAst(foobarTemplate( newIdentNode(buffername), value )))
+        globalsBlock.add(getAst(foobarTemplate( !! buffername, value )))
 
         let attribCount = attributesSection.len
 
         bufferCreationBlock.add( newAssignment(
           locations(numLocations),
-          newCall( bindSym"glGetAttribLocation", newIdentNode("glProgram"), newLit(name) )
+          newCall( bindSym"glGetAttribLocation", !! "glProgram", newLit(name) )
         ))
 
         bufferCreationBlock.add(newCall(bindSym"myEnableVertexAttribArray", locations(numLocations)))
 
         bufferCreationBlock.add(newCall(bindSym"makeAndBindBuffer",
-            newIdentNode(buffername),
+            !! buffername,
             locations(numLocations),
             value,
             bindSym"GL_STATIC_DRAW"
@@ -682,54 +676,43 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, framebuffer: static[int], st
         numLocations += 1
 
     of "vertexOut":
-      echo "vertexOut"
+      #echo "vertexOut"
 
       for innerCall in call[1][1].items:
         vertexOutSection.add( innerCall.strVal )
 
     of "geometryOut":
-      echo "geometryOut"
 
       for innerCall in call[1][1].items:
         geometryOutSection.add( innerCall.strVal )
 
     of "fragmentOut":
-      echo "fragmentOut"
 
       for innerCall in call[1][1].items:
         fragmentOutSection.add( innerCall.strVal )
 
     of "includes":
-      echo "includes"
 
       for innerCall in call[1][1].items:
         if innerCall[1].kind == nnkSym:
           let sym = innerCall[1].symbol
-          echo sym.getImpl.strVal
           includesSection.add(sym.getImpl.strVal)
 
 
     of "vertexMain":
-      echo "vertexMain"
-      echo call[1].strVal
-
       vertexMain = call[1].strVal
 
     of "fragmentMain":
-      echo "fragmentMain"
-
-      echo call[1].strVal
-
       fragmentMain = call[1].strVal
 
     of "geometryMain":
-      echo "geometryMain"
 
       geometryLayout = call[1].strVal
       geometryMain = call[2].strVal
 
     else:
       echo "unknownSection"
+      echo call.repr
 
   let vertexShaderSource = genShaderSource(sourceHeader, uniformsSection, attributesSection, -1, vertexOutSection, includesSection, vertexMain)
 
@@ -760,16 +743,15 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, framebuffer: static[int], st
   result = getAst(renderBlockTemplate(numLocations, globalsBlock, linkShaderBlock,
          bufferCreationBlock, initUniformsBlock, setUniformsBlock, drawCommand))
 
-  echo result.repr
+  #echo result.repr
 
 ################################################################################
 ## Shading Dsl Outer ###########################################################
 ################################################################################
 
 macro shadingDsl*(mode:GLenum, count: GLsizei, statement: stmt) : stmt {.immediate.} =
-  echo statement.treeRepr
 
-  result = newCall(bindSym"shadingDslInner", mode, count, newIdentNode("currentFramebuffer"))
+  result = newCall(bindSym"shadingDslInner", mode, count, !! "currentFramebuffer" )
 
   for section in statement.items:
     section.expectKind nnkCall

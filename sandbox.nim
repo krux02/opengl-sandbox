@@ -1,6 +1,6 @@
 # OpenGL example using SDL2
 
-import sdl2, opengl, math, glm, fancygl, sequtils, macros
+import sdl2, opengl, math, glm, fancygl, sequtils, macros, macroutils
 
 var vertex = @[
   vec3f(+1, +1, -1), vec3f(-1, +1, -1), vec3f(-1, +1, +1),
@@ -95,15 +95,37 @@ glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderedTexture.GLuin
 
 drawBuffers( GL_COLOR_ATTACHMENT0.GLenum )
 
+macro framebuffertest(arg:untyped) : stmt =
+  result = newStmtList()
 
-template framebuffertest(args:untyped) : stmt =
-  discard
+  var fragmentOutputs = newSeq[string]()
 
+  for asgn in arg:
+    asgn.expectKind nnkAsgn
+
+    if asgn[0].ident == !"depth":
+      if asgn[1].ident == !"newRenderbuffer":
+        echo "assigning new depth renderbuffer"
+
+    else:
+      fragmentOutputs.add($asgn[0])
+
+  result.add newConstStmt(!!"fragmentOutputs", fragmentOutputs.toConstExpr)
+
+  let typeSection = newNimNode(nnkTypeSection)
+  let typeDef = newNimNode(nnkTypeDef)
+  typeDef.add
+
+  echo result.repr
+
+dumpTree:
+  type FramebufferType = object
+    depth*: DepthRenderbuffer
+    color*: Texture2D
 
 framebuffertest:
-  color : texture
-
-
+  depth = newRenderbuffer
+  color = newTexture
 
 glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
