@@ -433,8 +433,6 @@ proc uniformBuffer*[T](data : T): UniformBuffer[T] =
 
 #### framebuffer ####
 
-
-
 const currentFramebuffer* = 0
 
 # default fragment Outputs
