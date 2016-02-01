@@ -1,5 +1,5 @@
 [Package]
-name          = "opengl-sandbox"
+name          = "declarative_gl"
 version       = "0.1.1"
 author        = "Arne Döring"
 description   = "declarative and concise embedded DSL for opengl states"
