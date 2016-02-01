@@ -87,8 +87,8 @@ let crateTextureRect = loadAndBindTextureRectangleFromFile("crate.png")
 let framebufferName = createFrameBuffer()
 framebufferName.bindIt
 
-let renderedTexture = createAndBindEmptyTexture2D( windowsize )
 let depthrenderbuffer = createAndBindDepthRenderBuffer( windowsize )
+let renderedTexture = createAndBindEmptyTexture2D( windowsize )
 
 glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthrenderbuffer.GLuint )
 glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderedTexture.GLuint, 0)
@@ -112,16 +112,67 @@ macro framebuffertest(arg:untyped) : stmt =
 
   result.add newConstStmt(!!"fragmentOutputs", fragmentOutputs.toConstExpr)
 
-  let typeSection = newNimNode(nnkTypeSection)
-  let typeDef = newNimNode(nnkTypeDef)
-  typeDef.add
+  let recList = newNimNode(nnkRecList)
+  recList.add( newExpIdentDef(!"glname", !"FrameBuffer") )
+  recList.add( newExpIdentDef(!"depth", !"DepthRenderbuffer") )
+
+  for fragOut in fragmentOutputs:
+    recList.add( newExpIdentDef(!fragOut, !"Texture2D") )
+
+  result.add newObjectTy(!"FramebufferType", recList)
+
+  result.add(newNimNode2(nnkVarSection, newNimNode2(nnkIdentDefs,
+    !!"currentFrameBuffer",
+    !!"FramebufferType",
+    newEmptyNode()
+  )))
+
+  result.add(newAssignment(newDotExpr(!!"currentFrameBuffer", !!"glname"),
+    newCall(bindSym"createFrameBuffer")
+  ))
+  result.add(newDotExpr(!!"currentFrameBuffer", !!"glname", !!"bindIt"))
+  result.add(newAssignment(newDotExpr(!!"currentFrameBuffer", !!"depth"),
+    newCall(bindSym"createAndBindDepthRenderBuffer", !!"windowsize")
+  ))
+  result.add(newCall(bindSym"glFramebufferRenderbuffer", bindSym"GL_FRAMEBUFFER",
+    bindSym"GL_DEPTH_ATTACHMENT", bindSym"GL_RENDERBUFFER",
+    newDotExpr(!!"currentFrameBuffer", !!"glname", bindSym"GLuint")
+  ))
+
+  let drawBuffersCall = newCall(bindSym"drawBuffers")
+
+  for i,name in fragmentOutputs:
+    result.add(newAssignment( newDotExpr( !!"currentFrameBuffer", !! name ),
+      newCall( bindSym"createAndBindEmptyTexture2D", !!"windowsize" ),
+    ))
+    result.add(newCall(bindSym"glFramebufferTexture", bindSym"GL_FRAMEBUFFER", !!("GL_COLOR_ATTACHMENT" & $i),
+      newDotExpr(!!"currentFrameBuffer", !! name, bindSym"GLuint"), newLit(0)
+    ))
+    drawBuffersCall.add( newCall(bindSym"GLenum", !!("GL_COLOR_ATTACHMENT" & $i)) )
+
+  result.add( drawBuffersCall )
 
   echo result.repr
 
+
 dumpTree:
   type FramebufferType = object
+    glname*: FrameBuffer
     depth*: DepthRenderbuffer
     color*: Texture2D
+
+  var currentFrameBuffer: FramebufferType
+  currentFrameBuffer.glname = createFrameBuffer()
+  currentFrameBuffer.glname.bindIt
+  currentFrameBuffer.depth = createAndBindDepthRenderBuffer( windowsize )
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, currentFrameBuffer.glname.GLuint )
+  currentFrameBuffer.color = createAndBindEmptyTexture2D( windowsize )
+  glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, currentFrameBuffer.color.GLuint, 0)
+  drawBuffers(GLenum(GL_COLOR_ATTACHMENT0))
+
+
+
+
 
 framebuffertest:
   depth = newRenderbuffer

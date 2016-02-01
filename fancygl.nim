@@ -584,7 +584,11 @@ proc incl(arg: string): int = 0
 ## Shading Dsl Inner ###########################################################
 ################################################################################
 
-macro shadingDslInner(mode: GLenum, count: GLSizei, framebuffer: static[int], statement: varargs[typed] ) : stmt =
+macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[string]], statement: varargs[typed] ) : stmt =
+  echo "shadingDslInner fragmentOutputs:"
+  for i,output in fragmentOutputs:
+    echo "out(", i, "): ", output
+
   var numSamplers = 0
   var numLocations = 0
   var uniformsSection : seq[string] = @[]
@@ -751,7 +755,7 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, framebuffer: static[int], st
 
 macro shadingDsl*(mode:GLenum, count: GLsizei, statement: stmt) : stmt {.immediate.} =
 
-  result = newCall(bindSym"shadingDslInner", mode, count, !! "currentFramebuffer" )
+  result = newCall(bindSym"shadingDslInner", mode, count, !! "fragmentOutputs" )
 
   for section in statement.items:
     section.expectKind nnkCall
