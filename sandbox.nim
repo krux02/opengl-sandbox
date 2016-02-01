@@ -84,16 +84,16 @@ loadExtensions()
 let crateTexture = loadAndBindTexture2DFromFile("crate.png")
 let crateTextureRect = loadAndBindTextureRectangleFromFile("crate.png")
 
-let framebufferName = createFrameBuffer()
-framebufferName.bindIt
+#let framebufferName = createFrameBuffer()
+#framebufferName.bindIt
 
-let depthrenderbuffer = createAndBindDepthRenderBuffer( windowsize )
-let renderedTexture = createAndBindEmptyTexture2D( windowsize )
+#let depthrenderbuffer = createAndBindDepthRenderBuffer( windowsize )
+#let renderedTexture = createAndBindEmptyTexture2D( windowsize )
 
-glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthrenderbuffer.GLuint )
-glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderedTexture.GLuint, 0)
+#glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthrenderbuffer.GLuint )
+#glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderedTexture.GLuint, 0)
 
-drawBuffers( GL_COLOR_ATTACHMENT0.GLenum )
+#drawBuffers( GL_COLOR_ATTACHMENT0.GLenum )
 
 macro framebuffertest(arg:untyped) : stmt =
   result = newStmtList()
@@ -163,29 +163,11 @@ macro framebuffertest(arg:untyped) : stmt =
 
   echo result.repr
 
-
-dumpTree:
-  type FramebufferType = object
-    glname*: FrameBuffer
-    depth*: DepthRenderbuffer
-    color*: Texture2D
-
-  var currentFrameBuffer: FramebufferType
-  currentFrameBuffer.glname = createFrameBuffer()
-  currentFrameBuffer.glname.bindIt
-  currentFrameBuffer.depth = createAndBindDepthRenderBuffer( windowsize )
-  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, currentFrameBuffer.glname.GLuint )
-  currentFrameBuffer.color = createAndBindEmptyTexture2D( windowsize )
-  glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, currentFrameBuffer.color.GLuint, 0)
-  drawBuffers(GLenum(GL_COLOR_ATTACHMENT0))
-
-
-
 framebuffertest:
   depth = newRenderbuffer(windowsize)
   color = newTexture(windowsize)
 
-glBindFramebuffer(GL_FRAMEBUFFER, 0)
+#glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
 if 0 != glSetSwapInterval(-1):
   echo "glSetSwapInterval -1 not supported"
@@ -256,11 +238,35 @@ proc render() =
     modelview_mat = modelview_mat.rotate( vec3[float](0,1,0), time )
     modelview_mat = modelview_mat.rotate( vec3[float](1,0,0), time )
     #modelview_mat = modelview_mat.scale( vec3[float](50,50,50) )
-
     #let mvp : Mat4x4[float32] =  modelview_mat * projection_mat;
 
+    #framebuffertest:
+    #  depth = newRenderbuffer(windowsize)
+    #  color = newTexture(windowsize)
+
+    type FramebufferType = object
+      glname*: FrameBuffer
+      depth*: DepthRenderbuffer
+      color*: Texture2D
+
+    var currentFrameBuffer {.global.}: FramebufferType
+
     block: # render to framebuffer
-      framebufferName.bindIt
+      const fragmentOutputs = @ ["color"]
+
+      if currentFrameBuffer.glname.int == 0:
+        currentFrameBuffer.glname = createFrameBuffer()
+        currentFrameBuffer.glname.bindIt
+        currentFrameBuffer.depth = createAndBindDepthRenderBuffer(windowsize)
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER,
+                            currentFrameBuffer.glname.GLuint)
+        currentFrameBuffer.color = createAndBindEmptyTexture2D(windowsize)
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                       currentFrameBuffer.color.GLuint, 0)
+        drawBuffers(GLenum(GL_COLOR_ATTACHMENT0))
+
+      currentFrameBuffer.glname.bindIt
+
       glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
       shadingDsl(GL_TRIANGLES, vertex.len.GLsizei):
@@ -306,16 +312,16 @@ proc render() =
           """
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0)
-    renderedTexture.bindIt
+    currentFrameBuffer.color.bindIt
     glGenerateMipmap(GL_TEXTURE_2D)
 
     shadingDsl(GL_TRIANGLES, 3):
       uniforms:
         mouse
-        tex = renderedTexture
+        tex = currentFrameBuffer.color
         time
         viewport
-        texSize = renderedTexture.size
+        texSize = currentFrameBuffer.color.size
 
       attributes:
         pos = screenSpaceTriangleVerts

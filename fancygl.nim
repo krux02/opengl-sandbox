@@ -394,6 +394,9 @@ proc bufferData*[T](buffer: UniformBuffer[T], data: T) =
 
 const currentFramebuffer* = 0
 
+# default fragment Outputs
+const fragmentOutputs* = @["color"]
+
 #### etc ####
 
 type ShaderParam* = tuple[name: string, gl_type: string]
