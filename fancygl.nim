@@ -285,10 +285,13 @@ proc glslUniformType(value : NimNode): (string, bool) =
 
 proc glslAttribType(value : NimNode): string =
   # result = getAst(glslAttribType(value))[0].strVal
-  let tpe = value.getType
+  let tpe = value.getType2
+
   if $tpe[0] == "seq" or $tpe[0] == "ArrayBuffer":
     tpe[1].glslUniformType[0]
   else:
+    echo "not a compatible attribType: "
+    echo tpe.repr
     "(error not a seq[..])"
 
 #### Uniform ####
@@ -347,7 +350,6 @@ type ArrayBuffer*[T]        = distinct GLuint
 type ElementArrayBuffer*[T] = distinct GLuint
 type UniformBuffer*[T]      = distinct GLuint
 
-
 proc newArrayBuffer*[T](): ArrayBuffer[T] =
   glGenBuffers(1, cast[ptr GLuint](result.addr))
 
@@ -378,15 +380,56 @@ proc bindIt*[T](buffer: UniformBuffer[T]) =
   glBindBuffer(GL_UNIFORM_BUFFER, GLuint(buffer))
 
 
-proc bufferData*[T](buffer: ArrayBuffer[T], data: var seq[T]) =
-  glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), data[0].addr, GL_STATIC_DRAW)
+proc bufferData*[T](buffer: ArrayBuffer[T], data: openarray[T]) =
+  glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), GL_STATIC_DRAW)
 
-proc bufferData*[T](buffer: ElementArrayBuffer[T], data: seq[T]) =
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), data[0].addr, GL_STATIC_DRAW)
+proc bufferData*[T](buffer: ElementArrayBuffer[T], data: openarray[T]) =
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), GL_STATIC_DRAW)
 
 proc bufferData*[T](buffer: UniformBuffer[T], data: T) =
-  glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(sizeof(T)), data.addr, GL_STATIC_DRAW)
+  glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(sizeof(T)), unsafeAddr(data), GL_STATIC_DRAW)
 
+proc len*[T](buffer: ArrayBuffer[T]) : int =
+  var outer : GLint
+  glGetIntegerv(GL_ARRAY_BUFFER_BINDING, outer.addr)
+  buffer.bindIt
+  var size: GLint
+  glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, size.addr)
+  glBindBuffer(GL_ARRAY_BUFFER, GLuint(outer))
+  return size.int div sizeof(T).int
+
+proc len*[T](buffer: ElementArrayBuffer[T]) : int =
+  var outer : GLint
+  glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, outer.addr)
+  buffer.bindIt
+  var size: GLint
+  glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, size.addr)
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GLuint(outer))
+  return size.int div sizeof(T).int
+
+proc arrayBuffer*[T](data : openarray[T]): ArrayBuffer[T] =
+  var outer : GLint
+  glGetIntegerv(GL_ARRAY_BUFFER_BINDING, outer.addr)
+  result = newArrayBuffer[T]()
+  result.bindIt
+  result.bufferData(data)
+  glBindBuffer(GL_ARRAY_BUFFER, GLuint(outer))
+
+proc elementArrayBuffer*[T](data : openarray[T]): ElementArrayBuffer[T] =
+  var outer : GLint
+  glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, outer.addr)
+  result = newElementArrayBuffer[T]()
+  result.bindIt
+  result.bufferData(data)
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GLuint(outer))
+
+proc uniformBuffer*[T](data : T): UniformBuffer[T] =
+  var outer : GLint
+  glGetIntegerv(GL_UNIFORM_BUFFER_BINDING, outer.addr)
+  result = newElementArrayBuffer[T]()
+  result.bindIt
+  result.bufferData(data)
+  glBindBuffer(GL_UNIFORM_BUFFER, GLuint(outer))
 
 #### framebuffer ####
 
@@ -654,6 +697,11 @@ proc makeAndBindBuffer[T](buffer: var ArrayBuffer[T], index: GLint, value: var s
     glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(value.len * sizeof(T)), value[0].addr, usage)
     glVertexAttribPointer(index.GLuint, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
 
+proc bindAndAttribPointer[T](buffer: ArrayBuffer[T], index: GLint, usage: GLenum) =
+  if index >= 0:
+    buffer.bindIt
+    glVertexAttribPointer(index.GLuint, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
+
 proc myEnableVertexAttribArray(index: GLint): void =
   if index >= 0:
     glEnableVertexAttribArray(index.GLuint)
@@ -794,7 +842,10 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[
         template foobarTemplate( lhs, rhs : expr ) : stmt {.dirty.} =
           var lhs {.global.}: ArrayBuffer[rhs[0].type]
 
-        globalsBlock.add(getAst(foobarTemplate( !! buffername, value )))
+        let isSeq:bool = $value.getType2[0] == "seq"
+
+        if isSeq:
+          globalsBlock.add(getAst(foobarTemplate( !! buffername, value )))
 
         let attribCount = attributesSection.len
 
@@ -805,12 +856,19 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[
 
         bufferCreationBlock.add(newCall(bindSym"myEnableVertexAttribArray", locations(numLocations)))
 
-        bufferCreationBlock.add(newCall(bindSym"makeAndBindBuffer",
+        if isSeq:
+          bufferCreationBlock.add(newCall(bindSym"makeAndBindBuffer",
             !! buffername,
             locations(numLocations),
             value,
             bindSym"GL_STATIC_DRAW"
-        ))
+          ))
+        else:
+          bufferCreationBlock.add(newCall(bindSym"bindAndAttribPointer",
+            value,
+            locations(numLocations),
+            bindSym"GL_STATIC_DRAW"
+          ))
 
         attributesSection.add( format("in $1 $2", value.glslAttribType, name) )
 
@@ -885,7 +943,7 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[
   result = getAst(renderBlockTemplate(numLocations, globalsBlock, linkShaderBlock,
          bufferCreationBlock, initUniformsBlock, setUniformsBlock, drawCommand))
 
-  #echo result.repr
+  echo result.repr
 
 ################################################################################
 ## Shading Dsl Outer ###########################################################

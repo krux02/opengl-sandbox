@@ -2,7 +2,18 @@
 
 import sdl2, opengl, math, glm, fancygl, sequtils
 
-var vertex = @[
+discard sdl2.init(INIT_EVERYTHING)
+
+var windowsize = vec2f(640,480)
+var viewport = vec4f(0,0,640,480)
+
+let window = createWindow("SDL/OpenGL Skeleton", 100, 100, windowsize.x.cint, windowsize.y.cint, SDL_WINDOW_OPENGL or SDL_WINDOW_RESIZABLE)
+let context = window.glCreateContext()
+
+# Initialize OpenGL
+loadExtensions()
+
+let vertex = @[
   vec3f(+1, +1, -1), vec3f(-1, +1, -1), vec3f(-1, +1, +1),
   vec3f(+1, +1, +1), vec3f(+1, +1, -1), vec3f(-1, +1, +1),
   vec3f(+1, -1, +1), vec3f(-1, -1, +1), vec3f(-1, -1, -1),
@@ -15,7 +26,7 @@ var vertex = @[
   vec3f(-1, -1, +1), vec3f(-1, +1, +1), vec3f(-1, -1, -1),
   vec3f(+1, +1, -1), vec3f(+1, +1, +1), vec3f(+1, -1, +1),
   vec3f(+1, -1, -1), vec3f(+1, +1, -1), vec3f(+1, -1, +1)
-]
+].arrayBuffer
 
 var normal = @[
   vec3f( 0, +1,  0), vec3f( 0, +1,  0), vec3f( 0, +1,  0),
@@ -30,7 +41,7 @@ var normal = @[
   vec3f(-1,  0,  0), vec3f(-1,  0,  0), vec3f(-1,  0,  0),
   vec3f(+1,  0,  0), vec3f(+1,  0,  0), vec3f(+1,  0,  0),
   vec3f(+1,  0,  0), vec3f(+1,  0,  0), vec3f(+1,  0,  0)
-]
+].arrayBuffer
 
 var color = @[
   vec3f(0.0, 1.0, 0.0), vec3f(0.0, 1.0, 0.0), vec3f(0.0, 1.0, 0.0),
@@ -45,7 +56,7 @@ var color = @[
   vec3f(0.0, 0.0, 1.0), vec3f(0.0, 0.0, 1.0), vec3f(0.0, 0.0, 1.0),
   vec3f(1.0, 0.0, 1.0), vec3f(1.0, 0.0, 1.0), vec3f(1.0, 0.0, 1.0),
   vec3f(1.0, 0.0, 1.0), vec3f(1.0, 0.0, 1.0), vec3f(1.0, 0.0, 1.0)
-]
+].arrayBuffer
 
 var texcoord = @[
   vec2f(1, 0), vec2f(0, 0), vec2f(0, 1),
@@ -60,7 +71,7 @@ var texcoord = @[
   vec2f(0, 1), vec2f(1, 1), vec2f(0, 0),
   vec2f(1, 0), vec2f(1, 1), vec2f(0, 1),
   vec2f(0, 0), vec2f(1, 0), vec2f(0, 1)
-]
+].arrayBuffer
 
 var screenSpaceTriangleVerts = @[
   vec4f(-1,-1,1,1), vec4f(3,-1,1,1), vec4f(-1,3,1,1)
@@ -70,23 +81,12 @@ var screenSpaceTriangleTexcoords = @[
   vec2f(0,0), vec2f(2,0), vec2f(0,2)
 ]
 
-discard sdl2.init(INIT_EVERYTHING)
-
-var windowsize = vec2f(640,480)
-var viewport = vec4f(0,0,640,480)
-
-let window = createWindow("SDL/OpenGL Skeleton", 100, 100, windowsize.x.cint, windowsize.y.cint, SDL_WINDOW_OPENGL or SDL_WINDOW_RESIZABLE)
-let context = window.glCreateContext()
-
-# Initialize OpenGL
-loadExtensions()
-
 let crateTexture = loadAndBindTexture2DFromFile("crate.png")
 let crateTextureRect = loadAndBindTextureRectangleFromFile("crate.png")
 
 declareFramebuffer(Fb1FramebufferType):
   depth = newRenderbuffer(windowsize)
-  fbcolor = newTexture(windowsize)
+  color = newTexture(windowsize)
 
 if 0 != glSetSwapInterval(-1):
   echo "glSetSwapInterval -1 not supported"
@@ -149,7 +149,6 @@ proc render() =
   #for i in 0..<5:
   block:
     let time = simulationTime
-    #let time = simulationTime * ( 1.0 + i.float32 / 10 )
 
     var modelview_mat = I4()
     modelview_mat = modelview_mat.translate( vec3[float](sin(time)*2, cos(time)*2, -7) )
@@ -197,22 +196,22 @@ proc render() =
           vec4 t_col = texture(crateTexture, v_texcoord);
           vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;
           vec4 mix_col = mymix(t_col, time + dot( vec2(cos(time),sin(time)), offset ));
-          fbcolor = v_col * mix_col;
+          color = v_col * mix_col;
           //color = t_col;
           //color = (v_eyenormal + vec4(1)) * 0.5;
           //color.rg = vec2(float(int(gl_FragCoord.x) % 256) / 255.0, float(int(gl_FragCoord.y) % 256) / 255.0);
           """
 
-    fb1.fbcolor.bindIt
+    fb1.color.bindIt
     glGenerateMipmap(GL_TEXTURE_2D)
 
     shadingDsl(GL_TRIANGLES, 3):
       uniforms:
         mouse
-        tex = fb1.fbcolor
+        tex = fb1.color
         time
         viewport
-        texSize = fb1.fbcolor.size
+        texSize = fb1.color.size
 
       attributes:
         pos = screenSpaceTriangleVerts
