@@ -95,7 +95,10 @@ let crateTextureRect = loadAndBindTextureRectangleFromFile("crate.png")
 
 #drawBuffers( GL_COLOR_ATTACHMENT0.GLenum )
 
-macro framebuffertest(arg:untyped) : stmt =
+macro framebuffertest(typename,arg:untyped) : stmt =
+  typename.expectKind nnkIdent
+
+
   result = newStmtList()
 
   var fragmentOutputs = newSeq[string]()
@@ -118,8 +121,6 @@ macro framebuffertest(arg:untyped) : stmt =
     else:
       fragmentOutputs.add($asgn[0])
 
-  result.add newConstStmt(!!"fragmentOutputs", fragmentOutputs.toConstExpr)
-
   let recList = newNimNode(nnkRecList)
   recList.add( newExpIdentDef(!"glname", bindSym"FrameBuffer") )
   recList.add( newExpIdentDef(!"depth", depthType) )
@@ -127,45 +128,133 @@ macro framebuffertest(arg:untyped) : stmt =
   for fragOut in fragmentOutputs:
     recList.add( newExpIdentDef(!fragOut, bindSym"Texture2D") )
 
-  result.add newObjectTy(!"FramebufferType", recList)
+  result.add newObjectTy(typename, recList)
 
-  result.add(newNimNode2(nnkVarSection, newNimNode2(nnkIdentDefs,
-    !!"currentFrameBuffer",
-    !!"FramebufferType",
-    newEmptyNode()
-  )))
 
-  result.add(newAssignment(newDotExpr(!!"currentFrameBuffer", !!"glname"),
+  result.add(
+    newNimNode2(nnkTemplateDef,
+      !!"fragmentOutputSeq",
+      newEmptyNode(),
+      newEmptyNode(),
+      newNimNode2(nnkFormalParams,
+        newNimNode2(nnkBracketExpr, bindSym"seq", bindSym"string"),
+        newNimNode2(nnkIdentDefs,
+          !!"t",
+          newNimnode2(nnkBracketExpr,
+            bindSym"typedesc",
+            typename),
+          newEmptyNode()
+        )
+      ),
+      newEmptyNode(),
+      newEmptyNode(),
+      newNimNode2(nnkStmtList,
+        fragmentOutputs.toConstExpr
+      )
+    )
+  )
+
+  #result.add newConstStmt(!!"fragmentOutputs", fragmentOutputs.toConstExpr)
+
+  let branchStmtList = newStmtList()
+
+  branchStmtList.add(newAssignment(newDotExpr(!!"fb1", !!"glname"),
     newCall(bindSym"createFrameBuffer")
   ))
 
-  result.add(newDotExpr(!!"currentFrameBuffer", !!"glname", !!"bindIt"))
-  result.add(newAssignment(newDotExpr(!!"currentFrameBuffer", !!"depth"),
+  branchStmtList.add(newDotExpr(!!"fb1", !!"glname", !!"bindIt"))
+  branchStmtList.add(newAssignment(newDotExpr(!!"fb1", !!"depth"),
     depthCreateExpr
   ))
-  result.add(newCall(bindSym"glFramebufferRenderbuffer", bindSym"GL_FRAMEBUFFER",
+  branchStmtList.add(newCall(bindSym"glFramebufferRenderbuffer", bindSym"GL_FRAMEBUFFER",
     bindSym"GL_DEPTH_ATTACHMENT", bindSym"GL_RENDERBUFFER",
-    newDotExpr(!!"currentFrameBuffer", !!"glname", bindSym"GLuint")
+    newDotExpr(!!"fb1", !!"glname", bindSym"GLuint")
   ))
 
   let drawBuffersCall = newCall(bindSym"drawBuffers")
 
   for i,name in fragmentOutputs:
-    result.add(newAssignment( newDotExpr( !!"currentFrameBuffer", !! name ),
+    branchStmtList.add(newAssignment( newDotExpr( !!"fb1", !! name ),
       newCall( bindSym"createAndBindEmptyTexture2D", !!"windowsize" ),
     ))
-    result.add(newCall(bindSym"glFramebufferTexture", bindSym"GL_FRAMEBUFFER", !!("GL_COLOR_ATTACHMENT" & $i),
-      newDotExpr(!!"currentFrameBuffer", !! name, bindSym"GLuint"), newLit(0)
+    branchStmtList.add(newCall(bindSym"glFramebufferTexture", bindSym"GL_FRAMEBUFFER", !!("GL_COLOR_ATTACHMENT" & $i),
+      newDotExpr(!!"fb1", !! name, bindSym"GLuint"), newLit(0)
     ))
     drawBuffersCall.add( newCall(bindSym"GLenum", !!("GL_COLOR_ATTACHMENT" & $i)) )
 
-  result.add( drawBuffersCall )
+  branchStmtList.add( drawBuffersCall )
 
-  echo result.repr
+  let ifStmt = newNimNode2( nnkIfStmt,
+    newNimNode2(nnkElifBranch,
+      newInfix( !!"==", newDotExpr( !!"fb1", !!"glname", !!"int" ), newLit(0) ),
+      branchStmtList
+    )
+  )
 
-framebuffertest:
+  let procStmtList = newStmtList( ifStmt, newDotExpr(!!"fb1", !!"glname", !!"bindIt") )
+
+  result.add(
+    newNimNode2( nnkProcDef,
+      !!"initAndBindInternal",
+      newEmptyNode(),
+      newEmptyNode(),
+      newNimNode2( nnkFormalParams,
+        bindSym"void",
+        newNimNode2( nnkIdentDefs,
+          !!"fb1",
+          newNimNode2( nnkVarTy, typename),
+          newEmptyNode(),
+        )
+      ),
+      newEmptyNode(),
+      newEmptyNode(),
+      procStmtList
+    )
+  )
+
+framebuffertest(Fb1FramebufferType):
   depth = newRenderbuffer(windowsize)
-  color = newTexture(windowsize)
+  fbcolor = newTexture(windowsize)
+
+#dumpTree:
+#  type Fb1FramebufferType = object
+#    glname*: FrameBuffer
+#    depth*: DepthRenderbuffer
+#    color*: Texture2D
+#
+#  template fragmentOutputSeq( t:typedesc[Fb1FramebufferType]) : seq[string] =
+#    @["color"]
+#
+#  proc initAndBindInternal(fb1: var Fb1FramebufferType): void =
+#    if fb1.glname.int == 0:
+#      fb1.glname = createFrameBuffer()
+#      fb1.glname.bindIt
+#      fb1.depth = createAndBindDepthRenderBuffer(windowsize)
+#      glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER,
+#                          fb1.glname.GLuint)
+#      fb1.color = createAndBindEmptyTexture2D(windowsize)
+#      glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+#                     fb1.color.GLuint, 0)
+#      drawBuffers(GLenum(GL_COLOR_ATTACHMENT0))
+#
+#    fb1.glname.bindIt
+
+template bindFramebuffer(name, tpe, blok: untyped): stmt =
+  var name {.global.}: tpe
+
+  var drawfb, readfb: GLint
+  glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, drawfb.addr)
+  glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, readfb.addr)
+
+  name.initAndBindInternal
+  block:
+    let currentFramebuffer {. inject .} = name
+    const fragmentOutputs {.inject.} = name.type.fragmentOutputSeq
+    blok
+
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, drawfb.GLuint)
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, readfb.GLuint)
+
 
 #glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
@@ -244,28 +333,7 @@ proc render() =
     #  depth = newRenderbuffer(windowsize)
     #  color = newTexture(windowsize)
 
-    type FramebufferType = object
-      glname*: FrameBuffer
-      depth*: DepthRenderbuffer
-      color*: Texture2D
-
-    var currentFrameBuffer {.global.}: FramebufferType
-
-    block: # render to framebuffer
-      const fragmentOutputs = @ ["color"]
-
-      if currentFrameBuffer.glname.int == 0:
-        currentFrameBuffer.glname = createFrameBuffer()
-        currentFrameBuffer.glname.bindIt
-        currentFrameBuffer.depth = createAndBindDepthRenderBuffer(windowsize)
-        glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER,
-                            currentFrameBuffer.glname.GLuint)
-        currentFrameBuffer.color = createAndBindEmptyTexture2D(windowsize)
-        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                       currentFrameBuffer.color.GLuint, 0)
-        drawBuffers(GLenum(GL_COLOR_ATTACHMENT0))
-
-      currentFrameBuffer.glname.bindIt
+    bindFramebuffer(fb1, Fb1FramebufferType):
 
       glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
@@ -305,23 +373,22 @@ proc render() =
           vec4 t_col = texture(crateTexture, v_texcoord);
           vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;
           vec4 mix_col = mymix(t_col, time + dot( vec2(cos(time),sin(time)), offset ));
-          color = v_col * mix_col;
+          fbcolor = v_col * mix_col;
           //color = t_col;
           //color = (v_eyenormal + vec4(1)) * 0.5;
           //color.rg = vec2(float(int(gl_FragCoord.x) % 256) / 255.0, float(int(gl_FragCoord.y) % 256) / 255.0);
           """
 
-    glBindFramebuffer(GL_FRAMEBUFFER, 0)
-    currentFrameBuffer.color.bindIt
+    fb1.fbcolor.bindIt
     glGenerateMipmap(GL_TEXTURE_2D)
 
     shadingDsl(GL_TRIANGLES, 3):
       uniforms:
         mouse
-        tex = currentFrameBuffer.color
+        tex = fb1.fbcolor
         time
         viewport
-        texSize = currentFrameBuffer.color.size
+        texSize = fb1.fbcolor.size
 
       attributes:
         pos = screenSpaceTriangleVerts

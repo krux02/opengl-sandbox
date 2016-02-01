@@ -1,12 +1,18 @@
 import macros
 
-proc newPrefix(n1,n2: NimNode): NimNode {. compileTime .} =
+proc newPrefix*(n1,n2: NimNode): NimNode {. compileTime .} =
   result = newNimNode(nnkPrefix)
   result.add n1
   result.add n2
 
-proc newPostfix(n1,n2: NimNode): NimNode {. compileTime .} =
+proc newPostfix*(n1,n2: NimNode): NimNode {. compileTime .} =
   result = newNimNode(nnkPostfix)
+  result.add n1
+  result.add n2
+
+proc newInfix*(op, n1, n2: NimNode): NimNode {. compileTime .} =
+  result = newNimNode(nnkInfix)
+  result.add op
   result.add n1
   result.add n2
 
@@ -21,10 +27,10 @@ proc newNimNode2*(kind: NimNodeKind; children: varargs[NimNode]): NimNode {. com
   for child in children:
     result.add child
 
-proc newTypeDef(name: NimIdent, tpe: NimNode): NimNode {.compileTime.} =
+proc newTypeDef(name, tpe: NimNode): NimNode {.compileTime.} =
   result = newNimNode2(nnkTypeSection,
     newNimNode2(nnkTypeDef,
-      newIdentNode(name),
+      name,
       newEmptyNode(),
       tpe,
     )
@@ -33,7 +39,7 @@ proc newTypeDef(name: NimIdent, tpe: NimNode): NimNode {.compileTime.} =
 proc newDotExpr*(a,b,c: NimNode): NimNode {. compileTime .} =
   newDotExpr(newDotExpr(a,b),c)
 
-proc newObjectTy*( name: NimIdent, recList: NimNode ): NimNode {.compileTime.} =
+proc newObjectTy*( name, recList: NimNode ): NimNode {.compileTime.} =
   result = newTypeDef(name,
     newNimNode2(nnkObjectTy, newEmptyNode(), newEmptyNode(), recList)
   )
