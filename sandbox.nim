@@ -1,6 +1,6 @@
 # OpenGL example using SDL2
 
-import sdl2, opengl, math, glm, fancygl, sequtils, macros, macroutils
+import sdl2, opengl, math, glm, fancygl, sequtils
 
 var vertex = @[
   vec3f(+1, +1, -1), vec3f(-1, +1, -1), vec3f(-1, +1, +1),
@@ -84,179 +84,9 @@ loadExtensions()
 let crateTexture = loadAndBindTexture2DFromFile("crate.png")
 let crateTextureRect = loadAndBindTextureRectangleFromFile("crate.png")
 
-#let framebufferName = createFrameBuffer()
-#framebufferName.bindIt
-
-#let depthrenderbuffer = createAndBindDepthRenderBuffer( windowsize )
-#let renderedTexture = createAndBindEmptyTexture2D( windowsize )
-
-#glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthrenderbuffer.GLuint )
-#glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderedTexture.GLuint, 0)
-
-#drawBuffers( GL_COLOR_ATTACHMENT0.GLenum )
-
-macro framebuffertest(typename,arg:untyped) : stmt =
-  typename.expectKind nnkIdent
-
-
-  result = newStmtList()
-
-  var fragmentOutputs = newSeq[string]()
-
-  var depthType:NimNode = nil
-  var depthCreateExpr:NimNode = nil
-
-  for asgn in arg:
-    asgn.expectKind nnkAsgn
-
-    let lhs = asgn[0]
-    let rhs = asgn[1]
-
-    if lhs.ident == !"depth":
-        echo rhs.treerepr
-        if rhs.kind == nnkCall and rhs[0].ident == !"newRenderbuffer":
-          depthType = bindSym"DepthRenderbuffer"
-          depthCreateExpr = newCall(bindSym"createAndBindDepthRenderBuffer", rhs[1])
-
-    else:
-      fragmentOutputs.add($asgn[0])
-
-  let recList = newNimNode(nnkRecList)
-  recList.add( newExpIdentDef(!"glname", bindSym"FrameBuffer") )
-  recList.add( newExpIdentDef(!"depth", depthType) )
-
-  for fragOut in fragmentOutputs:
-    recList.add( newExpIdentDef(!fragOut, bindSym"Texture2D") )
-
-  result.add newObjectTy(typename, recList)
-
-
-  result.add(
-    newNimNode2(nnkTemplateDef,
-      !!"fragmentOutputSeq",
-      newEmptyNode(),
-      newEmptyNode(),
-      newNimNode2(nnkFormalParams,
-        newNimNode2(nnkBracketExpr, bindSym"seq", bindSym"string"),
-        newNimNode2(nnkIdentDefs,
-          !!"t",
-          newNimnode2(nnkBracketExpr,
-            bindSym"typedesc",
-            typename),
-          newEmptyNode()
-        )
-      ),
-      newEmptyNode(),
-      newEmptyNode(),
-      newNimNode2(nnkStmtList,
-        fragmentOutputs.toConstExpr
-      )
-    )
-  )
-
-  #result.add newConstStmt(!!"fragmentOutputs", fragmentOutputs.toConstExpr)
-
-  let branchStmtList = newStmtList()
-
-  branchStmtList.add(newAssignment(newDotExpr(!!"fb1", !!"glname"),
-    newCall(bindSym"createFrameBuffer")
-  ))
-
-  branchStmtList.add(newDotExpr(!!"fb1", !!"glname", !!"bindIt"))
-  branchStmtList.add(newAssignment(newDotExpr(!!"fb1", !!"depth"),
-    depthCreateExpr
-  ))
-  branchStmtList.add(newCall(bindSym"glFramebufferRenderbuffer", bindSym"GL_FRAMEBUFFER",
-    bindSym"GL_DEPTH_ATTACHMENT", bindSym"GL_RENDERBUFFER",
-    newDotExpr(!!"fb1", !!"glname", bindSym"GLuint")
-  ))
-
-  let drawBuffersCall = newCall(bindSym"drawBuffers")
-
-  for i,name in fragmentOutputs:
-    branchStmtList.add(newAssignment( newDotExpr( !!"fb1", !! name ),
-      newCall( bindSym"createAndBindEmptyTexture2D", !!"windowsize" ),
-    ))
-    branchStmtList.add(newCall(bindSym"glFramebufferTexture", bindSym"GL_FRAMEBUFFER", !!("GL_COLOR_ATTACHMENT" & $i),
-      newDotExpr(!!"fb1", !! name, bindSym"GLuint"), newLit(0)
-    ))
-    drawBuffersCall.add( newCall(bindSym"GLenum", !!("GL_COLOR_ATTACHMENT" & $i)) )
-
-  branchStmtList.add( drawBuffersCall )
-
-  let ifStmt = newNimNode2( nnkIfStmt,
-    newNimNode2(nnkElifBranch,
-      newInfix( !!"==", newDotExpr( !!"fb1", !!"glname", !!"int" ), newLit(0) ),
-      branchStmtList
-    )
-  )
-
-  let procStmtList = newStmtList( ifStmt, newDotExpr(!!"fb1", !!"glname", !!"bindIt") )
-
-  result.add(
-    newNimNode2( nnkProcDef,
-      !!"initAndBindInternal",
-      newEmptyNode(),
-      newEmptyNode(),
-      newNimNode2( nnkFormalParams,
-        bindSym"void",
-        newNimNode2( nnkIdentDefs,
-          !!"fb1",
-          newNimNode2( nnkVarTy, typename),
-          newEmptyNode(),
-        )
-      ),
-      newEmptyNode(),
-      newEmptyNode(),
-      procStmtList
-    )
-  )
-
-framebuffertest(Fb1FramebufferType):
+declareFramebuffer(Fb1FramebufferType):
   depth = newRenderbuffer(windowsize)
   fbcolor = newTexture(windowsize)
-
-#dumpTree:
-#  type Fb1FramebufferType = object
-#    glname*: FrameBuffer
-#    depth*: DepthRenderbuffer
-#    color*: Texture2D
-#
-#  template fragmentOutputSeq( t:typedesc[Fb1FramebufferType]) : seq[string] =
-#    @["color"]
-#
-#  proc initAndBindInternal(fb1: var Fb1FramebufferType): void =
-#    if fb1.glname.int == 0:
-#      fb1.glname = createFrameBuffer()
-#      fb1.glname.bindIt
-#      fb1.depth = createAndBindDepthRenderBuffer(windowsize)
-#      glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER,
-#                          fb1.glname.GLuint)
-#      fb1.color = createAndBindEmptyTexture2D(windowsize)
-#      glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-#                     fb1.color.GLuint, 0)
-#      drawBuffers(GLenum(GL_COLOR_ATTACHMENT0))
-#
-#    fb1.glname.bindIt
-
-template bindFramebuffer(name, tpe, blok: untyped): stmt =
-  var name {.global.}: tpe
-
-  var drawfb, readfb: GLint
-  glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, drawfb.addr)
-  glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, readfb.addr)
-
-  name.initAndBindInternal
-  block:
-    let currentFramebuffer {. inject .} = name
-    const fragmentOutputs {.inject.} = name.type.fragmentOutputSeq
-    blok
-
-  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, drawfb.GLuint)
-  glBindFramebuffer(GL_READ_FRAMEBUFFER, readfb.GLuint)
-
-
-#glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
 if 0 != glSetSwapInterval(-1):
   echo "glSetSwapInterval -1 not supported"
@@ -326,12 +156,6 @@ proc render() =
     modelview_mat = modelview_mat.rotate( vec3[float](0,0,1), time )
     modelview_mat = modelview_mat.rotate( vec3[float](0,1,0), time )
     modelview_mat = modelview_mat.rotate( vec3[float](1,0,0), time )
-    #modelview_mat = modelview_mat.scale( vec3[float](50,50,50) )
-    #let mvp : Mat4x4[float32] =  modelview_mat * projection_mat;
-
-    #framebuffertest:
-    #  depth = newRenderbuffer(windowsize)
-    #  color = newTexture(windowsize)
 
     bindFramebuffer(fb1, Fb1FramebufferType):
 
