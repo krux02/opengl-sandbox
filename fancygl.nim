@@ -600,6 +600,8 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[
   var vertexOutSection : seq[string] = @[]
   var geometryOutSection : seq[string] = @[]
   var fragmentOutSection : seq[string] = @[]
+  for i,fragout in fragmentOutputs:
+    fragmentOutSection.add format("layout(location = $1) out vec4 $2", $i, fragout)
   var includesSection : seq[string] = @[]
   var vertexMain: string
   var geometryLayout: string
@@ -692,6 +694,7 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[
 
     of "fragmentOut":
 
+      fragmentOutSection = @[]
       for innerCall in call[1][1].items:
         fragmentOutSection.add( innerCall.strVal )
 

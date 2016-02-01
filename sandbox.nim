@@ -100,12 +100,20 @@ macro framebuffertest(arg:untyped) : stmt =
 
   var fragmentOutputs = newSeq[string]()
 
+  var depthType:NimNode = nil
+  var depthCreateExpr:NimNode = nil
+
   for asgn in arg:
     asgn.expectKind nnkAsgn
 
-    if asgn[0].ident == !"depth":
-      if asgn[1].ident == !"newRenderbuffer":
-        echo "assigning new depth renderbuffer"
+    let lhs = asgn[0]
+    let rhs = asgn[1]
+
+    if lhs.ident == !"depth":
+        echo rhs.treerepr
+        if rhs.kind == nnkCall and rhs[0].ident == !"newRenderbuffer":
+          depthType = bindSym"DepthRenderbuffer"
+          depthCreateExpr = newCall(bindSym"createAndBindDepthRenderBuffer", rhs[1])
 
     else:
       fragmentOutputs.add($asgn[0])
@@ -113,11 +121,11 @@ macro framebuffertest(arg:untyped) : stmt =
   result.add newConstStmt(!!"fragmentOutputs", fragmentOutputs.toConstExpr)
 
   let recList = newNimNode(nnkRecList)
-  recList.add( newExpIdentDef(!"glname", !"FrameBuffer") )
-  recList.add( newExpIdentDef(!"depth", !"DepthRenderbuffer") )
+  recList.add( newExpIdentDef(!"glname", bindSym"FrameBuffer") )
+  recList.add( newExpIdentDef(!"depth", depthType) )
 
   for fragOut in fragmentOutputs:
-    recList.add( newExpIdentDef(!fragOut, !"Texture2D") )
+    recList.add( newExpIdentDef(!fragOut, bindSym"Texture2D") )
 
   result.add newObjectTy(!"FramebufferType", recList)
 
@@ -130,9 +138,10 @@ macro framebuffertest(arg:untyped) : stmt =
   result.add(newAssignment(newDotExpr(!!"currentFrameBuffer", !!"glname"),
     newCall(bindSym"createFrameBuffer")
   ))
+
   result.add(newDotExpr(!!"currentFrameBuffer", !!"glname", !!"bindIt"))
   result.add(newAssignment(newDotExpr(!!"currentFrameBuffer", !!"depth"),
-    newCall(bindSym"createAndBindDepthRenderBuffer", !!"windowsize")
+    depthCreateExpr
   ))
   result.add(newCall(bindSym"glFramebufferRenderbuffer", bindSym"GL_FRAMEBUFFER",
     bindSym"GL_DEPTH_ATTACHMENT", bindSym"GL_RENDERBUFFER",
@@ -172,11 +181,9 @@ dumpTree:
 
 
 
-
-
 framebuffertest:
-  depth = newRenderbuffer
-  color = newTexture
+  depth = newRenderbuffer(windowsize)
+  color = newTexture(windowsize)
 
 glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
@@ -298,9 +305,6 @@ proc render() =
           //color.rg = vec2(float(int(gl_FragCoord.x) % 256) / 255.0, float(int(gl_FragCoord.y) % 256) / 255.0);
           """
 
-        fragmentOut:
-          "layout(location = 0) out vec4 color"
-
     glBindFramebuffer(GL_FRAMEBUFFER, 0)
     renderedTexture.bindIt
     glGenerateMipmap(GL_TEXTURE_2D)
@@ -333,9 +337,6 @@ proc render() =
         vec4 t_col = texture(tex, texcoord + offset);
         color = t_col;
         """
-
-      fragmentOut:
-        "out vec4 color"
 
     # render face normals using the geometry shader
     shadingDsl(GL_TRIANGLES, vertex.len.GLsizei):
@@ -377,9 +378,6 @@ proc render() =
         """
         color = g_color;
         """
-
-      fragmentOut:
-        "out vec4 color"
 
   frameCounter += 1
   glSwapWindow(window) # Swap the front and back frame buffers (double buffering)

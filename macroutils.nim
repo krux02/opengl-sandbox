@@ -41,10 +41,10 @@ proc newObjectTy*( name: NimIdent, recList: NimNode ): NimNode {.compileTime.} =
 proc `!!`*(name: string): NimNode {. compileTime .} =
   result = newIdentNode(name)
 
-proc newExpIdentDef*(name,tpe: NimIdent): NimNode {. compileTime .} =
+proc newExpIdentDef*(name: NimIdent, tpe: NimNode): NimNode {. compileTime .} =
   result = newNimNode2(nnkIdentDefs,
     newPostfix( !!"*", newIdentNode(name)),
-    newIdentNode(tpe),
+    tpe,
     newEmptyNode()
   )
 
