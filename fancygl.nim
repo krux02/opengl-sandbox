@@ -380,14 +380,14 @@ proc bindIt*[T](buffer: UniformBuffer[T]) =
   glBindBuffer(GL_UNIFORM_BUFFER, GLuint(buffer))
 
 
-proc bufferData*[T](buffer: ArrayBuffer[T], data: openarray[T]) =
-  glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), GL_STATIC_DRAW)
+proc bufferData*[T](buffer: ArrayBuffer[T], usage: GLenum, data: openarray[T]) =
+  glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
 
-proc bufferData*[T](buffer: ElementArrayBuffer[T], data: openarray[T]) =
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), GL_STATIC_DRAW)
+proc bufferData*[T](buffer: ElementArrayBuffer[T], usage: GLenum, data: openarray[T]) =
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
 
-proc bufferData*[T](buffer: UniformBuffer[T], data: T) =
-  glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(sizeof(T)), unsafeAddr(data), GL_STATIC_DRAW)
+proc bufferData*[T](buffer: UniformBuffer[T], usage: GLenum, data: T) =
+  glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(sizeof(T)), unsafeAddr(data), usage)
 
 proc len*[T](buffer: ArrayBuffer[T]) : int =
   var outer : GLint
@@ -403,7 +403,7 @@ proc len*[T](buffer: ElementArrayBuffer[T]) : int =
   glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, outer.addr)
   buffer.bindIt
   var size: GLint
-  glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, size.addr)
+  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, size.addr)
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GLuint(outer))
   return size.int div sizeof(T).int
 
@@ -412,7 +412,7 @@ proc arrayBuffer*[T](data : openarray[T]): ArrayBuffer[T] =
   glGetIntegerv(GL_ARRAY_BUFFER_BINDING, outer.addr)
   result = newArrayBuffer[T]()
   result.bindIt
-  result.bufferData(data)
+  result.bufferData(GL_STATIC_DRAW, data)
   glBindBuffer(GL_ARRAY_BUFFER, GLuint(outer))
 
 proc elementArrayBuffer*[T](data : openarray[T]): ElementArrayBuffer[T] =
@@ -420,7 +420,7 @@ proc elementArrayBuffer*[T](data : openarray[T]): ElementArrayBuffer[T] =
   glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, outer.addr)
   result = newElementArrayBuffer[T]()
   result.bindIt
-  result.bufferData(data)
+  result.bufferData(GL_STATIC_DRAW, data)
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GLuint(outer))
 
 proc uniformBuffer*[T](data : T): UniformBuffer[T] =
@@ -428,7 +428,7 @@ proc uniformBuffer*[T](data : T): UniformBuffer[T] =
   glGetIntegerv(GL_UNIFORM_BUFFER_BINDING, outer.addr)
   result = newElementArrayBuffer[T]()
   result.bindIt
-  result.bufferData(data)
+  result.bufferData(GL_STATIC_DRAW, data)
   glBindBuffer(GL_UNIFORM_BUFFER, GLuint(outer))
 
 #### framebuffer ####
@@ -688,17 +688,22 @@ proc attribSize(t: typedesc[Vec2f]) : GLint = 2
 proc attribType(t: typedesc[Vec2f]) : GLenum = cGL_FLOAT
 proc attribNormalized(t: typedesc[Vec2f]) : bool = false
 
-proc makeAndBindBuffer[T](buffer: var ArrayBuffer[T], index: GLint, value: var seq[T], usage: GLenum) =
+proc makeAndBindBuffer[T](buffer: ArrayBuffer[T], index: GLint, value: seq[T], usage: GLenum) =
   if index >= 0:
     buffer = newArrayBuffer[T]()
     buffer.bindIt
-    glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(value.len * sizeof(T)), value[0].addr, usage)
+    buffer.bufferData(usage, value)
     glVertexAttribPointer(index.GLuint, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
 
-proc bindAndAttribPointer[T](buffer: ArrayBuffer[T], index: GLint, usage: GLenum) =
+proc bindAndAttribPointer[T](buffer: ArrayBuffer[T], index: GLint) =
   if index >= 0:
     buffer.bindIt
     glVertexAttribPointer(index.GLuint, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
+
+proc makeAndBindElementBuffer[T](buffer: var ElementArraybuffer[T], value: seq[T], usage: GLenum) =
+  buffer = newElementArrayBuffer[T]()
+  buffer.bindIt
+  buffer.bufferData(usage, value)
 
 proc myEnableVertexAttribArray(index: GLint): void =
   if index >= 0:
@@ -789,6 +794,9 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[
   var geometryMain: string
   var fragmentMain: string
 
+  var hasIndices = false
+  var indexType: NimNode = nil
+
   #### BEGIN PARSE TREE ####
 
   proc locations(i: int) : NimNode =
@@ -835,42 +843,82 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[
         let value = innerCall[2]
         let buffername = !(name & "Buffer")
 
+        let isAttrib = name != "indices"
         #echo "attribute ", value.glslAttribType, " ", name
 
-        template foobarTemplate( lhs, rhs : expr ) : stmt {.dirty.} =
-          var lhs {.global.}: ArrayBuffer[rhs[0].type]
+        if not isAttrib:
+          if hasIndices:
+            echo "error, has already indices"
+
+          hasIndices = true
+
+          case value.getType2[1].typeKind
+          of ntyInt8, ntyUInt8:
+            indexType = bindSym"GL_UNSIGNED_BYTE"
+          of ntyInt16, ntyUInt16:
+            indexType = bindSym"GL_UNSIGNED_SHORT"
+          of ntyInt32, ntyUInt32:
+            indexType = bindSym"GL_UNSIGNED_INT"
+          of ntyInt, ntyUInt:
+            echo "error int type has to be explicity sized uint8 uint16 or uint32"
+          of ntyInt64, ntyUInt64:
+            echo "error 64 bit indices not supported"
+          else:
+            echo "error unknown type kind: ", value.getType2[1].typeKind
+
+
+        template foobarTemplate( lhs, rhs, bufferType : expr ) : stmt {.dirty.} =
+          var lhs {.global.}: bufferType[rhs[0].type]
 
         let isSeq:bool = $value.getType2[0] == "seq"
 
+
+
         if isSeq:
-          globalsBlock.add(getAst(foobarTemplate( !! buffername, value )))
+          let bufferType =
+            if isAttrib:
+              bindSym"ArrayBuffer"
+            else:
+              bindSym"ElementArrayBuffer"
+
+          globalsBlock.add(getAst(foobarTemplate( !! buffername, value, bufferType )))
 
         let attribCount = attributesSection.len
 
-        bufferCreationBlock.add( newAssignment(
-          locations(numLocations),
-          newCall( bindSym"glGetAttribLocation", !! "glProgram", newLit(name) )
-        ))
+        if isAttrib:
+          bufferCreationBlock.add( newAssignment(
+            locations(numLocations),
+            newCall( bindSym"glGetAttribLocation", !! "glProgram", newLit(name) )
+          ))
 
-        bufferCreationBlock.add(newCall(bindSym"myEnableVertexAttribArray", locations(numLocations)))
+          bufferCreationBlock.add(newCall(bindSym"myEnableVertexAttribArray", locations(numLocations)))
 
         if isSeq:
-          bufferCreationBlock.add(newCall(bindSym"makeAndBindBuffer",
-            !! buffername,
-            locations(numLocations),
-            value,
-            bindSym"GL_STATIC_DRAW"
-          ))
+          if isAttrib:
+            bufferCreationBlock.add(newCall(bindSym"makeAndBindBuffer",
+              !! buffername,
+              locations(numLocations),
+              value,
+              bindSym"GL_STATIC_DRAW"
+            ))
+          else:
+            bufferCreationBlock.add(newCall(bindSym"makeAndBindElementBuffer",
+              !! buffername,
+              value,
+              bindSym"GL_STATIC_DRAW"
+            ))
         else:
-          bufferCreationBlock.add(newCall(bindSym"bindAndAttribPointer",
-            value,
-            locations(numLocations),
-            bindSym"GL_STATIC_DRAW"
-          ))
+          if isAttrib:
+            bufferCreationBlock.add(newCall(bindSym"bindAndAttribPointer",
+              value,
+              locations(numLocations),
+            ))
+          else:
+            bufferCreationBlock.add(newCall(bindSym"bindIt", value))
 
-        attributesSection.add( format("in $1 $2", value.glslAttribType, name) )
-
-        numLocations += 1
+        if isAttrib:
+          attributesSection.add( format("in $1 $2", value.glslAttribType, name) )
+          numLocations += 1
 
     of "vertexOut":
       #echo "vertexOut"
@@ -912,6 +960,9 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[
       echo "unknownSection"
       echo call.repr
 
+  if hasIndices and indexType == nil:
+    echo "has indices, but index Type was never set to anything"
+
   let vertexShaderSource = genShaderSource(sourceHeader, uniformsSection, attributesSection, -1, vertexOutSection, includesSection, vertexMain)
 
   var linkShaderBlock : NimNode
@@ -936,7 +987,14 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[
       newCall( bindSym"compileShader", bindSym"GL_FRAGMENT_SHADER", newLit(fragmentShaderSource) ),
     )
 
-  let drawCommand = newCall( bindSym"glDrawArrays", mode, newLit(0), count )
+  let drawCommand =
+    if hasIndices:
+      newCall( bindSym"glDrawElements", mode, count, indexType, newNilLit() )
+    else:
+      newCall( bindSym"glDrawArrays", mode, newLit(0), count )
+
+  echo drawCommand.repr
+  echo drawCommand.treeRepr
 
   result = getAst(renderBlockTemplate(numLocations, globalsBlock, linkShaderBlock,
          bufferCreationBlock, initUniformsBlock, setUniformsBlock, drawCommand))
