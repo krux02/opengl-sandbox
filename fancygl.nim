@@ -831,6 +831,7 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[
   var hasIndices = false
   var indexType: NimNode = nil
   var hasInstanceData = false
+  var numInstances: NimNode = nil
 
   #### BEGIN PARSE TREE ####
 
@@ -876,11 +877,23 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[
         innerCall[1].expectKind nnkStrLit
         let name = $innerCall[1]
         let value = innerCall[2]
-        let divisor = intVal(innerCall[3])
+        echo "divisor: ", innerCall[3].treeRepr
+        let divisor: int =
+          if innerCall[3].kind == nnkHiddenStdConv:
+            innerCall[3][1].intVal.int
+          elif innerCall[3].kind == nnkIntLit:
+            innerCall[3].intVal.int
+          else:
+            0
+
         let buffername = !(name & "Buffer")
 
         let isAttrib = name != "indices"
         #echo "attribute ", value.glslAttribType, " ", name
+
+        if divisor > 0:
+          hasInstanceData = true
+          numInstances = newLit(1)
 
         if not isAttrib:
           if hasIndices:
@@ -1025,9 +1038,16 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[
 
   let drawCommand =
     if hasIndices:
-      newCall( bindSym"glDrawElements", mode, count, indexType, newNilLit() )
+      if hasInstanceData:
+        newCall( bindSym"glDrawElementsInstanced", mode, count, indexType, newNilLit(), numInstances )
+      else:
+        newCall( bindSym"glDrawElements", mode, count, indexType, newNilLit() )
+
     else:
-      newCall( bindSym"glDrawArrays", mode, newLit(0), count )
+      if hasInstanceData:
+        newCall( bindSym"glDrawArraysInstanced", mode, newLit(0), count, numInstances )
+      else:
+        newCall( bindSym"glDrawArrays", mode, newLit(0), count )
 
   echo drawCommand.repr
   echo drawCommand.treeRepr

@@ -338,6 +338,7 @@ proc render() =
       """
       //color = texture(crateTexture, g_texcoord);
       color.rgb = g_normal;
+      //color.rgb = (g_normal.xyz + vec3(1))/2;
       """
 
   for i in 0 .. < positions.len:
@@ -379,6 +380,7 @@ proc render() =
 
       fragmentMain:
         """
+        //color.rgb = (v_normal.xyz + vec3(1))/2;
         color.rgb = v_normal.xyz;
         """
 
