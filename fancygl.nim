@@ -10,11 +10,20 @@ type Vec3d* = Vec3[float64]
 type Vec2d* = Vec2[float64]
 
 proc vec4f*(x,y,z,w: float32) : Vec4f = [x,y,z,w].Vec4f
+proc vec4f*(v:Vec3f,w:float32): Vec4f = [v.x,v.y,v.z,w].Vec4f
 proc vec3f*(x,y,z:   float32) : Vec3f = [x,y,z].Vec3f
 proc vec2f*(x,y:     float32) : Vec2f = [x,y].Vec2f
 proc vec4d*(x,y,z,w: float64) : Vec4d = [x,y,z,w].Vec4d
+proc vec4d*(v:Vec3d,w:float64): Vec4d = [v.x,v.y,v.z,w].Vec4d
 proc vec3d*(x,y,z:   float64) : Vec3d = [x,y,z].Vec3d
 proc vec2d*(x,y:     float64) : Vec2d = [x,y].Vec2d
+
+proc vec4f*(v: Vec4d) : Vec4f = [v.x.float32,v.y.float32,v.z.float32,v.w.float32].Vec4f
+proc vec3f*(v: Vec3d) : Vec3f = [v.x.float32,v.y.float32,v.z.float32].Vec3f
+proc vec2f*(v: Vec2d) : Vec2f = [v.x.float32,v.y.float32].Vec2f
+proc vec4d*(v: Vec4f) : Vec4d = [v.x.float64,v.y.float64,v.z.float64,v.w.float64].Vec4d
+proc vec3d*(v: Vec3f) : Vec3d = [v.x.float64,v.y.float64,v.z.float64].Vec3d
+proc vec2d*(v: Vec2f) : Vec2d = [v.x.float64,v.y.float64].Vec2d
 
 type Mat4f* = Mat4x4[float32]
 type Mat3f* = Mat3x3[float32]
@@ -379,6 +388,31 @@ proc bindIt*[T](buffer: ElementArrayBuffer[T]) =
 proc bindIt*[T](buffer: UniformBuffer[T]) =
   glBindBuffer(GL_UNIFORM_BUFFER, GLuint(buffer))
 
+proc bindingKind*[T](buffer: ArrayBuffer[T]) : GLenum {. inline .} =
+  GL_ARRAY_BUFFER_BINDING
+
+proc bindingKind*[T](buffer: ElementArrayBuffer[T]) : GLenum {. inline .} =
+  GL_ELEMENT_ARRAY_BUFFER_BINDING
+
+proc bindingKind*[T](buffer: UniformBuffer[T]) : GLenum {. inline .} =
+  GL_UNIFORM_BUFFER_BINDING
+
+proc bufferKind*[T](buffer: ArrayBuffer[T]) : GLenum {. inline .} =
+  GL_ARRAY_BUFFER
+
+proc bufferKind*[T](buffer: ElementArrayBuffer[T]) : GLenum {. inline .} =
+  GL_ELEMENT_ARRAY_BUFFER
+
+proc bufferKind*[T](buffer: UniformBuffer[T]) : GLenum {. inline .} =
+  GL_UNIFORM_BUFFER
+
+template bindBlock(buffer, blk:untyped) =
+  let buf = buffer
+  var outer : GLint
+  glGetIntegerv(buf.bindingKind, outer.addr)
+  buf.bindIt
+  blk
+  glBindBuffer(buf.bufferKind, GLuint(outer))
 
 proc bufferData*[T](buffer: ArrayBuffer[T], usage: GLenum, data: openarray[T]) =
   glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
@@ -390,12 +424,9 @@ proc bufferData*[T](buffer: UniformBuffer[T], usage: GLenum, data: T) =
   glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(sizeof(T)), unsafeAddr(data), usage)
 
 proc len*[T](buffer: ArrayBuffer[T]) : int =
-  var outer : GLint
-  glGetIntegerv(GL_ARRAY_BUFFER_BINDING, outer.addr)
-  buffer.bindIt
   var size: GLint
-  glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, size.addr)
-  glBindBuffer(GL_ARRAY_BUFFER, GLuint(outer))
+  buffer.bindBlock:
+    glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, size.addr)
   return size.int div sizeof(T).int
 
 proc len*[T](buffer: ElementArrayBuffer[T]) : int =
@@ -403,6 +434,7 @@ proc len*[T](buffer: ElementArrayBuffer[T]) : int =
   glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, outer.addr)
   buffer.bindIt
   var size: GLint
+
   glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, size.addr)
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GLuint(outer))
   return size.int div sizeof(T).int
@@ -688,7 +720,7 @@ proc attribSize(t: typedesc[Vec2f]) : GLint = 2
 proc attribType(t: typedesc[Vec2f]) : GLenum = cGL_FLOAT
 proc attribNormalized(t: typedesc[Vec2f]) : bool = false
 
-proc makeAndBindBuffer[T](buffer: ArrayBuffer[T], index: GLint, value: seq[T], usage: GLenum) =
+proc makeAndBindBuffer[T](buffer: var ArrayBuffer[T], index: GLint, value: seq[T], usage: GLenum) =
   if index >= 0:
     buffer = newArrayBuffer[T]()
     buffer.bindIt
@@ -705,9 +737,10 @@ proc makeAndBindElementBuffer[T](buffer: var ElementArraybuffer[T], value: seq[T
   buffer.bindIt
   buffer.bufferData(usage, value)
 
-proc myEnableVertexAttribArray(index: GLint): void =
+proc myEnableVertexAttribArray(index: GLint, divisor: GLuint): void =
   if index >= 0:
     glEnableVertexAttribArray(index.GLuint)
+    glVertexAttribDivisor(index.GLuint, divisor.GLuint)
 
 template renderBlockTemplate(numLocations: int, globalsBlock, linkShaderBlock, bufferCreationBlock,
                initUniformsBlock, setUniformsBlock, drawCommand: expr): stmt {. dirty .} =
@@ -754,8 +787,9 @@ template renderBlockTemplate(numLocations: int, globalsBlock, linkShaderBlock, b
 ## Shading Dsl #################################################################
 ################################################################################
 
-proc shaderArg[T](name: string, value: T): int = 0
+proc attribute[T](name: string, value: T, divisor: GLuint) : int = 0
 proc attributes(args : varargs[int]) : int = 0
+proc shaderArg[T](name: string, value: T): int = 0
 proc uniforms(args: varargs[int]): int = 0
 proc vertexOut(args: varargs[string]): int = 0
 proc geometryOut(args: varargs[string]): int = 0
@@ -796,6 +830,7 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[
 
   var hasIndices = false
   var indexType: NimNode = nil
+  var hasInstanceData = false
 
   #### BEGIN PARSE TREE ####
 
@@ -841,6 +876,7 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[
         innerCall[1].expectKind nnkStrLit
         let name = $innerCall[1]
         let value = innerCall[2]
+        let divisor = intVal(innerCall[3])
         let buffername = !(name & "Buffer")
 
         let isAttrib = name != "indices"
@@ -891,7 +927,7 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[
             newCall( bindSym"glGetAttribLocation", !! "glProgram", newLit(name) )
           ))
 
-          bufferCreationBlock.add(newCall(bindSym"myEnableVertexAttribArray", locations(numLocations)))
+          bufferCreationBlock.add(newCall(bindSym"myEnableVertexAttribArray", locations(numLocations), newLit(divisor)))
 
         if isSeq:
           if isAttrib:
@@ -1034,16 +1070,30 @@ macro shadingDsl*(mode:GLenum, count: GLsizei, statement: stmt) : stmt {.immedia
     of "attributes":
       let attributesCall = newCall(bindSym"attributes")
 
-      for capture in stmtList.items:
+      proc handleCapture(attributesCall, capture: NimNode, divisor: int) =
         capture.expectKind({nnkAsgn, nnkIdent})
-
         if capture.kind == nnkAsgn:
           capture.expectLen 2
           capture[0].expectKind nnkIdent
-          attributesCall.add( newCall(bindSym"shaderArg", newLit($capture[0]), capture[1] ) )
+          attributesCall.add( newCall(bindSym"attribute", newLit($capture[0]), capture[1], newLit(divisor) ) )
         elif capture.kind == nnkIdent:
-          attributesCall.add( newCall(bindSym"shaderArg",  newLit($capture), capture) )
+          attributesCall.add( newCall(bindSym"attribute",  newLit($capture), capture, newLit(divisor)) )
 
+
+      for capture in stmtList.items:
+        if capture.kind == nnkCall:
+          if $capture[0] == "instanceData":
+            let stmtList = capture[1]
+            stmtList.expectKind nnkStmtList
+            for capture in stmtList.items:
+              handleCapture(attributesCall, capture, 1)
+
+          else:
+            echo "error expected call to instanceData, but got: ", capture.repr
+        else:
+          handleCapture(attributesCall, capture, 0)
+
+      echo attributesCall.repr
       result.add(attributesCall)
 
     of "vertexOut", "geometryOut", "fragmentOut":

@@ -1,8 +1,10 @@
 import math, sequtils, strutils, sdl2, opengl, ../fancygl, glm
 
-
 proc nextRnd(): float32 =
   random(1.0).float32 - 0.5f
+
+proc lerp(start, stop, amt: float32) : float32 =
+  (1 - amt) * start + amt * stop
 
 type HeightMap = object
   w,h: int
@@ -21,6 +23,29 @@ proc `[]=`*(hm: var HeightMap, x,y: int; value: float32)  {. inline .} =
     ny = y and (hm.h - 1)
 
   hm.dataseq[nx + hm.w * ny] = value
+
+proc `[]`*(hm: HeightMap, x,y: float32): float32 {. inline .} =
+  let
+    bx = x.floor.int
+    by = y.floor.int
+
+    nx1 = bx and (hm.w - 1)
+    nx2 = (bx + 1) and (hm.w - 1)
+    ny1 = by and (hm.h - 1)
+    ny2 = (by + 1) and (hm.h - 1)
+
+    d1 = hm.dataseq[nx1 + hm.w * ny1]
+    d2 = hm.dataseq[nx2 + hm.w * ny1]
+    d3 = hm.dataseq[nx1 + hm.w * ny2]
+    d4 = hm.dataseq[nx2 + hm.w * ny2]
+
+    rx = x - x.floor
+    ry = y - y.floor
+
+  lerp( lerp(d1,d2, rx), lerp(d3,d4, rx), ry )
+
+proc `[]`*(hm: HeightMap, pos: Vec2f) : float32 {. inline .} =
+  hm[pos.x, pos.y]
 
 proc vertices(hm: var HeightMap) : seq[Vec3f] =
   result.newSeq(hm.w * hm.h)
@@ -140,11 +165,55 @@ proc DiamondSquare(hm: var HeightMap, startfactor: float32): void =
     diamonds(hm)
     factor *= 0.5f
 
-
 proc createFlatMap(width,height: int): HeightMap =
   result.w = width
   result.h = height
   result.dataseq = newSeq[float32](width*height)
+
+
+proc uvSphereVertices(segments, rings: int): seq[Vec3f] =
+  result.newSeq(segments * rings)
+  result.setLen(0)
+
+  for j in 0 .. < segments:
+    let
+      beta = (j / segments) * 2 * PI
+      x = cos(beta).float32
+      y = sin(beta).float32
+
+    for i in 0 .. < rings:
+      let
+        alpha = (i / (rings-1)) * PI
+        h = cos(alpha).float32
+        r = sin(alpha).float32
+
+      result.add( vec3f(x * r, y * r, h) )
+
+
+proc uvSphereNormals(segments, rings: int): seq[Vec3f] =
+  uvSphereVertices(segments, rings)
+
+proc uvSphereIndices(segments, rings: int): seq[int16] =
+  result.newSeq(segments * rings * 6)
+  result.setLen(0)
+
+  for segment in 0 ..< segments - 1:
+    for ring in 0 ..< rings - 1:
+      let
+        i1 = int16( ring +     segment * rings )
+        i2 = int16( ring + 1 + segment * rings )
+        i3 = int16( ring +     segment * rings + rings )
+        i4 = int16( ring + 1 + segment * rings + rings )
+      result.add([i1,i2,i3,i3,i2,i4])
+
+  for ring in 0 ..< rings - 1:
+    let
+      i1 = int16( ring +     segments * rings - rings )
+      i2 = int16( ring + 1 + segments * rings - rings )
+      i3 = int16( ring +     0 )
+      i4 = int16( ring + 1 + 0 )
+
+    result.add([i1,i2,i3,i3,i2,i4])
 
 var hm = createFlatMap(64,64)
 
@@ -156,7 +225,7 @@ discard sdl2.init(INIT_EVERYTHING)
 var windowsize = vec2f(640,480)
 var viewport = vec4f(0,0,640,480)
 
-let window = createWindow("SDL/OpenGL Skeleton", 100, 100, windowsize.x.cint, windowsize.y.cint, SDL_WINDOW_OPENGL)
+let window = createWindow("SDL/OpenGL Skeleton", 100, 100, windowsize.x.cint, windowsize.y.cint, SDL_WINDOW_OPENGL or SDL_WINDOW_MOUSE_FOCUS)
 let context = window.glCreateContext()
 
 # Initialize OpenGL
@@ -165,70 +234,14 @@ loadExtensions()
 let
   crateTexture = loadAndBindTexture2DFromFile("crate.png")
 
+
   hmVertices = hm.vertices.arrayBuffer
   hmTexCoords = hm.texCoords.arrayBuffer
   hmIndices = hm.indices.elementArrayBuffer
 
-  vertex = @[
-    vec3f(+1, +1, -1), vec3f(-1, +1, -1), vec3f(-1, +1, +1),
-    vec3f(+1, +1, +1), vec3f(+1, +1, -1), vec3f(-1, +1, +1),
-    vec3f(+1, -1, +1), vec3f(-1, -1, +1), vec3f(-1, -1, -1),
-    vec3f(+1, -1, -1), vec3f(+1, -1, +1), vec3f(-1, -1, -1),
-    vec3f(+1, +1, +1), vec3f(-1, +1, +1), vec3f(-1, -1, +1),
-    vec3f(+1, -1, +1), vec3f(+1, +1, +1), vec3f(-1, -1, +1),
-    vec3f(+1, -1, -1), vec3f(-1, -1, -1), vec3f(-1, +1, -1),
-    vec3f(+1, +1, -1), vec3f(+1, -1, -1), vec3f(-1, +1, -1),
-    vec3f(-1, +1, +1), vec3f(-1, +1, -1), vec3f(-1, -1, -1),
-    vec3f(-1, -1, +1), vec3f(-1, +1, +1), vec3f(-1, -1, -1),
-    vec3f(+1, +1, -1), vec3f(+1, +1, +1), vec3f(+1, -1, +1),
-    vec3f(+1, -1, -1), vec3f(+1, +1, -1), vec3f(+1, -1, +1)
-  ].arrayBuffer
-
-  normal = @[
-    vec3f( 0, +1,  0), vec3f( 0, +1,  0), vec3f( 0, +1,  0),
-    vec3f( 0, +1,  0), vec3f( 0, +1,  0), vec3f( 0, +1,  0),
-    vec3f( 0, -1,  0), vec3f( 0, -1,  0), vec3f( 0, -1,  0),
-    vec3f( 0, -1,  0), vec3f( 0, -1,  0), vec3f( 0, -1,  0),
-    vec3f( 0,  0, +1), vec3f( 0,  0, +1), vec3f( 0,  0, +1),
-    vec3f( 0,  0, +1), vec3f( 0,  0, +1), vec3f( 0,  0, +1),
-    vec3f( 0,  0, -1), vec3f( 0,  0, -1), vec3f( 0,  0, -1),
-    vec3f( 0,  0, -1), vec3f( 0,  0, -1), vec3f( 0,  0, -1),
-    vec3f(-1,  0,  0), vec3f(-1,  0,  0), vec3f(-1,  0,  0),
-    vec3f(-1,  0,  0), vec3f(-1,  0,  0), vec3f(-1,  0,  0),
-    vec3f(+1,  0,  0), vec3f(+1,  0,  0), vec3f(+1,  0,  0),
-    vec3f(+1,  0,  0), vec3f(+1,  0,  0), vec3f(+1,  0,  0)
-  ].arrayBuffer
-
-  color = @[
-    vec3f(0.0, 1.0, 0.0), vec3f(0.0, 1.0, 0.0), vec3f(0.0, 1.0, 0.0),
-    vec3f(0.0, 1.0, 0.0), vec3f(0.0, 1.0, 0.0), vec3f(0.0, 1.0, 0.0),
-    vec3f(1.0, 0.5, 0.0), vec3f(1.0, 0.5, 0.0), vec3f(1.0, 0.5, 0.0),
-    vec3f(1.0, 0.5, 0.0), vec3f(1.0, 0.5, 0.0), vec3f(1.0, 0.5, 0.0),
-    vec3f(1.0, 0.0, 0.0), vec3f(1.0, 0.0, 0.0), vec3f(1.0, 0.0, 0.0),
-    vec3f(1.0, 0.0, 0.0), vec3f(1.0, 0.0, 0.0), vec3f(1.0, 0.0, 0.0),
-    vec3f(1.0, 1.0, 0.0), vec3f(1.0, 1.0, 0.0), vec3f(1.0, 1.0, 0.0),
-    vec3f(1.0, 1.0, 0.0), vec3f(1.0, 1.0, 0.0), vec3f(1.0, 1.0, 0.0),
-    vec3f(0.0, 0.0, 1.0), vec3f(0.0, 0.0, 1.0), vec3f(0.0, 0.0, 1.0),
-    vec3f(0.0, 0.0, 1.0), vec3f(0.0, 0.0, 1.0), vec3f(0.0, 0.0, 1.0),
-    vec3f(1.0, 0.0, 1.0), vec3f(1.0, 0.0, 1.0), vec3f(1.0, 0.0, 1.0),
-    vec3f(1.0, 0.0, 1.0), vec3f(1.0, 0.0, 1.0), vec3f(1.0, 0.0, 1.0)
-  ].arrayBuffer
-
-  texcoord = @[
-    vec2f(1, 0), vec2f(0, 0), vec2f(0, 1),
-    vec2f(1, 1), vec2f(1, 0), vec2f(0, 1),
-    vec2f(1, 1), vec2f(0, 1), vec2f(0, 0),
-    vec2f(1, 0), vec2f(1, 1), vec2f(0, 0),
-    vec2f(1, 1), vec2f(0, 1), vec2f(0, 0),
-    vec2f(1, 0), vec2f(1, 1), vec2f(0, 0),
-    vec2f(1, 0), vec2f(0, 0), vec2f(0, 1),
-    vec2f(1, 1), vec2f(1, 0), vec2f(0, 1),
-    vec2f(1, 1), vec2f(1, 0), vec2f(0, 0),
-    vec2f(0, 1), vec2f(1, 1), vec2f(0, 0),
-    vec2f(1, 0), vec2f(1, 1), vec2f(0, 1),
-    vec2f(0, 0), vec2f(1, 0), vec2f(0, 1)
-  ].arrayBuffer
-
+  sphereVertices = uvSphereVertices(32,16).arrayBuffer
+  sphereNormals = uvSphereNormals(32,16).arrayBuffer
+  sphereIndices = uvSphereIndices(32,16).elementArrayBuffer
 
 if 0 != glSetSwapInterval(-1):
   echo "glSetSwapInterval -1 not supported"
@@ -245,8 +258,8 @@ glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-c
 glDepthFunc(GL_LEQUAL)                            # Set the type of depth-test
 glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST) # Nice perspective corrections
 
-#glEnable(GL_CULL_FACE)
-#glCullFace(GL_BACK)
+glEnable(GL_CULL_FACE)
+glCullFace(GL_BACK)
 
 let projection_mat = perspective(45.0, windowsize.x / windowsize.y, 0.1, 100.0)
 
@@ -255,21 +268,35 @@ var
   simulationTime = 0.0
   frameCounter = 0
 
+  movement = vec3d(0,0,0)
+  rotation = vec2d(PI/2,0)
+  position = vec3d(32,32, hm[32,32] + 1.8 )
+
+  positions = newSeq[Vec3f](50)
+  positionsBuffer = positions.arrayBuffer
+
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
 
   let time = simulationTime
 
-  var modelview_mat = I4()
-  modelview_mat = modelview_mat.rotate( vec3d(1,0,0), -1.0 )
-  modelview_mat = modelview_mat.translate( vec3d(sin(time)*32 - 32, cos(time)*32, -7) )
+  var
+    model_mat = I4()
+    view_mat = I4()
 
-  #modelview_mat = modelview_mat.rotate( vec3[float](0,1,0), time )
-  #modelview_mat = modelview_mat.rotate( vec3[float](1,0,0), time )
+  view_mat = view_mat.translate( position )
+  view_mat = view_mat.rotate( vec3d(0,0,1), rotation.y )
+  view_mat = view_mat.rotate( vec3d(1,0,0), rotation.x )
+
+
+  let movement_ws = (view_mat * vec4d(movement, 0)).xyz
+  position = position + movement_ws
+
+  view_mat = view_mat.inverse
 
   shadingDsl(GL_TRIANGLES, hmindices.len.GLsizei):
     uniforms:
-      modelview = modelview_mat
+      modelview = view_mat * model_mat
       projection = projection_mat
       time
       crateTexture
@@ -283,15 +310,77 @@ proc render() =
       """
       gl_Position = projection * modelview * vec4(pos, 1);
       v_texcoord = texcoord;
+      v_eyepos = (modelview * vec4(pos, 1)).xyz;
       """
 
     vertexOut:
       "out vec2 v_texcoord"
+      "out vec3 v_eyepos"
+
+    geometryMain:
+      "layout(triangle_strip, max_vertices=3) out"
+      """
+      g_normal = normalize(cross(v_eyepos[1] - v_eyepos[0], v_eyepos[2] - v_eyepos[0]));
+
+      for( int i=0; i < 3; i++) {
+        gl_Position = projection * vec4(v_eyepos[i], 1);
+        g_texcoord = v_texcoord[i];
+        EmitVertex();
+      }
+      """
+
+
+    geometryOut:
+      "out vec2 g_texcoord"
+      "out vec3 g_normal"
 
     fragmentMain:
       """
-      color = texture(crateTexture, v_texcoord);
+      //color = texture(crateTexture, g_texcoord);
+      color.rgb = g_normal;
       """
+
+  for i in 0 .. < positions.len:
+    let
+      alpha = (i / positions.len) * 2 * PI + time * 0.1f
+      x = cos(alpha).float32 * 50.0f
+      y = sin(alpha).float32 * 50.0f
+      z = hm[x,y] + 1.5f
+
+    positions[i] = vec3f(x, y, z)
+
+
+  for position in positions:
+
+    model_mat = I4()
+    model_mat = model_mat.translate( position.vec3d )
+
+    shadingDsl(GL_TRIANGLES, sphereIndices.len.GLsizei):
+      uniforms:
+        normalMat = view_mat * model_mat
+        mvp = projection_mat * view_mat * model_mat
+        crateTexture
+
+      attributes:
+        indices = sphereIndices
+        pos = sphereVertices
+
+        instanceData:
+          offset = positions
+
+      vertexMain:
+        """
+        gl_Position = mvp * vec4(pos, 1);
+        v_normal = normalMat * vec4(pos,0);
+        """
+
+      vertexOut:
+        "out vec4 v_normal"
+
+      fragmentMain:
+        """
+        color.rgb = v_normal.xyz;
+        """
 
   glSwapWindow(window)
 
@@ -328,13 +417,20 @@ while runGame:
       let mouseEvent = cast[MouseMotionEventPtr](addr(evt))
       mouseX = mouseEvent.x
       mouseY = mouseEvent.y
+      rotation.x = clamp( rotation.x - mouseEvent.yrel.float / 128.0 , 0, PI )
+      rotation.y = rotation.y - mouseEvent.xrel.float / 128.0
 
+
+  var state = getKeyboardState()
+
+  movement.z = (state[SDL_SCANCODE_D.int].float - state[SDL_SCANCODE_E.int].float) * 0.05
+  movement.x = (state[SDL_SCANCODE_F.int].float - state[SDL_SCANCODE_S.int].float) * 0.05
 
   if not gamePaused:
     simulationTime = time - simulationTimeOffset
 
   if time - fpsFrameCounterStartTime >= 1:
-    echo "FPS: ", fpsFrameCounter
+    #echo "FPS: ", fpsFrameCounter
     fpsFrameCounter = 0
     fpsFrameCounterStartTime = time
 
