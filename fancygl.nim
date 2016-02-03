@@ -720,11 +720,10 @@ proc attribSize(t: typedesc[Vec2f]) : GLint = 2
 proc attribType(t: typedesc[Vec2f]) : GLenum = cGL_FLOAT
 proc attribNormalized(t: typedesc[Vec2f]) : bool = false
 
-proc makeAndBindBuffer[T](buffer: var ArrayBuffer[T], index: GLint, value: seq[T], usage: GLenum) =
+proc makeAndBindBuffer[T](buffer: var ArrayBuffer[T], index: GLint) =
   if index >= 0:
     buffer = newArrayBuffer[T]()
     buffer.bindIt
-    buffer.bufferData(usage, value)
     glVertexAttribPointer(index.GLuint, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
 
 proc bindAndAttribPointer[T](buffer: ArrayBuffer[T], index: GLint) =
@@ -732,10 +731,9 @@ proc bindAndAttribPointer[T](buffer: ArrayBuffer[T], index: GLint) =
     buffer.bindIt
     glVertexAttribPointer(index.GLuint, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
 
-proc makeAndBindElementBuffer[T](buffer: var ElementArraybuffer[T], value: seq[T], usage: GLenum) =
+proc makeAndBindElementBuffer[T](buffer: var ElementArraybuffer[T]) =
   buffer = newElementArrayBuffer[T]()
   buffer.bindIt
-  buffer.bufferData(usage, value)
 
 proc myEnableVertexAttribArray(index: GLint, divisor: GLuint): void =
   if index >= 0:
@@ -919,8 +917,6 @@ macro shadingDslInner(mode: GLenum, count, numInstances: GLSizei, fragmentOutput
 
         let isSeq:bool = $value.getType2[0] == "seq"
 
-
-
         if isSeq:
           let bufferType =
             if isAttrib:
@@ -945,15 +941,16 @@ macro shadingDslInner(mode: GLenum, count, numInstances: GLSizei, fragmentOutput
             bufferCreationBlock.add(newCall(bindSym"makeAndBindBuffer",
               !! buffername,
               locations(numLocations),
-              value,
-              bindSym"GL_STATIC_DRAW"
             ))
+
           else:
             bufferCreationBlock.add(newCall(bindSym"makeAndBindElementBuffer",
               !! buffername,
-              value,
-              bindSym"GL_STATIC_DRAW"
             ))
+
+          setUniformsBlock.add(newCall(bindSym"bindIt", !! buffername))
+          setUniformsBlock.add(newCall(bindSym"bufferData", !! buffername, bindSym"GL_STREAM_DRAW", value))
+
         else:
           if isAttrib:
             bufferCreationBlock.add(newCall(bindSym"bindAndAttribPointer",
