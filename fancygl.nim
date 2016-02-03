@@ -1059,17 +1059,26 @@ macro shadingDslInner(mode: GLenum, count, numInstances: GLSizei, fragmentOutput
 ## Shading Dsl Outer ###########################################################
 ################################################################################
 
-macro shadingDsl*(mode:GLenum, count: GLsizei, statement: stmt) : stmt {.immediate.} =
+macro shadingDsl*(mode:GLenum, statement: stmt) : stmt {.immediate.} =
 
-  result = newCall(bindSym"shadingDslInner", mode, count, newLit(1), !! "fragmentOutputs" )
+  result = newCall(bindSym"shadingDslInner", mode, newLit(0), newLit(1), !! "fragmentOutputs" )
+  # numVertices = result[2]
+  # numInstances = result[3]
 
   for section in statement.items:
     section.expectKind({nnkCall, nnkAsgn})
 
     if section.kind == nnkAsgn:
       section.expectLen(2)
-      section[0].expectKind nnkIdent
-      result[3] = section[1]
+      let ident = section[0]
+      ident.expectKind nnkIdent
+      case $ident.ident
+      of "numVertices":
+        result[2] = section[1]
+      of "numInstances":
+        result[3] = section[1]
+      else:
+        error("unknown named parameter " & $ident.ident)
 
     elif section.kind == nnkCall:
       let ident = section[0]

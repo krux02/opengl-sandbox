@@ -162,7 +162,9 @@ proc render() =
 
       glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-      shadingDsl(GL_TRIANGLES, vertex.len.GLsizei):
+      shadingDsl(GL_TRIANGLES):
+        numVertices = vertex.len.GLsizei
+
         uniforms:
           modelview = modelview_mat
           projection = projection_mat
@@ -208,7 +210,9 @@ proc render() =
     fb1.color.bindIt
     glGenerateMipmap(GL_TEXTURE_2D)
 
-    shadingDsl(GL_TRIANGLES, 3):
+    shadingDsl(GL_TRIANGLES):
+      numVertices = 3
+
       uniforms:
         mouse
         tex = fb1.color
@@ -238,7 +242,9 @@ proc render() =
         """
 
     # render face normals using the geometry shader
-    shadingDsl(GL_TRIANGLES, vertex.len.GLsizei):
+    shadingDsl(GL_TRIANGLES):
+      numVertices = vertex.len.GLsizei
+
       uniforms:
         modelview = modelview_mat
         projection = projection_mat

@@ -294,7 +294,9 @@ proc render() =
 
   view_mat = view_mat.inverse
 
-  shadingDsl(GL_TRIANGLES, hmindices.len.GLsizei):
+  shadingDsl(GL_TRIANGLES):
+    numVertices = hmindices.len.GLsizei
+
     uniforms:
       modelview = view_mat * model_mat
       projection = projection_mat
@@ -351,7 +353,8 @@ proc render() =
     positions[i] = vec3f(x, y, z)
 
 
-  shadingDsl(GL_TRIANGLES, sphereIndices.len.GLsizei):
+  shadingDsl(GL_TRIANGLES):
+    numVertices = sphereIndices.len.GLsizei
     numInstances = positions.len.GLsizei
 
     uniforms:
