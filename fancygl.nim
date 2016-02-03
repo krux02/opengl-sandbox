@@ -804,7 +804,7 @@ proc incl(arg: string): int = 0
 ## Shading Dsl Inner ###########################################################
 ################################################################################
 
-macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[string]], statement: varargs[typed] ) : stmt =
+macro shadingDslInner(mode: GLenum, count, numInstances: GLSizei, fragmentOutputs: static[seq[string]], statement: varargs[typed] ) : stmt =
   echo "shadingDslInner fragmentOutputs:"
   for i,output in fragmentOutputs:
     echo "out(", i, "): ", output
@@ -831,7 +831,6 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[
   var hasIndices = false
   var indexType: NimNode = nil
   var hasInstanceData = false
-  var numInstances: NimNode = nil
 
   #### BEGIN PARSE TREE ####
 
@@ -893,7 +892,6 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[
 
         if divisor > 0:
           hasInstanceData = true
-          numInstances = newLit(1)
 
         if not isAttrib:
           if hasIndices:
@@ -1063,113 +1061,120 @@ macro shadingDslInner(mode: GLenum, count: GLSizei, fragmentOutputs: static[seq[
 
 macro shadingDsl*(mode:GLenum, count: GLsizei, statement: stmt) : stmt {.immediate.} =
 
-  result = newCall(bindSym"shadingDslInner", mode, count, !! "fragmentOutputs" )
+  result = newCall(bindSym"shadingDslInner", mode, count, newLit(1), !! "fragmentOutputs" )
 
   for section in statement.items:
-    section.expectKind nnkCall
-    let ident = section[0]
-    ident.expectKind nnkIdent
-    let stmtList = section[1]
-    stmtList.expectKind nnkStmtList
+    section.expectKind({nnkCall, nnkAsgn})
 
-    case $ident
-    of "uniforms":
-      let uniformsCall = newCall(bindSym"uniforms")
+    if section.kind == nnkAsgn:
+      section.expectLen(2)
+      section[0].expectKind nnkIdent
+      result[3] = section[1]
 
-      for capture in stmtList.items:
-        capture.expectKind({nnkAsgn, nnkIdent})
-        if capture.kind == nnkAsgn:
-          capture.expectLen 2
-          capture[0].expectKind nnkIdent
-          uniformsCall.add( newCall(bindSym"shaderArg", newLit($capture[0]), capture[1] ) )
-        elif capture.kind == nnkIdent:
-          uniformsCall.add( newCall(bindSym"shaderArg",  newLit($capture), capture) )
+    elif section.kind == nnkCall:
+      let ident = section[0]
+      ident.expectKind nnkIdent
+      let stmtList = section[1]
+      stmtList.expectKind nnkStmtList
 
-      result.add(uniformsCall)
+      case $ident
+      of "uniforms":
+        let uniformsCall = newCall(bindSym"uniforms")
 
-    of "attributes":
-      let attributesCall = newCall(bindSym"attributes")
+        for capture in stmtList.items:
+          capture.expectKind({nnkAsgn, nnkIdent})
+          if capture.kind == nnkAsgn:
+            capture.expectLen 2
+            capture[0].expectKind nnkIdent
+            uniformsCall.add( newCall(bindSym"shaderArg", newLit($capture[0]), capture[1] ) )
+          elif capture.kind == nnkIdent:
+            uniformsCall.add( newCall(bindSym"shaderArg",  newLit($capture), capture) )
 
-      proc handleCapture(attributesCall, capture: NimNode, divisor: int) =
-        capture.expectKind({nnkAsgn, nnkIdent})
-        if capture.kind == nnkAsgn:
-          capture.expectLen 2
-          capture[0].expectKind nnkIdent
-          attributesCall.add( newCall(bindSym"attribute", newLit($capture[0]), capture[1], newLit(divisor) ) )
-        elif capture.kind == nnkIdent:
-          attributesCall.add( newCall(bindSym"attribute",  newLit($capture), capture, newLit(divisor)) )
+        result.add(uniformsCall)
+
+      of "attributes":
+        let attributesCall = newCall(bindSym"attributes")
+
+        proc handleCapture(attributesCall, capture: NimNode, divisor: int) =
+          capture.expectKind({nnkAsgn, nnkIdent})
+          if capture.kind == nnkAsgn:
+            capture.expectLen 2
+            capture[0].expectKind nnkIdent
+            attributesCall.add( newCall(bindSym"attribute", newLit($capture[0]), capture[1], newLit(divisor) ) )
+          elif capture.kind == nnkIdent:
+            attributesCall.add( newCall(bindSym"attribute",  newLit($capture), capture, newLit(divisor)) )
 
 
-      for capture in stmtList.items:
-        if capture.kind == nnkCall:
-          if $capture[0] == "instanceData":
-            let stmtList = capture[1]
-            stmtList.expectKind nnkStmtList
-            for capture in stmtList.items:
-              handleCapture(attributesCall, capture, 1)
+        for capture in stmtList.items:
+          if capture.kind == nnkCall:
+            if $capture[0] == "instanceData":
+              let stmtList = capture[1]
+              stmtList.expectKind nnkStmtList
+              for capture in stmtList.items:
+                handleCapture(attributesCall, capture, 1)
 
+            else:
+              echo "error expected call to instanceData, but got: ", capture.repr
           else:
-            echo "error expected call to instanceData, but got: ", capture.repr
-        else:
-          handleCapture(attributesCall, capture, 0)
+            handleCapture(attributesCall, capture, 0)
 
-      echo attributesCall.repr
-      result.add(attributesCall)
+        echo attributesCall.repr
+        result.add(attributesCall)
 
-    of "vertexOut", "geometryOut", "fragmentOut":
+      of "vertexOut", "geometryOut", "fragmentOut":
 
-      let outCall =
-        case $ident
-        of "vertexOut": newCall(bindSym"vertexOut")
-        of "geometryOut": newCall(bindSym"geometryOut")
-        of "fragmentOut": newCall(bindSym"fragmentOut")
-        else: nil
+        let outCall =
+          case $ident
+          of "vertexOut": newCall(bindSym"vertexOut")
+          of "geometryOut": newCall(bindSym"geometryOut")
+          of "fragmentOut": newCall(bindSym"fragmentOut")
+          else: nil
 
-      for section in stmtList.items:
-        section.expectKind({nnkVarSection, nnkStrLit, nnkTripleStrLit})
-        case section.kind
-        of nnkVarSection:
-          for def in section:
-            def.expectKind nnkIdentDefs
-            def[0].expectKind nnkIdent
-            def[1].expectKind nnkIdent
-            outCall.add format("out $2 $1", $def[0], $def[1]).newLit
-        of nnkStrLit:
-          outCall.add section
-        of nnkTripleStrLit:
-          for line in section.strVal.splitLines:
-            outCall.add line.strip.newLit
-        else:
-          error("unreachable")
+        for section in stmtList.items:
+          section.expectKind({nnkVarSection, nnkStrLit, nnkTripleStrLit})
+          case section.kind
+          of nnkVarSection:
+            for def in section:
+              def.expectKind nnkIdentDefs
+              def[0].expectKind nnkIdent
+              def[1].expectKind nnkIdent
+              outCall.add format("out $2 $1", $def[0], $def[1]).newLit
+          of nnkStrLit:
+            outCall.add section
+          of nnkTripleStrLit:
+            for line in section.strVal.splitLines:
+              outCall.add line.strip.newLit
+          else:
+            error("unreachable")
 
 
-      result.add(outCall)
+        result.add(outCall)
 
-    of "vertexMain":
-      stmtList.expectLen(1)
-      stmtList[0].expectKind({nnkTripleStrLit, nnkStrLit})
-      result.add( newCall(bindSym"vertexMain", stmtList[0]) )
+      of "vertexMain":
+        stmtList.expectLen(1)
+        stmtList[0].expectKind({nnkTripleStrLit, nnkStrLit})
+        result.add( newCall(bindSym"vertexMain", stmtList[0]) )
 
-    of "geometryMain":
-      stmtList.expectLen(2)
-      stmtList[0].expectKind({nnkTripleStrLit, nnkStrLit})
-      stmtList[1].expectKind({nnkTripleStrLit, nnkStrLit})
-      result.add( newCall(bindSym"geometryMain", stmtList[0], stmtList[1]) )
+      of "geometryMain":
+        stmtList.expectLen(2)
+        stmtList[0].expectKind({nnkTripleStrLit, nnkStrLit})
+        stmtList[1].expectKind({nnkTripleStrLit, nnkStrLit})
+        result.add( newCall(bindSym"geometryMain", stmtList[0], stmtList[1]) )
 
-    of "fragmentMain":
-      stmtList.expectLen(1)
-      stmtList[0].expectKind({ nnkTripleStrLit, nnkStrLit })
-      result.add( newCall(bindSym"fragmentMain", stmtList[0]) )
+      of "fragmentMain":
+        stmtList.expectLen(1)
+        stmtList[0].expectKind({ nnkTripleStrLit, nnkStrLit })
+        result.add( newCall(bindSym"fragmentMain", stmtList[0]) )
 
-    of "includes":
-      let includesCall = newCall(bindSym"includes")
+      of "includes":
+        let includesCall = newCall(bindSym"includes")
 
-      for statement in stmtList:
-        statement.expectKind( nnkIdent )
+        for statement in stmtList:
+          statement.expectKind( nnkIdent )
 
-        includesCall.add( newCall(bindSym"incl", statement) )
+          includesCall.add( newCall(bindSym"incl", statement) )
 
-      result.add(includesCall)
-    else:
-      error("unknown section " & $ident.ident)
+        result.add(includesCall)
+      else:
+        error("unknown section " & $ident.ident)
 

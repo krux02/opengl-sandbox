@@ -351,38 +351,35 @@ proc render() =
     positions[i] = vec3f(x, y, z)
 
 
-  for position in positions:
+  shadingDsl(GL_TRIANGLES, sphereIndices.len.GLsizei):
+    numInstances = positions.len.GLsizei
 
-    model_mat = I4()
-    model_mat = model_mat.translate( position.vec3d )
+    uniforms:
+      normalMat = view_mat
+      mvp = projection_mat * view_mat
+      crateTexture
 
-    shadingDsl(GL_TRIANGLES, sphereIndices.len.GLsizei):
-      uniforms:
-        normalMat = view_mat * model_mat
-        mvp = projection_mat * view_mat * model_mat
-        crateTexture
+    attributes:
+      indices = sphereIndices
+      pos = sphereVertices
 
-      attributes:
-        indices = sphereIndices
-        pos = sphereVertices
+      instanceData:
+        offset = positions
 
-        instanceData:
-          offset = positions
+    vertexMain:
+      """
+      gl_Position = mvp * vec4(pos + offset, 1);
+      v_normal = normalMat * vec4(pos,0);
+      """
 
-      vertexMain:
-        """
-        gl_Position = mvp * vec4(pos, 1);
-        v_normal = normalMat * vec4(pos,0);
-        """
+    vertexOut:
+      "out vec4 v_normal"
 
-      vertexOut:
-        "out vec4 v_normal"
-
-      fragmentMain:
-        """
-        //color.rgb = (v_normal.xyz + vec3(1))/2;
-        color.rgb = v_normal.xyz;
-        """
+    fragmentMain:
+      """
+      //color.rgb = (v_normal.xyz + vec3(1))/2;
+      color.rgb = v_normal.xyz;
+      """
 
   glSwapWindow(window)
 
