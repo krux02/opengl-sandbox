@@ -243,6 +243,11 @@ let
   sphereNormals = uvSphereNormals(32,16).arrayBuffer
   sphereIndices = uvSphereIndices(32,16).elementArrayBuffer
 
+declareFramebuffer(Fb1FramebufferType):
+  depth = newRenderbuffer(windowsize)
+  color = newTexture(windowsize)
+  normal = newTexture(windowsize)
+
 if 0 != glSetSwapInterval(-1):
   echo "glSetSwapInterval -1 not supported"
   echo sdl2.getError()
@@ -254,12 +259,9 @@ if 0 != glSetSwapInterval(-1):
 
 glClearColor(0.0, 0.0, 0.0, 1.0)                  # Set background color to black and opaque
 glClearDepth(1.0)                                 # Set background depth to farthest
-glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-culling
-glDepthFunc(GL_LEQUAL)                            # Set the type of depth-test
+glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-culling                          # Set the type of depth-test
 glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST) # Nice perspective corrections
 
-glEnable(GL_CULL_FACE)
-glCullFace(GL_BACK)
 
 let projection_mat = perspective(45.0, windowsize.x / windowsize.y, 0.1, 100.0)
 
@@ -270,19 +272,22 @@ var
 
   movement = vec3d(0,0,0)
   rotation = vec2d(PI/2,0)
-  position = vec3d(32,32, hm[32,32] + 1.8 )
+  position = vec3d(32,32, hm[32,32] + 10 )
 
-  positions = newSeq[Vec3f](50)
-  positionsBuffer = positions.arrayBuffer
+  positions = newSeq[Vec3f](20)
+  colors = newSeq[Vec3f](50)
+
+for i in 0 .. < colors.len:
+  colors[i] = vec3f(random(1.0).float32, random(1.0).float32, random(1.0).float32)
+
+let colorsBuffer = colors.arrayBuffer
 
 proc render() =
-  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
+  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT) # Clear color and depth buffers
 
   let time = simulationTime
 
-  var
-    model_mat = I4()
-    view_mat = I4()
+  var view_mat = I4()
 
   view_mat = view_mat.translate( position )
   view_mat = view_mat.rotate( vec3d(0,0,1), rotation.y )
@@ -293,12 +298,17 @@ proc render() =
   position = position + movement_ws
 
   view_mat = view_mat.inverse
+  #bindFramebuffer(fb1, Fb1FramebufferType):
+
+  glEnable(GL_CULL_FACE)
+  glCullFace(GL_BACK)
+  glDepthFunc(GL_LEQUAL)
 
   shadingDsl(GL_TRIANGLES):
     numVertices = hmindices.len.GLsizei
 
     uniforms:
-      modelview = view_mat * model_mat
+      modelview = view_mat
       projection = projection_mat
       time
       crateTexture
@@ -311,7 +321,7 @@ proc render() =
     vertexMain:
       """
       gl_Position = projection * modelview * vec4(pos, 1);
-      v_texcoord = texcoord;
+      v_texcoord = texcoord * 64.0;
       v_eyepos = (modelview * vec4(pos, 1)).xyz;
       """
 
@@ -338,51 +348,94 @@ proc render() =
 
     fragmentMain:
       """
-      //color = texture(crateTexture, g_texcoord);
-      color.rgb = g_normal;
-      //color.rgb = (g_normal.xyz + vec3(1))/2;
+      color = texture(crateTexture, g_texcoord);
+      //normal.rgb = g_normal;
+      //normal.rgb = (g_normal.xyz + vec3(1))/2;
       """
+
+
 
   for i in 0 .. < positions.len:
     let
-      alpha = (i / positions.len) * 2 * PI + time * 0.1f
-      x = cos(alpha).float32 * 50.0f
-      y = sin(alpha).float32 * 50.0f
-      z = hm[x,y] + 1.5f
+      distance = time * 10
+      r = float32((i+1) / positions.len) * 32
+      alpha = distance / r
+      x = cos(alpha).float32 * r + 32
+      y = sin(alpha).float32 * r + 32
+      z = -33.0f
+      #z = hm[x,y] + 1.5f
 
     positions[i] = vec3f(x, y, z)
 
 
-  shadingDsl(GL_TRIANGLES):
-    numVertices = sphereIndices.len.GLsizei
-    numInstances = positions.len.GLsizei
+  glEnable(GL_STENCIL_TEST)
 
-    uniforms:
-      normalMat = view_mat
-      mvp = projection_mat * view_mat
-      crateTexture
+  for i in 1..2:
 
-    attributes:
-      indices = sphereIndices
-      pos = sphereVertices
+    if i == 1:
+      glDisable(GL_CULL_FACE)
+      #glCullFace(GL_FRONT)
+      glDepthFunc(GL_LEQUAL)
+      #
 
-      instanceData:
-        offset = positions
 
-    vertexMain:
-      """
-      gl_Position = mvp * vec4(pos + offset, 1);
-      v_normal = normalMat * vec4(pos,0);
-      """
+      glColorMask(false, false, false, false)
+      glDepthMask(false)
+      glStencilOpSeparate(GL_FRONT,  GL_KEEP,  GL_KEEP, GL_INCR_WRAP)
+      glStencilOpSeparate(GL_BACK, GL_KEEP, GL_KEEP, GL_DECR_WRAP)
+      #glStencilFunc(GL_EQUAL,  0, 0xff)
+    else:
+      glEnable(GL_CULL_FACE)
+      glCullFace(GL_FRONT)
+      glDepthFunc(GL_GREATER)
 
-    vertexOut:
-      "out vec4 v_normal"
+      glStencilOp(GL_KEEP,  GL_KEEP, GL_KEEP)
 
-    fragmentMain:
-      """
-      //color.rgb = (v_normal.xyz + vec3(1))/2;
-      color.rgb = v_normal.xyz;
-      """
+      glColorMask(true, true, true, true)
+      glDepthMask(true)
+
+      glStencilFunc(GL_GEQUAL, 1, 0xff)
+
+
+    shadingDsl(GL_TRIANGLES):
+      numVertices = sphereIndices.len.GLsizei
+      numInstances = positions.len.GLsizei
+
+      uniforms:
+        normalMat = view_mat
+        mvp = projection_mat * view_mat
+        scale = 3
+        crateTexture
+
+      attributes:
+        indices = sphereIndices
+        pos = sphereVertices
+
+        instanceData:
+          offset = positions
+          col = colorsBuffer
+
+      vertexMain:
+        """
+        gl_Position = mvp * vec4(pos * scale + offset, 1);
+        v_normal = normalMat * vec4(pos,0);
+        v_col = col;
+        """
+
+      vertexOut:
+        "out vec4 v_normal"
+        "out vec3 v_col"
+
+      fragmentMain:
+        """
+        //color.rgb = (v_normal.xyz + vec3(1))/2;
+        color.rgb = v_normal.xyz;
+        //color.rgb = v_col;
+        """
+
+  glDisable(GL_STENCIL_TEST)
+  glColorMask(true, true, true, true)
+  glDepthMask(true)
 
   glSwapWindow(window)
 

@@ -415,13 +415,16 @@ template bindBlock(buffer, blk:untyped) =
   glBindBuffer(buf.bufferKind, GLuint(outer))
 
 proc bufferData*[T](buffer: ArrayBuffer[T], usage: GLenum, data: openarray[T]) =
-  glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
+  if buffer.int > 0:
+    glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
 
 proc bufferData*[T](buffer: ElementArrayBuffer[T], usage: GLenum, data: openarray[T]) =
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
+  if buffer.int > 0:
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
 
 proc bufferData*[T](buffer: UniformBuffer[T], usage: GLenum, data: T) =
-  glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(sizeof(T)), unsafeAddr(data), usage)
+  if buffer.int > 0:
+    glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(sizeof(T)), unsafeAddr(data), usage)
 
 proc len*[T](buffer: ArrayBuffer[T]) : int =
   var size: GLint
@@ -825,7 +828,6 @@ macro shadingDslInner(mode: GLenum, count, numInstances: GLSizei, fragmentOutput
   var geometryLayout: string
   var geometryMain: string
   var fragmentMain: string
-
   var hasIndices = false
   var indexType: NimNode = nil
   var hasInstanceData = false
