@@ -60,9 +60,15 @@ macro nilName(name:expr) : expr =
 template textureTypeTemplate(name, nilName, target:expr, shadername:string): stmt =
   type name* = distinct GLuint
   const nilName* = name(0)
-  proc bindIt*(texture: name) =
-    glBindTexture(target, GLuint(texture))
 
+  proc bindIt*(texture: name) =
+    glBindTexture(target, texture.GLuint)
+
+  proc parameter*(texture: name, pname: GLenum, param: GLint): void =
+    glTextureParameteriEXT(texture.GLuint, target, pname, param)
+
+  proc generateMipmap*(texture: name): void =
+    glGenerateTextureMipmapEXT(texture.GLuint, target)
 
 template textureTypeTemplate(name: expr, target:expr, shadername:string): stmt =
   textureTypeTemplate(name, nilName(name), target, shadername)
@@ -131,74 +137,57 @@ textureTypeTemplate(Texture1DArrayShadow,   nil_Texture1DArrayShadow,   GL_TEXTU
 textureTypeTemplate(Texture2DArrayShadow,   nil_Texture2DArrayShadow,   GL_TEXTURE_2D_ARRAY,       "sampler2DArrayShadow​")
 textureTypeTemplate(TextureCubeArrayShadow, nil_TextureCubeArrayShadow, GL_TEXTURE_CUBE_MAP_ARRAY, "samplerCubeArrayShadow​")
 
-
-proc loadAndBindTextureRectangleFromFile*(filename: string): TextureRectangle =
+proc loadTextureRectangleFromFile*(filename: string): TextureRectangle =
   let surface = image.load(filename)
   defer: freeSurface(surface)
   let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
   defer: freeSurface(surface2)
   glGenTextures(1, cast[ptr GLuint](result.addr))
-  result.bindIt()
-  glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGBA, surface2.w, surface2.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
-  glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-  glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+  glTextureImage2DEXT(result.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_RGBA, surface2.w, surface2.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
+  result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+  result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 
-proc loadAndBindTexture2DFromFile*(filename: string): Texture2D =
+proc loadTexture2DFromFile*(filename: string): Texture2D =
   let surface = image.load(filename)
   defer: freeSurface(surface)
   let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
   defer: freeSurface(surface2)
   glGenTextures(1, cast[ptr GLuint](result.addr))
-  result.bindIt()
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, surface2.w, surface2.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-  glGenerateMipmap(GL_TEXTURE_2D)
+  glTextureImage2DEXT(result.GLuint, GL_TEXTURE_2D, 0, GL_RGBA, surface2.w, surface2.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
+  result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+  result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+  result.generateMipmap
 
 proc size*(tex: Texture2D): Vec2f =
-  var outer_tex : GLint
-  glGetIntegerv(GL_TEXTURE_BINDING_2D, outer_tex.addr)
-  tex.bindIt
   var w,h: GLint
-  glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, w.addr)
-  glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, h.addr)
+  glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, w.addr)
+  glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, h.addr)
   result = vec2f(w.float32, h.float32)
-  glBindTexture(GL_TEXTURE_2D, outer_tex.GLuint)
-
-#proc `size=`(tex: Texture2D, size: Vec2f) =
-#  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, size.x.GLsizei, size.y.GLsizei, 0,GL_RGB, cGL_UNSIGNED_BYTE, nil)
 
 proc createAndBindEmptyTexture2D*(size: Vec2f) : Texture2D =
   glGenTextures(1, cast[ptr GLuint](result.addr))
+  glTextureImage2DEXT(result.GLuint, GL_TEXTURE_2D, 0, GL_RGB, size.x.GLsizei, size.y.GLsizei, 0,GL_RGB, cGL_UNSIGNED_BYTE, nil)
+  result.parameter(GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+  result.parameter(GL_TEXTURE_MIN_FILTER, GL_NEAREST)
   result.bindIt
-  glTexImage2D(GL_TEXTURE_2D, 0,GL_RGB, size.x.GLsizei, size.y.GLsizei, 0,GL_RGB, cGL_UNSIGNED_BYTE, nil)
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
-
 
 proc size*(tex: TextureRectangle): Vec2f =
-  var outer_tex : GLint
-  glGetIntegerv(GL_TEXTURE_BINDING_RECTANGLE, outer_tex.addr)
-  tex.bindIt
   var w,h: GLint
-  glGetTexLevelParameteriv(GL_TEXTURE_RECTANGLE, 0, GL_TEXTURE_WIDTH, w.addr)
-  glGetTexLevelParameteriv(GL_TEXTURE_RECTANGLE, 0, GL_TEXTURE_HEIGHT, h.addr)
+  glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_TEXTURE_WIDTH, w.addr)
+  glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_TEXTURE_HEIGHT, h.addr)
   result = vec2f(w.float32, h.float32)
-  glBindTexture(GL_TEXTURE_RECTANGLE, outer_tex.GLuint)
 
 proc saveToBmpFile*(tex: Texture2D, filename: string): void =
-  tex.bindIt
   let s = tex.size
   var surface = createRGBSurface(0, s.x.int32, s.y.int32, 32, 0xff000000.uint32, 0x00ff0000, 0x0000ff00, 0x000000ff)  # no alpha, rest default
-  glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface.pixels)
-  saveBMP(surface, filename)
+  glGetTextureImageEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface.pixels)
+  surface.saveBMP(filename)
 
 proc saveToBmpFile*(tex: TextureRectangle, filename: string): void =
-  tex.bindIt
   let s = tex.size
   var surface = createRGBSurface(0, s.x.int32, s.y.int32, 32, 0xff000000.uint32, 0x00ff0000, 0x0000ff00, 0x000000ff)  # no alpha, rest default
-  glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface.pixels)
-  saveBMP(surface, filename)
+  glGetTextureImageEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface.pixels)
+  surface.saveBMP(filename)
 
 #### framebuffer ####
 
@@ -220,13 +209,13 @@ proc bindIt*(fb: FrameBuffer): void =
 proc createFrameBuffer*(): FrameBuffer =
   glGenFramebuffers(1, cast[ptr GLuint](result.addr))
 
-proc drawBuffers*(args : varargs[GLenum]) =
+proc drawBuffers*(fb: FrameBuffer, args : varargs[GLenum]) =
   var tmp = newSeq[GLenum](args.len)
   for i, arg in args:
     tmp[i] = arg
 
   if tmp.len > 0:
-    glDrawBuffers(tmp.len.GLsizei, tmp[0].addr)
+    glFramebufferDrawBuffersEXT(fb.GLuint, tmp.len.GLsizei, tmp[0].addr)
 
 #let renderedTexture = createAndBindEmptyTexture2D( windowsize )
 
@@ -548,7 +537,7 @@ macro declareFramebuffer*(typename,arg:untyped) : stmt =
     newDotExpr(!!"fb1", !!"glname", bindSym"GLuint")
   ))
 
-  let drawBuffersCall = newCall(bindSym"drawBuffers")
+  let drawBuffersCall = newCall(bindSym"drawBuffers", newDotExpr(!!"fb1", !!"glname"))
 
   for i,name in fragmentOutputs:
     branchStmtList.add(newAssignment( newDotExpr( !!"fb1", !! name ),

@@ -83,8 +83,7 @@ let screenSpaceTriangleTexcoords = @[
 
 let indices = toSeq( countup[int8,int8](0, int8(vertex.len-1)) ).elementArrayBuffer
 
-let crateTexture = loadAndBindTexture2DFromFile("crate.png")
-let crateTextureRect = loadAndBindTextureRectangleFromFile("crate.png")
+let crateTexture = loadTexture2DFromFile("crate.png")
 
 declareFramebuffer(Fb1FramebufferType):
   depth = newRenderbuffer(windowsize)
