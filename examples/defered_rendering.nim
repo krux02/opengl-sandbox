@@ -232,8 +232,7 @@ let context = window.glCreateContext()
 loadExtensions()
 
 let
-  crateTexture = loadAndBindTexture2DFromFile("crate.png")
-
+  crateTexture = loadTexture2DFromFile("crate.png")
 
   hmVertices = hm.vertices.arrayBuffer
   hmTexCoords = hm.texCoords.arrayBuffer
@@ -274,7 +273,7 @@ var
   rotation = vec2d(PI/2,0)
   position = vec3d(32,32, hm[32,32] + 10 )
 
-  positions = newSeq[Vec3f](20)
+  positions = newSeq[Vec3f](20).arrayBuffer
   colors = newSeq[Vec3f](50)
 
 for i in 0 .. < colors.len:
@@ -354,18 +353,18 @@ proc render() =
       """
 
 
+  mapBufferBlock(positions, GL_WRITE_ONLY):
+    for i in 0 .. < positions.len:
+      let
+        distance = time * 10
+        r = float32((i+1) / positions.len) * 32
+        alpha = distance / r
+        x = cos(alpha).float32 * r + 32
+        y = sin(alpha).float32 * r + 32
+        z = -33.0f
+        #z = hm[x,y] + 1.5f
 
-  for i in 0 .. < positions.len:
-    let
-      distance = time * 10
-      r = float32((i+1) / positions.len) * 32
-      alpha = distance / r
-      x = cos(alpha).float32 * r + 32
-      y = sin(alpha).float32 * r + 32
-      z = -33.0f
-      #z = hm[x,y] + 1.5f
-
-    positions[i] = vec3f(x, y, z)
+      mappedBuffer[i] = vec3f(x, y, z)
 
 
   glEnable(GL_STENCIL_TEST)

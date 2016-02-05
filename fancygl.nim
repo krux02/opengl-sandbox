@@ -164,12 +164,11 @@ proc size*(tex: Texture2D): Vec2f =
   glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, h.addr)
   result = vec2f(w.float32, h.float32)
 
-proc createAndBindEmptyTexture2D*(size: Vec2f) : Texture2D =
+proc createEmptyTexture2D*(size: Vec2f) : Texture2D =
   glGenTextures(1, cast[ptr GLuint](result.addr))
   glTextureImage2DEXT(result.GLuint, GL_TEXTURE_2D, 0, GL_RGB, size.x.GLsizei, size.y.GLsizei, 0,GL_RGB, cGL_UNSIGNED_BYTE, nil)
   result.parameter(GL_TEXTURE_MAG_FILTER, GL_NEAREST)
   result.parameter(GL_TEXTURE_MIN_FILTER, GL_NEAREST)
-  result.bindIt
 
 proc size*(tex: TextureRectangle): Vec2f =
   var w,h: GLint
@@ -196,10 +195,9 @@ type DepthRenderbuffer* = distinct GLuint
 proc bindIt*(drb: DepthRenderbuffer): void =
   glBindRenderbuffer(GL_RENDERBUFFER, drb.GLuint)
 
-proc createAndBindDepthRenderBuffer*(size: Vec2f) : DepthRenderbuffer =
+proc createDepthRenderBuffer*(size: Vec2f) : DepthRenderbuffer =
   glGenRenderbuffers(1, cast[ptr GLuint](result.addr))
-  glBindRenderbuffer(GL_RENDERBUFFER, result.GLuint)
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, size.x.GLsizei, size.y.GLsizei)
+  glNamedRenderbufferStorageEXT(result.GLuint, GL_DEPTH_COMPONENT, size.x.GLsizei, size.y.GLsizei)
 
 type FrameBuffer* = distinct GLuint
 
@@ -337,6 +335,16 @@ proc delete*(vao: VertexArrayObject) =
   var raw_vao = GLuint(vao)
   glDeleteVertexArrays(1, raw_vao.addr)
 
+
+proc divisor(vao: VertexArrayObject, index, divisor: GLuint) : void =
+  glVertexArrayVertexBindingDivisorEXT(vao.GLuint, index, divisor)
+
+proc enableAttrib(vao: VertexArrayObject, index: GLuint) : void =
+  glEnableVertexArrayAttribEXT(vao.GLuint, index)
+
+#proc divisor(vao: VertexArrayObject, index: GLuint) : GLuint =
+
+
 template blockBind*(vao: VertexArrayObject, blk: stmt) : stmt =
   vao.bindIt
   blk
@@ -455,6 +463,75 @@ proc uniformBuffer*[T](data : T): UniformBuffer[T] =
   result.bufferData(GL_STATIC_DRAW, data)
   glBindBuffer(GL_UNIFORM_BUFFER, GLuint(outer))
 
+proc access[T](buffer: ArrayBuffer[T]) : GLenum =
+  var tmp: GLint
+  glGetNamedBufferParameterivEXT(buffer.GLuint, GL_BUFFER_ACCESS, tmp.addr)
+  return tmp.GLenum
+
+proc accessFlags[T](buffer: ArrayBuffer[T]) : GLenum =
+  var tmp: GLint
+  glGetNamedBufferParameterivEXT(buffer.GLuint, GL_BUFFER_ACCESS_FLAGS, tmp.addr)
+  return tmp.GLenum
+
+proc immutableStorage[T](buffer: ArrayBuffer[T]) : bool =
+  var tmp: GLint
+  glGetNamedBufferParameterivEXT(buffer.GLuint, GL_BUFFER_IMMUTABLE_STORAGE, tmp.addr)
+  return tmp != GL_FALSE
+
+proc mapped[T](buffer: ArrayBuffer[T]) : bool =
+  var tmp: GLint
+  glGetNamedBufferParameterivEXT(buffer.GLuint, GL_BUFFER_MAPPED, tmp.addr)
+  return tmp != GL_FALSE
+
+proc mapLength[T](buffer: ArrayBuffer[T]) : int =
+  var tmp: pointer
+  glGetNamedBufferPointervEXT(buffer.GLuint, GL_BUFFER_MAP_LENGTH, tmp.addr)
+  return int(tmp)
+
+proc mapOffset[T](buffer: ArrayBuffer[T]) : int =
+  var tmp: pointer
+  glGetNamedBufferPointervEXT(buffer.GLuint, GL_BUFFER_MAP_LENGTH, tmp.addr)
+  return int(tmp)
+
+proc size[T](buffer: ArrayBuffer[T]) : int =
+  var tmp: GLint
+  glGetNamedBufferParameterivEXT(buffer.GLuint, GL_BUFFER_MAPPED, tmp.addr)
+  return int(tmp)
+
+proc storageFlags[T](buffer: ArrayBuffer[T]) : GLenum =
+  var tmp: GLint
+  glGetNamedBufferParameterivEXT(buffer.GLuint, GL_BUFFER_STORAGE_FLAGS, tmp.addr)
+  return tmp.GLenum
+
+proc usage[T](buffer: ArrayBuffer[T]) : GLenum =
+  var tmp: GLint
+  glGetNamedBufferParameterivEXT(buffer.GLuint, GL_BUFFER_USAGE, tmp.addr)
+  return tmp.GLenum
+
+#proc unmap[T](buffer: ElementArrayBuffer[T]): void =
+#  glUnmapNamedBufferEXT(buffer.GLuint)
+type MappedBuffer*[T] = object
+  data: ptr[T]
+  len*: int
+
+proc `[]=`*[T](mb : MappedBuffer[T], index: int, val: T) : void =
+  let data = cast[ptr[T]](cast[int](mb.data) + (index * sizeof(T)))
+  data[] = val
+
+proc unmap*[T](buffer: ArrayBuffer[T]): bool =
+  glUnmapNamedBufferEXT(buffer.GLuint) != GL_FALSE.GLboolean
+
+proc map*[T](buffer: ArrayBuffer[T], access: GLenum = GL_READ_WRITE): MappedBuffer[T] =
+  result.data = cast[ptr[T]](glMapNamedBufferEXT(buffer.GLuint, access))
+  result.len = buffer.size div sizeof(T)
+
+template mapBufferBlock*(buffer: untyped, access: GLenum, blck: untyped) : stmt =
+  block:
+    var mappedBuffer {. inject .} = buffer.map(access)
+    blck
+
+  discard buffer.unmap
+
 #### framebuffer ####
 
 const currentFramebuffer* = 0
@@ -482,7 +559,7 @@ macro declareFramebuffer*(typename,arg:untyped) : stmt =
         echo rhs.treerepr
         if rhs.kind == nnkCall and rhs[0].ident == !"newRenderbuffer":
           depthType = bindSym"DepthRenderbuffer"
-          depthCreateExpr = newCall(bindSym"createAndBindDepthRenderBuffer", rhs[1])
+          depthCreateExpr = newCall(bindSym"createDepthRenderBuffer", rhs[1])
 
     else:
       fragmentOutputs.add($asgn[0])
@@ -528,22 +605,22 @@ macro declareFramebuffer*(typename,arg:untyped) : stmt =
     newCall(bindSym"createFrameBuffer")
   ))
 
-  branchStmtList.add(newDotExpr(!!"fb1", !!"glname", !!"bindIt"))
   branchStmtList.add(newAssignment(newDotExpr(!!"fb1", !!"depth"),
     depthCreateExpr
   ))
-  branchStmtList.add(newCall(bindSym"glFramebufferRenderbuffer", bindSym"GL_FRAMEBUFFER",
+  branchStmtList.add(newCall(bindSym"glNamedFramebufferRenderbufferEXT", newDotExpr(!!"fb1", !!"glname", bindSym"GLuint"),
     bindSym"GL_DEPTH_ATTACHMENT", bindSym"GL_RENDERBUFFER",
-    newDotExpr(!!"fb1", !!"glname", bindSym"GLuint")
+    newDotExpr(!!"fb1", !!"depth", bindSym"GLuint")
   ))
 
   let drawBuffersCall = newCall(bindSym"drawBuffers", newDotExpr(!!"fb1", !!"glname"))
 
   for i,name in fragmentOutputs:
     branchStmtList.add(newAssignment( newDotExpr( !!"fb1", !! name ),
-      newCall( bindSym"createAndBindEmptyTexture2D", !!"windowsize" ),
+      newCall( bindSym"createEmptyTexture2D", !!"windowsize" ),
     ))
-    branchStmtList.add(newCall(bindSym"glFramebufferTexture", bindSym"GL_FRAMEBUFFER", !!("GL_COLOR_ATTACHMENT" & $i),
+    branchStmtList.add(newCall(bindSym"glNamedFramebufferTextureEXT",
+      newDotExpr(!!"fb1", !!"glname", bindSym"GLuint"), !!("GL_COLOR_ATTACHMENT" & $i),
       newDotExpr(!!"fb1", !! name, bindSym"GLuint"), newLit(0)
     ))
     drawBuffersCall.add( newCall(bindSym"GLenum", !!("GL_COLOR_ATTACHMENT" & $i)) )
@@ -577,6 +654,8 @@ macro declareFramebuffer*(typename,arg:untyped) : stmt =
       procStmtList
     )
   )
+
+  #echo result.repr
 
 template bindFramebuffer*(name, tpe, blok: untyped): stmt =
   var name {.global.}: tpe
@@ -727,10 +806,10 @@ proc makeAndBindElementBuffer[T](buffer: var ElementArraybuffer[T]) =
   buffer = newElementArrayBuffer[T]()
   buffer.bindIt
 
-proc myEnableVertexAttribArray(index: GLint, divisor: GLuint): void =
+proc myEnableVertexAttribArray(vao: VertexArrayObject, index: GLint, divisorval: GLuint): void =
   if index >= 0:
-    glEnableVertexAttribArray(index.GLuint)
-    glVertexAttribDivisor(index.GLuint, divisor.GLuint)
+    vao.enableAttrib(index.GLuint)
+    vao.divisor(index.GLuint, divisorval)
 
 template renderBlockTemplate(numLocations: int, globalsBlock, linkShaderBlock, bufferCreationBlock,
                initUniformsBlock, setUniformsBlock, drawCommand: expr): stmt {. dirty .} =
@@ -749,12 +828,14 @@ template renderBlockTemplate(numLocations: int, globalsBlock, linkShaderBlock, b
       initUniformsBlock
 
       vao = newVertexArrayObject()
-      bindIt(vao)
+      vao.bindIt
 
       bufferCreationBlock
 
       glBindBuffer(GL_ARRAY_BUFFER, 0)
-      bindIt(nil_vao)
+
+      nil_vao.bindIt
+
       glUseProgram(0)
 
       #for i, loc in locations:
@@ -795,9 +876,6 @@ proc incl(arg: string): int = 0
 ################################################################################
 
 macro shadingDslInner(mode: GLenum, count, numInstances: GLSizei, fragmentOutputs: static[seq[string]], statement: varargs[typed] ) : stmt =
-  echo "shadingDslInner fragmentOutputs:"
-  for i,output in fragmentOutputs:
-    echo "out(", i, "): ", output
 
   var numSamplers = 0
   var numLocations = 0
@@ -865,7 +943,6 @@ macro shadingDslInner(mode: GLenum, count, numInstances: GLSizei, fragmentOutput
         innerCall[1].expectKind nnkStrLit
         let name = $innerCall[1]
         let value = innerCall[2]
-        echo "divisor: ", innerCall[3].treeRepr
         let divisor: int =
           if innerCall[3].kind == nnkHiddenStdConv:
             innerCall[3][1].intVal.int
@@ -925,7 +1002,7 @@ macro shadingDslInner(mode: GLenum, count, numInstances: GLSizei, fragmentOutput
             newCall( bindSym"glGetAttribLocation", !! "glProgram", newLit(name) )
           ))
 
-          bufferCreationBlock.add(newCall(bindSym"myEnableVertexAttribArray", locations(numLocations), newLit(divisor)))
+          bufferCreationBlock.add(newCall(bindSym"myEnableVertexAttribArray", !!"vao", locations(numLocations), newLit(divisor)))
 
         if isSeq:
           if isAttrib:
@@ -1035,9 +1112,6 @@ macro shadingDslInner(mode: GLenum, count, numInstances: GLSizei, fragmentOutput
       else:
         newCall( bindSym"glDrawArrays", mode, newLit(0), count )
 
-  echo drawCommand.repr
-  echo drawCommand.treeRepr
-
   result = getAst(renderBlockTemplate(numLocations, globalsBlock, linkShaderBlock,
          bufferCreationBlock, initUniformsBlock, setUniformsBlock, drawCommand))
 
@@ -1115,7 +1189,6 @@ macro shadingDsl*(mode:GLenum, statement: stmt) : stmt {.immediate.} =
           else:
             handleCapture(attributesCall, capture, 0)
 
-        echo attributesCall.repr
         result.add(attributesCall)
 
       of "vertexOut", "geometryOut", "fragmentOut":
