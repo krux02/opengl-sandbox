@@ -225,7 +225,7 @@ discard sdl2.init(INIT_EVERYTHING)
 var windowsize = vec2f(640,480)
 var viewport = vec4f(0,0,640,480)
 
-let window = createWindow("SDL/OpenGL Skeleton", 100, 100, windowsize.x.cint, windowsize.y.cint, SDL_WINDOW_OPENGL or SDL_WINDOW_MOUSE_FOCUS)
+let window = createWindow("SDL/OpenGL Skeleton", 100, 100, windowsize.x.cint, windowsize.y.cint, SDL_WINDOW_OPENGL or SDL_WINDOW_MOUSE_CAPTURE)
 let context = window.glCreateContext()
 
 # Initialize OpenGL
@@ -242,8 +242,16 @@ let
   sphereNormals = uvSphereNormals(32,16).arrayBuffer
   sphereIndices = uvSphereIndices(32,16).elementArrayBuffer
 
+  screenSpaceTriangleVerts = @[
+    vec4f(-1,-1,1,1), vec4f(3,-1,1,1), vec4f(-1,3,1,1)
+  ].arrayBuffer
+
+  screenSpaceTriangleTexcoords = @[
+    vec2f(0,0), vec2f(2,0), vec2f(0,2)
+  ].arrayBuffer
+
 declareFramebuffer(Fb1FramebufferType):
-  depth = newRenderbuffer(windowsize)
+  depth = newTexture(windowsize)
   color = newTexture(windowsize)
   normal = newTexture(windowsize)
 
@@ -274,15 +282,13 @@ var
   position = vec3d(32,32, hm[32,32] + 10 )
 
   positions = newSeq[Vec3f](20).arrayBuffer
-  colors = newSeq[Vec3f](50)
+  colors = newSeq[Vec3f](50).arrayBuffer
 
-for i in 0 .. < colors.len:
-  colors[i] = vec3f(random(1.0).float32, random(1.0).float32, random(1.0).float32)
-
-let colorsBuffer = colors.arrayBuffer
+mapBufferBlock(colors, GL_WRITE_ONLY):
+  for i in 0 .. < colors.len:
+    mappedBuffer[i] = vec3f(random(1.0).float32, random(1.0).float32, random(1.0).float32)
 
 proc render() =
-  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT) # Clear color and depth buffers
 
   let time = simulationTime
 
@@ -297,60 +303,69 @@ proc render() =
   position = position + movement_ws
 
   view_mat = view_mat.inverse
-  #bindFramebuffer(fb1, Fb1FramebufferType):
 
-  glEnable(GL_CULL_FACE)
-  glCullFace(GL_BACK)
-  glDepthFunc(GL_LEQUAL)
+  # Clear color and depth buffers
+  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT)
 
-  shadingDsl(GL_TRIANGLES):
-    numVertices = hmindices.len.GLsizei
-
-    uniforms:
-      modelview = view_mat
-      projection = projection_mat
-      time
-      crateTexture
-
-    attributes:
-      indices = hmIndices
-      pos = hmVertices
-      texcoord = hmTexCoords
-
-    vertexMain:
-      """
-      gl_Position = projection * modelview * vec4(pos, 1);
-      v_texcoord = texcoord * 64.0;
-      v_eyepos = (modelview * vec4(pos, 1)).xyz;
-      """
-
-    vertexOut:
-      "out vec2 v_texcoord"
-      "out vec3 v_eyepos"
-
-    geometryMain:
-      "layout(triangle_strip, max_vertices=3) out"
-      """
-      g_normal = normalize(cross(v_eyepos[1] - v_eyepos[0], v_eyepos[2] - v_eyepos[0]));
-
-      for( int i=0; i < 3; i++) {
-        gl_Position = projection * vec4(v_eyepos[i], 1);
-        g_texcoord = v_texcoord[i];
-        EmitVertex();
-      }
-      """
+  bindFramebuffer(fb1, Fb1FramebufferType):
+    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT)
 
 
-    geometryOut:
-      "out vec2 g_texcoord"
-      "out vec3 g_normal"
+    glEnable(GL_CULL_FACE)
+    glCullFace(GL_BACK)
+    glDepthFunc(GL_LEQUAL)
 
-    fragmentMain:
-      """
-      color = texture(crateTexture, g_texcoord);
-      //normal.rgb = g_normal;
-      //normal.rgb = (g_normal.xyz + vec3(1))/2;
-      """
+    shadingDsl(GL_TRIANGLES):
+      numVertices = hmindices.len.GLsizei
+      numInstances = 10
+
+      uniforms:
+        modelview = view_mat
+        projection = projection_mat
+        time
+        crateTexture
+
+      attributes:
+        indices = hmIndices
+        pos = hmVertices
+        texcoord = hmTexCoords
+
+      vertexMain:
+        """
+        vec3 offset;
+        offset.x = gl_InstanceID * 64;
+        gl_Position = projection * modelview * vec4(pos + offset, 1);
+        v_texcoord = texcoord * 64.0;
+        v_eyepos = (modelview * vec4(pos, 1)).xyz;
+        """
+
+      vertexOut:
+        "out vec2 v_texcoord"
+        "out vec3 v_eyepos"
+
+      geometryMain:
+        "layout(triangle_strip, max_vertices=3) out"
+        """
+        g_normal = normalize(cross(v_eyepos[1] - v_eyepos[0], v_eyepos[2] - v_eyepos[0]));
+
+        for( int i=0; i < 3; i++) {
+          gl_Position = projection * vec4(v_eyepos[i], 1);
+          g_texcoord = v_texcoord[i];
+          EmitVertex();
+        }
+        """
+
+
+      geometryOut:
+        "out vec2 g_texcoord"
+        "out vec3 g_normal"
+
+      fragmentMain:
+        """
+        color = texture(crateTexture, g_texcoord) * g_normal.z;
+        //normal.rgb = g_normal;
+        //normal.rgb = (g_normal.xyz + vec3(1))/2;
+        """
 
 
   mapBufferBlock(positions, GL_WRITE_ONLY):
@@ -366,75 +381,78 @@ proc render() =
 
       mappedBuffer[i] = vec3f(x, y, z)
 
+  fb1.color.generateMipmap
 
-  glEnable(GL_STENCIL_TEST)
+  shadingDsl(GL_TRIANGLES):
+    numVertices = 3
 
-  for i in 1..2:
+    uniforms:
+      tex = fb1.color
+      depth = fb1.depth
+      time
+      viewport
+      texSize = fb1.color.size
 
-    if i == 1:
-      glDisable(GL_CULL_FACE)
-      #glCullFace(GL_FRONT)
-      glDepthFunc(GL_LEQUAL)
-      #
+    attributes:
+      pos = screenSpaceTriangleVerts
+      texcoord = screenSpaceTriangleTexcoords
+
+    vertexMain:
+      """
+      gl_Position = pos;
+      v_texcoord = texcoord;
+      """
+
+    vertexOut:
+      "out vec2 v_texcoord"
+
+    fragmentMain:
+      """
+      vec2 offset = vec2(sin(gl_FragCoord.y / 8) * 0.01, 0);
+      vec2 texcoord = (v_texcoord * viewport.zw ) / texSize;
+      vec4 t_col = texture(tex, texcoord + offset);
+      gl_FragDepth = texture(depth, texcoord + offset).x;
+      color = t_col;
+      """
+
+  shadingDsl(GL_TRIANGLES):
+    numVertices = sphereIndices.len.GLsizei
+    numInstances = positions.len.GLsizei
+
+    uniforms:
+      normalMat = view_mat
+      mvp = projection_mat * view_mat
+      scale = 3
+      crateTexture
+
+    attributes:
+      indices = sphereIndices
+      pos = sphereVertices
+
+      instanceData:
+        offset = positions
+        col = colors
+
+    vertexMain:
+      """
+      gl_Position = mvp * vec4(pos * scale + offset, 1);
+      v_normal = normalMat * vec4(pos,0);
+      v_col = col;
+      """
+
+    vertexOut:
+      "out vec4 v_normal"
+      "out vec3 v_col"
+
+    fragmentMain:
+      """
+      //color.rgb = (v_normal.xyz + vec3(1))/2;
+      //color.rgb = v_normal.xyz;
+      //color.rgb = v_col;
+      color.rgb = v_col * abs(v_normal.z);
+      """
 
 
-      glColorMask(false, false, false, false)
-      glDepthMask(false)
-      glStencilOpSeparate(GL_FRONT,  GL_KEEP,  GL_KEEP, GL_INCR_WRAP)
-      glStencilOpSeparate(GL_BACK, GL_KEEP, GL_KEEP, GL_DECR_WRAP)
-      #glStencilFunc(GL_EQUAL,  0, 0xff)
-    else:
-      glEnable(GL_CULL_FACE)
-      glCullFace(GL_FRONT)
-      glDepthFunc(GL_GREATER)
-
-      glStencilOp(GL_KEEP,  GL_KEEP, GL_KEEP)
-
-      glColorMask(true, true, true, true)
-      glDepthMask(true)
-
-      glStencilFunc(GL_GEQUAL, 1, 0xff)
-
-
-    shadingDsl(GL_TRIANGLES):
-      numVertices = sphereIndices.len.GLsizei
-      numInstances = positions.len.GLsizei
-
-      uniforms:
-        normalMat = view_mat
-        mvp = projection_mat * view_mat
-        scale = 3
-        crateTexture
-
-      attributes:
-        indices = sphereIndices
-        pos = sphereVertices
-
-        instanceData:
-          offset = positions
-          col = colorsBuffer
-
-      vertexMain:
-        """
-        gl_Position = mvp * vec4(pos * scale + offset, 1);
-        v_normal = normalMat * vec4(pos,0);
-        v_col = col;
-        """
-
-      vertexOut:
-        "out vec4 v_normal"
-        "out vec3 v_col"
-
-      fragmentMain:
-        """
-        //color.rgb = (v_normal.xyz + vec3(1))/2;
-        color.rgb = v_normal.xyz;
-        //color.rgb = v_col;
-        """
-
-  glDisable(GL_STENCIL_TEST)
-  glColorMask(true, true, true, true)
-  glDepthMask(true)
 
   glSwapWindow(window)
 
@@ -445,6 +463,8 @@ var
   simulationTimeOffset = 0.0
   fpsFrameCounter = 0
   fpsFrameCounterStartTime = 0.0
+
+#captureMouse(SDL_True)
 
 while runGame:
   let time = float64( getTicks() ) / 1000.0
@@ -477,8 +497,8 @@ while runGame:
 
   var state = getKeyboardState()
 
-  movement.z = (state[SDL_SCANCODE_D.int].float - state[SDL_SCANCODE_E.int].float) * 0.05
-  movement.x = (state[SDL_SCANCODE_F.int].float - state[SDL_SCANCODE_S.int].float) * 0.05
+  movement.z = (state[SDL_SCANCODE_D.int].float - state[SDL_SCANCODE_E.int].float) * 0.15
+  movement.x = (state[SDL_SCANCODE_F.int].float - state[SDL_SCANCODE_S.int].float) * 0.15
 
   if not gamePaused:
     simulationTime = time - simulationTimeOffset

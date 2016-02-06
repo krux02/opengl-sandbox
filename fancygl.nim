@@ -167,8 +167,14 @@ proc size*(tex: Texture2D): Vec2f =
 proc createEmptyTexture2D*(size: Vec2f) : Texture2D =
   glGenTextures(1, cast[ptr GLuint](result.addr))
   glTextureImage2DEXT(result.GLuint, GL_TEXTURE_2D, 0, GL_RGB, size.x.GLsizei, size.y.GLsizei, 0,GL_RGB, cGL_UNSIGNED_BYTE, nil)
-  result.parameter(GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-  result.parameter(GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+  result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+  result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+
+proc createEmptyDepthTexture2D*(size: Vec2f) : Texture2D =
+  glGenTextures(1, cast[ptr GLuint](result.addr))
+  glTextureImage2DEXT(result.GLuint, GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, size.x.GLsizei, size.y.GLsizei, 0,GL_DEPTH_COMPONENT, cGL_FLOAT, nil)
+  result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+  result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR)
 
 proc size*(tex: TextureRectangle): Vec2f =
   var w,h: GLint
@@ -349,6 +355,7 @@ template blockBind*(vao: VertexArrayObject, blk: stmt) : stmt =
   vao.bindIt
   blk
   nil_vao.bindIt
+  glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
 
 #### Array Buffers ####
 
@@ -356,13 +363,20 @@ type ArrayBuffer*[T]        = distinct GLuint
 type ElementArrayBuffer*[T] = distinct GLuint
 type UniformBuffer*[T]      = distinct GLuint
 
-proc newArrayBuffer*[T](): ArrayBuffer[T] =
+proc newArrayBuffer[T](): ArrayBuffer[T] =
   glGenBuffers(1, cast[ptr GLuint](result.addr))
 
-proc newElementArrayBuffer*[T](): ElementArrayBuffer[T] =
+proc newElementArrayBuffer[T](): ElementArrayBuffer[T] =
   glGenBuffers(1, cast[ptr GLuint](result.addr))
 
-proc newUniformBuffer*[T](): UniformBuffer[T] =
+proc newUniformBuffer[T](): UniformBuffer[T] =
+  glGenBuffers(1, cast[ptr GLuint](result.addr))
+
+
+proc newArrayBuffer[T](len: int): ArrayBuffer[T] =
+  glGenBuffers(1, cast[ptr GLuint](result.addr))
+
+proc newElementArrayBuffer[T](len: int): ElementArrayBuffer[T] =
   glGenBuffers(1, cast[ptr GLuint](result.addr))
 
 
@@ -413,55 +427,37 @@ template bindBlock(buffer, blk:untyped) =
 
 proc bufferData*[T](buffer: ArrayBuffer[T], usage: GLenum, data: openarray[T]) =
   if buffer.int > 0:
-    glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
+    glNamedBufferDataEXT(buffer.GLuint, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
 
 proc bufferData*[T](buffer: ElementArrayBuffer[T], usage: GLenum, data: openarray[T]) =
   if buffer.int > 0:
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
+    glNamedBufferDataEXT(buffer.GLuint, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
 
 proc bufferData*[T](buffer: UniformBuffer[T], usage: GLenum, data: T) =
   if buffer.int > 0:
-    glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(sizeof(T)), unsafeAddr(data), usage)
+    glNamedBufferDataEXT(buffer.GLuint, GLsizeiptr(sizeof(T)), unsafeAddr(data), usage)
 
 proc len*[T](buffer: ArrayBuffer[T]) : int =
   var size: GLint
-  buffer.bindBlock:
-    glGetBufferParameteriv(GL_ARRAY_BUFFER, GL_BUFFER_SIZE, size.addr)
+  glGetNamedBufferParameterivEXT(buffer.GLuint, GL_BUFFER_SIZE, size.addr)
   return size.int div sizeof(T).int
 
 proc len*[T](buffer: ElementArrayBuffer[T]) : int =
-  var outer : GLint
-  glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, outer.addr)
-  buffer.bindIt
   var size: GLint
-
-  glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, size.addr)
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GLuint(outer))
+  glGetNamedBufferParameterivEXT(buffer.GLuint, GL_BUFFER_SIZE, size.addr)
   return size.int div sizeof(T).int
 
 proc arrayBuffer*[T](data : openarray[T]): ArrayBuffer[T] =
-  var outer : GLint
-  glGetIntegerv(GL_ARRAY_BUFFER_BINDING, outer.addr)
   result = newArrayBuffer[T]()
-  result.bindIt
   result.bufferData(GL_STATIC_DRAW, data)
-  glBindBuffer(GL_ARRAY_BUFFER, GLuint(outer))
 
 proc elementArrayBuffer*[T](data : openarray[T]): ElementArrayBuffer[T] =
-  var outer : GLint
-  glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, outer.addr)
   result = newElementArrayBuffer[T]()
-  result.bindIt
   result.bufferData(GL_STATIC_DRAW, data)
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GLuint(outer))
 
 proc uniformBuffer*[T](data : T): UniformBuffer[T] =
-  var outer : GLint
-  glGetIntegerv(GL_UNIFORM_BUFFER_BINDING, outer.addr)
   result = newElementArrayBuffer[T]()
-  result.bindIt
   result.bufferData(GL_STATIC_DRAW, data)
-  glBindBuffer(GL_UNIFORM_BUFFER, GLuint(outer))
 
 proc access[T](buffer: ArrayBuffer[T]) : GLenum =
   var tmp: GLint
@@ -518,6 +514,10 @@ proc `[]=`*[T](mb : MappedBuffer[T], index: int, val: T) : void =
   let data = cast[ptr[T]](cast[int](mb.data) + (index * sizeof(T)))
   data[] = val
 
+proc `[]`*[T](mb : MappedBuffer[T], index: int) : T =
+  (cast[ptr[T]](cast[int](mb.data) + (index * sizeof(T))))[]
+
+
 proc unmap*[T](buffer: ArrayBuffer[T]): bool =
   glUnmapNamedBufferEXT(buffer.GLuint) != GL_FALSE.GLboolean
 
@@ -548,6 +548,7 @@ macro declareFramebuffer*(typename,arg:untyped) : stmt =
 
   var depthType:NimNode = nil
   var depthCreateExpr:NimNode = nil
+  var useDepthRenderbuffer = true
 
   for asgn in arg:
     asgn.expectKind nnkAsgn
@@ -557,9 +558,17 @@ macro declareFramebuffer*(typename,arg:untyped) : stmt =
 
     if lhs.ident == !"depth":
         echo rhs.treerepr
-        if rhs.kind == nnkCall and rhs[0].ident == !"newRenderbuffer":
+        rhs.expectKind(nnkCall)
+        if rhs[0].ident == !"newRenderbuffer":
           depthType = bindSym"DepthRenderbuffer"
           depthCreateExpr = newCall(bindSym"createDepthRenderBuffer", rhs[1])
+          useDepthRenderbuffer = true
+        elif rhs[0].ident == !"newTexture":
+          depthType = bindSym"Texture2D"
+          depthCreateExpr = newCall(bindSym"createEmptyDepthTexture2D", rhs[1])
+          useDepthRenderbuffer = false
+        else:
+          error "expected call to either newRenderbuffer or newTexture"
 
     else:
       fragmentOutputs.add($asgn[0])
@@ -608,10 +617,17 @@ macro declareFramebuffer*(typename,arg:untyped) : stmt =
   branchStmtList.add(newAssignment(newDotExpr(!!"fb1", !!"depth"),
     depthCreateExpr
   ))
-  branchStmtList.add(newCall(bindSym"glNamedFramebufferRenderbufferEXT", newDotExpr(!!"fb1", !!"glname", bindSym"GLuint"),
-    bindSym"GL_DEPTH_ATTACHMENT", bindSym"GL_RENDERBUFFER",
-    newDotExpr(!!"fb1", !!"depth", bindSym"GLuint")
-  ))
+
+  if useDepthRenderbuffer:
+    branchStmtList.add(newCall(bindSym"glNamedFramebufferRenderbufferEXT",
+      newDotExpr(!!"fb1", !!"glname", bindSym"GLuint"), bindSym"GL_DEPTH_ATTACHMENT", bindSym"GL_RENDERBUFFER",
+      newDotExpr(!!"fb1", !!"depth", bindSym"GLuint")
+    ))
+  else:
+    branchStmtList.add(newCall(bindSym"glNamedFramebufferTextureEXT",
+      newDotExpr(!!"fb1", !!"glname", bindSym"GLuint"), bindSym"GL_DEPTH_ATTACHMENT",
+      newDotExpr(!!"fb1", !!"depth", bindSym"GLuint"), newLit(0)
+    ))
 
   let drawBuffersCall = newCall(bindSym"drawBuffers", newDotExpr(!!"fb1", !!"glname"))
 
@@ -655,7 +671,7 @@ macro declareFramebuffer*(typename,arg:untyped) : stmt =
     )
   )
 
-  #echo result.repr
+  echo result.repr
 
 template bindFramebuffer*(name, tpe, blok: untyped): stmt =
   var name {.global.}: tpe
@@ -870,6 +886,8 @@ proc fragmentMain(src: string): int = 0
 proc geometryMain(layout, src: string): int = 0
 proc includes(args: varargs[int]): int = 0
 proc incl(arg: string): int = 0
+proc numVertices(num: GLSizei): int = 0
+proc numInstances(num: GLSizei): int = 0
 
 ################################################################################
 ## Shading Dsl Inner ###########################################################

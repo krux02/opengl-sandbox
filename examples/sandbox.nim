@@ -86,7 +86,7 @@ let indices = toSeq( countup[int8,int8](0, int8(vertex.len-1)) ).elementArrayBuf
 let crateTexture = loadTexture2DFromFile("crate.png")
 
 declareFramebuffer(Fb1FramebufferType):
-  depth = newRenderbuffer(windowsize)
+  depth = newTexture(windowsize)
   color = newTexture(windowsize)
 
 if 0 != glSetSwapInterval(-1):
@@ -206,8 +206,7 @@ proc render() =
           //color.rg = vec2(float(int(gl_FragCoord.x) % 256) / 255.0, float(int(gl_FragCoord.y) % 256) / 255.0);
           """
 
-    fb1.color.bindIt
-    glGenerateMipmap(GL_TEXTURE_2D)
+    fb1.color.generateMipmap
 
     shadingDsl(GL_TRIANGLES):
       numVertices = 3
@@ -215,6 +214,7 @@ proc render() =
       uniforms:
         mouse
         tex = fb1.color
+        depth = fb1.depth
         time
         viewport
         texSize = fb1.color.size
@@ -237,6 +237,7 @@ proc render() =
         vec2 offset = vec2(sin(time * 5 + gl_FragCoord.y / 8) * 0.01, 0);
         vec2 texcoord = (v_texcoord * viewport.zw ) / texSize;
         vec4 t_col = texture(tex, texcoord + offset);
+        gl_FragDepth = texture(depth, texcoord + offset).x;
         color = t_col;
         """
 
