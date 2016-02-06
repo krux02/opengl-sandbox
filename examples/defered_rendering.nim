@@ -51,22 +51,33 @@ proc vertices(hm: var HeightMap) : seq[Vec3f] =
   result.newSeq(hm.w * hm.h)
   result.setLen(0)
 
-  for y in 0 ..< hm.h:
-    for x in 0 ..< hm.w:
+  for y in 0 .. hm.h:
+    for x in 0 .. hm.w:
       result.add vec3f(x.float32,y.float32,hm[x,y])
 
 proc indices(hm: var HeightMap) : seq[int32] =
   result.newSeq(hm.w * hm.h * 6)
   result.setLen(0)
 
-  for y in 0 ..< hm.h-1:
-    for x in 0 ..< hm.w-1:
+  for y in 0 ..< hm.h:
+    for x in 0 ..< hm.w:
       let
-        i1 = int32(x     + hm.w * y)
-        i2 = int32(x + 1 + hm.w * y)
-        i3 = int32(x     + hm.w * y + hm.w)
-        i4 = int32(x + 1 + hm.w * y + hm.w)
-      result.add([i1,i2,i3,i3,i2,i4])
+        i1 = int32(x     + (hm.w + 1) * y)
+        i2 = int32(x + 1 + (hm.w + 1) * y)
+        i3 = int32(x     + (hm.w + 1) * (y + 1))
+        i4 = int32(x + 1 + (hm.w + 1) * (y + 1))
+
+        h1 = hm[x+0,y+0]
+        h2 = hm[x+1,y+0]
+        h3 = hm[x+0,y+1]
+        h4 = hm[x+1,y+1]
+
+      if abs(h1 - h4) < abs(h2 - h3):
+        result.add([i3,i1,i4,i4,i1,i2])
+      else:
+        result.add([i1,i2,i3,i3,i2,i4])
+
+
 
 proc texCoords(hm: var HeightMap) : seq[Vec2f] =
   result.newSeq(hm.w * hm.h)
@@ -76,8 +87,8 @@ proc texCoords(hm: var HeightMap) : seq[Vec2f] =
     wf = hm.w.float32
     hf = hm.h.float32
 
-  for y in 0 ..< hm.h:
-    for x in 0 ..< hm.w:
+  for y in 0 .. hm.h:
+    for x in 0 .. hm.w:
       let
         xf = x.float32
         yf = y.float32
@@ -239,7 +250,6 @@ let
   hmIndices = hm.indices.elementArrayBuffer
 
   sphereVertices = uvSphereVertices(32,16).arrayBuffer
-  sphereNormals = uvSphereNormals(32,16).arrayBuffer
   sphereIndices = uvSphereIndices(32,16).elementArrayBuffer
 
   screenSpaceTriangleVerts = @[
@@ -315,16 +325,20 @@ proc render() =
     glCullFace(GL_BACK)
     glDepthFunc(GL_LEQUAL)
 
+    var baseOffset = vec3f(0,0,0)
+    baseOffset.x = floor(position.x / 64) * 64
+    baseOffset.y = floor(position.y / 64) * 64
+
     shadingDsl(GL_TRIANGLES):
       numVertices = hmindices.len.GLsizei
-      numInstances = 10
+      numInstances = 64
 
       uniforms:
         modelview = view_mat
         projection = projection_mat
         time
         crateTexture
-
+        baseOffset
       attributes:
         indices = hmIndices
         pos = hmVertices
@@ -332,11 +346,10 @@ proc render() =
 
       vertexMain:
         """
-        vec3 offset;
-        offset.x = gl_InstanceID * 64;
-        gl_Position = projection * modelview * vec4(pos + offset, 1);
+        vec3 offset = vec3(gl_InstanceID % 8 - 4, gl_InstanceID / 8 - 4, 0) * 64.0 + baseOffset;
+        //gl_Position = projection * modelview * vec4(pos + offset, sin(time));
         v_texcoord = texcoord * 64.0;
-        v_eyepos = (modelview * vec4(pos, 1)).xyz;
+        v_eyepos = (modelview * vec4(pos + offset, 1)).xyz;
         """
 
       vertexOut:
@@ -408,7 +421,8 @@ proc render() =
 
     fragmentMain:
       """
-      vec2 offset = vec2(sin(gl_FragCoord.y / 8) * 0.01, 0);
+      //vec2 offset = vec2(sin(gl_FragCoord.y / 8) * 0.01, 0);
+      vec2 offset = vec2(0);
       vec2 texcoord = (v_texcoord * viewport.zw ) / texSize;
       vec4 t_col = texture(tex, texcoord + offset);
       gl_FragDepth = texture(depth, texcoord + offset).x;

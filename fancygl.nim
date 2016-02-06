@@ -893,7 +893,7 @@ proc numInstances(num: GLSizei): int = 0
 ## Shading Dsl Inner ###########################################################
 ################################################################################
 
-macro shadingDslInner(mode: GLenum, count, numInstances: GLSizei, fragmentOutputs: static[seq[string]], statement: varargs[typed] ) : stmt =
+macro shadingDslInner(mode: GLenum, fragmentOutputs: static[seq[string]], statement: varargs[typed] ) : stmt =
 
   var numSamplers = 0
   var numLocations = 0
@@ -915,6 +915,7 @@ macro shadingDslInner(mode: GLenum, count, numInstances: GLSizei, fragmentOutput
   var fragmentMain: string
   var hasIndices = false
   var indexType: NimNode = nil
+  var numVertices, numInstances: NimNode
   var hasInstanceData = false
 
   #### BEGIN PARSE TREE ####
@@ -925,6 +926,10 @@ macro shadingDslInner(mode: GLenum, count, numInstances: GLSizei, fragmentOutput
   for call in statement.items:
     call.expectKind nnkCall
     case $call[0]
+    of "numVertices":
+      numVertices = call[1]
+    of "numInstances":
+      numInstances = call[1]
     of "uniforms":
       for innerCall in call[1][1].items:
         innerCall[1].expectKind nnkStrLit
@@ -973,9 +978,6 @@ macro shadingDslInner(mode: GLenum, count, numInstances: GLSizei, fragmentOutput
 
         let isAttrib = name != "indices"
         #echo "attribute ", value.glslAttribType, " ", name
-
-        if divisor > 0:
-          hasInstanceData = true
 
         if not isAttrib:
           if hasIndices:
@@ -1119,16 +1121,16 @@ macro shadingDslInner(mode: GLenum, count, numInstances: GLSizei, fragmentOutput
 
   let drawCommand =
     if hasIndices:
-      if hasInstanceData:
-        newCall( bindSym"glDrawElementsInstanced", mode, count, indexType, newNilLit(), numInstances )
+      if numInstances != nil:
+        newCall( bindSym"glDrawElementsInstanced", mode, numVertices, indexType, newNilLit(), numInstances )
       else:
-        newCall( bindSym"glDrawElements", mode, count, indexType, newNilLit() )
+        newCall( bindSym"glDrawElements", mode, numVertices, indexType, newNilLit() )
 
     else:
-      if hasInstanceData:
-        newCall( bindSym"glDrawArraysInstanced", mode, newLit(0), count, numInstances )
+      if numInstances != nil:
+        newCall( bindSym"glDrawArraysInstanced", mode, newLit(0), numVertices, numInstances )
       else:
-        newCall( bindSym"glDrawArrays", mode, newLit(0), count )
+        newCall( bindSym"glDrawArrays", mode, newLit(0), numVertices )
 
   result = getAst(renderBlockTemplate(numLocations, globalsBlock, linkShaderBlock,
          bufferCreationBlock, initUniformsBlock, setUniformsBlock, drawCommand))
@@ -1141,7 +1143,7 @@ macro shadingDslInner(mode: GLenum, count, numInstances: GLSizei, fragmentOutput
 
 macro shadingDsl*(mode:GLenum, statement: stmt) : stmt {.immediate.} =
 
-  result = newCall(bindSym"shadingDslInner", mode, newLit(0), newLit(1), !! "fragmentOutputs" )
+  result = newCall(bindSym"shadingDslInner", mode, !! "fragmentOutputs" )
   # numVertices = result[2]
   # numInstances = result[3]
 
@@ -1154,9 +1156,9 @@ macro shadingDsl*(mode:GLenum, statement: stmt) : stmt {.immediate.} =
       ident.expectKind nnkIdent
       case $ident.ident
       of "numVertices":
-        result[2] = section[1]
+        result.add( newCall(bindSym"numVertices", section[1] ) )
       of "numInstances":
-        result[3] = section[1]
+        result.add( newCall(bindSym"numInstances", section[1] ) )
       else:
         error("unknown named parameter " & $ident.ident)
 
