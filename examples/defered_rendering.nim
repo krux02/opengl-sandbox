@@ -298,6 +298,10 @@ mapBufferBlock(colors, GL_WRITE_ONLY):
   for i in 0 .. < colors.len:
     mappedBuffer[i] = vec3f(random(1.0).float32, random(1.0).float32, random(1.0).float32)
 
+var
+  effectOrigin = position.xy.vec2f
+  effectStartTime = -100.0f
+
 proc render() =
 
   let time = simulationTime
@@ -314,6 +318,8 @@ proc render() =
 
   view_mat = view_mat.inverse
 
+  let lightDir_cs = (view_mat * vec3d(0.577).vec4d(0)).xyz.vec3f
+
   # Clear color and depth buffers
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT)
 
@@ -325,60 +331,44 @@ proc render() =
     glCullFace(GL_BACK)
     glDepthFunc(GL_LEQUAL)
 
-    var baseOffset = vec3f(0,0,0)
-    baseOffset.x = floor(position.x / 64) * 64
-    baseOffset.y = floor(position.y / 64) * 64
-
     shadingDsl(GL_TRIANGLES):
-      numVertices = hmindices.len.GLsizei
-      numInstances = 64
+      numVertices = sphereIndices.len.GLsizei
+      numInstances = positions.len.GLsizei
 
       uniforms:
-        modelview = view_mat
-        projection = projection_mat
-        time
+        normalMat = view_mat
+        mvp = projection_mat * view_mat
+        scale = 3
         crateTexture
-        baseOffset
+        lightDir_cs
+
       attributes:
-        indices = hmIndices
-        pos = hmVertices
-        texcoord = hmTexCoords
+        indices = sphereIndices
+        pos = sphereVertices
+
+        instanceData:
+          offset = positions
+          col = colors
 
       vertexMain:
         """
-        vec3 offset = vec3(gl_InstanceID % 8 - 4, gl_InstanceID / 8 - 4, 0) * 64.0 + baseOffset;
-        //gl_Position = projection * modelview * vec4(pos + offset, sin(time));
-        v_texcoord = texcoord * 64.0;
-        v_eyepos = (modelview * vec4(pos + offset, 1)).xyz;
+        gl_Position = mvp * vec4(pos * scale + offset, 1);
+        v_normal = (normalMat * vec4(pos,0)).xyz;
+        v_col = col;
         """
 
       vertexOut:
-        "out vec2 v_texcoord"
-        "out vec3 v_eyepos"
-
-      geometryMain:
-        "layout(triangle_strip, max_vertices=3) out"
-        """
-        g_normal = normalize(cross(v_eyepos[1] - v_eyepos[0], v_eyepos[2] - v_eyepos[0]));
-
-        for( int i=0; i < 3; i++) {
-          gl_Position = projection * vec4(v_eyepos[i], 1);
-          g_texcoord = v_texcoord[i];
-          EmitVertex();
-        }
-        """
-
-
-      geometryOut:
-        "out vec2 g_texcoord"
-        "out vec3 g_normal"
+        "out vec3 v_normal"
+        "out vec3 v_col"
 
       fragmentMain:
         """
-        color = texture(crateTexture, g_texcoord) * g_normal.z;
-        //normal.rgb = g_normal;
-        //normal.rgb = (g_normal.xyz + vec3(1))/2;
+        //color.rgb = (v_normal.xyz + vec3(1))/2;
+        //color.rgb = v_normal.xyz;
+        //color.rgb = v_col;
+        color.rgb = v_col * dot(lightDir_cs, v_normal);
         """
+
 
 
   mapBufferBlock(positions, GL_WRITE_ONLY):
@@ -421,51 +411,79 @@ proc render() =
 
     fragmentMain:
       """
-      //vec2 offset = vec2(sin(gl_FragCoord.y / 8) * 0.01, 0);
-      vec2 offset = vec2(0);
+      vec2 offset = vec2(sin(gl_FragCoord.y / 8) * 0.01, 0);
+      //vec2 offset = vec2(0);
       vec2 texcoord = (v_texcoord * viewport.zw ) / texSize;
       vec4 t_col = texture(tex, texcoord + offset);
       gl_FragDepth = texture(depth, texcoord + offset).x;
       color = t_col;
       """
 
+  var baseOffset = vec3f(0,0,0)
+  baseOffset.x = floor(position.x / 64) * 64
+  baseOffset.y = floor(position.y / 64) * 64
+
   shadingDsl(GL_TRIANGLES):
-    numVertices = sphereIndices.len.GLsizei
-    numInstances = positions.len.GLsizei
+    numVertices = hmindices.len.GLsizei
+    numInstances = 64
 
     uniforms:
-      normalMat = view_mat
-      mvp = projection_mat * view_mat
-      scale = 3
+      modelview = view_mat
+      projection = projection_mat
+      time
       crateTexture
+      baseOffset
+      lightDir_cs
+      effectOrigin
+      effectStartTime
 
     attributes:
-      indices = sphereIndices
-      pos = sphereVertices
-
-      instanceData:
-        offset = positions
-        col = colors
+      indices = hmIndices
+      pos = hmVertices
+      texcoord = hmTexCoords
 
     vertexMain:
       """
-      gl_Position = mvp * vec4(pos * scale + offset, 1);
-      v_normal = normalMat * vec4(pos,0);
-      v_col = col;
+      vec3 offset = vec3(gl_InstanceID % 8 - 4, gl_InstanceID / 8 - 4, 0) * 64.0 + baseOffset;
+      vec3 pos_ws = pos + offset;
+
+      float effectLength = time - effectStartTime;
+      float effectParameter = effectLength * 5.0 - length(pos_ws.xy - effectOrigin) * 0.2;
+      float effect = cos(clamp(effectParameter, -3.14, 3.14)) + 1;
+
+      pos_ws.z += effect * 10.0 / (effectLength + 1);
+
+      v_texcoord = texcoord * 64.0;
+      v_eyepos = (modelview * vec4(pos_ws, 1)).xyz;
       """
 
     vertexOut:
-      "out vec4 v_normal"
-      "out vec3 v_col"
+      "out vec2 v_texcoord"
+      "out vec3 v_eyepos"
+
+    geometryMain:
+      "layout(triangle_strip, max_vertices=3) out"
+      """
+      g_normal = normalize(cross(v_eyepos[1] - v_eyepos[0], v_eyepos[2] - v_eyepos[0]));
+
+      for( int i=0; i < 3; i++) {
+        gl_Position = projection * vec4(v_eyepos[i], 1);
+        g_texcoord = v_texcoord[i];
+        EmitVertex();
+      }
+      """
+
+
+    geometryOut:
+      "out vec2 g_texcoord"
+      "out vec3 g_normal"
 
     fragmentMain:
       """
-      //color.rgb = (v_normal.xyz + vec3(1))/2;
-      //color.rgb = v_normal.xyz;
-      //color.rgb = v_col;
-      color.rgb = v_col * abs(v_normal.z);
+      color = texture(crateTexture, g_texcoord) * dot(g_normal, lightDir_cs);
+      //normal.rgb = g_normal;
+      //normal.rgb = (g_normal + vec3(1))/2;
       """
-
 
 
   glSwapWindow(window)
@@ -493,6 +511,10 @@ while runGame:
       if keyboardEvent.keysym.scancode == SDL_SCANCODE_ESCAPE:
         runGame = false
         break
+
+      if keyboardEvent.keysym.scancode == SDL_SCANCODE_SPACE:
+        effectOrigin = position.xy.vec2f
+        effectStartTime = simulationTime
 
       if keyboardEvent.keysym.scancode == SDL_SCANCODE_PAUSE:
         if gamePaused:
