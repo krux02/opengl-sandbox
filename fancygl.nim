@@ -1,4 +1,4 @@
-import opengl, glm, strutils, nre, macros, macroutils, sdl2, sdl2/image
+import opengl, glm, math, strutils, nre, macros, macroutils, sdl2, sdl2/image
 
 #### glm additions ####
 
@@ -77,7 +77,233 @@ proc I4f*() : Mat4f = mat4x4[float32](
   vec4f(0, 0, 0, 1)
 )
 
-#### Sampler Types ####
+################################################################################
+#### primitive objects #########################################################
+################################################################################
+
+### uv sphere ###
+
+proc uvSphereVertices*(segments, rings: int): seq[Vec3f] =
+  result.newSeq(segments * rings)
+  result.setLen(0)
+
+  for j in 0 .. < segments:
+    let
+      beta = (j / segments) * 2 * PI
+      x = cos(beta).float32
+      y = sin(beta).float32
+
+    for i in 0 .. < rings:
+      let
+        alpha = (i / (rings-1)) * PI
+        h = cos(alpha).float32
+        r = sin(alpha).float32
+
+      result.add( vec3f(x * r, y * r, h) )
+
+
+proc uvSphereNormals*(segments, rings: int): seq[Vec3f] =
+  uvSphereVertices(segments, rings)
+
+proc uvSphereTexCoords*(segments, rings: int): seq[Vec2f] =
+  result.newSeq(segments * rings)
+  result.setLen(0)
+
+  for j in 0 .. < segments:
+    let beta = (j / segments).float32
+
+    for i in 0 .. < rings:
+      let alpha = (i / (rings-1)).float32
+
+      result.add( vec2f(alpha,beta) )
+
+
+proc uvSphereIndices*(segments, rings: int): seq[int16] =
+  result.newSeq(segments * rings * 6)
+  result.setLen(0)
+
+  for segment in 0 ..< segments - 1:
+    for ring in 0 ..< rings - 1:
+      let
+        i1 = int16( ring +     segment * rings )
+        i2 = int16( ring + 1 + segment * rings )
+        i3 = int16( ring +     segment * rings + rings )
+        i4 = int16( ring + 1 + segment * rings + rings )
+      result.add([i1,i2,i3,i3,i2,i4])
+
+  for ring in 0 ..< rings - 1:
+    let
+      i1 = int16( ring +     segments * rings - rings )
+      i2 = int16( ring + 1 + segments * rings - rings )
+      i3 = int16( ring +     0 )
+      i4 = int16( ring + 1 + 0 )
+
+    result.add([i1,i2,i3,i3,i2,i4])
+
+### cylinder ###
+
+proc cylinderVertices*(segments: int): seq[Vec3f] =
+  result.newSeq(segments * 4 + 2)
+
+  result[2 * segments] = vec3f(0,0,-1)
+  result[3 * segments + 1] = vec3f(0,0, 1)
+
+  for j in 0 .. < segments:
+    let
+      beta = (j / segments) * 2 * PI
+      x = cos(beta).float32
+      y = sin(beta).float32
+      top =    vec3f(x, y,  1)
+      bottom = vec3f(x, y, -1)
+
+    result[2*j+0] = bottom
+    result[2*j+1] = top
+    result[2*segments + 1 + j] = bottom
+    result[3*segments + 2 + j] = top
+
+proc cylinderNormals*(segments: int): seq[Vec3f] =
+  result.newSeq(segments * 4 + 2)
+
+  result[2 * segments] = vec3f(0,0,-1)
+  result[3 * segments + 1] = vec3f(0,0, 1)
+
+  for j in 0 .. < segments:
+    let
+      beta = (j / segments) * 2 * PI
+      x = cos(beta).float32
+      y = sin(beta).float32
+
+    result[2*j+0] = vec3f(x, y, 0)
+    result[2*j+1] = vec3f(x, y, 0)
+    result[2*segments + 1 + j] = vec3f(0,0,-1)
+    result[3*segments + 2 + j] = vec3f(0,0, 1)
+
+# untested
+proc cylinderTexCoords*(segments: int): seq[Vec2f] =
+  result.newSeq(segments * 4 + 2)
+
+  result[2 * segments] = vec2f(0.5f)
+  result[3 * segments + 1] = vec2f(0.5f)
+
+  for j in 0 .. < segments:
+    let
+      u = (j / segments).float32
+      beta = (j / segments) * 2 * PI
+      x = cos(beta).float32 * 0.5f + 0.5f
+      y = sin(beta).float32 * 0.5f + 0.5f
+
+    result[2*j+0] = vec2f(u, 0)
+    result[2*j+1] = vec2f(u, 1)
+    result[2*segments + 1 + j] = vec2f(x,y)
+    result[3*segments + 2 + j] = vec2f(x,y)
+
+proc cylinderIndices*(segments: int): seq[int16] =
+  result.newSeq(0)
+
+  for i in 0 ..< segments - 1:
+    let
+      i1 = int16( i * 2 + 0 )
+      i2 = int16( i * 2 + 1 )
+      i3 = int16( i * 2 + 2 )
+      i4 = int16( i * 2 + 3 )
+
+    result.add([i1,i3,i2,i2,i3,i4])
+
+  let
+    i1 = int16( segments * 2 - 2 )
+    i2 = int16( segments * 2 - 1 )
+    i3 = int16( 0 )
+    i4 = int16( 1 )
+
+  result.add([i1,i3,i2,i2,i3,i4])
+
+
+  var base = int16(2 * segments)
+
+  for i in 0 ..< int16(segments - 1):
+    let ii = i.int16
+    result.add( [ base , base + ii + 2, base + ii + 1 ] )
+
+  result.add( [ base , base + 1, base + segments.int16 ] )
+
+  base = int16(3 * segments + 1)
+
+  for i in 0 ..< segments - 1:
+    let ii = i.int16
+    result.add( [ base, base + ii + 1, base + ii + 2 ] )
+
+  result.add( [ base , base + segments.int16, base + 1 ] )
+
+
+
+
+### box ###
+
+const
+  boxVertices* = @[
+    vec3f(+1, +1, -1), vec3f(-1, +1, -1), vec3f(-1, +1, +1),
+    vec3f(+1, +1, +1), vec3f(+1, +1, -1), vec3f(-1, +1, +1),
+    vec3f(+1, -1, +1), vec3f(-1, -1, +1), vec3f(-1, -1, -1),
+    vec3f(+1, -1, -1), vec3f(+1, -1, +1), vec3f(-1, -1, -1),
+    vec3f(+1, +1, +1), vec3f(-1, +1, +1), vec3f(-1, -1, +1),
+    vec3f(+1, -1, +1), vec3f(+1, +1, +1), vec3f(-1, -1, +1),
+    vec3f(+1, -1, -1), vec3f(-1, -1, -1), vec3f(-1, +1, -1),
+    vec3f(+1, +1, -1), vec3f(+1, -1, -1), vec3f(-1, +1, -1),
+    vec3f(-1, +1, +1), vec3f(-1, +1, -1), vec3f(-1, -1, -1),
+    vec3f(-1, -1, +1), vec3f(-1, +1, +1), vec3f(-1, -1, -1),
+    vec3f(+1, +1, -1), vec3f(+1, +1, +1), vec3f(+1, -1, +1),
+    vec3f(+1, -1, -1), vec3f(+1, +1, -1), vec3f(+1, -1, +1)
+  ]
+
+  boxNormals* = @[
+    vec3f( 0, +1,  0), vec3f( 0, +1,  0), vec3f( 0, +1,  0),
+    vec3f( 0, +1,  0), vec3f( 0, +1,  0), vec3f( 0, +1,  0),
+    vec3f( 0, -1,  0), vec3f( 0, -1,  0), vec3f( 0, -1,  0),
+    vec3f( 0, -1,  0), vec3f( 0, -1,  0), vec3f( 0, -1,  0),
+    vec3f( 0,  0, +1), vec3f( 0,  0, +1), vec3f( 0,  0, +1),
+    vec3f( 0,  0, +1), vec3f( 0,  0, +1), vec3f( 0,  0, +1),
+    vec3f( 0,  0, -1), vec3f( 0,  0, -1), vec3f( 0,  0, -1),
+    vec3f( 0,  0, -1), vec3f( 0,  0, -1), vec3f( 0,  0, -1),
+    vec3f(-1,  0,  0), vec3f(-1,  0,  0), vec3f(-1,  0,  0),
+    vec3f(-1,  0,  0), vec3f(-1,  0,  0), vec3f(-1,  0,  0),
+    vec3f(+1,  0,  0), vec3f(+1,  0,  0), vec3f(+1,  0,  0),
+    vec3f(+1,  0,  0), vec3f(+1,  0,  0), vec3f(+1,  0,  0)
+  ]
+
+  boxColors* = @[
+    vec3f(0.0, 1.0, 0.0), vec3f(0.0, 1.0, 0.0), vec3f(0.0, 1.0, 0.0),
+    vec3f(0.0, 1.0, 0.0), vec3f(0.0, 1.0, 0.0), vec3f(0.0, 1.0, 0.0),
+    vec3f(1.0, 0.5, 0.0), vec3f(1.0, 0.5, 0.0), vec3f(1.0, 0.5, 0.0),
+    vec3f(1.0, 0.5, 0.0), vec3f(1.0, 0.5, 0.0), vec3f(1.0, 0.5, 0.0),
+    vec3f(1.0, 0.0, 0.0), vec3f(1.0, 0.0, 0.0), vec3f(1.0, 0.0, 0.0),
+    vec3f(1.0, 0.0, 0.0), vec3f(1.0, 0.0, 0.0), vec3f(1.0, 0.0, 0.0),
+    vec3f(1.0, 1.0, 0.0), vec3f(1.0, 1.0, 0.0), vec3f(1.0, 1.0, 0.0),
+    vec3f(1.0, 1.0, 0.0), vec3f(1.0, 1.0, 0.0), vec3f(1.0, 1.0, 0.0),
+    vec3f(0.0, 0.0, 1.0), vec3f(0.0, 0.0, 1.0), vec3f(0.0, 0.0, 1.0),
+    vec3f(0.0, 0.0, 1.0), vec3f(0.0, 0.0, 1.0), vec3f(0.0, 0.0, 1.0),
+    vec3f(1.0, 0.0, 1.0), vec3f(1.0, 0.0, 1.0), vec3f(1.0, 0.0, 1.0),
+    vec3f(1.0, 0.0, 1.0), vec3f(1.0, 0.0, 1.0), vec3f(1.0, 0.0, 1.0)
+  ]
+
+  boxTexCoords* = @[
+    vec2f(1, 0), vec2f(0, 0), vec2f(0, 1),
+    vec2f(1, 1), vec2f(1, 0), vec2f(0, 1),
+    vec2f(1, 1), vec2f(0, 1), vec2f(0, 0),
+    vec2f(1, 0), vec2f(1, 1), vec2f(0, 0),
+    vec2f(1, 1), vec2f(0, 1), vec2f(0, 0),
+    vec2f(1, 0), vec2f(1, 1), vec2f(0, 0),
+    vec2f(1, 0), vec2f(0, 0), vec2f(0, 1),
+    vec2f(1, 1), vec2f(1, 0), vec2f(0, 1),
+    vec2f(1, 1), vec2f(1, 0), vec2f(0, 0),
+    vec2f(0, 1), vec2f(1, 1), vec2f(0, 0),
+    vec2f(1, 0), vec2f(1, 1), vec2f(0, 1),
+    vec2f(0, 0), vec2f(1, 0), vec2f(0, 1)
+  ]
+
+
+################################################################################
+#### Sampler Types #############################################################
+################################################################################
 
 macro nilName(name:expr) : expr =
   name.expectKind(nnkIdent)
@@ -246,24 +472,6 @@ proc drawBuffers*(fb: FrameBuffer, args : varargs[GLenum]) =
 
   if tmp.len > 0:
     glFramebufferDrawBuffersEXT(fb.GLuint, tmp.len.GLsizei, tmp[0].addr)
-
-#let renderedTexture = createAndBindEmptyTexture2D( windowsize )
-
-#var depthrenderbuffer: GLuint
-
-#glBindRenderbuffer(GL_RENDERBUFFER, depthrenderbuffer)
-#glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, windowsize.x.GLsizei, windowsize.y.GLsizei)
-
-#glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthrenderbuffer)
-#glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderedTexture.GLuint, 0)
-
-#var drawBuffers: array[1, GLenum] = [ GL_COLOR_ATTACHMENT0.GLenum ]
-#glDrawBuffers(1, drawBuffers[0].addr)
-
-#glBindFramebuffer(GL_FRAMEBUFFER, 0)
-
-#### nim -> glsl type mapping ####
-
 
 # returns a string, and true if it is a sample type
 proc glslUniformType(value : NimNode): (string, bool) =

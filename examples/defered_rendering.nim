@@ -182,50 +182,6 @@ proc createFlatMap(width,height: int): HeightMap =
   result.dataseq = newSeq[float32](width*height)
 
 
-proc uvSphereVertices(segments, rings: int): seq[Vec3f] =
-  result.newSeq(segments * rings)
-  result.setLen(0)
-
-  for j in 0 .. < segments:
-    let
-      beta = (j / segments) * 2 * PI
-      x = cos(beta).float32
-      y = sin(beta).float32
-
-    for i in 0 .. < rings:
-      let
-        alpha = (i / (rings-1)) * PI
-        h = cos(alpha).float32
-        r = sin(alpha).float32
-
-      result.add( vec3f(x * r, y * r, h) )
-
-
-proc uvSphereNormals(segments, rings: int): seq[Vec3f] =
-  uvSphereVertices(segments, rings)
-
-proc uvSphereIndices(segments, rings: int): seq[int16] =
-  result.newSeq(segments * rings * 6)
-  result.setLen(0)
-
-  for segment in 0 ..< segments - 1:
-    for ring in 0 ..< rings - 1:
-      let
-        i1 = int16( ring +     segment * rings )
-        i2 = int16( ring + 1 + segment * rings )
-        i3 = int16( ring +     segment * rings + rings )
-        i4 = int16( ring + 1 + segment * rings + rings )
-      result.add([i1,i2,i3,i3,i2,i4])
-
-  for ring in 0 ..< rings - 1:
-    let
-      i1 = int16( ring +     segments * rings - rings )
-      i2 = int16( ring + 1 + segments * rings - rings )
-      i3 = int16( ring +     0 )
-      i4 = int16( ring + 1 + 0 )
-
-    result.add([i1,i2,i3,i3,i2,i4])
-
 var hm = createFlatMap(64,64)
 
 hm.DiamondSquare(64)
@@ -250,7 +206,14 @@ let
   hmIndices = hm.indices.elementArrayBuffer
 
   sphereVertices = uvSphereVertices(32,16).arrayBuffer
+  sphereNormals = uvSphereNormals(32,16).arrayBuffer
   sphereIndices = uvSphereIndices(32,16).elementArrayBuffer
+  sphereTexCoords = uvSphereTexCoords(32,16).arrayBuffer
+
+  #sphereVertices  = cylinderVertices(32).arrayBuffer
+  #sphereNormals   = cylinderNormals(32).arrayBuffer
+  #sphereTexCoords = cylinderTexCoords(32).arrayBuffer
+  #sphereIndices   = cylinderIndices(32).elementArrayBuffer
 
   screenSpaceTriangleVerts = @[
     vec4f(-1,-1,1,1), vec4f(3,-1,1,1), vec4f(-1,3,1,1)
@@ -339,12 +302,14 @@ proc render() =
         normalMat = view_mat
         mvp = projection_mat * view_mat
         scale = 3
-        crateTexture
+        tex = crateTexture
         lightDir_cs
 
       attributes:
         indices = sphereIndices
         pos = sphereVertices
+        normal = sphereNormals
+        texCoord = sphereTexCoords
 
         instanceData:
           offset = positions
@@ -353,20 +318,24 @@ proc render() =
       vertexMain:
         """
         gl_Position = mvp * vec4(pos * scale + offset, 1);
-        v_normal = (normalMat * vec4(pos,0)).xyz;
+        v_normal = (normalMat * vec4(normal,0)).xyz;
         v_col = col;
+        v_texCoord = texCoord;
         """
 
       vertexOut:
         "out vec3 v_normal"
         "out vec3 v_col"
+        "out vec2 v_texCoord"
 
       fragmentMain:
         """
         //color.rgb = (v_normal.xyz + vec3(1))/2;
         //color.rgb = v_normal.xyz;
         //color.rgb = v_col;
-        color.rgb = v_col * dot(lightDir_cs, v_normal);
+
+        vec3 texColor = texture(tex, v_texCoord).rgb;
+        color.rgb = texColor * v_col * dot(lightDir_cs, v_normal);
         """
 
 
@@ -411,8 +380,8 @@ proc render() =
 
     fragmentMain:
       """
-      vec2 offset = vec2(sin(gl_FragCoord.y / 8) * 0.01, 0);
-      //vec2 offset = vec2(0);
+      //vec2 offset = vec2(sin(gl_FragCoord.y / 8) * 0.01, 0);
+      vec2 offset = vec2(0);
       vec2 texcoord = (v_texcoord * viewport.zw ) / texSize;
       vec4 t_col = texture(tex, texcoord + offset);
       gl_FragDepth = texture(depth, texcoord + offset).x;

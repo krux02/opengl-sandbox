@@ -13,65 +13,11 @@ let context = window.glCreateContext()
 # Initialize OpenGL
 loadExtensions()
 
-let vertex = @[
-  vec3f(+1, +1, -1), vec3f(-1, +1, -1), vec3f(-1, +1, +1),
-  vec3f(+1, +1, +1), vec3f(+1, +1, -1), vec3f(-1, +1, +1),
-  vec3f(+1, -1, +1), vec3f(-1, -1, +1), vec3f(-1, -1, -1),
-  vec3f(+1, -1, -1), vec3f(+1, -1, +1), vec3f(-1, -1, -1),
-  vec3f(+1, +1, +1), vec3f(-1, +1, +1), vec3f(-1, -1, +1),
-  vec3f(+1, -1, +1), vec3f(+1, +1, +1), vec3f(-1, -1, +1),
-  vec3f(+1, -1, -1), vec3f(-1, -1, -1), vec3f(-1, +1, -1),
-  vec3f(+1, +1, -1), vec3f(+1, -1, -1), vec3f(-1, +1, -1),
-  vec3f(-1, +1, +1), vec3f(-1, +1, -1), vec3f(-1, -1, -1),
-  vec3f(-1, -1, +1), vec3f(-1, +1, +1), vec3f(-1, -1, -1),
-  vec3f(+1, +1, -1), vec3f(+1, +1, +1), vec3f(+1, -1, +1),
-  vec3f(+1, -1, -1), vec3f(+1, +1, -1), vec3f(+1, -1, +1)
-].arrayBuffer
-
-var normal = @[
-  vec3f( 0, +1,  0), vec3f( 0, +1,  0), vec3f( 0, +1,  0),
-  vec3f( 0, +1,  0), vec3f( 0, +1,  0), vec3f( 0, +1,  0),
-  vec3f( 0, -1,  0), vec3f( 0, -1,  0), vec3f( 0, -1,  0),
-  vec3f( 0, -1,  0), vec3f( 0, -1,  0), vec3f( 0, -1,  0),
-  vec3f( 0,  0, +1), vec3f( 0,  0, +1), vec3f( 0,  0, +1),
-  vec3f( 0,  0, +1), vec3f( 0,  0, +1), vec3f( 0,  0, +1),
-  vec3f( 0,  0, -1), vec3f( 0,  0, -1), vec3f( 0,  0, -1),
-  vec3f( 0,  0, -1), vec3f( 0,  0, -1), vec3f( 0,  0, -1),
-  vec3f(-1,  0,  0), vec3f(-1,  0,  0), vec3f(-1,  0,  0),
-  vec3f(-1,  0,  0), vec3f(-1,  0,  0), vec3f(-1,  0,  0),
-  vec3f(+1,  0,  0), vec3f(+1,  0,  0), vec3f(+1,  0,  0),
-  vec3f(+1,  0,  0), vec3f(+1,  0,  0), vec3f(+1,  0,  0)
-].arrayBuffer
-
-var color = @[
-  vec3f(0.0, 1.0, 0.0), vec3f(0.0, 1.0, 0.0), vec3f(0.0, 1.0, 0.0),
-  vec3f(0.0, 1.0, 0.0), vec3f(0.0, 1.0, 0.0), vec3f(0.0, 1.0, 0.0),
-  vec3f(1.0, 0.5, 0.0), vec3f(1.0, 0.5, 0.0), vec3f(1.0, 0.5, 0.0),
-  vec3f(1.0, 0.5, 0.0), vec3f(1.0, 0.5, 0.0), vec3f(1.0, 0.5, 0.0),
-  vec3f(1.0, 0.0, 0.0), vec3f(1.0, 0.0, 0.0), vec3f(1.0, 0.0, 0.0),
-  vec3f(1.0, 0.0, 0.0), vec3f(1.0, 0.0, 0.0), vec3f(1.0, 0.0, 0.0),
-  vec3f(1.0, 1.0, 0.0), vec3f(1.0, 1.0, 0.0), vec3f(1.0, 1.0, 0.0),
-  vec3f(1.0, 1.0, 0.0), vec3f(1.0, 1.0, 0.0), vec3f(1.0, 1.0, 0.0),
-  vec3f(0.0, 0.0, 1.0), vec3f(0.0, 0.0, 1.0), vec3f(0.0, 0.0, 1.0),
-  vec3f(0.0, 0.0, 1.0), vec3f(0.0, 0.0, 1.0), vec3f(0.0, 0.0, 1.0),
-  vec3f(1.0, 0.0, 1.0), vec3f(1.0, 0.0, 1.0), vec3f(1.0, 0.0, 1.0),
-  vec3f(1.0, 0.0, 1.0), vec3f(1.0, 0.0, 1.0), vec3f(1.0, 0.0, 1.0)
-].arrayBuffer
-
-var texcoord = @[
-  vec2f(1, 0), vec2f(0, 0), vec2f(0, 1),
-  vec2f(1, 1), vec2f(1, 0), vec2f(0, 1),
-  vec2f(1, 1), vec2f(0, 1), vec2f(0, 0),
-  vec2f(1, 0), vec2f(1, 1), vec2f(0, 0),
-  vec2f(1, 1), vec2f(0, 1), vec2f(0, 0),
-  vec2f(1, 0), vec2f(1, 1), vec2f(0, 0),
-  vec2f(1, 0), vec2f(0, 0), vec2f(0, 1),
-  vec2f(1, 1), vec2f(1, 0), vec2f(0, 1),
-  vec2f(1, 1), vec2f(1, 0), vec2f(0, 0),
-  vec2f(0, 1), vec2f(1, 1), vec2f(0, 0),
-  vec2f(1, 0), vec2f(1, 1), vec2f(0, 1),
-  vec2f(0, 0), vec2f(1, 0), vec2f(0, 1)
-].arrayBuffer
+let
+  vertex = boxVertices.arrayBuffer
+  normal = boxNormals.arrayBuffer
+  color = boxColors.arrayBuffer
+  texcoord = boxTexCoords.arrayBuffer
 
 let screenSpaceTriangleVerts = @[
   vec4f(-1,-1,1,1), vec4f(3,-1,1,1), vec4f(-1,3,1,1)
