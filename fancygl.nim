@@ -142,7 +142,7 @@ proc uvSphereIndices*(segments, rings: int): seq[int16] =
 
 ### cylinder ###
 
-proc cylinderVertices*(segments: int): seq[Vec3f] =
+proc cylinderVertices*(segments: int, topRadius: float32 = 1): seq[Vec3f] =
   result.newSeq(segments * 4 + 2)
 
   result[2 * segments] = vec3f(0,0,-1)
@@ -153,7 +153,7 @@ proc cylinderVertices*(segments: int): seq[Vec3f] =
       beta = (j / segments) * 2 * PI
       x = cos(beta).float32
       y = sin(beta).float32
-      top =    vec3f(x, y,  1)
+      top =    vec3f(vec2f(x,y) * topRadius,  1)
       bottom = vec3f(x, y, -1)
 
     result[2*j+0] = bottom
@@ -161,11 +161,15 @@ proc cylinderVertices*(segments: int): seq[Vec3f] =
     result[2*segments + 1 + j] = bottom
     result[3*segments + 2 + j] = top
 
-proc cylinderNormals*(segments: int): seq[Vec3f] =
+proc cylinderNormals*(segments: int, topRadius: float32 = 1): seq[Vec3f] =
   result.newSeq(segments * 4 + 2)
 
   result[2 * segments] = vec3f(0,0,-1)
   result[3 * segments + 1] = vec3f(0,0, 1)
+
+  let n = vec2f(2,1-topRadius).normalize
+
+  echo n
 
   for j in 0 .. < segments:
     let
@@ -173,12 +177,11 @@ proc cylinderNormals*(segments: int): seq[Vec3f] =
       x = cos(beta).float32
       y = sin(beta).float32
 
-    result[2*j+0] = vec3f(x, y, 0)
-    result[2*j+1] = vec3f(x, y, 0)
+    result[2*j+0] = vec3f( vec2(x, y) * n.x, n.y)
+    result[2*j+1] = vec3f( vec2(x, y) * n.x, n.y)
     result[2*segments + 1 + j] = vec3f(0,0,-1)
     result[3*segments + 2 + j] = vec3f(0,0, 1)
 
-# untested
 proc cylinderTexCoords*(segments: int): seq[Vec2f] =
   result.newSeq(segments * 4 + 2)
 
@@ -233,8 +236,6 @@ proc cylinderIndices*(segments: int): seq[int16] =
     result.add( [ base, base + ii + 1, base + ii + 2 ] )
 
   result.add( [ base , base + segments.int16, base + 1 ] )
-
-
 
 
 ### box ###

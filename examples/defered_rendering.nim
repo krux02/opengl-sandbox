@@ -205,15 +205,15 @@ let
   hmTexCoords = hm.texCoords.arrayBuffer
   hmIndices = hm.indices.elementArrayBuffer
 
-  sphereVertices = uvSphereVertices(32,16).arrayBuffer
-  sphereNormals = uvSphereNormals(32,16).arrayBuffer
-  sphereIndices = uvSphereIndices(32,16).elementArrayBuffer
-  sphereTexCoords = uvSphereTexCoords(32,16).arrayBuffer
+  #sphereVertices = uvSphereVertices(32,16).arrayBuffer
+  #sphereNormals = uvSphereNormals(32,16).arrayBuffer
+  #sphereIndices = uvSphereIndices(32,16).elementArrayBuffer
+  #sphereTexCoords = uvSphereTexCoords(32,16).arrayBuffer
 
-  #sphereVertices  = cylinderVertices(32).arrayBuffer
-  #sphereNormals   = cylinderNormals(32).arrayBuffer
-  #sphereTexCoords = cylinderTexCoords(32).arrayBuffer
-  #sphereIndices   = cylinderIndices(32).elementArrayBuffer
+  sphereVertices  = cylinderVertices(32, 0).arrayBuffer
+  sphereNormals   = cylinderNormals(32, 0).arrayBuffer
+  sphereTexCoords = cylinderTexCoords(32).arrayBuffer
+  sphereIndices   = cylinderIndices(32).elementArrayBuffer
 
   screenSpaceTriangleVerts = @[
     vec4f(-1,-1,1,1), vec4f(3,-1,1,1), vec4f(-1,3,1,1)
@@ -258,12 +258,55 @@ var
   colors = newSeq[Vec3f](50).arrayBuffer
 
 mapBufferBlock(colors, GL_WRITE_ONLY):
-  for i in 0 .. < colors.len:
+  let maximum = colors.len - 1
+  for i in 0 .. maximum:
     mappedBuffer[i] = vec3f(random(1.0).float32, random(1.0).float32, random(1.0).float32)
 
 var
   effectOrigin = position.xy.vec2f
   effectStartTime = -100.0f
+
+
+proc showNormals(mvp: Mat4d, positions: ArrayBuffer[Vec3f], normals: ArrayBuffer[Vec3f], length:float32 = 1, color:Vec3f = vec3f(1)) =
+
+  shadingDsl(GL_POINTS):
+    numVertices = normals.len.GLsizei
+
+    uniforms:
+      mvp
+      normalColor = color
+      scale = length
+
+    attributes:
+      pos = positions
+      normal = normals
+
+    vertexMain:
+      """
+      v_normal = normal;
+      v_pos = pos;
+      """
+
+    vertexOut:
+      "out vec3 v_normal"
+      "out vec3 v_pos"
+
+    geometryMain:
+      "layout(line_strip, max_vertices=2) out"
+      """
+      gl_Position = mvp * vec4(v_pos[0], 1);
+      EmitVertex();
+      gl_Position = mvp * vec4(v_pos[0] + v_normal[0] * scale, 1);
+      EmitVertex();
+      """
+
+    fragmentMain:
+      """
+      color.rgb = normalColor;
+      """
+
+
+
 
 proc render() =
 
@@ -331,20 +374,21 @@ proc render() =
       fragmentMain:
         """
         //color.rgb = (v_normal.xyz + vec3(1))/2;
-        //color.rgb = v_normal.xyz;
+        color.rgb = v_normal.xyz;
         //color.rgb = v_col;
 
-        vec3 texColor = texture(tex, v_texCoord).rgb;
-        color.rgb = texColor * v_col * dot(lightDir_cs, v_normal);
+        //vec3 texColor = texture(tex, v_texCoord).rgb;
+        //color.rgb = v_col * dot(lightDir_cs, v_normal);
         """
 
 
 
   mapBufferBlock(positions, GL_WRITE_ONLY):
-    for i in 0 .. < positions.len:
+    let poslen = positions.len
+    for i in 0 .. < poslen:
       let
         distance = time * 10
-        r = float32((i+1) / positions.len) * 32
+        r = float32((i+1) / poslen) * 32
         alpha = distance / r
         x = cos(alpha).float32 * r + 32
         y = sin(alpha).float32 * r + 32
@@ -449,11 +493,12 @@ proc render() =
 
     fragmentMain:
       """
-      color = texture(crateTexture, g_texcoord) * dot(g_normal, lightDir_cs);
-      //normal.rgb = g_normal;
+      //color = texture(crateTexture, g_texcoord) * dot(g_normal, lightDir_cs);
+      color.rgb = g_normal;
       //normal.rgb = (g_normal + vec3(1))/2;
       """
 
+  #showNormals(projection_mat * view_mat, sphereVertices, sphereNormals, 0.3f)
 
   glSwapWindow(window)
 
@@ -509,7 +554,7 @@ while runGame:
     simulationTime = time - simulationTimeOffset
 
   if time - fpsFrameCounterStartTime >= 1:
-    #echo "FPS: ", fpsFrameCounter
+    echo "FPS: ", fpsFrameCounter
     fpsFrameCounter = 0
     fpsFrameCounterStartTime = time
 
