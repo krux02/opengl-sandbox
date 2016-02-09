@@ -991,9 +991,7 @@ proc genShaderSource(
   for i, u in uniforms:
     result.add( u & ";\n" )
   for i, paramRaw in inParams:
-    echo i, " ", paramRaw
     let param = paramRaw.replaceWord("out", "in")
-    echo param
     if arrayLength >= 0:
       result.add format("$1[$2];\n", param, arrayLength)
     else:
@@ -1006,9 +1004,6 @@ proc genShaderSource(
   result.add("void main() {\n")
   result.add(mainSrc)
   result.add("\n}\n")
-
-  echo "genShaderSource end:"
-  echo result
 
 
 proc forwardVertexShaderSource(sourceHeader: string,
@@ -1029,6 +1024,8 @@ proc forwardVertexShaderSource(sourceHeader: string,
   for name in attribNames:
     result.add("VertexOut." & name & " = " & name & ";\n")
   result.add("}\n")
+
+  echo "forwardVertexShaderSource: ", result
 
 
 proc shaderSource(shader: GLuint, source: string) =
@@ -1405,18 +1402,26 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[seq[string]], statem
       echo "unknownSection"
       echo call.repr
 
-  echo "shadingDslInner: end of parsing"
 
   if hasIndices and indexType == nil:
     echo "has indices, but index Type was never set to anything"
 
-  var attributesSection = newSeq[string](attribNames.len)
-  for i in 0..<attribNames.len:
-     attributesSection[i] = format("in $1 $2", attribTypes[i], attribNames[i])
 
-  echo "shadingDslInner: got attributesSection"
-  let vertexShaderSource = genShaderSource(sourceHeader, uniformsSection, attributesSection, -1, vertexOutSection, includesSection, vertexMain)
-  echo "shadingDslInner: got vertexShaderSource"
+  var vertexShaderSource : string
+
+  if vertexMain == nil:
+    vertexShaderSource = forwardVertexShaderSource(sourceHeader, attribNames, attribTypes)
+
+    vertexOutSection.newSeq(attribNames.len)
+    for i in 0..<attribNames.len:
+       vertexOutSection[i] = format("out $1 $2", attribTypes[i], attribNames[i])
+
+  else:
+    var attributesSection = newSeq[string](attribNames.len)
+    for i in 0..<attribNames.len:
+       attributesSection[i] = format("in $1 $2", attribTypes[i], attribNames[i])
+
+    vertexShaderSource = genShaderSource(sourceHeader, uniformsSection, attributesSection, -1, vertexOutSection, includesSection, vertexMain)
 
   var linkShaderBlock : NimNode
 
