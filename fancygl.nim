@@ -598,6 +598,9 @@ type ArrayBuffer*[T]        = distinct GLuint
 type ElementArrayBuffer*[T] = distinct GLuint
 type UniformBuffer*[T]      = distinct GLuint
 
+type SeqLikeBuffer[T] = ArrayBuffer[T] | ElementArrayBuffer[T]
+type AnyBuffer[T] = ArrayBuffer[T] | ElementArrayBuffer[T] | UniformBuffer[T]
+
 proc newArrayBuffer[T](): ArrayBuffer[T] =
   glGenBuffers(1, cast[ptr GLuint](result.addr))
 
@@ -624,16 +627,6 @@ proc currentElementArrayBuffer*[T](): ElementArrayBuffer[T] =
 proc currentUniformBuffer*[T](): UniformBuffer[T] =
   glGetIntegerv(GL_UNIFORM_BUFFER_BINDING, cast[ptr GLint](result.addr))
 
-
-proc bindIt*[T](buffer: ArrayBuffer[T]) =
-  glBindBuffer(GL_ARRAY_BUFFER, GLuint(buffer))
-
-proc bindIt*[T](buffer: ElementArrayBuffer[T]) =
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, GLuint(buffer))
-
-proc bindIt*[T](buffer: UniformBuffer[T]) =
-  glBindBuffer(GL_UNIFORM_BUFFER, GLuint(buffer))
-
 proc bindingKind*[T](buffer: ArrayBuffer[T]) : GLenum {. inline .} =
   GL_ARRAY_BUFFER_BINDING
 
@@ -652,7 +645,10 @@ proc bufferKind*[T](buffer: ElementArrayBuffer[T]) : GLenum {. inline .} =
 proc bufferKind*[T](buffer: UniformBuffer[T]) : GLenum {. inline .} =
   GL_UNIFORM_BUFFER
 
-template bindBlock(buffer, blk:untyped) =
+proc bindIt*[T](buffer: AnyBuffer[T]) =
+  glBindBuffer(buffer.bufferKind, GLuint(buffer))
+
+template bindBlock[T](buffer : AnyBuffer[T], blk:untyped) =
   let buf = buffer
   var outer : GLint
   glGetIntegerv(buf.bindingKind, outer.addr)
@@ -660,11 +656,7 @@ template bindBlock(buffer, blk:untyped) =
   blk
   glBindBuffer(buf.bufferKind, GLuint(outer))
 
-proc bufferData*[T](buffer: ArrayBuffer[T], usage: GLenum, data: openarray[T]) =
-  if buffer.int > 0:
-    glNamedBufferDataEXT(buffer.GLuint, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
-
-proc bufferData*[T](buffer: ElementArrayBuffer[T], usage: GLenum, data: openarray[T]) =
+proc bufferData*[T](buffer: SeqLikeBuffer[T], usage: GLenum, data: openarray[T]) =
   if buffer.int > 0:
     glNamedBufferDataEXT(buffer.GLuint, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
 
@@ -672,12 +664,7 @@ proc bufferData*[T](buffer: UniformBuffer[T], usage: GLenum, data: T) =
   if buffer.int > 0:
     glNamedBufferDataEXT(buffer.GLuint, GLsizeiptr(sizeof(T)), unsafeAddr(data), usage)
 
-proc len*[T](buffer: ArrayBuffer[T]) : int =
-  var size: GLint
-  glGetNamedBufferParameterivEXT(buffer.GLuint, GL_BUFFER_SIZE, size.addr)
-  return size.int div sizeof(T).int
-
-proc len*[T](buffer: ElementArrayBuffer[T]) : int =
+proc len*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]) : int =
   var size: GLint
   glGetNamedBufferParameterivEXT(buffer.GLuint, GL_BUFFER_SIZE, size.addr)
   return size.int div sizeof(T).int
@@ -739,30 +726,75 @@ proc usage[T](buffer: ArrayBuffer[T]) : GLenum =
   glGetNamedBufferParameterivEXT(buffer.GLuint, GL_BUFFER_USAGE, tmp.addr)
   return tmp.GLenum
 
-#proc unmap[T](buffer: ElementArrayBuffer[T]): void =
-#  glUnmapNamedBufferEXT(buffer.GLuint)
-type MappedBuffer*[T] = object
-  data: ptr[T]
-  len*: int
+type
+  UncheckedArray {.unchecked.} [t] = array[0,t]
 
-proc `[]=`*[T](mb : MappedBuffer[T], index: int, val: T) : void =
-  let data = cast[ptr[T]](cast[int](mb.data) + (index * sizeof(T)))
-  data[] = val
+  MappedReadBuffer*[T] = object
+    data: ptr UncheckedArray[T]
+    size: int
 
-proc `[]`*[T](mb : MappedBuffer[T], index: int) : T =
-  (cast[ptr[T]](cast[int](mb.data) + (index * sizeof(T))))[]
+  MappedWriteBuffer*[T] = object
+    data: ptr UncheckedArray[T]
+    size: int
+
+  MappedReadWriteBuffer*[T] = object
+    data: ptr UncheckedArray[T]
+    size: int
+
+proc len*(mb : MappedReadBuffer | MappedWriteBuffer | MappedReadWriteBuffer) : int =
+  mb.size
+
+proc `[]`*[T](mb : MappedReadBuffer[T], index: int) : T =
+  mb.data[index]
+
+proc `[]=`*[T](mb : MappedWriteBuffer[T], index: int, val: T) : void =
+  mb.data[index] = val
+
+proc `[]`*[T](mb : MappedReadWriteBuffer[T]; index: int) : var T =
+  mb.data[index]
+
+proc `[]=`*[T](mb : MappedReadWriteBuffer[T], index: int, val: T) : void =
+  mb.data[index] = val
+
+proc compileTest() =
+  var mb = MappedReadWriteBuffer[int](data:nil, size:1)
+  let i : int = mb[0] # read
+  mb[0] += 17         # modify
+  mb[0] = 18          # write(error)
 
 
-proc unmap*[T](buffer: ArrayBuffer[T]): bool =
+proc unmap*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): bool =
   glUnmapNamedBufferEXT(buffer.GLuint) != GL_FALSE.GLboolean
 
-proc map*[T](buffer: ArrayBuffer[T], access: GLenum = GL_READ_WRITE): MappedBuffer[T] =
-  result.data = cast[ptr[T]](glMapNamedBufferEXT(buffer.GLuint, access))
-  result.len = buffer.size div sizeof(T)
+proc mapRead*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): MappedReadBuffer[T] =
+  result.data = cast[ptr UncheckedArray[T]](glMapNamedBufferEXT(buffer.GLuint, GL_READ_ONLY))
+  result.size = buffer.size div sizeof(T)
 
-template mapBufferBlock*(buffer: untyped, access: GLenum, blck: untyped) : stmt =
+proc mapWrite*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): MappedWriteBuffer[T] =
+  result.data = cast[ptr UncheckedArray[T]](glMapNamedBufferEXT(buffer.GLuint, GL_WRITE_ONLY))
+  result.size = buffer.size div sizeof(T)
+
+proc mapReadWrite*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): MappedReadWriteBuffer[T] =
+  result.data = cast[ptr UncheckedArray[T]](glMapNamedBufferEXT(buffer.GLuint, GL_READ_WRITE))
+  result.size = buffer.size div sizeof(T)
+
+template mapReadBufferBlock*(buffer, blck: untyped) : stmt =
   block:
-    var mappedBuffer {. inject .} = buffer.map(access)
+    let mappedBuffer {. inject .} = buffer.mapRead
+    blck
+
+  discard buffer.unmap
+
+template mapWriteBufferBlock*(buffer: untyped, blck: untyped) : stmt =
+  block:
+    let mappedBuffer {. inject .} = buffer.mapWrite
+    blck
+
+  discard buffer.unmap
+
+template mapReadWriteBufferBlock*(buffer: untyped, blck: untyped) : stmt =
+  block:
+    let mappedBuffer {. inject .} = buffer.mapReadWrite
     blck
 
   discard buffer.unmap
@@ -933,18 +965,35 @@ let sourceHeader = """
 #define M_PI 3.1415926535897932384626433832795
 """
 
-proc genShaderSource*(
+proc `$`(args: openArray[string]) : string =
+  result = "["
+  for arg in args:
+    result.add("\"" & arg & "\",")
+  result.add("]")
+
+macro printVar(args: varargs[untyped]) : stmt =
+
+  result = newStmtList()
+  for arg in args:
+    result.add newCall(bindSym"echo", newLit($arg.ident & ": "), arg)
+
+  echo result.repr
+
+proc genShaderSource(
     sourceHeader: string,
     uniforms : openArray[string],
     inParams : openArray[string], arrayLength: int,  # for geometry shader, -1 otherwise
     outParams: openArray[string],
     includes: openArray[string], mainSrc: string): string =
+
   result = sourceHeader
 
   for i, u in uniforms:
     result.add( u & ";\n" )
   for i, paramRaw in inParams:
+    echo i, " ", paramRaw
     let param = paramRaw.replaceWord("out", "in")
+    echo param
     if arrayLength >= 0:
       result.add format("$1[$2];\n", param, arrayLength)
     else:
@@ -957,6 +1006,30 @@ proc genShaderSource*(
   result.add("void main() {\n")
   result.add(mainSrc)
   result.add("\n}\n")
+
+  echo "genShaderSource end:"
+  echo result
+
+
+proc forwardVertexShaderSource(sourceHeader: string,
+    attribNames, attribTypes : openArray[string] ): string =
+
+  result = sourceHeader
+  for i, name in attribNames:
+    let tpe = attribTypes[i]
+    result.add("in " & tpe & " " & name & ";\n")
+
+  result.add("\nout VertexData {\n")
+  for i, name in attribNames:
+    let tpe = attribTypes[i]
+    result.add(tpe & " " & name & ";\n")
+  result.add("} VertexOut;\n")
+
+  result.add("\nvoid main() {\n")
+  for name in attribNames:
+    result.add("VertexOut." & name & " = " & name & ";\n")
+  result.add("}\n")
+
 
 proc shaderSource(shader: GLuint, source: string) =
   var source_array: array[1, string] = [source]
@@ -1129,13 +1202,16 @@ proc numInstances(num: GLSizei): int = 0
 ################################################################################
 
 macro shadingDslInner(mode: GLenum, fragmentOutputs: static[seq[string]], statement: varargs[typed] ) : stmt =
+  echo "shadingDslInner: ", statement.repr
 
   var numSamplers = 0
   var numLocations = 0
   var uniformsSection : seq[string] = @[]
   var initUniformsBlock = newStmtList()
   var setUniformsBlock = newStmtList()
-  var attributesSection : seq[string] = @[]
+  var attribNames = newSeq[string](0)
+  var attribTypes = newSeq[string](0)
+  #var attributesSection : seq[object(name:string, tpe: string)] = @[]
   var globalsBlock = newStmtList()
   var bufferCreationBlock = newStmtList()
   var vertexOutSection : seq[string] = @[]
@@ -1249,7 +1325,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[seq[string]], statem
 
           globalsBlock.add(getAst(foobarTemplate( !! buffername, value, bufferType )))
 
-        let attribCount = attributesSection.len
+        let attribCount = attribNames.len
 
         if isAttrib:
           bufferCreationBlock.add( newAssignment(
@@ -1284,7 +1360,9 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[seq[string]], statem
             bufferCreationBlock.add(newCall(bindSym"bindIt", value))
 
         if isAttrib:
-          attributesSection.add( format("in $1 $2", value.glslAttribType, name) )
+          attribNames.add( name )
+          attribTypes.add( value.glslAttribType )
+          # format("in $1 $2", value.glslAttribType, name) )
           numLocations += 1
 
     of "vertexOut":
@@ -1327,10 +1405,18 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[seq[string]], statem
       echo "unknownSection"
       echo call.repr
 
+  echo "shadingDslInner: end of parsing"
+
   if hasIndices and indexType == nil:
     echo "has indices, but index Type was never set to anything"
 
+  var attributesSection = newSeq[string](attribNames.len)
+  for i in 0..<attribNames.len:
+     attributesSection[i] = format("in $1 $2", attribTypes[i], attribNames[i])
+
+  echo "shadingDslInner: got attributesSection"
   let vertexShaderSource = genShaderSource(sourceHeader, uniformsSection, attributesSection, -1, vertexOutSection, includesSection, vertexMain)
+  echo "shadingDslInner: got vertexShaderSource"
 
   var linkShaderBlock : NimNode
 

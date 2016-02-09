@@ -223,6 +223,8 @@ let
     vec2f(0,0), vec2f(2,0), vec2f(0,2)
   ].arrayBuffer
 
+var hideHeightmap, hideObjects, hideNormals: bool
+
 declareFramebuffer(Fb1FramebufferType):
   depth = newTexture(windowsize)
   color = newTexture(windowsize)
@@ -257,7 +259,7 @@ var
   positions = newSeq[Vec3f](20).arrayBuffer
   colors = newSeq[Vec3f](50).arrayBuffer
 
-mapBufferBlock(colors, GL_WRITE_ONLY):
+mapWriteBufferBlock(colors):
   let maximum = colors.len - 1
   for i in 0 .. maximum:
     mappedBuffer[i] = vec3f(random(1.0).float32, random(1.0).float32, random(1.0).float32)
@@ -381,9 +383,7 @@ proc render() =
         //color.rgb = v_col * dot(lightDir_cs, v_normal);
         """
 
-
-
-  mapBufferBlock(positions, GL_WRITE_ONLY):
+  mapWriteBufferBlock(positions):
     let poslen = positions.len
     for i in 0 .. < poslen:
       let
@@ -498,7 +498,7 @@ proc render() =
       //normal.rgb = (g_normal + vec3(1))/2;
       """
 
-  #showNormals(projection_mat * view_mat, sphereVertices, sphereNormals, 0.3f)
+  showNormals(projection_mat * view_mat, sphereVertices, sphereNormals, 0.3f)
 
   glSwapWindow(window)
 
