@@ -960,7 +960,7 @@ template bindFramebuffer*(name, tpe, blok: untyped): stmt =
 
 type ShaderParam* = tuple[name: string, gl_type: string]
 
-let sourceHeader = """
+const sourceHeader = """
 #version 330
 #define M_PI 3.1415926535897932384626433832795
 """
@@ -976,8 +976,6 @@ macro printVar(args: varargs[untyped]) : stmt =
   result = newStmtList()
   for arg in args:
     result.add newCall(bindSym"echo", newLit($arg.ident & ": "), arg)
-
-  echo result.repr
 
 proc genShaderSource(
     sourceHeader: string,
@@ -1198,8 +1196,11 @@ proc numInstances(num: GLSizei): int = 0
 ## Shading Dsl Inner ###########################################################
 ################################################################################
 
+macro debugResult(arg: typed) : stmt =
+  echo arg.repr
+  arg
+
 macro shadingDslInner(mode: GLenum, fragmentOutputs: static[seq[string]], statement: varargs[typed] ) : stmt =
-  echo "shadingDslInner: ", statement.repr
 
   var numSamplers = 0
   var numLocations = 0
@@ -1236,8 +1237,10 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[seq[string]], statem
     case $call[0]
     of "numVertices":
       numVertices = call[1]
+
     of "numInstances":
       numInstances = call[1]
+
     of "uniforms":
       for innerCall in call[1][1].items:
         innerCall[1].expectKind nnkStrLit
@@ -1404,8 +1407,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[seq[string]], statem
 
 
   if hasIndices and indexType == nil:
-    echo "has indices, but index Type was never set to anything"
-
+    error "has indices, but index Type was never set to anything"
 
   var vertexShaderSource : string
 
@@ -1461,7 +1463,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[seq[string]], statem
   result = getAst(renderBlockTemplate(numLocations, globalsBlock, linkShaderBlock,
          bufferCreationBlock, initUniformsBlock, setUniformsBlock, drawCommand))
 
-  echo result.repr
+  result = newCall( bindSym"debugResult", result )
 
 ################################################################################
 ## Shading Dsl Outer ###########################################################

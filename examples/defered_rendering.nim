@@ -185,7 +185,7 @@ proc createFlatMap(width,height: int): HeightMap =
 var hm = createFlatMap(64,64)
 
 hm.DiamondSquare(64)
-hm.printMap
+#hm.printMap
 
 discard sdl2.init(INIT_EVERYTHING)
 
@@ -254,7 +254,7 @@ var
 
   movement = vec3d(0,0,0)
   rotation = vec2d(PI/2,0)
-  position = vec3d(32,32, hm[32,32] + 10 )
+  position = vec3d(0,0, hm[0,0] + 10 )
 
   positions = newSeq[Vec3f](20).arrayBuffer
   colors = newSeq[Vec3f](50).arrayBuffer
@@ -522,20 +522,33 @@ while runGame:
     if evt.kind == KeyDown:
       let keyboardEvent = cast[KeyboardEventPtr](addr(evt))
 
-      if keyboardEvent.keysym.scancode == SDL_SCANCODE_ESCAPE:
+      case keyboardEvent.keysym.scancode
+      of SDL_SCANCODE_ESCAPE:
         runGame = false
         break
 
-      if keyboardEvent.keysym.scancode == SDL_SCANCODE_SPACE:
+      of SDL_SCANCODE_SPACE:
         effectOrigin = position.xy.vec2f
         effectStartTime = simulationTime
 
-      if keyboardEvent.keysym.scancode == SDL_SCANCODE_PAUSE:
+      of SDL_SCANCODE_PAUSE:
         if gamePaused:
           gamePaused = false
           simulationTimeOffset = time - simulationTime
         else:
           gamePaused = true
+
+      of SDL_SCANCODE_1:
+        hideObjects = not hideObjects
+
+      of SDL_SCANCODE_2:
+        hideNormals = not hideNormals
+
+      of SDL_SCANCODE_3:
+        hideHeightmap = not hideHeightmap
+
+      else:
+        discard
 
     if evt.kind == MouseMotion:
       let mouseEvent = cast[MouseMotionEventPtr](addr(evt))
