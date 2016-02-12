@@ -301,6 +301,13 @@ const
     vec2f(0, 0), vec2f(1, 0), vec2f(0, 1)
   ]
 
+################################################################################
+#### macro utils ###############################################################
+################################################################################
+
+macro debugResult(arg: typed) : stmt =
+  echo arg.repr
+  arg
 
 ################################################################################
 #### Sampler Types #############################################################
@@ -938,9 +945,9 @@ macro declareFramebuffer*(typename,arg:untyped) : stmt =
     )
   )
 
-  echo result.repr
+  result = newCall( bindSym"debugResult", result )
 
-template bindFramebuffer*(name, tpe, blok: untyped): stmt =
+template bindFramebuffer*(name, tpe, blok: untyped): untyped =
   var name {.global.}: tpe
 
   var drawfb, readfb: GLint
@@ -1195,10 +1202,6 @@ proc numInstances(num: GLSizei): int = 0
 ################################################################################
 ## Shading Dsl Inner ###########################################################
 ################################################################################
-
-macro debugResult(arg: typed) : stmt =
-  echo arg.repr
-  arg
 
 macro shadingDslInner(mode: GLenum, fragmentOutputs: static[seq[string]], statement: varargs[typed] ) : stmt =
 
@@ -1463,7 +1466,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[seq[string]], statem
   result = getAst(renderBlockTemplate(numLocations, globalsBlock, linkShaderBlock,
          bufferCreationBlock, initUniformsBlock, setUniformsBlock, drawCommand))
 
-  result = newCall( bindSym"debugResult", result )
+  #result = newCall( bindSym"debugResult", result )
 
 ################################################################################
 ## Shading Dsl Outer ###########################################################
