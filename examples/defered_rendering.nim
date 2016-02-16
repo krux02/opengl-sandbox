@@ -404,45 +404,7 @@ proc render() =
         normal.rgb = (g_normal + vec3(1))/2;
         """
 
-    shadingDsl(GL_TRIANGLES):
-      numVertices = sphereIndices.len.GLsizei
-      numInstances = positions.len.GLsizei
-
-      uniforms:
-        normalMat = view_mat
-        mvp = projection_mat * view_mat
-        scale = 3
-        tex = crateTexture
-        lightDir_cs
-
-      attributes:
-        indices = sphereIndices
-        pos = sphereVertices
-        normal = sphereNormals
-        texCoord = sphereTexCoords
-
-        instanceData:
-          offset = positions
-          col = colors
-
-      vertexMain:
-        """
-        gl_Position = mvp * vec4(pos * scale + offset, 1);
-        v_normal = (normalMat * vec4(normal,0)).xyz;
-        v_col = col;
-        v_texCoord = texCoord;
-        """
-
-      vertexOut:
-        "out vec3 v_normal"
-        "out vec3 v_col"
-        "out vec2 v_texCoord"
-
-      fragmentMain:
-        """
-        normal.rgb = v_normal.xyz;
-        color.rgb = v_col;
-        """
+  fb1.color.generateMipmap
 
   mapWriteBufferBlock(positions):
     let poslen = positions.len
@@ -458,8 +420,66 @@ proc render() =
 
       mappedBuffer[i] = vec3f(x, y, z)
 
-  fb1.color.generateMipmap
+  #### render spheres ####
+  shadingDsl(GL_TRIANGLES):
+    numVertices = sphereIndices.len.GLsizei
+    numInstances = positions.len.GLsizei
 
+    uniforms:
+      normalMat = view_mat
+      mvp = projection_mat * view_mat
+      scale = 3
+      tex = crateTexture
+      lightDir_cs
+      viewport
+
+      color_tex = fb1.color
+      depth_tex = fb1.depth
+      normal_tex = fb1.normal
+
+    attributes:
+      indices = sphereIndices
+      pos = sphereVertices
+      normal = sphereNormals
+      texCoord = sphereTexCoords
+
+      instanceData:
+        offset = positions
+        col = colors
+
+    vertexMain:
+      """
+      gl_Position = mvp * vec4(pos * scale + offset, 1);
+      v_normal = (normalMat * vec4(normal,0)).xyz;
+      v_col = col;
+      v_texCoord = texCoord;
+      """
+
+    vertexOut:
+      "out vec3 v_normal"
+      "out vec3 v_col"
+      "out vec2 v_texCoord"
+      "out vec3 v_lightPos"
+
+    fragmentMain:
+      """
+      vec2 texcoord = (gl_FragCoord.xy - viewport.xy) / viewport.zw;
+
+      float depth = texture(depth_tex, texcoord).x * 2 - 1;
+      vec3 color = texture(color_tex, texcoord).rgb;
+      vec3 normal = texture(normal_tex, texcoord).xyz;
+
+      vec4 worldpos = inverse_mvp * vec4( (gl_FragCoord.xy / viewport.zw) * 2 - vec2(1), depth, 1 );
+      worldpos /= worldpos.w;
+
+      vec3 light_dir = worldpos.xyz - v_lightPos;
+      float dist = length(light_dir);
+      float intensity = max((scale - dist) / scale, 0) * dot(normal, light_dir) * v_col;
+
+      color.rgb = v_col * intensity
+
+
+      """
 
   var inverse_mvp : Mat4d
   block:
