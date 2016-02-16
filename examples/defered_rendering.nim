@@ -460,6 +460,12 @@ proc render() =
 
   fb1.color.generateMipmap
 
+
+  var inverse_mvp : Mat4d
+  block:
+    inverse_mvp = projection_mat * view_mat
+    inverse_mvp = inverse_mvp.inverse
+
   shadingDsl(GL_TRIANGLES):
     numVertices = 3
 
@@ -470,7 +476,8 @@ proc render() =
       time
       viewport
       texSize = fb1.color.size
-      border = (sin(time)+1).float32 * 512.0f
+      border = vec2f(512, 384)
+      inverse_mvp
 
     attributes:
       pos = screenSpaceTriangleVerts
@@ -487,16 +494,25 @@ proc render() =
 
     fragmentMain:
       """
-      //vec2 offset = vec2(sin(gl_FragCoord.y / 8) * 0.01, 0);
-      vec2 offset = vec2(0);
       vec2 texcoord = (v_texcoord * viewport.zw ) / texSize;
-      gl_FragDepth = texture(depth, texcoord + offset).x;
+      gl_FragDepth = texture(depth, texcoord).x;
+      vec4 worldpos = inverse_mvp * vec4( (gl_FragCoord.xy / viewport.zw) * 2 - vec2(1), gl_FragDepth * 2 - 1, 1 );
+      worldpos /= worldpos.w;
       // if((( int(gl_FragCoord.x) / 32) % 2 + ( int(gl_FragCoord.y) / 32) % 2) % 2 == 0) {
-      if( gl_FragCoord.x > border ) {
-        color = texture(tex, texcoord + offset);
+
+      if( gl_FragCoord.x > border.x ) {
+        if( gl_FragDepth != 1 ) {
+          color = worldpos - floor(worldpos);
+        }
       } else {
-        color = texture(norm, texcoord + offset);
+        if( gl_FragCoord.y > border.y ) {
+          color = texture(tex, texcoord);
+        } else {
+          color = texture(norm, texcoord);
+        }
       }
+
+
       """
 
   showNormals(projection_mat * view_mat, sphereVertices, sphereNormals, 0.3f)
