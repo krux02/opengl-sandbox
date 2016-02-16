@@ -189,10 +189,10 @@ hm.DiamondSquare(64)
 
 discard sdl2.init(INIT_EVERYTHING)
 
-var windowsize = vec2f(640,480)
-var viewport = vec4f(0,0,640,480)
+var windowsize = vec2f(1024,768)
+var viewport = vec4f(0,0,1024,768)
 
-let window = createWindow("SDL/OpenGL Skeleton", 100, 100, windowsize.x.cint, windowsize.y.cint, SDL_WINDOW_OPENGL or SDL_WINDOW_MOUSE_CAPTURE)
+let window = createWindow("SDL/OpenGL Skeleton", 100, 100, windowsize.x.cint, windowsize.y.cint, SDL_WINDOW_OPENGL) # SDL_WINDOW_MOUSE_CAPTURE
 let context = window.glCreateContext()
 
 # Initialize OpenGL
@@ -205,15 +205,15 @@ let
   hmTexCoords = hm.texCoords.arrayBuffer
   hmIndices = hm.indices.elementArrayBuffer
 
-  #sphereVertices = uvSphereVertices(32,16).arrayBuffer
-  #sphereNormals = uvSphereNormals(32,16).arrayBuffer
-  #sphereIndices = uvSphereIndices(32,16).elementArrayBuffer
-  #sphereTexCoords = uvSphereTexCoords(32,16).arrayBuffer
+  sphereVertices = uvSphereVertices(32,16).arrayBuffer
+  sphereNormals = uvSphereNormals(32,16).arrayBuffer
+  sphereIndices = uvSphereIndices(32,16).elementArrayBuffer
+  sphereTexCoords = uvSphereTexCoords(32,16).arrayBuffer
 
-  sphereVertices  = cylinderVertices(32, 0).arrayBuffer
-  sphereNormals   = cylinderNormals(32, 0).arrayBuffer
-  sphereTexCoords = cylinderTexCoords(32).arrayBuffer
-  sphereIndices   = cylinderIndices(32).elementArrayBuffer
+  #sphereVertices  = cylinderVertices(32, 0).arrayBuffer
+  #sphereNormals   = cylinderNormals(32, 0).arrayBuffer
+  #sphereTexCoords = cylinderTexCoords(32).arrayBuffer
+  #sphereIndices   = cylinderIndices(32).elementArrayBuffer
 
   screenSpaceTriangleVerts = @[
     vec4f(-1,-1,1,1), vec4f(3,-1,1,1), vec4f(-1,3,1,1)
@@ -339,6 +339,71 @@ proc render() =
     glCullFace(GL_BACK)
     glDepthFunc(GL_LEQUAL)
 
+    var baseOffset = vec3f(0,0,0)
+    baseOffset.x = floor(position.x / 64) * 64
+    baseOffset.y = floor(position.y / 64) * 64
+
+    shadingDsl(GL_TRIANGLES):
+      numVertices = hmindices.len.GLsizei
+      numInstances = 64
+
+      uniforms:
+        modelview = view_mat
+        projection = projection_mat
+        time
+        crateTexture
+        baseOffset
+        lightDir_cs
+        effectOrigin
+        effectStartTime
+
+      attributes:
+        indices = hmIndices
+        pos = hmVertices
+        texcoord = hmTexCoords
+
+      vertexMain:
+        """
+        vec3 offset = vec3(gl_InstanceID % 8 - 4, gl_InstanceID / 8 - 4, 0) * 64.0 + baseOffset;
+        vec3 pos_ws = pos + offset;
+
+        float effectLength = time - effectStartTime;
+        float effectParameter = effectLength * 5.0 - length(pos_ws.xy - effectOrigin) * 0.2;
+        float effect = cos(clamp(effectParameter, -3.14, 3.14)) + 1;
+
+        pos_ws.z += effect * 10.0 / (effectLength + 1);
+
+        v_texcoord = texcoord * 64.0;
+        v_eyepos = (modelview * vec4(pos_ws, 1)).xyz;
+        """
+
+      vertexOut:
+        "out vec2 v_texcoord"
+        "out vec3 v_eyepos"
+
+      geometryMain:
+        "layout(triangle_strip, max_vertices=3) out"
+        """
+        g_normal = normalize(cross(v_eyepos[1] - v_eyepos[0], v_eyepos[2] - v_eyepos[0]));
+
+        for( int i=0; i < 3; i++) {
+          gl_Position = projection * vec4(v_eyepos[i], 1);
+          g_texcoord = v_texcoord[i];
+          EmitVertex();
+        }
+        """
+
+
+      geometryOut:
+        "out vec2 g_texcoord"
+        "out vec3 g_normal"
+
+      fragmentMain:
+        """
+        color = texture(crateTexture, g_texcoord);
+        normal.rgb = (g_normal + vec3(1))/2;
+        """
+
     shadingDsl(GL_TRIANGLES):
       numVertices = sphereIndices.len.GLsizei
       numInstances = positions.len.GLsizei
@@ -375,12 +440,8 @@ proc render() =
 
       fragmentMain:
         """
-        //color.rgb = (v_normal.xyz + vec3(1))/2;
-        color.rgb = v_normal.xyz;
-        //color.rgb = v_col;
-
-        //vec3 texColor = texture(tex, v_texCoord).rgb;
-        //color.rgb = v_col * dot(lightDir_cs, v_normal);
+        normal.rgb = v_normal.xyz;
+        color.rgb = v_col;
         """
 
   mapWriteBufferBlock(positions):
@@ -405,9 +466,11 @@ proc render() =
     uniforms:
       tex = fb1.color
       depth = fb1.depth
+      norm = fb1.normal
       time
       viewport
       texSize = fb1.color.size
+      border = (sin(time)+1).float32 * 512.0f
 
     attributes:
       pos = screenSpaceTriangleVerts
@@ -427,75 +490,13 @@ proc render() =
       //vec2 offset = vec2(sin(gl_FragCoord.y / 8) * 0.01, 0);
       vec2 offset = vec2(0);
       vec2 texcoord = (v_texcoord * viewport.zw ) / texSize;
-      vec4 t_col = texture(tex, texcoord + offset);
       gl_FragDepth = texture(depth, texcoord + offset).x;
-      color = t_col;
-      """
-
-  var baseOffset = vec3f(0,0,0)
-  baseOffset.x = floor(position.x / 64) * 64
-  baseOffset.y = floor(position.y / 64) * 64
-
-  shadingDsl(GL_TRIANGLES):
-    numVertices = hmindices.len.GLsizei
-    numInstances = 64
-
-    uniforms:
-      modelview = view_mat
-      projection = projection_mat
-      time
-      crateTexture
-      baseOffset
-      lightDir_cs
-      effectOrigin
-      effectStartTime
-
-    attributes:
-      indices = hmIndices
-      pos = hmVertices
-      texcoord = hmTexCoords
-
-    vertexMain:
-      """
-      vec3 offset = vec3(gl_InstanceID % 8 - 4, gl_InstanceID / 8 - 4, 0) * 64.0 + baseOffset;
-      vec3 pos_ws = pos + offset;
-
-      float effectLength = time - effectStartTime;
-      float effectParameter = effectLength * 5.0 - length(pos_ws.xy - effectOrigin) * 0.2;
-      float effect = cos(clamp(effectParameter, -3.14, 3.14)) + 1;
-
-      pos_ws.z += effect * 10.0 / (effectLength + 1);
-
-      v_texcoord = texcoord * 64.0;
-      v_eyepos = (modelview * vec4(pos_ws, 1)).xyz;
-      """
-
-    vertexOut:
-      "out vec2 v_texcoord"
-      "out vec3 v_eyepos"
-
-    geometryMain:
-      "layout(triangle_strip, max_vertices=3) out"
-      """
-      g_normal = normalize(cross(v_eyepos[1] - v_eyepos[0], v_eyepos[2] - v_eyepos[0]));
-
-      for( int i=0; i < 3; i++) {
-        gl_Position = projection * vec4(v_eyepos[i], 1);
-        g_texcoord = v_texcoord[i];
-        EmitVertex();
+      // if((( int(gl_FragCoord.x) / 32) % 2 + ( int(gl_FragCoord.y) / 32) % 2) % 2 == 0) {
+      if( gl_FragCoord.x > border ) {
+        color = texture(tex, texcoord + offset);
+      } else {
+        color = texture(norm, texcoord + offset);
       }
-      """
-
-
-    geometryOut:
-      "out vec2 g_texcoord"
-      "out vec3 g_normal"
-
-    fragmentMain:
-      """
-      //color = texture(crateTexture, g_texcoord) * dot(g_normal, lightDir_cs);
-      color.rgb = g_normal;
-      //normal.rgb = (g_normal + vec3(1))/2;
       """
 
   showNormals(projection_mat * view_mat, sphereVertices, sphereNormals, 0.3f)
