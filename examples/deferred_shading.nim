@@ -426,8 +426,7 @@ proc render() =
         viewport
         texSize = fb1.color.size
         inverse_mvp
-        #border = (vec2f(sin(time).float32, cos(time).float32) * 0.5f + vec2f(0.5f)) * viewport.zw
-        border = mousePos
+        border = 0.5f * viewport.zw
 
       attributes:
         pos = screenSpaceTriangleVerts
