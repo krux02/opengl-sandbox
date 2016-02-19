@@ -223,7 +223,7 @@ let
     vec2f(0,0), vec2f(2,0), vec2f(0,2)
   ].arrayBuffer
 
-var hideHeightmap, hideObjects, hideNormals: bool
+var hideHeightmap, hideObjects, hideNormals, hideDifferedShading: bool
 
 declareFramebuffer(Fb1FramebufferType):
   depth = newTexture(windowsize)
@@ -420,122 +420,131 @@ proc render() =
 
       mappedBuffer[i] = vec3f(x, y, z)
 
-  #### render spheres ####
-  shadingDsl(GL_TRIANGLES):
-    numVertices = sphereIndices.len.GLsizei
-    numInstances = positions.len.GLsizei
+  glDepthMask(false)
+  glEnable(GL_BLEND)
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE)
 
-    uniforms:
-      normalMat = view_mat
-      mvp = projection_mat * view_mat
-      scale = 3
-      tex = crateTexture
-      lightDir_cs
-      viewport
+  var
+    mvp = project_map * view_mat
+    inverse_mvp = mvp
 
-      color_tex = fb1.color
-      depth_tex = fb1.depth
-      normal_tex = fb1.normal
+  inverse_mvp = inverse(inverse_mvp)
 
-    attributes:
-      indices = sphereIndices
-      pos = sphereVertices
-      normal = sphereNormals
-      texCoord = sphereTexCoords
+  if hideDifferedShading:
+    shadingDsl(GL_TRIANGLES):
+      numVertices = 3
 
-      instanceData:
-        offset = positions
-        col = colors
+      uniforms:
+        tex = fb1.color
+        depth = fb1.depth
+        norm = fb1.normal
+        time
+        viewport
+        texSize = fb1.color.size
+        inverse_mvp
 
-    vertexMain:
-      """
-      gl_Position = mvp * vec4(pos * scale + offset, 1);
-      v_normal = (normalMat * vec4(normal,0)).xyz;
-      v_col = col;
-      v_texCoord = texCoord;
-      """
+      attributes:
+        pos = screenSpaceTriangleVerts
+        texcoord = screenSpaceTriangleTexcoords
 
-    vertexOut:
-      "out vec3 v_normal"
-      "out vec3 v_col"
-      "out vec2 v_texCoord"
-      "out vec3 v_lightPos"
+      vertexMain:
+        """
+        gl_Position = pos;
+        v_texcoord = texcoord;
+        """
 
-    fragmentMain:
-      """
-      vec2 texcoord = (gl_FragCoord.xy - viewport.xy) / viewport.zw;
+      vertexOut:
+        "out vec2 v_texcoord"
 
-      float depth = texture(depth_tex, texcoord).x * 2 - 1;
-      vec3 color = texture(color_tex, texcoord).rgb;
-      vec3 normal = texture(normal_tex, texcoord).xyz;
+      fragmentMain:
+        """
+        vec2 texcoord = (v_texcoord * viewport.zw ) / texSize;
+        gl_FragDepth = texture(depth, texcoord).x;
+        vec4 worldpos = inverse_mvp * vec4( (gl_FragCoord.xy / viewport.zw) * 2 - vec2(1), gl_FragDepth * 2 - 1, 1 );
+        worldpos /= worldpos.w;
+        // if((( int(gl_FragCoord.x) / 32) % 2 + ( int(gl_FragCoord.y) / 32) % 2) % 2 == 0) {
 
-      vec4 worldpos = inverse_mvp * vec4( (gl_FragCoord.xy / viewport.zw) * 2 - vec2(1), depth, 1 );
-      worldpos /= worldpos.w;
-
-      vec3 light_dir = worldpos.xyz - v_lightPos;
-      float dist = length(light_dir);
-      float intensity = max((scale - dist) / scale, 0) * dot(normal, light_dir) * v_col;
-
-      color.rgb = v_col * intensity
-
-
-      """
-
-  var inverse_mvp : Mat4d
-  block:
-    inverse_mvp = projection_mat * view_mat
-    inverse_mvp = inverse_mvp.inverse
-
-  shadingDsl(GL_TRIANGLES):
-    numVertices = 3
-
-    uniforms:
-      tex = fb1.color
-      depth = fb1.depth
-      norm = fb1.normal
-      time
-      viewport
-      texSize = fb1.color.size
-      border = vec2f(512, 384)
-      inverse_mvp
-
-    attributes:
-      pos = screenSpaceTriangleVerts
-      texcoord = screenSpaceTriangleTexcoords
-
-    vertexMain:
-      """
-      gl_Position = pos;
-      v_texcoord = texcoord;
-      """
-
-    vertexOut:
-      "out vec2 v_texcoord"
-
-    fragmentMain:
-      """
-      vec2 texcoord = (v_texcoord * viewport.zw ) / texSize;
-      gl_FragDepth = texture(depth, texcoord).x;
-      vec4 worldpos = inverse_mvp * vec4( (gl_FragCoord.xy / viewport.zw) * 2 - vec2(1), gl_FragDepth * 2 - 1, 1 );
-      worldpos /= worldpos.w;
-      // if((( int(gl_FragCoord.x) / 32) % 2 + ( int(gl_FragCoord.y) / 32) % 2) % 2 == 0) {
-
-      if( gl_FragCoord.x > border.x ) {
-        if( gl_FragDepth != 1 ) {
-          color = worldpos - floor(worldpos);
-        }
-      } else {
-        if( gl_FragCoord.y > border.y ) {
-          color = texture(tex, texcoord);
+        if( gl_FragCoord.x > border.x ) {
+          if( gl_FragDepth != 1 ) {
+            color = worldpos - floor(worldpos);
+          }
         } else {
-          color = texture(norm, texcoord);
+          if( gl_FragCoord.y > border.y ) {
+            color = texture(tex, texcoord);
+          } else {
+            color = texture(norm, texcoord);
+          }
         }
-      }
+        """
 
+    glDepthMask(false)
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE)
+  else:
+    #### render lights ####
+    shadingDsl(GL_TRIANGLES):
+      numVertices = sphereIndices.len.GLsizei
+      numInstances = positions.len.GLsizei
 
-      """
+      uniforms:
+        normalMat = view_mat
+        mvp
+        inverse_mvp
 
-  showNormals(projection_mat * view_mat, sphereVertices, sphereNormals, 0.3f)
+        scale = 3
+        lightDir_cs
+        viewport
+
+        color_tex = fb1.color
+        depth_tex = fb1.depth
+        normal_tex = fb1.normal
+
+      attributes:
+        indices = sphereIndices
+        pos = sphereVertices
+        normal = sphereNormals
+        texCoord = sphereTexCoords
+
+        instanceData:
+          offset = positions
+          col = colors
+
+      vertexMain:
+        """
+        gl_Position = mvp * vec4(pos * scale + offset, 1);
+        v_normal = (normalMat * vec4(normal,0)).xyz;
+        v_col = col;
+        v_texCoord = texCoord;
+        """
+
+      vertexOut:
+        "out vec3 v_normal"
+        "out vec3 v_col"
+        "out vec2 v_texCoord"
+        "out vec3 v_lightPos"
+
+      fragmentMain:
+        """
+        vec2 texcoord = v_texCoord;
+
+        float depth = texture(depth_tex, texcoord).x * 2 - 1;
+        vec3 color = texture(color_tex, texcoord).rgb;
+        vec3 normal = texture(normal_tex, texcoord).xyz;
+
+        vec4 worldpos = inverse_mvp * vec4( (gl_FragCoord.xy / viewport.zw) * 2 - vec2(1), depth, 1 );
+        worldpos /= worldpos.w;
+
+        vec3 light_dir = v_lightPos - worldpos.xyz;
+        float dist = length(light_dir);
+        light_dir /= dist;
+        float factor1 = max((scale - dist) / scale, 0);
+        float factor2 = dot(normal, light_dir);
+
+        color.rgb = factor1 * factor2 * v_col;
+        """
+
+  if not hideNormals:
+    showNormals(projection_mat * view_mat, sphereVertices, sphereNormals, 0.3f)
 
   glSwapWindow(window)
 
@@ -583,6 +592,9 @@ while runGame:
 
       of SDL_SCANCODE_3:
         hideHeightmap = not hideHeightmap
+
+      of SDL_SCANCODE_4
+        hideDeferredShading = not hideDeferredShading
 
       else:
         discard

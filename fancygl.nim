@@ -1,4 +1,4 @@
-import opengl, glm, math, strutils, nre, macros, macroutils, sdl2, sdl2/image
+imagmport opengl, glm, math, strutils, nre, macros, macroutils, sdl2, sdl2/image
 
 #### glm additions ####
 
