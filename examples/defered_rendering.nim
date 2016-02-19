@@ -189,8 +189,8 @@ hm.DiamondSquare(64)
 
 discard sdl2.init(INIT_EVERYTHING)
 
-var windowsize = vec2f(1024,768)
-var viewport = vec4f(0,0,1024,768)
+var windowsize = vec2f(1280,960)
+var viewport = vec4f(0,0,1280,960)
 
 let window = createWindow("SDL/OpenGL Skeleton", 100, 100, windowsize.x.cint, windowsize.y.cint, SDL_WINDOW_OPENGL) # SDL_WINDOW_MOUSE_CAPTURE
 let context = window.glCreateContext()
@@ -223,12 +223,12 @@ let
     vec2f(0,0), vec2f(2,0), vec2f(0,2)
   ].arrayBuffer
 
-var hideHeightmap, hideObjects, hideNormals, hideDifferedShading: bool
+var hideHeightmap, hideObjects, hideNormals, hideDeferredShading: bool
 
 declareFramebuffer(Fb1FramebufferType):
-  depth = newTexture(windowsize)
-  color = newTexture(windowsize)
-  normal = newTexture(windowsize)
+  depth = createEmptyDepthTexture2D(windowsize)
+  color = createEmptyTexture2D(windowsize, GL_RGBA8)
+  normal = createEmptyTexture2D(windowsize, GL_RGBA16F)
 
 if 0 != glSetSwapInterval(-1):
   echo "glSetSwapInterval -1 not supported"
@@ -245,10 +245,12 @@ glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-c
 glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST) # Nice perspective corrections
 
 
-let projection_mat = perspective(45.0, windowsize.x / windowsize.y, 0.1, 100.0)
+let projection_mat = perspective(45.0, windowsize.x / windowsize.y, 0.1, 1000.0)
+
+const numLights = 500
 
 var
-  mouseX, mouseY: int32
+  mousePos = vec2f(0)
   simulationTime = 0.0
   frameCounter = 0
 
@@ -256,8 +258,8 @@ var
   rotation = vec2d(PI/2,0)
   position = vec3d(0,0, hm[0,0] + 10 )
 
-  positions = newSeq[Vec3f](20).arrayBuffer
-  colors = newSeq[Vec3f](50).arrayBuffer
+  positions = newSeq[Vec3f](numLights).arrayBuffer
+  colors = newSeq[Vec3f](numLights).arrayBuffer
 
 mapWriteBufferBlock(colors):
   let maximum = colors.len - 1
@@ -401,36 +403,18 @@ proc render() =
       fragmentMain:
         """
         color = texture(crateTexture, g_texcoord);
-        normal.rgb = (g_normal + vec3(1))/2;
+        normal.rgb = g_normal;
         """
 
   fb1.color.generateMipmap
 
-  mapWriteBufferBlock(positions):
-    let poslen = positions.len
-    for i in 0 .. < poslen:
-      let
-        distance = time * 10
-        r = float32((i+1) / poslen) * 32
-        alpha = distance / r
-        x = cos(alpha).float32 * r + 32
-        y = sin(alpha).float32 * r + 32
-        z = -33.0f
-        #z = hm[x,y] + 1.5f
-
-      mappedBuffer[i] = vec3f(x, y, z)
-
-  glDepthMask(false)
-  glEnable(GL_BLEND)
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE)
-
   var
-    mvp = project_map * view_mat
+    mvp = projection_mat * view_mat
     inverse_mvp = mvp
 
   inverse_mvp = inverse(inverse_mvp)
 
-  if hideDifferedShading:
+  if hideDeferredShading:
     shadingDsl(GL_TRIANGLES):
       numVertices = 3
 
@@ -442,6 +426,8 @@ proc render() =
         viewport
         texSize = fb1.color.size
         inverse_mvp
+        #border = (vec2f(sin(time).float32, cos(time).float32) * 0.5f + vec2f(0.5f)) * viewport.zw
+        border = mousePos
 
       attributes:
         pos = screenSpaceTriangleVerts
@@ -464,23 +450,62 @@ proc render() =
         worldpos /= worldpos.w;
         // if((( int(gl_FragCoord.x) / 32) % 2 + ( int(gl_FragCoord.y) / 32) % 2) % 2 == 0) {
 
-        if( gl_FragCoord.x > border.x ) {
-          if( gl_FragDepth != 1 ) {
-            color = worldpos - floor(worldpos);
-          }
-        } else {
-          if( gl_FragCoord.y > border.y ) {
-            color = texture(tex, texcoord);
+        if( gl_FragDepth != 1 ) {
+          if( gl_FragCoord.x < border.x ) {
+            if( gl_FragCoord.y < border.y ) {
+              //color = worldpos - floor(worldpos);
+              color = fract(worldpos);
+            } else {
+              /*
+                vec3 worldpos_dx = dFdx(worldpos.xyz);
+                vec3 worldpos_dy = dFdx(worldpos.xyz);
+                color.rgb = normalize(cross(worldpos_dx, worldpos_dy));
+              */
+
+              color = -texture(norm, texcoord);
+            }
           } else {
-            color = texture(norm, texcoord);
+            if( gl_FragCoord.y < border.y ) {
+              color = texture(tex, texcoord);
+            } else {
+              color = texture(norm, texcoord);
+            }
           }
         }
+        color.a = 1.0;
         """
 
+  else:
+
+    fb1.glname.bindRead
+
+    glBlitFramebuffer(
+      0,0, 1280, 960,
+      0,0, 1280, 960,
+      GL_DEPTH_BUFFER_BIT,
+      GL_NEAREST
+    )
+
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0)
     glDepthMask(false)
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE)
-  else:
+    glCullFace(GL_FRONT)
+    glDepthFunc(GL_GEQUAL)
+
+    mapWriteBufferBlock(positions):
+      let poslen = positions.len
+      for i in 0 .. < poslen:
+        let
+          distance = time * 30
+          r = float32(float32(i) / numLights) * 500.0f
+          alpha = distance / r
+          x = cos(alpha).float32 * r + 32
+          y = sin(alpha).float32 * r + 32
+          z = hm[x,y] + 1.5f
+
+        mappedBuffer[i] = vec3f(x, y, z)
+
     #### render lights ####
     shadingDsl(GL_TRIANGLES):
       numVertices = sphereIndices.len.GLsizei
@@ -491,7 +516,7 @@ proc render() =
         mvp
         inverse_mvp
 
-        scale = 3
+        scale = 10
         lightDir_cs
         viewport
 
@@ -503,7 +528,7 @@ proc render() =
         indices = sphereIndices
         pos = sphereVertices
         normal = sphereNormals
-        texCoord = sphereTexCoords
+        #texCoord = sphereTexCoords
 
         instanceData:
           offset = positions
@@ -514,34 +539,47 @@ proc render() =
         gl_Position = mvp * vec4(pos * scale + offset, 1);
         v_normal = (normalMat * vec4(normal,0)).xyz;
         v_col = col;
-        v_texCoord = texCoord;
+        //v_texCoord = texCoord;
+        v_lightPos = offset;
         """
 
       vertexOut:
         "out vec3 v_normal"
         "out vec3 v_col"
-        "out vec2 v_texCoord"
         "out vec3 v_lightPos"
 
       fragmentMain:
         """
-        vec2 texcoord = v_texCoord;
+        vec2 texcoord = (gl_FragCoord.xy - viewport.xy) / viewport.zw;
 
         float depth = texture(depth_tex, texcoord).x * 2 - 1;
-        vec3 color = texture(color_tex, texcoord).rgb;
+        vec3 diffuse = texture(color_tex, texcoord).rgb * 2;
         vec3 normal = texture(normal_tex, texcoord).xyz;
 
-        vec4 worldpos = inverse_mvp * vec4( (gl_FragCoord.xy / viewport.zw) * 2 - vec2(1), depth, 1 );
+        vec4 worldpos = inverse_mvp * vec4( texcoord * 2 - vec2(1), depth, 1 );
         worldpos /= worldpos.w;
 
         vec3 light_dir = v_lightPos - worldpos.xyz;
         float dist = length(light_dir);
         light_dir /= dist;
-        float factor1 = max((scale - dist) / scale, 0);
+        light_dir = (normalMat * vec4(light_dir,0)).xyz;
+        float factor1 = 1 - dist / scale;
+
+        if( factor1 <= 0 ) {
+          discard;
+        }
+
+
         float factor2 = dot(normal, light_dir);
 
-        color.rgb = factor1 * factor2 * v_col;
+        color.rgb = v_col * diffuse * (factor1 * factor2);
+        color.a = 1.0;
         """
+
+    glDepthMask(true)
+    glDisable(GL_BLEND)
+    glCullFace(GL_BACK)
+    glDepthFunc(GL_LESS)
 
   if not hideNormals:
     showNormals(projection_mat * view_mat, sphereVertices, sphereNormals, 0.3f)
@@ -593,7 +631,7 @@ while runGame:
       of SDL_SCANCODE_3:
         hideHeightmap = not hideHeightmap
 
-      of SDL_SCANCODE_4
+      of SDL_SCANCODE_4:
         hideDeferredShading = not hideDeferredShading
 
       else:
@@ -601,16 +639,17 @@ while runGame:
 
     if evt.kind == MouseMotion:
       let mouseEvent = cast[MouseMotionEventPtr](addr(evt))
-      mouseX = mouseEvent.x
-      mouseY = mouseEvent.y
+
+      mousePos.x = mouseEvent.x.float32
+      mousePos.y = 960 - mouseEvent.y.float32
       rotation.x = clamp( rotation.x - mouseEvent.yrel.float / 128.0 , 0, PI )
       rotation.y = rotation.y - mouseEvent.xrel.float / 128.0
 
 
   var state = getKeyboardState()
 
-  movement.z = (state[SDL_SCANCODE_D.int].float - state[SDL_SCANCODE_E.int].float) * 0.15
-  movement.x = (state[SDL_SCANCODE_F.int].float - state[SDL_SCANCODE_S.int].float) * 0.15
+  movement.z = (state[SDL_SCANCODE_D.int].float - state[SDL_SCANCODE_E.int].float) * 0.4
+  movement.x = (state[SDL_SCANCODE_F.int].float - state[SDL_SCANCODE_S.int].float) * 0.4
 
   if not gamePaused:
     simulationTime = time - simulationTimeOffset

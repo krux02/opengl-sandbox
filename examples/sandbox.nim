@@ -32,8 +32,8 @@ let indices = toSeq( countup[int8,int8](0, int8(vertex.len-1)) ).elementArrayBuf
 let crateTexture = loadTexture2DFromFile("crate.png")
 
 declareFramebuffer(Fb1FramebufferType):
-  depth = newTexture(windowsize)
-  color = newTexture(windowsize)
+  depth = createEmptyDepthTexture2D(windowsize)
+  color = createEmptyTexture2D(windowsize)
 
 if 0 != glSetSwapInterval(-1):
   echo "glSetSwapInterval -1 not supported"
@@ -116,6 +116,7 @@ proc render() =
           time
           mousePosNorm
           crateTexture
+
         attributes:
           pos = vertex
           col = color

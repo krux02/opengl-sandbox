@@ -1,4 +1,4 @@
-imagmport opengl, glm, math, strutils, nre, macros, macroutils, sdl2, sdl2/image
+import opengl, glm, math, strutils, nre, macros, macroutils, sdl2, sdl2/image
 
 #### glm additions ####
 
@@ -424,15 +424,15 @@ proc size*(tex: Texture2D): Vec2f =
   glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, h.addr)
   result = vec2f(w.float32, h.float32)
 
-proc createEmptyTexture2D*(size: Vec2f) : Texture2D =
+proc createEmptyTexture2D*(size: Vec2f, internalFormat: GLint = GL_RGB) : Texture2D =
   glGenTextures(1, cast[ptr GLuint](result.addr))
-  glTextureImage2DEXT(result.GLuint, GL_TEXTURE_2D, 0, GL_RGB, size.x.GLsizei, size.y.GLsizei, 0,GL_RGB, cGL_UNSIGNED_BYTE, nil)
+  glTextureImage2DEXT(result.GLuint, GL_TEXTURE_2D, 0, internalFormat, size.x.GLsizei, size.y.GLsizei, 0,GL_RGB, cGL_UNSIGNED_BYTE, nil)
   result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
   result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR)
 
-proc createEmptyDepthTexture2D*(size: Vec2f) : Texture2D =
+proc createEmptyDepthTexture2D*(size: Vec2f, internalFormat: GLint = GL_DEPTH_COMPONENT) : Texture2D =
   glGenTextures(1, cast[ptr GLuint](result.addr))
-  glTextureImage2DEXT(result.GLuint, GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, size.x.GLsizei, size.y.GLsizei, 0,GL_DEPTH_COMPONENT, cGL_FLOAT, nil)
+  glTextureImage2DEXT(result.GLuint, GL_TEXTURE_2D, 0, internalFormat, size.x.GLsizei, size.y.GLsizei, 0,GL_DEPTH_COMPONENT, cGL_FLOAT, nil)
   result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
   result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR)
 
@@ -469,6 +469,12 @@ type FrameBuffer* = distinct GLuint
 
 proc bindIt*(fb: FrameBuffer): void =
   glBindFramebuffer(GL_FRAMEBUFFER, fb.GLuint)
+
+proc bindDraw*(fb: FrameBuffer): void =
+  glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fb.GLuint)
+
+proc bindRead*(fb: FrameBuffer): void =
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, fb.GLuint)
 
 proc createFrameBuffer*(): FrameBuffer =
   glGenFramebuffers(1, cast[ptr GLuint](result.addr))
@@ -813,7 +819,7 @@ const currentFramebuffer* = 0
 # default fragment Outputs
 const fragmentOutputs* = @["color"]
 
-macro declareFramebuffer*(typename,arg:untyped) : stmt =
+macro declareFramebuffer*(typename,arg:untyped) : untyped =
   typename.expectKind nnkIdent
 
   result = newStmtList()
@@ -833,16 +839,16 @@ macro declareFramebuffer*(typename,arg:untyped) : stmt =
     if lhs.ident == !"depth":
         echo rhs.treerepr
         rhs.expectKind(nnkCall)
-        if rhs[0].ident == !"newRenderbuffer":
+        depthCreateExpr = rhs;
+
+        if rhs[0].ident == !"createDepthRenderBuffer":
           depthType = bindSym"DepthRenderbuffer"
-          depthCreateExpr = newCall(bindSym"createDepthRenderBuffer", rhs[1])
           useDepthRenderbuffer = true
-        elif rhs[0].ident == !"newTexture":
+        elif rhs[0].ident == !"createEmptyDepthTexture2D":
           depthType = bindSym"Texture2D"
-          depthCreateExpr = newCall(bindSym"createEmptyDepthTexture2D", rhs[1])
           useDepthRenderbuffer = false
         else:
-          error "expected call to either newRenderbuffer or newTexture"
+          error "expected call to either createDepthRenderBuffer or createEmptyDepthTexture2D"
 
     else:
       fragmentOutputs.add($asgn[0])
@@ -905,15 +911,21 @@ macro declareFramebuffer*(typename,arg:untyped) : stmt =
 
   let drawBuffersCall = newCall(bindSym"drawBuffers", newDotExpr(!!"fb1", !!"glname"))
 
-  for i,name in fragmentOutputs:
-    branchStmtList.add(newAssignment( newDotExpr( !!"fb1", !! name ),
-      newCall( bindSym"createEmptyTexture2D", !!"windowsize" ),
-    ))
-    branchStmtList.add(newCall(bindSym"glNamedFramebufferTextureEXT",
-      newDotExpr(!!"fb1", !!"glname", bindSym"GLuint"), !!("GL_COLOR_ATTACHMENT" & $i),
-      newDotExpr(!!"fb1", !! name, bindSym"GLuint"), newLit(0)
-    ))
-    drawBuffersCall.add( newCall(bindSym"GLenum", !!("GL_COLOR_ATTACHMENT" & $i)) )
+  var i = 0
+  for asgn in arg:
+    let lhs = asgn[0]
+    let rhs = asgn[1]
+
+    if lhs.ident != !"depth":
+      let name = $lhs
+      branchStmtList.add(newAssignment( newDotExpr( !!"fb1", !! name ), rhs))
+
+      branchStmtList.add(newCall(bindSym"glNamedFramebufferTextureEXT",
+        newDotExpr(!!"fb1", !!"glname", bindSym"GLuint"), !!("GL_COLOR_ATTACHMENT" & $i),
+        newDotExpr(!!"fb1", !! name, bindSym"GLuint"), newLit(0)
+      ))
+      drawBuffersCall.add( newCall(bindSym"GLenum", !!("GL_COLOR_ATTACHMENT" & $i)) )
+      i += 1
 
   branchStmtList.add( drawBuffersCall )
 
@@ -1030,7 +1042,7 @@ proc forwardVertexShaderSource(sourceHeader: string,
     result.add("VertexOut." & name & " = " & name & ";\n")
   result.add("}\n")
 
-  echo "forwardVertexShaderSource: ", result
+  echo "forwardVertexShaderSource:\n", result
 
 
 proc shaderSource(shader: GLuint, source: string) =
@@ -1412,6 +1424,11 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[seq[string]], statem
   if hasIndices and indexType == nil:
     error "has indices, but index Type was never set to anything"
 
+  if vertexMain == nil and geometryMain == nil:
+    echo "called with"
+    echo statement.repr
+    error("need at least a vertex shader or geometry Shader")
+
   var vertexShaderSource : string
 
   if vertexMain == nil:
@@ -1466,7 +1483,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[seq[string]], statem
   result = getAst(renderBlockTemplate(numLocations, globalsBlock, linkShaderBlock,
          bufferCreationBlock, initUniformsBlock, setUniformsBlock, drawCommand))
 
-  #result = newCall( bindSym"debugResult", result )
+  # result = newCall( bindSym"debugResult", result )
 
 ################################################################################
 ## Shading Dsl Outer ###########################################################
