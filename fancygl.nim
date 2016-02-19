@@ -614,22 +614,26 @@ type UniformBuffer*[T]      = distinct GLuint
 type SeqLikeBuffer[T] = ArrayBuffer[T] | ElementArrayBuffer[T]
 type AnyBuffer[T] = ArrayBuffer[T] | ElementArrayBuffer[T] | UniformBuffer[T]
 
-proc newArrayBuffer[T](): ArrayBuffer[T] =
-  glGenBuffers(1, cast[ptr GLuint](result.addr))
+proc create*[T](arrayBuffer: var ArrayBuffer[T] ) : void =
+  glGenBuffers(1, cast[ptr GLuint](addr(arrayBuffer)))
 
-proc newElementArrayBuffer[T](): ElementArrayBuffer[T] =
-  glGenBuffers(1, cast[ptr GLuint](result.addr))
+proc create*[T](arrayBuffer: var ElementArrayBuffer[T] ) : void =
+  glGenBuffers(1, cast[ptr GLuint](addr(arrayBuffer)))
 
-proc newUniformBuffer[T](): UniformBuffer[T] =
-  glGenBuffers(1, cast[ptr GLuint](result.addr))
+proc create*[T](arrayBuffer: var UniformBuffer[T] ) : void =
+  glGenBuffers(1, cast[ptr GLuint](addr(arrayBuffer)))
 
+proc createArrayBuffer*[T](len: int, usage: GLenum): ArrayBuffer[T] =
+  result.create
+  glNamedBufferDataEXT(result.GLuint, len * GLsizeiptr(sizeof(T)), nil, usage)
 
-proc newArrayBuffer[T](len: int): ArrayBuffer[T] =
-  glGenBuffers(1, cast[ptr GLuint](result.addr))
+proc createElementArrayBuffer*[T](len: int, usage: GLenum): ElementArrayBuffer[T] =
+  result.create
+  glNamedBufferDataEXT(result.GLuint, len * GLsizeiptr(sizeof(T)), nil, usage)
 
-proc newElementArrayBuffer[T](len: int): ElementArrayBuffer[T] =
-  glGenBuffers(1, cast[ptr GLuint](result.addr))
-
+proc createUniformBuffer*[T](usage: GLenum): UniformBuffer[T] =
+  result.create
+  glNamedBufferDataEXT(result.GLuint, GLsizeiptr(sizeof(T)), nil, usage)
 
 proc currentArrayBuffer*[T](): ArrayBuffer[T] =
   glGetIntegerv(GL_ARRAY_BUFFER_BINDING, cast[ptr GLint](result.addr))
@@ -682,17 +686,17 @@ proc len*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]) : int =
   glGetNamedBufferParameterivEXT(buffer.GLuint, GL_BUFFER_SIZE, size.addr)
   return size.int div sizeof(T).int
 
-proc arrayBuffer*[T](data : openarray[T]): ArrayBuffer[T] =
-  result = newArrayBuffer[T]()
-  result.bufferData(GL_STATIC_DRAW, data)
+proc arrayBuffer*[T](data : openarray[T], usage: GLenum = GL_STATIC_DRAW): ArrayBuffer[T] =
+  result.create
+  result.bufferData(usage, data)
 
-proc elementArrayBuffer*[T](data : openarray[T]): ElementArrayBuffer[T] =
-  result = newElementArrayBuffer[T]()
-  result.bufferData(GL_STATIC_DRAW, data)
+proc elementArrayBuffer*[T](data : openarray[T], usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
+  result.create
+  result.bufferData(usage, data)
 
-proc uniformBuffer*[T](data : T): UniformBuffer[T] =
-  result = newElementArrayBuffer[T]()
-  result.bufferData(GL_STATIC_DRAW, data)
+proc uniformBuffer*[T](data : T, usage: GLenum = GL_STATIC_DRAW): UniformBuffer[T] =
+  result.create
+  result.bufferData(usage, data)
 
 proc access[T](buffer: ArrayBuffer[T]) : GLenum =
   var tmp: GLint
@@ -817,7 +821,7 @@ template mapReadWriteBufferBlock*(buffer: untyped, blck: untyped) : stmt =
 const currentFramebuffer* = 0
 
 # default fragment Outputs
-const fragmentOutputs* = @["color"]
+const fragmentOutputs* = ["color"]
 
 macro declareFramebuffer*(typename,arg:untyped) : untyped =
   typename.expectKind nnkIdent
@@ -1131,7 +1135,7 @@ proc attribNormalized(t: typedesc[Vec2f]) : bool = false
 
 proc makeAndBindBuffer[T](buffer: var ArrayBuffer[T], index: GLint) =
   if index >= 0:
-    buffer = newArrayBuffer[T]()
+    buffer.create
     buffer.bindIt
     glVertexAttribPointer(index.GLuint, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
 
@@ -1141,7 +1145,7 @@ proc bindAndAttribPointer[T](buffer: ArrayBuffer[T], index: GLint) =
     glVertexAttribPointer(index.GLuint, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
 
 proc makeAndBindElementBuffer[T](buffer: var ElementArraybuffer[T]) =
-  buffer = newElementArrayBuffer[T]()
+  buffer.create
   buffer.bindIt
 
 proc myEnableVertexAttribArray(vao: VertexArrayObject, index: GLint, divisorval: GLuint): void =
@@ -1215,7 +1219,7 @@ proc numInstances(num: GLSizei): int = 0
 ## Shading Dsl Inner ###########################################################
 ################################################################################
 
-macro shadingDslInner(mode: GLenum, fragmentOutputs: static[seq[string]], statement: varargs[typed] ) : stmt =
+macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], statement: varargs[typed] ) : stmt =
 
   var numSamplers = 0
   var numLocations = 0

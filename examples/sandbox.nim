@@ -19,13 +19,13 @@ let
   color = boxColors.arrayBuffer
   texcoord = boxTexCoords.arrayBuffer
 
-let screenSpaceTriangleVerts = @[
+let screenSpaceTriangleVerts = arrayBuffer([
   vec4f(-1,-1,1,1), vec4f(3,-1,1,1), vec4f(-1,3,1,1)
-].arrayBuffer
+])
 
-let screenSpaceTriangleTexcoords = @[
+let screenSpaceTriangleTexcoords = arrayBuffer([
   vec2f(0,0), vec2f(2,0), vec2f(0,2)
-].arrayBuffer
+])
 
 let indices = toSeq( countup[int8,int8](0, int8(vertex.len-1)) ).elementArrayBuffer
 

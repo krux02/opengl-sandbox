@@ -201,7 +201,7 @@ loadExtensions()
 let
   crateTexture = loadTexture2DFromFile("crate.png")
 
-  hmVertices = hm.vertices.arrayBuffer
+  hmVertices = hm.vertices.arrayBuffer(GL_STATIC_DRAW)
   hmTexCoords = hm.texCoords.arrayBuffer
   hmIndices = hm.indices.elementArrayBuffer
 
@@ -215,13 +215,13 @@ let
   #sphereTexCoords = cylinderTexCoords(32).arrayBuffer
   #sphereIndices   = cylinderIndices(32).elementArrayBuffer
 
-  screenSpaceTriangleVerts = @[
+  screenSpaceTriangleVerts = arrayBuffer([
     vec4f(-1,-1,1,1), vec4f(3,-1,1,1), vec4f(-1,3,1,1)
-  ].arrayBuffer
+  ])
 
-  screenSpaceTriangleTexcoords = @[
+  screenSpaceTriangleTexcoords = arrayBuffer([
     vec2f(0,0), vec2f(2,0), vec2f(0,2)
-  ].arrayBuffer
+  ])
 
 var hideNormals, hideDeferredShading: bool
 
@@ -258,8 +258,8 @@ var
   rotation = vec2d(PI/2,0)
   position = vec3d(0,0, hm[0,0] + 10 )
 
-  lightPositions = newSeq[Vec3f](numLights).arrayBuffer
-  lightColors = newSeq[Vec3f](numLights).arrayBuffer
+  lightPositions = createArrayBuffer[Vec3f](numLights, GL_STREAM_DRAW)
+  lightColors = createArrayBuffer[Vec3f](numLights, GL_STATIC_DRAW)
 
 mapWriteBufferBlock(lightColors):
   let maximum = lightColors.len - 1
