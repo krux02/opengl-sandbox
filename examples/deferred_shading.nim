@@ -223,7 +223,7 @@ let
     vec2f(0,0), vec2f(2,0), vec2f(0,2)
   ].arrayBuffer
 
-var hideHeightmap, hideObjects, hideNormals, hideDeferredShading: bool
+var hideNormals, hideDeferredShading: bool
 
 declareFramebuffer(Fb1FramebufferType):
   depth = createEmptyDepthTexture2D(windowsize)
@@ -258,11 +258,11 @@ var
   rotation = vec2d(PI/2,0)
   position = vec3d(0,0, hm[0,0] + 10 )
 
-  positions = newSeq[Vec3f](numLights).arrayBuffer
-  colors = newSeq[Vec3f](numLights).arrayBuffer
+  lightPositions = newSeq[Vec3f](numLights).arrayBuffer
+  lightColors = newSeq[Vec3f](numLights).arrayBuffer
 
-mapWriteBufferBlock(colors):
-  let maximum = colors.len - 1
+mapWriteBufferBlock(lightColors):
+  let maximum = lightColors.len - 1
   for i in 0 .. maximum:
     mappedBuffer[i] = vec3f(random(1.0).float32, random(1.0).float32, random(1.0).float32)
 
@@ -447,28 +447,29 @@ proc render() =
         gl_FragDepth = texture(depth, texcoord).x;
         vec4 worldpos = inverse_mvp * vec4( (gl_FragCoord.xy / viewport.zw) * 2 - vec2(1), gl_FragDepth * 2 - 1, 1 );
         worldpos /= worldpos.w;
-        // if((( int(gl_FragCoord.x) / 32) % 2 + ( int(gl_FragCoord.y) / 32) % 2) % 2 == 0) {
+
+        //int tile = int(gl_FragCoord.x) / 64 % 2  + 2 * (int(gl_FragCoord.y) / 64 % 2);
+        int tile = int(gl_FragCoord.x < border.x) + int(gl_FragCoord.y < border.y) * 2;
+
 
         if( gl_FragDepth != 1 ) {
-          if( gl_FragCoord.x < border.x ) {
-            if( gl_FragCoord.y < border.y ) {
-              //color = worldpos - floor(worldpos);
-              color = fract(worldpos);
-            } else {
-              /*
-                vec3 worldpos_dx = dFdx(worldpos.xyz);
-                vec3 worldpos_dy = dFdx(worldpos.xyz);
-                color.rgb = normalize(cross(worldpos_dx, worldpos_dy));
-              */
-
-              color = -texture(norm, texcoord);
-            }
-          } else {
-            if( gl_FragCoord.y < border.y ) {
-              color = texture(tex, texcoord);
-            } else {
-              color = texture(norm, texcoord);
-            }
+          switch(tile) {
+          case 0:
+            //color = worldpos - floor(worldpos);
+            color = fract(worldpos);
+            break;
+          case 1:
+            color = texture(tex, texcoord);
+            break;
+          case 2:
+            //vec3 worldpos_dx = dFdx(worldpos.xyz);
+            //vec3 worldpos_dy = dFdx(worldpos.xyz);
+            //color.rgb = normalize(cross(worldpos_dx, worldpos_dy));
+            color = texture(norm, texcoord).z * texture(tex, texcoord);
+            break;
+          case 3:
+            color = texture(norm, texcoord);
+            break;
           }
         }
         color.a = 1.0;
@@ -492,8 +493,8 @@ proc render() =
     glCullFace(GL_FRONT)
     glDepthFunc(GL_GEQUAL)
 
-    mapWriteBufferBlock(positions):
-      let poslen = positions.len
+    mapWriteBufferBlock(lightPositions):
+      let poslen = numLights
       for i in 0 .. < poslen:
         let
           distance = time * 30
@@ -508,7 +509,7 @@ proc render() =
     #### render lights ####
     shadingDsl(GL_TRIANGLES):
       numVertices = sphereIndices.len.GLsizei
-      numInstances = positions.len.GLsizei
+      numInstances = numLights.GLsizei
 
       uniforms:
         normalMat = view_mat
@@ -530,8 +531,8 @@ proc render() =
         #texCoord = sphereTexCoords
 
         instanceData:
-          offset = positions
-          col = colors
+          offset = lightPositions
+          col = lightColors
 
       vertexMain:
         """
@@ -622,16 +623,10 @@ while runGame:
           gamePaused = true
 
       of SDL_SCANCODE_1:
-        hideObjects = not hideObjects
+        hideDeferredShading = not hideDeferredShading
 
       of SDL_SCANCODE_2:
         hideNormals = not hideNormals
-
-      of SDL_SCANCODE_3:
-        hideHeightmap = not hideHeightmap
-
-      of SDL_SCANCODE_4:
-        hideDeferredShading = not hideDeferredShading
 
       else:
         discard
