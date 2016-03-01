@@ -185,7 +185,6 @@ proc createFlatMap(width,height: int): HeightMap =
 var hm = createFlatMap(64,64)
 
 hm.DiamondSquare(64)
-#hm.printMap
 
 discard sdl2.init(INIT_EVERYTHING)
 
@@ -221,6 +220,8 @@ declareFramebuffer(Fb1FramebufferType):
   depth = createEmptyDepthTexture2D(windowsize)
   color = createEmptyTexture2D(windowsize, GL_RGBA8)
   normal = createEmptyTexture2D(windowsize, GL_RGBA16F)
+
+let fb1 = createFb1FramebufferType()
 
 if 0 != glSetSwapInterval(-1):
   echo "glSetSwapInterval -1 not supported"
@@ -322,7 +323,7 @@ proc render() =
   # Clear color and depth buffers
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT)
 
-  bindFramebuffer(fb1, Fb1FramebufferType):
+  bindFramebuffer(fb1):
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT)
 
 
