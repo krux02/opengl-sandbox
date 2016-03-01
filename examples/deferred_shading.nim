@@ -215,14 +215,6 @@ let
   #sphereTexCoords = cylinderTexCoords(32).arrayBuffer
   #sphereIndices   = cylinderIndices(32).elementArrayBuffer
 
-  screenSpaceTriangleVerts = arrayBuffer([
-    vec4f(-1,-1,1,1), vec4f(3,-1,1,1), vec4f(-1,3,1,1)
-  ])
-
-  screenSpaceTriangleTexcoords = arrayBuffer([
-    vec2f(0,0), vec2f(2,0), vec2f(0,2)
-  ])
-
 var hideNormals, hideDeferredShading: bool
 
 declareFramebuffer(Fb1FramebufferType):
@@ -308,9 +300,6 @@ proc showNormals(mvp: Mat4d, positions: ArrayBuffer[Vec3f], normals: ArrayBuffer
       """
       color.rgb = normalColor;
       """
-
-
-
 
 proc render() =
 

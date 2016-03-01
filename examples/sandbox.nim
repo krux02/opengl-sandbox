@@ -19,14 +19,6 @@ let
   color = boxColors.arrayBuffer
   texcoord = boxTexCoords.arrayBuffer
 
-let screenSpaceTriangleVerts = arrayBuffer([
-  vec4f(-1,-1,1,1), vec4f(3,-1,1,1), vec4f(-1,3,1,1)
-])
-
-let screenSpaceTriangleTexcoords = arrayBuffer([
-  vec2f(0,0), vec2f(2,0), vec2f(0,2)
-])
-
 let indices = toSeq( countup[int8,int8](0, int8(vertex.len-1)) ).elementArrayBuffer
 
 let crateTexture = loadTexture2DFromFile("crate.png")
@@ -34,6 +26,7 @@ let crateTexture = loadTexture2DFromFile("crate.png")
 declareFramebuffer(Fb1FramebufferType):
   depth = createEmptyDepthTexture2D(windowsize)
   color = createEmptyTexture2D(windowsize)
+
 
 if 0 != glSetSwapInterval(-1):
   echo "glSetSwapInterval -1 not supported"
@@ -98,10 +91,10 @@ proc render() =
     let time = simulationTime
 
     var modelview_mat = I4()
-    modelview_mat = modelview_mat.translate( vec3[float](sin(time)*2, cos(time)*2, -7) )
-    modelview_mat = modelview_mat.rotate( vec3[float](0,0,1), time )
-    modelview_mat = modelview_mat.rotate( vec3[float](0,1,0), time )
-    modelview_mat = modelview_mat.rotate( vec3[float](1,0,0), time )
+    modelview_mat = modelview_mat.translate( vec3d(sin(time)*2, cos(time)*2, -7) )
+    modelview_mat = modelview_mat.rotate( vec3d(0,0,1), time )
+    modelview_mat = modelview_mat.rotate( vec3d(0,1,0), time )
+    modelview_mat = modelview_mat.rotate( vec3d(1,0,0), time )
 
     bindFramebuffer(fb1, Fb1FramebufferType):
 
@@ -166,23 +159,10 @@ proc render() =
         viewport
         texSize = fb1.color.size
 
-      attributes:
-        pos = screenSpaceTriangleVerts
-        texcoord = screenSpaceTriangleTexcoords
-
-      vertexMain:
-        """
-        gl_Position = pos;
-        v_texcoord = texcoord;
-        """
-
-      vertexOut:
-        "out vec2 v_texcoord"
-
       fragmentMain:
         """
         vec2 offset = vec2(sin(time * 5 + gl_FragCoord.y / 8) * 0.01, 0);
-        vec2 texcoord = (v_texcoord * viewport.zw ) / texSize;
+        vec2 texcoord = (texCoord * viewport.zw ) / texSize;
         vec4 t_col = texture(tex, texcoord + offset);
         gl_FragDepth = texture(depth, texcoord + offset).x;
         color = t_col;
@@ -275,7 +255,6 @@ while runGame:
       let mouseEvent = cast[MouseMotionEventPtr](addr(evt))
       mouseX = mouseEvent.x
       mouseY = mouseEvent.y
-
 
   if not gamePaused:
     simulationTime = time - simulationTimeOffset
