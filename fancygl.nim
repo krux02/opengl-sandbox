@@ -983,9 +983,33 @@ template bindFramebuffer*(name, tpe, blok: untyped): untyped =
 
 type ShaderParam* = tuple[name: string, gl_type: string]
 
-const sourceHeader = """
+const
+  sourceHeader = """
 #version 330
 #define M_PI 3.1415926535897932384626433832795
+"""
+
+  screenTriagleVertexSource = """
+#version 330
+
+vec4 positions[3] = vec4[](
+  vec4(-1.0, -1.0, 1.0, 1.0),
+  vec4( 3.0, -1.0, 1.0, 1.0),
+  vec4(-1.0,  3.0, 1.0, 1.0)
+);
+
+vec2 texCoords[3] = vec2[](
+  vec2(0.0, 0.0),
+  vec2(2.0, 0.0),
+  vec2(0.0, 2.0)
+);
+
+out vec2 texCoord;
+
+void main() {
+  gl_Position = positions[gl_VertexID];
+  texCoord = texCoords[gl_VertexID];
+}
 """
 
 proc `$`(args: openArray[string]) : string =
@@ -1183,8 +1207,6 @@ template renderBlockTemplate(numLocations: int, globalsBlock, linkShaderBlock, b
       #for i, loc in locations:
       #  echo "location(", i, "): ", loc
 
-
-
     glUseProgram(gl_program)
 
     bindIt(vao)
@@ -1219,7 +1241,7 @@ proc numInstances(num: GLSizei): int = 0
 ## Shading Dsl Inner ###########################################################
 ################################################################################
 
-macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], statement: varargs[typed] ) : stmt =
+macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], statement: varargs[int] ) : stmt =
 
   var numSamplers = 0
   var numLocations = 0
@@ -1428,15 +1450,20 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
   if hasIndices and indexType == nil:
     error "has indices, but index Type was never set to anything"
 
-  if vertexMain == nil and geometryMain == nil:
-    echo "called with"
-    echo statement.repr
-    error("need at least a vertex shader or geometry Shader")
-
   var vertexShaderSource : string
 
-  if vertexMain == nil:
+  if vertexMain == nil and geometryMain == nil:
+
+    if vertexOutSection.len > 0:
+      error("cannot create implicit screen space quad renderer with vertex out section")
+
+    vertexShaderSource = screenTriagleVertexSource
+    vertexOutSection.add("out vec2 texCoord")
+
+
+  elif vertexMain == nil:
     vertexShaderSource = forwardVertexShaderSource(sourceHeader, attribNames, attribTypes)
+
 
     vertexOutSection.newSeq(attribNames.len)
     for i in 0..<attribNames.len:
@@ -1470,6 +1497,8 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
       newCall( bindSym"compileShader", bindSym"GL_GEOMETRY_SHADER", newLit(geometryShaderSource) ),
       newCall( bindSym"compileShader", bindSym"GL_FRAGMENT_SHADER", newLit(fragmentShaderSource) ),
     )
+
+
 
   let drawCommand =
     if hasIndices:
@@ -1619,4 +1648,3 @@ macro shadingDsl*(mode:GLenum, statement: stmt) : stmt {.immediate.} =
         result.add(includesCall)
       else:
         error("unknown section " & $ident.ident)
-

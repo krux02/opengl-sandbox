@@ -415,6 +415,7 @@ proc render() =
   inverse_mvp = inverse(inverse_mvp)
 
   if hideDeferredShading:
+
     shadingDsl(GL_TRIANGLES):
       numVertices = 3
 
@@ -428,22 +429,9 @@ proc render() =
         inverse_mvp
         border = 0.5f * viewport.zw
 
-      attributes:
-        pos = screenSpaceTriangleVerts
-        texcoord = screenSpaceTriangleTexcoords
-
-      vertexMain:
-        """
-        gl_Position = pos;
-        v_texcoord = texcoord;
-        """
-
-      vertexOut:
-        "out vec2 v_texcoord"
-
       fragmentMain:
         """
-        vec2 texcoord = (v_texcoord * viewport.zw ) / texSize;
+        vec2 texcoord = (texCoord * viewport.zw ) / texSize;
         gl_FragDepth = texture(depth, texcoord).x;
         vec4 worldpos = inverse_mvp * vec4( (gl_FragCoord.xy / viewport.zw) * 2 - vec2(1), gl_FragDepth * 2 - 1, 1 );
         worldpos /= worldpos.w;
