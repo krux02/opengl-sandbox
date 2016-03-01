@@ -424,6 +424,11 @@ proc size*(tex: Texture2D): Vec2f =
   glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, h.addr)
   result = vec2f(w.float32, h.float32)
 
+proc resize*(tex: Texture2D, size: Vec2f) =
+  var internalFormat: GLint
+  glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, internalFormat.addr)
+  glTextureImage2DEXT(tex.GLuint, GL_TEXTURE_2D, 0, internalFormat, size.x.GLsizei, size.y.GLsizei, 0, internalFormat.GLenum, cGL_UNSIGNED_BYTE, nil)
+
 proc createEmptyTexture2D*(size: Vec2f, internalFormat: GLint = GL_RGB) : Texture2D =
   glGenTextures(1, cast[ptr GLuint](result.addr))
   glTextureImage2DEXT(result.GLuint, GL_TEXTURE_2D, 0, internalFormat, size.x.GLsizei, size.y.GLsizei, 0,GL_RGB, cGL_UNSIGNED_BYTE, nil)
@@ -441,6 +446,11 @@ proc size*(tex: TextureRectangle): Vec2f =
   glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_TEXTURE_WIDTH, w.addr)
   glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_TEXTURE_HEIGHT, h.addr)
   result = vec2f(w.float32, h.float32)
+
+proc resize*(tex: TextureRectangle, size: Vec2f) =
+  var internalFormat: GLint
+  glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_TEXTURE_INTERNAL_FORMAT, internalFormat.addr)
+  glTextureImage2DEXT(tex.GLuint, GL_TEXTURE_RECTANGLE, 0, internalFormat, size.x.GLsizei, size.y.GLsizei, 0, internalFormat.GLenum, cGL_UNSIGNED_BYTE, nil)
 
 proc saveToBmpFile*(tex: Texture2D, filename: string): void =
   let s = tex.size
@@ -816,7 +826,11 @@ template mapReadWriteBufferBlock*(buffer: untyped, blck: untyped) : stmt =
 
   discard buffer.unmap
 
-#### framebuffer ####
+
+####################################################################################
+#### framebuffer ###################################################################
+####################################################################################
+
 
 const currentFramebuffer* = 0
 
@@ -894,26 +908,26 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
 
   let branchStmtList = newStmtList()
 
-  branchStmtList.add(newAssignment(newDotExpr(!!"fb1", !!"glname"),
+  branchStmtList.add(newAssignment(newDotExpr(!!"result", !!"glname"),
     newCall(bindSym"createFrameBuffer")
   ))
 
-  branchStmtList.add(newAssignment(newDotExpr(!!"fb1", !!"depth"),
+  branchStmtList.add(newAssignment(newDotExpr(!!"result", !!"depth"),
     depthCreateExpr
   ))
 
   if useDepthRenderbuffer:
     branchStmtList.add(newCall(bindSym"glNamedFramebufferRenderbufferEXT",
-      newDotExpr(!!"fb1", !!"glname", bindSym"GLuint"), bindSym"GL_DEPTH_ATTACHMENT", bindSym"GL_RENDERBUFFER",
-      newDotExpr(!!"fb1", !!"depth", bindSym"GLuint")
+      newDotExpr(!!"result", !!"glname", bindSym"GLuint"), bindSym"GL_DEPTH_ATTACHMENT", bindSym"GL_RENDERBUFFER",
+      newDotExpr(!!"result", !!"depth", bindSym"GLuint")
     ))
   else:
     branchStmtList.add(newCall(bindSym"glNamedFramebufferTextureEXT",
-      newDotExpr(!!"fb1", !!"glname", bindSym"GLuint"), bindSym"GL_DEPTH_ATTACHMENT",
-      newDotExpr(!!"fb1", !!"depth", bindSym"GLuint"), newLit(0)
+      newDotExpr(!!"result", !!"glname", bindSym"GLuint"), bindSym"GL_DEPTH_ATTACHMENT",
+      newDotExpr(!!"result", !!"depth", bindSym"GLuint"), newLit(0)
     ))
 
-  let drawBuffersCall = newCall(bindSym"drawBuffers", newDotExpr(!!"fb1", !!"glname"))
+  let drawBuffersCall = newCall(bindSym"drawBuffers", newDotExpr(!!"result", !!"glname"))
 
   var i = 0
   for asgn in arg:
@@ -922,11 +936,11 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
 
     if lhs.ident != !"depth":
       let name = $lhs
-      branchStmtList.add(newAssignment( newDotExpr( !!"fb1", !! name ), rhs))
+      branchStmtList.add(newAssignment( newDotExpr( !!"result", !! name ), rhs))
 
       branchStmtList.add(newCall(bindSym"glNamedFramebufferTextureEXT",
-        newDotExpr(!!"fb1", !!"glname", bindSym"GLuint"), !!("GL_COLOR_ATTACHMENT" & $i),
-        newDotExpr(!!"fb1", !! name, bindSym"GLuint"), newLit(0)
+        newDotExpr(!!"result", !!"glname", bindSym"GLuint"), !!("GL_COLOR_ATTACHMENT" & $i),
+        newDotExpr(!!"result", !! name, bindSym"GLuint"), newLit(0)
       ))
       drawBuffersCall.add( newCall(bindSym"GLenum", !!("GL_COLOR_ATTACHMENT" & $i)) )
       i += 1
@@ -935,42 +949,64 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
 
   let ifStmt = newNimNode2( nnkIfStmt,
     newNimNode2(nnkElifBranch,
-      newInfix( !!"==", newDotExpr( !!"fb1", !!"glname", !!"int" ), newLit(0) ),
+      newInfix( !!"==", newDotExpr( !!"result", !!"glname", !!"int" ), newLit(0) ),
       branchStmtList
     )
   )
 
-  let procStmtList = newStmtList( ifStmt, newDotExpr(!!"fb1", !!"glname", !!"bindIt") )
+  result.add(
+    newNimNode2( nnkProcDef,
+      !!( join(["create",$typename]) ),
+      newEmptyNode(),
+      newEmptyNode(),
+      newNimNode2( nnkFormalParams,
+        typename
+      ),
+      newEmptyNode(),
+      newEmptyNode(),
+      branchStmtList
+    )
+  )
+
+  echo result.repr
+
+  let resizeStmtList = newStmtList()
+  resizeStmtList.add( newCall(bindSym"resize", newDotExpr(!!"fb", !!"depth"), !!"newsize") )
+  for fragOut in fragmentOutputs:
+    resizeStmtList.add( newCall(bindSym"resize", newDotExpr(!!"fb", !!fragOut), !!"newsize") )
 
   result.add(
     newNimNode2( nnkProcDef,
-      !!"initAndBindInternal",
+      !!"resize",
       newEmptyNode(),
       newEmptyNode(),
       newNimNode2( nnkFormalParams,
         bindSym"void",
-        newNimNode2( nnkIdentDefs,
-          !!"fb1",
-          newNimNode2( nnkVarTy, typename),
-          newEmptyNode(),
+        newNimNode2(nnkIdentDefs,
+          !!"fb",
+          typename,
+          newEmptyNode()
+        ),
+        newNimNode2(nnkIdentDefs,
+          !!"newsize",
+          bindSym"Vec2f",
+          newEmptyNode()
         )
       ),
       newEmptyNode(),
       newEmptyNode(),
-      procStmtList
+      resizeStmtList
     )
   )
 
   result = newCall( bindSym"debugResult", result )
 
-template bindFramebuffer*(name, tpe, blok: untyped): untyped =
-  var name {.global.}: tpe
-
+template bindFramebuffer*(name, blok: untyped): untyped =
   var drawfb, readfb: GLint
   glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, drawfb.addr)
   glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, readfb.addr)
 
-  name.initAndBindInternal
+  name.glname.bindIt
   block:
     let currentFramebuffer {. inject .} = name
     const fragmentOutputs {.inject.} = name.type.fragmentOutputSeq
@@ -979,7 +1015,9 @@ template bindFramebuffer*(name, tpe, blok: untyped): untyped =
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, drawfb.GLuint)
   glBindFramebuffer(GL_READ_FRAMEBUFFER, readfb.GLuint)
 
-#### etc ####
+####################################################################################
+#### etc ###########################################################################
+####################################################################################
 
 type ShaderParam* = tuple[name: string, gl_type: string]
 

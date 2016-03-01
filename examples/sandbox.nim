@@ -1,6 +1,6 @@
 # OpenGL example using SDL2
 
-import sdl2, opengl, math, glm, sequtils, ../fancygl
+import sdl2, opengl, math, glm, sequtils, ../fancygl, macros
 
 discard sdl2.init(INIT_EVERYTHING)
 
@@ -27,6 +27,7 @@ declareFramebuffer(Fb1FramebufferType):
   depth = createEmptyDepthTexture2D(windowsize)
   color = createEmptyTexture2D(windowsize)
 
+let fb1 = createFb1FramebufferType()
 
 if 0 != glSetSwapInterval(-1):
   echo "glSetSwapInterval -1 not supported"
@@ -72,6 +73,7 @@ proc reshape() =
   # Set the viewport to cover the new window
   glViewport(viewport.x.GLint, viewport.y.GLint, windowsize.x.GLint, windowsize.y.GLint)
   projection_mat = perspective(45.0, windowsize.x / windowsize.y, 0.1, 100.0)
+  fb1.resize(windowsize.xy)
 
 var
   mouseX, mouseY: int32
@@ -96,7 +98,7 @@ proc render() =
     modelview_mat = modelview_mat.rotate( vec3d(0,1,0), time )
     modelview_mat = modelview_mat.rotate( vec3d(1,0,0), time )
 
-    bindFramebuffer(fb1, Fb1FramebufferType):
+    bindFramebuffer(fb1):
 
       glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
