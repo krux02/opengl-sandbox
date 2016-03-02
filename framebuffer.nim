@@ -144,13 +144,6 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
 
   branchStmtList.add( drawBuffersCall )
 
-  let ifStmt = newNimNode2( nnkIfStmt,
-    newNimNode2(nnkElifBranch,
-      newInfix( !!"==", newDotExpr( !!"result", !!"glname", !!"int" ), newLit(0) ),
-      branchStmtList
-    )
-  )
-
   result.add(
     newNimNode2( nnkProcDef,
       !!( join(["create",$typename]) ),

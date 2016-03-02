@@ -113,10 +113,7 @@ proc minMax*(hm: HeightMap): (float,float) =
 proc linMap(v,min,max, newMin, newMax: float32): float32 =
   (v - min) * (newMax - newMin) / (max - min) + newMin
 
-proc clamp(v, minv, maxv: float32): float32 =
-  min(max(v,minv), maxv)
-
-proc printMap(hm: var HeightMap): void =
+proc printMap*(hm: var HeightMap): void =
   let (min,max) = hm.minMax
   if min == max:
     return

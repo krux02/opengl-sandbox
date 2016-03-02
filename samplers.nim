@@ -19,9 +19,6 @@ template textureTypeTemplate(name, nilName, target:expr, shadername:string): stm
   proc generateMipmap*(texture: name): void =
     glGenerateTextureMipmapEXT(texture.GLuint, target)
 
-template textureTypeTemplate(name: expr, target:expr, shadername:string): stmt =
-  textureTypeTemplate(name, nilName(name), target, shadername)
-
 proc geometryNumVerts(mode: GLenum): int =
   case mode
   of GL_POINTS: 1
