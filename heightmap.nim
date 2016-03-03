@@ -53,6 +53,16 @@ proc vertices*(hm: var HeightMap) : seq[Vec3f] =
     for x in 0 .. hm.w:
       result.add vec3f(x.float32,y.float32,hm[x,y])
 
+proc normals*(hm: var HeightMap) : seq[Vec3f] =
+  result.newSeq(hm.w * hm.h)
+  result.setLen(0)
+
+  for y in 0 .. hm.h:
+    for x in 0 .. hm.w:
+      let v1 = vec3f(2, 0, hm[x+1, y] - hm[x-1, y])
+      let v2 = vec3f(0, 2, hm[x, y+1] - hm[x, y-1])
+      result.add(normalize(cross(v1,v2)))
+
 proc flatVertices*(hm: var HeightMap) : seq[Vec3f] =
   result.newSeq(hm.w * hm.h)
   result.setLen(0)
@@ -185,4 +195,4 @@ proc createFlatMap*(width,height: int): HeightMap =
   result.h = height
   result.dataseq = newSeq[float32](width*height)
 
-  
+

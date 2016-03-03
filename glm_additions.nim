@@ -20,6 +20,10 @@ proc vec3f*(x:float32)         : Vec3f = [  x,   x,   x].Vec3f
 proc vec2f*(x,y:float32) : Vec2f = [x,y].Vec2f
 proc vec2f*(x:float32)   : Vec2f = [x,x].Vec2f
 
+proc vec4f*(a:array[0..3, float32]) : Vec4f = [a[0], a[1], a[2], a[3]].Vec4f
+proc vec3f*(a:array[0..2, float32]) : Vec3f = [a[0], a[1], a[2]].Vec3f
+proc vec2f*(a:array[0..1, float32]) : Vec2f = [a[0], a[1]].Vec2f
+
 type Vec4d* = Vec4[float64]
 type Vec3d* = Vec3[float64]
 type Vec2d* = Vec2[float64]
@@ -54,6 +58,8 @@ type Mat2f* = Mat2x2[float32]
 type Mat4d* = Mat4x4[float64]
 type Mat3d* = Mat3x3[float64]
 type Mat2d* = Mat2x2[float64]
+
+
 
 proc mat4f*(mat: Mat4d): Mat4f =
   for i in 0..<4:

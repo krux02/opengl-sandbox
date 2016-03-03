@@ -19,8 +19,9 @@ let
   starTexture = loadTexture2DFromFile("star_symmetric_gray.png")
 
   hmVertices = hm.vertices.arrayBuffer(GL_STATIC_DRAW)
-  hmTexCoords = hm.texCoords.arrayBuffer
-  hmIndices = hm.indices.elementArrayBuffer
+  hmNormals = hm.normals.arrayBuffer(GL_STATIC_DRAW)
+  hmTexCoords = hm.texCoords.arrayBuffer(GL_STATIC_DRAW)
+  hmIndices = hm.indices.elementArrayBuffer(GL_STATIC_DRAW)
 
   sphereVertices = uvSphereVertices(32,16).arrayBuffer
   sphereNormals = uvSphereNormals(32,16).arrayBuffer
@@ -32,7 +33,7 @@ let
   #sphereTexCoords = cylinderTexCoords(32).arrayBuffer
   #sphereIndices   = cylinderIndices(32).elementArrayBuffer
 
-var hideNormals, hideDeferredShading: bool
+var hideNormals, hideDeferredShading, flatShading, wireframe: bool
 
 declareFramebuffer(Fb1FramebufferType):
   depth = createEmptyDepthTexture2D(windowsize)
@@ -69,8 +70,8 @@ var
   rotation = vec2d(PI/2,0)
   position = vec3d(0,0, hm[0,0] + 10 )
 
-  lightPositions = createArrayBuffer[Vec3f](numLights, GL_STREAM_DRAW)
-  lightColors = createArrayBuffer[Vec3f](numLights, GL_STATIC_DRAW)
+  lightPositions = createArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW)
+  lightColors = createArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW)
 
 mapWriteBufferBlock(lightColors):
   let maximum = lightColors.len - 1
@@ -141,6 +142,11 @@ proc render() =
   # Clear color and depth buffers
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT)
 
+  if wireframe:
+    glPolygonMode( GL_FRONT_AND_BACK, GL_LINE )
+  else:
+    glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
+
   bindFramebuffer(fb1):
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT)
 
@@ -167,11 +173,13 @@ proc render() =
         effectOrigin
         effectStartTime
         instanceSize = vec2f(hm.w.float32, hm.h.float32)
+        flatShading
 
       attributes:
         indices = hmIndices
         pos = hmVertices
         texcoord = hmTexCoords
+        normal = hmNormals
 
       vertexMain:
         """
@@ -186,20 +194,27 @@ proc render() =
 
         v_texcoord = texcoord * instanceSize;
         v_eyepos = (modelview * vec4(pos_ws, 1)).xyz;
+        v_normal = (modelview * vec4(normal,0)).xyz;
         """
 
       vertexOut:
         "out vec2 v_texcoord"
         "out vec3 v_eyepos"
+        "out vec3 v_normal"
 
       geometryMain:
         "layout(triangle_strip, max_vertices=3) out"
         """
-        g_normal = normalize(cross(v_eyepos[1] - v_eyepos[0], v_eyepos[2] - v_eyepos[0]));
+        if( flatShading ) {
+          g_normal = normalize(cross(v_eyepos[1] - v_eyepos[0], v_eyepos[2] - v_eyepos[0]));
+        }
 
         for( int i=0; i < 3; i++) {
           gl_Position = projection * vec4(v_eyepos[i], 1);
           g_texcoord = v_texcoord[i];
+          if( !flatShading ) {
+            g_normal = v_normal[i];
+          }
           EmitVertex();
         }
         """
@@ -214,8 +229,10 @@ proc render() =
         color = texture(crateTexture, g_texcoord);
         normal.rgb = g_normal;
         """
+    #end shadingDsl
+  #end bindFramebuffer(fb1)
 
-  fb1.color.generateMipmap
+  glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
 
   var
     mvp = projection_mat * view_mat
@@ -297,8 +314,8 @@ proc render() =
           distance = time * 30
           r = float32(float32(i) / numLights) * 500.0f
           alpha = distance / r
-          x = cos(alpha).float32 * r + 32
-          y = sin(alpha).float32 * r + 32
+          x = cos(alpha).float32 * r
+          y = sin(alpha).float32 * r
           z = hm[x,y] + 1.5f
 
         mappedBuffer[i] = vec3f(x, y, z)
@@ -500,6 +517,12 @@ while runGame:
 
       of SDL_SCANCODE_2:
         hideNormals = not hideNormals
+
+      of SDL_SCANCODE_3:
+        flatShading = not flatShading
+
+      of SDL_SCANCODE_4:
+        wireframe = not wireframe
 
       else:
         discard

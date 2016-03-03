@@ -25,6 +25,9 @@ proc uniform(location: GLint, value: Vec3f) =
 proc uniform(location: GLint, value: Vec4f) =
   glUniform4f(location, value[0], value[1], value[2], value[3])
 
+proc uniform(location: GLint, value: bool) =
+  glUniform1i(location, value.GLint)
+
 #### Vertex Array Object ####
 
 
