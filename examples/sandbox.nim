@@ -1,6 +1,6 @@
 # OpenGL example using SDL2
 
-import sdl2, opengl, math, glm, sequtils, ../fancygl, macros
+import sdl2, opengl, math, glm, sequtils, ../fancygl
 
 discard sdl2.init(INIT_EVERYTHING)
 

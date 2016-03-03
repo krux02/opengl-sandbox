@@ -16,6 +16,7 @@ loadExtensions()
 
 let
   crateTexture = loadTexture2DFromFile("crate.png")
+  starTexture = loadTexture2DFromFile("star_symmetric_gray.png")
 
   hmVertices = hm.vertices.arrayBuffer(GL_STATIC_DRAW)
   hmTexCoords = hm.texCoords.arrayBuffer
@@ -372,10 +373,86 @@ proc render() =
         color.a = 1.0;
         """
 
-    glDepthMask(true)
-    glDisable(GL_BLEND)
+    glDepthMask(false)
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE)
     glCullFace(GL_BACK)
-    glDepthFunc(GL_LESS)
+    glDisable(GL_DEPTH_TEST)
+
+    shadingDsl(GL_POINTS):
+      numVertices = numLights.GLsizei
+
+      uniforms:
+        star_tex = starTexture
+        depth_tex = fb1.depth
+
+        projection_mat
+        view_mat
+
+        scale = 3
+        viewport
+
+      attributes:
+        a_pos = lightPositions
+        a_color = lightColors
+
+      vertexMain:
+        """
+        v_pos = a_pos;
+        v_color = a_color;
+        """
+
+      vertexOut:
+        "out vec3 v_pos"
+        "out vec3 v_color"
+
+      geometryMain:
+        "layout(triangle_strip, max_vertices=4) out"
+        """
+        vec4 center_vs = view_mat * vec4(v_pos[0], 1);
+        vec4 center_ndc = projection_mat * center_vs;
+        center_ndc /= center_ndc.w;
+
+        float scene_depth = texture(depth_tex, (center_ndc.xy + vec2(1))* 0.5).x * 2 - 1;
+        float vertex_depth = center_ndc.z;
+
+        if( abs(center_ndc.x) < 1 && abs(center_ndc.y) < 1 && scene_depth > vertex_depth) {
+
+          g_color = v_color[0];
+
+          gl_Position = projection_mat * (center_vs + vec4(-scale,-scale,0,0));
+          texCoord = vec2( 0, 0);
+          EmitVertex();
+
+          gl_Position = projection_mat * (center_vs + vec4( scale,-scale,0,0));
+          texCoord = vec2( 1, 0);
+          EmitVertex();
+
+          gl_Position = projection_mat * (center_vs + vec4(-scale, scale,0,0));
+          texCoord = vec2( 0, 1);
+          EmitVertex();
+
+          gl_Position = projection_mat * (center_vs + vec4( scale, scale,0,0));
+          texCoord = vec2( 1, 1);
+          EmitVertex();
+        }
+        """
+
+      geometryOut:
+        "out vec2 texCoord"
+        "out vec3 g_color"
+
+      fragmentMain:
+        """
+        color = texture(star_tex, texCoord);
+        color.rgb *= g_color;
+        """
+
+  glDepthMask(true)
+  glDisable(GL_BLEND)
+  glCullFace(GL_BACK)
+  glEnable(GL_DEPTH_TEST)
+  glDepthFunc(GL_LESS)
 
   if not hideNormals:
     showNormals(projection_mat * view_mat, sphereVertices, sphereNormals, 0.3f)

@@ -51,12 +51,10 @@ proc enableAttrib(vao: VertexArrayObject, index: GLuint) : void =
 
 #proc divisor(vao: VertexArrayObject, index: GLuint) : GLuint =
 
-
 template blockBind*(vao: VertexArrayObject, blk: stmt) : stmt =
   vao.bindIt
   blk
   nil_vao.bindIt
-  glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
 
 #### Array Buffers ####
 
@@ -129,6 +127,10 @@ template bindBlock[T](buffer : AnyBuffer[T], blk:untyped) =
 proc bufferData*[T](buffer: SeqLikeBuffer[T], usage: GLenum, data: openarray[T]) =
   if buffer.int > 0:
     glNamedBufferDataEXT(buffer.GLuint, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
+
+proc bufferData*[T](buffer: SeqLikeBuffer[T], dataptr: ptr T, size: int, usage: GLenum) =
+  if buffer.int > 0:
+    glNamedBufferDataEXT(buffer.GLuint, GLsizeiptr(size), dataptr, usage)
 
 proc bufferData*[T](buffer: UniformBuffer[T], usage: GLenum, data: T) =
   if buffer.int > 0:
