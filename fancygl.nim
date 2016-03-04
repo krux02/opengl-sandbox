@@ -268,7 +268,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 
         if not isAttrib:
           if hasIndices:
-            echo "error, has already indices"
+            error "has already indices"
 
           hasIndices = true
 
@@ -280,11 +280,11 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
           of ntyInt32, ntyUInt32:
             indexType = bindSym"GL_UNSIGNED_INT"
           of ntyInt, ntyUInt:
-            echo "error int type has to be explicity sized uint8 uint16 or uint32"
+            error "int type has to be explicity sized uint8 uint16 or uint32"
           of ntyInt64, ntyUInt64:
-            echo "error 64 bit indices not supported"
+            error "64 bit indices not supported"
           else:
-            echo "error unknown type kind: ", value.getType2[1].typeKind
+            error("unknown type kind: " & $value.getType2[1].typeKind)
 
 
         template foobarTemplate( lhs, rhs, bufferType : expr ) : stmt {.dirty.} =
@@ -388,7 +388,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
   if vertexMain == nil and geometryMain == nil:
 
     if vertexOutSection.len > 0:
-      error("cannot create implicit screen space quad renderer with vertex out section")
+      error "cannot create implicit screen space quad renderer with vertex out section"
 
     vertexShaderSource = screenTriagleVertexSource
     vertexOutSection.add("out vec2 texCoord")
@@ -519,7 +519,7 @@ macro shadingDsl*(mode:GLenum, statement: stmt) : stmt {.immediate.} =
                 handleCapture(attributesCall, capture, 1)
 
             else:
-              echo "error expected call to instanceData, but got: ", capture.repr
+              error "expected call to instanceData, but got: " & capture.repr
           else:
             handleCapture(attributesCall, capture, 0)
 
@@ -549,7 +549,7 @@ macro shadingDsl*(mode:GLenum, statement: stmt) : stmt {.immediate.} =
             for line in section.strVal.splitLines:
               outCall.add line.strip.newLit
           else:
-            error("unreachable")
+            error "unreachable"
 
 
         result.add(outCall)

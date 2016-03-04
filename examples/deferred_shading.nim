@@ -17,6 +17,7 @@ loadExtensions()
 let
   crateTexture = loadTexture2DFromFile("crate.png")
   starTexture = loadTexture2DFromFile("star_symmetric_gray.png")
+  cliffTexture = loadTexture2DFromFile("Cliffs.png")
 
   hmVertices = hm.vertices.arrayBuffer(GL_STATIC_DRAW)
   hmNormals = hm.normals.arrayBuffer(GL_STATIC_DRAW)
@@ -168,6 +169,7 @@ proc render() =
         projection = projection_mat
         time
         crateTexture
+        cliffTexture
         baseOffset
         lightDir_cs
         effectOrigin
@@ -193,27 +195,33 @@ proc render() =
         pos_ws.z += effect * 10.0 / (effectLength + 1);
 
         v_texcoord = texcoord * instanceSize;
-        v_eyepos = (modelview * vec4(pos_ws, 1)).xyz;
-        v_normal = (modelview * vec4(normal,0)).xyz;
+        v_pos_cs = (modelview * vec4(pos_ws, 1)).xyz;
+        v_pos_ws = pos_ws;
+        v_normal_cs = (modelview * vec4(normal,0)).xyz;
+
+        v_normal_ws = normal;
         """
 
       vertexOut:
         "out vec2 v_texcoord"
-        "out vec3 v_eyepos"
-        "out vec3 v_normal"
+        "out vec3 v_pos_cs"
+        "out vec3 v_pos_ws"
+        "out vec3 v_normal_cs"
+        "out vec3 v_normal_ws"
 
       geometryMain:
         "layout(triangle_strip, max_vertices=3) out"
         """
         if( flatShading ) {
-          g_normal = normalize(cross(v_eyepos[1] - v_eyepos[0], v_eyepos[2] - v_eyepos[0]));
+          g_normal_cs = normalize(cross(v_pos_cs[1] - v_pos_cs[0], v_pos_cs[2] - v_pos_cs[0]));
         }
 
         for( int i=0; i < 3; i++) {
-          gl_Position = projection * vec4(v_eyepos[i], 1);
+          gl_Position = projection * vec4(v_pos_cs[i], 1);
           g_texcoord = v_texcoord[i];
+          g_normal_ws = v_normal_ws[i];
           if( !flatShading ) {
-            g_normal = v_normal[i];
+            g_normal_cs = v_normal_cs[i];
           }
           EmitVertex();
         }
@@ -222,12 +230,13 @@ proc render() =
 
       geometryOut:
         "out vec2 g_texcoord"
-        "out vec3 g_normal"
+        "out vec3 g_normal_cs"
+        "out vec3 g_normal_ws"
 
       fragmentMain:
         """
         color = texture(crateTexture, g_texcoord);
-        normal.rgb = g_normal;
+        normal.rgb = g_normal_cs;
         """
     #end shadingDsl
   #end bindFramebuffer(fb1)
@@ -426,8 +435,8 @@ proc render() =
       geometryMain:
         "layout(triangle_strip, max_vertices=4) out"
         """
-        vec4 center_vs = view_mat * vec4(v_pos[0], 1);
-        vec4 center_ndc = projection_mat * center_vs;
+        vec4 center_cs = view_mat * vec4(v_pos[0], 1);
+        vec4 center_ndc = projection_mat * center_cs;
         center_ndc /= center_ndc.w;
 
         float scene_depth = texture(depth_tex, (center_ndc.xy + vec2(1))* 0.5).x * 2 - 1;
@@ -437,19 +446,19 @@ proc render() =
 
           g_color = v_color[0];
 
-          gl_Position = projection_mat * (center_vs + vec4(-scale,-scale,0,0));
+          gl_Position = projection_mat * (center_cs + vec4(-scale,-scale,0,0));
           texCoord = vec2( 0, 0);
           EmitVertex();
 
-          gl_Position = projection_mat * (center_vs + vec4( scale,-scale,0,0));
+          gl_Position = projection_mat * (center_cs + vec4( scale,-scale,0,0));
           texCoord = vec2( 1, 0);
           EmitVertex();
 
-          gl_Position = projection_mat * (center_vs + vec4(-scale, scale,0,0));
+          gl_Position = projection_mat * (center_cs + vec4(-scale, scale,0,0));
           texCoord = vec2( 0, 1);
           EmitVertex();
 
-          gl_Position = projection_mat * (center_vs + vec4( scale, scale,0,0));
+          gl_Position = projection_mat * (center_cs + vec4( scale, scale,0,0));
           texCoord = vec2( 1, 1);
           EmitVertex();
         }
