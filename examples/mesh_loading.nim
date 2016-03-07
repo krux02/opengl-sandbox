@@ -23,7 +23,7 @@ type
     position: Vec3f
     normal: Vec3f
     tangent: Vec4f
-    texcoord: Vec2f
+      texcoord: Vec2f
     blendindex: array[4, uint8]
     blendweight: array[4, uint8]
 
@@ -43,6 +43,10 @@ proc `*`(posa1, pose2: Pose) : Pose =
 # of the entire IQM file's data, it is recommended that you copy the data and
 # convert it into a more suitable internal representation for whichever 3D
 # engine you use.
+
+proc newSeq[T](data : ptr[T], size: Natural) : seq[T] =
+  result.newSeq(size)
+
 
 var
   meshdata,animdata: ptr[uint8]
@@ -91,7 +95,7 @@ proc loadiqmmeshes(filename: string; hdr: iqmheader; buf: ptr uint8): bool =
   let str = if hdr.ofs_text != 0:
       $cast[cstring](buf + hdr.ofs_text)
     else:
-      ""
+      ""hdr
 
   let vas = cast[ptr UncheckedArray[iqmvertexarray]](buf + hdr.ofs_vertexarrays)
 

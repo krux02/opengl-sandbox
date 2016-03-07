@@ -131,10 +131,6 @@ proc bufferData*[T](buffer: SeqLikeBuffer[T], usage: GLenum, data: openarray[T])
   if buffer.int > 0:
     glNamedBufferDataEXT(buffer.GLuint, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
 
-proc bufferData*[T](buffer: SeqLikeBuffer[T], dataptr: ptr T, size: int, usage: GLenum) =
-  if buffer.int > 0:
-    glNamedBufferDataEXT(buffer.GLuint, GLsizeiptr(size), dataptr, usage)
-
 proc bufferData*[T](buffer: UniformBuffer[T], usage: GLenum, data: T) =
   if buffer.int > 0:
     glNamedBufferDataEXT(buffer.GLuint, GLsizeiptr(sizeof(T)), unsafeAddr(data), usage)
@@ -143,18 +139,6 @@ proc len*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]) : int =
   var size: GLint
   glGetNamedBufferParameterivEXT(buffer.GLuint, GL_BUFFER_SIZE, size.addr)
   return size.int div sizeof(T).int
-
-proc arrayBuffer*[T](data : openarray[T], usage: GLenum = GL_STATIC_DRAW): ArrayBuffer[T] =
-  result.create
-  result.bufferData(usage, data)
-
-proc elementArrayBuffer*[T](data : openarray[T], usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
-  result.create
-  result.bufferData(usage, data)
-
-proc uniformBuffer*[T](data : T, usage: GLenum = GL_STATIC_DRAW): UniformBuffer[T] =
-  result.create
-  result.bufferData(usage, data)
 
 proc access[T](buffer: ArrayBuffer[T]) : GLenum =
   var tmp: GLint
@@ -204,69 +188,114 @@ proc usage[T](buffer: ArrayBuffer[T]) : GLenum =
 type
   UncheckedArray {.unchecked.} [t] = array[0,t]
 
-  MappedReadBuffer*[T] = object
+  DataView*[T] = object
     data: ptr UncheckedArray[T]
     size: int
 
-  MappedWriteBuffer*[T] = object
+  ReadView*[T] = object
     data: ptr UncheckedArray[T]
     size: int
 
-  MappedReadWriteBuffer*[T] = object
+  WriteView*[T] = object
     data: ptr UncheckedArray[T]
     size: int
 
-proc len*(mb : MappedReadBuffer | MappedWriteBuffer | MappedReadWriteBuffer) : int =
+
+proc dataView*[T](data: pointer, size: int) : DataView[T] =
+  DataView[T](data: cast[ptr UncheckedArray[T]](data), size: size)
+
+proc len*(mb : ReadView | WriteView | DataView) : int =
   mb.size
 
-proc `[]`*[T](mb : MappedReadBuffer[T], index: int) : T =
+proc `[]`*[T](mb : ReadView[T], index: int) : T =
   mb.data[index]
 
-proc `[]=`*[T](mb : MappedWriteBuffer[T], index: int, val: T) : void =
+proc `[]=`*[T](mb : WriteView[T], index: int, val: T) : void =
   mb.data[index] = val
 
-proc `[]`*[T](mb : MappedReadWriteBuffer[T]; index: int) : var T =
+proc `[]`*[T](mb : DataView[T]; index: int) : var T =
   mb.data[index]
 
-proc `[]=`*[T](mb : MappedReadWriteBuffer[T], index: int, val: T) : void =
+proc `[]=`*[T](mb : DataView[T], index: int, val: T) : void =
   mb.data[index] = val
 
+iterator items*[T](dv: DataView[T]) : T =
+  let p = dv.data
+  var i = 0
+  while i < dv.size:
+    yield p[i]
+    inc(i)
+
+proc take*[T](dv: DataView[T], num: int) : DataView[T] =
+  result.data = dv.data
+  result.size = max(min(num, dv.size), 0)
+
+iterator items*[T](buffer: SeqLikeBuffer[T]) : T =
+  let mappedBuffer = buffer.mapRead
+  defer:
+    discard buffer.unmap
+  for item in mappedBuffer:
+    yield item
 
 proc unmap*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): bool =
   glUnmapNamedBufferEXT(buffer.GLuint) != GL_FALSE.GLboolean
 
-proc mapRead*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): MappedReadBuffer[T] =
+proc mapRead*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): ReadView[T] =
   result.data = cast[ptr UncheckedArray[T]](glMapNamedBufferEXT(buffer.GLuint, GL_READ_ONLY))
   result.size = buffer.size div sizeof(T)
 
-proc mapWrite*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): MappedWriteBuffer[T] =
+proc mapWrite*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): WriteView[T] =
   result.data = cast[ptr UncheckedArray[T]](glMapNamedBufferEXT(buffer.GLuint, GL_WRITE_ONLY))
   result.size = buffer.size div sizeof(T)
 
-proc mapReadWrite*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): MappedReadWriteBuffer[T] =
+proc mapReadWrite*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): DataView[T] =
   result.data = cast[ptr UncheckedArray[T]](glMapNamedBufferEXT(buffer.GLuint, GL_READ_WRITE))
   result.size = buffer.size div sizeof(T)
 
 template mapReadBufferBlock*(buffer, blck: untyped) : stmt =
   block:
     let mappedBuffer {. inject .} = buffer.mapRead
+    defer:
+      discard buffer.unmap
     blck
-
-  discard buffer.unmap
 
 template mapWriteBufferBlock*(buffer: untyped, blck: untyped) : stmt =
   block:
     let mappedBuffer {. inject .} = buffer.mapWrite
+    defer:
+      discard buffer.unmap
     blck
-
-  discard buffer.unmap
 
 template mapReadWriteBufferBlock*(buffer: untyped, blck: untyped) : stmt =
   block:
     let mappedBuffer {. inject .} = buffer.mapReadWrite
+    defer:
+      discard buffer.unmap
     blck
 
-  discard buffer.unmap
+proc bufferData*[T](buffer: SeqLikeBuffer[T], usage: GLenum, dataview: DataView[T]) =
+  if buffer.int > 0:
+    glNamedBufferDataEXT( GLuint(buffer), GLsizeiptr(dataview.len * sizeof(T)), dataview.data, usage)
+
+proc arrayBuffer*[T](data : openarray[T], usage: GLenum = GL_STATIC_DRAW): ArrayBuffer[T] =
+  result.create
+  result.bufferData(usage, data)
+
+proc arrayBuffer*[T](data : DataView[T], usage: GLenum = GL_STATIC_DRAW): ArrayBuffer[T] =
+  result.create
+  result.bufferData(usage, data)
+
+proc elementArrayBuffer*[T](data : openarray[T], usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
+  result.create
+  result.bufferData(usage, data)
+
+proc elementArrayBuffer*[T](data : DataView[T], usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
+  result.create
+  result.bufferData(usage, data)
+
+proc uniformBuffer*[T](data : T, usage: GLenum = GL_STATIC_DRAW): UniformBuffer[T] =
+  result.create
+  result.bufferData(usage, data)
 
 #### shader
 
