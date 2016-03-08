@@ -107,4 +107,3 @@ type
     bbmax*: array[3, cfloat]
     xyradius*: cfloat
     radius*: cfloat
-

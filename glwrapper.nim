@@ -226,6 +226,13 @@ iterator items*[T](dv: DataView[T]) : T =
     yield p[i]
     inc(i)
 
+iterator pairs*[T](dv: DataView[T]): tuple[key: int, val: T] {.inline.} =
+  let p = dv.data
+  var i = 0
+  while i < dv.size:
+    yield (i, p[i])
+    inc(i)
+
 proc take*[T](dv: DataView[T], num: int) : DataView[T] =
   result.data = dv.data
   result.size = max(min(num, dv.size), 0)

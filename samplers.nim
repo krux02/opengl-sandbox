@@ -93,9 +93,7 @@ proc loadTextureRectangleFromFile*(filename: string): TextureRectangle =
   result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR)
   result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 
-proc loadTexture2DFromFile*(filename: string): Texture2D =
-  let surface = image.load(filename)
-  defer: freeSurface(surface)
+proc texture2D*(surface: sdl2.SurfacePtr): Texture2D =
   let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
   defer: freeSurface(surface2)
   glGenTextures(1, cast[ptr GLuint](result.addr))
@@ -103,6 +101,11 @@ proc loadTexture2DFromFile*(filename: string): Texture2D =
   result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
   result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
   result.generateMipmap
+
+proc loadTexture2DFromFile*(filename: string): Texture2D =
+  let surface = image.load(filename)
+  defer: freeSurface(surface)
+  texture2D(surface)
 
 proc size*(tex: Texture2D): Vec2f =
   var w,h: GLint

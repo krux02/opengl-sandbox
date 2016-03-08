@@ -23,7 +23,7 @@ type
     position: Vec3f
     normal: Vec3f
     tangent: Vec4f
-      texcoord: Vec2f
+    texcoord: Vec2f
     blendindex: array[4, uint8]
     blendweight: array[4, uint8]
 
@@ -128,6 +128,8 @@ proc loadiqmmeshes(filename: string; hdr: iqmheader; buf: ptr uint8): bool =
     # continue here
     meshes = cast[ptr UncheckedArray[iqmmesh]](buf + hdr.ofs_meshes)
     joints = cast[ptr UncheckedArray[iqmjoint]](buf + hdr.ofs_joints)
+
+
 
     baseframe.newSeq(hdr.num_joints)
     inversebaseframe.newSeq(hdr.num_joints)
