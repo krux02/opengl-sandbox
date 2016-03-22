@@ -204,6 +204,7 @@ proc main() =
       joint = joints[joint.parent]
       jointMatrices[i] = joint.matrix * jointMatrices[i]
 
+
   echo "=========================================================================="
 
   let poses = memptr[iqmpose](file, hdr.ofs_poses, hdr.num_poses)
@@ -260,6 +261,34 @@ proc main() =
     boxNormals  = fancygl.boxNormals.arrayBuffer
     boxColors   = fancygl.boxColors.arrayBuffer
 
+
+    boneVerticesArray = [
+      vec3f(0,0,0), vec3f(+0.1f, +0.1f, 0.1f), vec3f(+0.1f, -0.1f, 0.1f),
+      vec3f(0,0,0), vec3f(+0.1f, -0.1f, 0.1f), vec3f(-0.1f, -0.1f, 0.1f),
+      vec3f(0,0,0), vec3f(-0.1f, -0.1f, 0.1f), vec3f(-0.1f, +0.1f, 0.1f),
+      vec3f(0,0,0), vec3f(-0.1f, +0.1f, 0.1f), vec3f(+0.1f, +0.1f, 0.1f),
+
+      vec3f(0,0,1), vec3f(+0.1f, -0.1f, 0.1f), vec3f(+0.1f, +0.1f, 0.1f),
+      vec3f(0,0,1), vec3f(-0.1f, -0.1f, 0.1f), vec3f(+0.1f, -0.1f, 0.1f),
+      vec3f(0,0,1), vec3f(-0.1f, +0.1f, 0.1f), vec3f(-0.1f, -0.1f, 0.1f),
+      vec3f(0,0,1), vec3f(+0.1f, +0.1f, 0.1f), vec3f(-0.1f, +0.1f, 0.1f)
+    ]
+    boneVertices = boneVerticesArray.arrayBuffer
+    boneNormals = (block:
+      var normals = newSeq[Vec3f](boneVerticesArray.len)
+      for i in countup(0, boneVerticesArray.len-1, 3):
+        let
+          v1 = boneVerticesArray[i + 0]
+          v2 = boneVerticesArray[i + 1]
+          v3 = boneVerticesArray[i + 2]
+          normal = cross(v2-v1,v3-v1).normalize
+
+        normals[i + 0] = normal
+        normals[i + 1] = normal
+        normals[i + 2] = normal
+
+      normals.arrayBuffer
+    )
 
   var
     runGame = true
@@ -361,6 +390,7 @@ proc main() =
     if renderBones:
       for i, joint in joints:
 
+        let parent_mat = jointMatrices[i].mat4d;
         let model_mat = jointMatrices[i].mat4d;
 
         shadingDsl(GL_TRIANGLES):
@@ -373,8 +403,8 @@ proc main() =
 
           attributes:
 
-            a_position_os = boxVertices
-            a_normal_os   = boxNormals
+            a_position_os = boneVertices
+            a_normal_os   = boneNormals
             a_color    = boxColors
 
           vertexMain:
@@ -400,7 +430,7 @@ proc main() =
         let textIndex = jointNameIndices[i]
         let model_mat = jointMatrices[i].mat4d;
 
-        var pos = projection_mat * view_mat * model_mat * vec4d(0,0,0,1)
+        var pos = projection_mat * view_mat * model_mat[3]
         pos /= pos.w
 
 
