@@ -8,7 +8,7 @@ macro debugResult(arg: typed) : stmt =
   echo arg.repr
   arg
 
-include glm_additions, shapes, samplers, framebuffer, glwrapper, heightmap, typeinfo
+include etc, glm_additions, shapes, samplers, framebuffer, glwrapper, heightmap, typeinfo
 
 ####################################################################################
 #### etc ###########################################################################

@@ -47,26 +47,12 @@ proc memptr[T](file:MemFile, offset: cuint) : ptr T = cast[ptr T](cast[int](file
 proc memptr[T](file:MemFile, offset: cuint, num_elements: cuint) : DataView[T] =
   dataView[T]( cast[pointer](cast[int](file.mem) + offset.int), num_elements.int )
 
-proc mkString[T](v : T, before,sep,after : string) : string =
-  result = before
-  var i = 0
-  let last_i = v.len
-  for x in v:
-    result.add($x)
-    if i != last_i:
-      result.add(sep)
-      i += 1
-
-  result.add(after)
-
-proc mkString[T](v : T, sep : string = ", ") : string =
-  mkString(v, "", sep, "")
-
-proc matrix(joint : iqmjoint) : Mat4d =
-  result = I4()
-  result = result.scale( vec3d(joint.scale[0], joint.scale[1], joint.scale[2]) )
-  result = result.rotate( vec3d(joint.rotate[0], joint.rotate[1], joint.rotate[2]).normalize, 2 * arccos(joint.rotate[3]) )
-  result = result.translate( vec3d( joint.translate[0], joint.translate[1], joint.translate[2] ) )
+proc matrix(joint : iqmjoint) : Mat4f =
+  var jp : JointPose
+  jp.translate = joint.translate.Vec3f
+  jp.rotate    = joint.rotate.Quatf
+  jp.scale     = joint.scale.Vec3f
+  jp.poseMatrix
 
 proc main() =
   discard sdl2.init(INIT_EVERYTHING)
@@ -84,7 +70,8 @@ proc main() =
     vec2f(1,1)
   ].arrayBuffer
 
-  let font = ttf.openFont("/usr/share/fonts/truetype/inconsolata/Inconsolata.otf", 32)
+  let textHeight = 16
+  let font = ttf.openFont("/usr/share/fonts/truetype/inconsolata/Inconsolata.otf", textHeight.cint)
 
   var file = memfiles.open("mrfixit.iqm")
   defer:
@@ -102,7 +89,7 @@ proc main() =
       i += 1
     i += 1
 
-  var textTextures = newSeq[Texture2D](texts.len)
+  var textTextures = newSeq[TextureRectangle](texts.len)
   var textWidths = newSeq[cint](texts.len)
   i = 0
   for text in texts:
@@ -111,9 +98,11 @@ proc main() =
       let fg : sdl2.Color = (255.uint8, 255.uint8, 255.uint8, 255.uint8)
       let bg : sdl2.Color = (0.uint8, 0.uint8, 0.uint8, 255.uint8)
       let surface = font.renderTextShaded(text, fg, bg)
-      textTextures[i] = surface.texture2D
+      defer: freeSurface(surface)
+
+      textTextures[i] = surface.textureRectangle
       textWidths[i] = surface.w
-      freeSurface(surface)
+
     else:
       textWidths[i] = -1
 
@@ -196,7 +185,7 @@ proc main() =
     echo "name:      ", text(joint.name)
     echo "parent:    ", joint.parent
     echo "translate: ", joint.translate.Vec3f
-    echo "rotate:    ", joint.rotate.Vec4f
+    echo "rotate:    ", joint.rotate.Quatf
     echo "scale:     ", joint.scale.Vec3f
 
   var jointNameIndices = newSeq[int](joints.len)
@@ -362,7 +351,7 @@ proc main() =
         numVertices = GLsizei(triangles.len * 3)
 
         uniforms:
-          modelview = view_mat * model_mat
+          modelview = view_mat.mat4f * model_mat
           projection = projection_mat
           time
 
@@ -399,21 +388,18 @@ proc main() =
         tmp = joints[tmp.parent]
         model_mat = tmp.matrix * model_mat
 
-      var pos = projection_mat * view_mat * model_mat * vec4d(0,0,0,1)
+      var pos = projection_mat * view_mat * model_mat.mat4d * vec4d(0,0,0,1)
       pos /= pos.w
 
-      let
-        x = 16.0f
-        y = textIndex.float32 * 16.0f
-        w = textWidths[textIndex].float32 * 0.5f
-        h = 16.0f
+
+      let rectPos = floor(vec2f(pos.xy) * vec2f(320,240))
 
       shadingDsl(GL_TRIANGLE_STRIP):
         numVertices = 4
 
         uniforms:
-          rectPos = vec2f(pos.xy) * vec2f(320,240)
-          rectSize = vec2f(w,h)
+          rectPos
+          rectSize = vec2f(textWidths[textIndex].float32, textHeight.float32)
           viewSize = vec2f(640,480)
           tex = textTextures[textIndex]
 
@@ -423,7 +409,8 @@ proc main() =
         vertexMain:
           """
           gl_Position = vec4( (rectPos + a_texcoord * rectSize) / (viewSize * 0.5f), 0, 1);
-          v_texcoord = vec2(a_texcoord.x, 1.0 - a_texcoord.y);
+          v_texcoord = a_texcoord * rectSize;
+          v_texcoord.y = rectSize.y - v_texcoord.y;
           """
 
         vertexOut:
@@ -431,7 +418,9 @@ proc main() =
 
         fragmentMain:
           """
+          vec2 texcoord = gl_FragCoord.xy - rectPos;
           color = texture(tex, v_texcoord);
+          //color.xy = v_texcoord;
           """
 
 #    for i, texture in textTextures:
