@@ -196,6 +196,14 @@ proc main() =
       j += 1
     jointNameIndices[i] = j
 
+  var jointMatrices = newSeq[Mat4f](joints.len)
+  for i in 0 .. < joints.len:
+    var joint = joints[i]
+    jointMatrices[i] = joint.matrix
+    while joint.parent >= 0:
+      joint = joints[joint.parent]
+      jointMatrices[i] = joint.matrix * jointMatrices[i]
+
   echo "=========================================================================="
 
   let poses = memptr[iqmpose](file, hdr.ofs_poses, hdr.num_poses)
@@ -258,6 +266,10 @@ proc main() =
     time = 0.0f
     projection_mat = perspective(45.0, 640 / 480, 0.1, 100.0)
 
+    renderMesh = true
+    renderBones = true
+    renderBoneNames = true
+
   glEnable(GL_DEPTH_TEST)
   #glEnable(GL_CULL_FACE)
   #glCullFace(GL_FRONT)
@@ -280,6 +292,12 @@ proc main() =
         case keyboardEvent.keysym.scancode
         of SDL_SCANCODE_ESCAPE:
           runGame = false
+        of SDL_SCANCODE_1:
+          renderMesh = not renderMesh
+        of SDL_SCANCODE_2:
+          renderBones = not renderBones
+        of SDL_SCANCODE_3:
+          renderBoneNames = not renderBoneNames
 
         else:
           discard
@@ -302,126 +320,120 @@ proc main() =
 
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-    shadingDsl(GL_TRIANGLES):
-      numVertices = GLsizei(triangles.len * 3)
-
-      uniforms:
-        modelview = view_mat
-        projection = projection_mat
-        time
-
-      attributes:
-        indices
-        a_position = meshData.position
-        a_texcoord = meshData.texcoord
-        a_normal_os = meshData.normal
-        a_tangent_os = meshData.tangent
-        #blendindexes = meshData.blendindexes
-        #blendweights = meshData.blendweights
-
-      vertexMain:
-        """
-        gl_Position = projection * modelview * vec4(a_position, 1);
-        v_texcoord = a_texcoord;
-        v_normal_cs  = modelview * vec4(a_normal_os, 0);
-        v_tangent_cs = modelview * a_tangent_os;
-        """
-
-      vertexOut:
-        "out vec2 v_texcoord"
-        "out vec4 v_normal_cs"
-        "out vec4 v_tangent_cs"
-
-      fragmentMain:
-        """
-        color.rgb = v_normal_cs.xyz;
-        """
-
-    glClear(GL_DEPTH_BUFFER_BIT)
-
-    for joint in joints:
-      var model_mat = joint.matrix
-
-      var tmp = joint
-      while tmp.parent >= 0:
-        tmp = joints[tmp.parent]
-        model_mat = tmp.matrix * model_mat
-
+    if renderMesh:
       shadingDsl(GL_TRIANGLES):
         numVertices = GLsizei(triangles.len * 3)
 
         uniforms:
-          modelview = view_mat.mat4f * model_mat
+          modelview = view_mat
           projection = projection_mat
           time
 
         attributes:
-
-          a_position_os = boxVertices
-          a_normal_os   = boxNormals
-          a_color    = boxColors
+          indices
+          a_position = meshData.position
+          a_texcoord = meshData.texcoord
+          a_normal_os = meshData.normal
+          a_tangent_os = meshData.tangent
+          #blendindexes = meshData.blendindexes
+          #blendweights = meshData.blendweights
 
         vertexMain:
           """
-          gl_Position = projection * modelview * vec4(a_position_os, 1);
+          gl_Position = projection * modelview * vec4(a_position, 1);
+          v_texcoord = a_texcoord;
           v_normal_cs  = modelview * vec4(a_normal_os, 0);
-          v_color      = a_color;
-          """
-
-        vertexOut:
-          "out vec4 v_normal_cs"
-          "out vec3 v_color"
-
-        fragmentMain:
-          """
-          color.rgb = v_color * v_normal_cs.z;
-          """
-
-    glClear(GL_DEPTH_BUFFER_BIT)
-
-    for i, joint in joints:
-      let textIndex = jointNameIndices[i]
-
-      var model_mat = joint.matrix
-      var tmp = joint
-      while tmp.parent >= 0:
-        tmp = joints[tmp.parent]
-        model_mat = tmp.matrix * model_mat
-
-      var pos = projection_mat * view_mat * model_mat.mat4d * vec4d(0,0,0,1)
-      pos /= pos.w
-
-
-      let rectPos = floor(vec2f(pos.xy) * vec2f(320,240))
-
-      shadingDsl(GL_TRIANGLE_STRIP):
-        numVertices = 4
-
-        uniforms:
-          rectPos
-          rectSize = vec2f(textWidths[textIndex].float32, textHeight.float32)
-          viewSize = vec2f(640,480)
-          tex = textTextures[textIndex]
-
-        attributes:
-          a_texcoord = quadTexCoords
-
-        vertexMain:
-          """
-          gl_Position = vec4( (rectPos + a_texcoord * rectSize) / (viewSize * 0.5f), 0, 1);
-          v_texcoord = a_texcoord * rectSize;
-          v_texcoord.y = rectSize.y - v_texcoord.y;
+          v_tangent_cs = modelview * a_tangent_os;
           """
 
         vertexOut:
           "out vec2 v_texcoord"
+          "out vec4 v_normal_cs"
+          "out vec4 v_tangent_cs"
 
         fragmentMain:
           """
-          vec2 texcoord = gl_FragCoord.xy - rectPos;
-          color = texture(tex, v_texcoord);
-          //color.xy = v_texcoord;
+          color.rgb = v_normal_cs.xyz;
           """
+
+    glClear(GL_DEPTH_BUFFER_BIT)
+
+    if renderBones:
+      for i, joint in joints:
+
+        let model_mat = jointMatrices[i].mat4d;
+
+        shadingDsl(GL_TRIANGLES):
+          numVertices = GLsizei(triangles.len * 3)
+
+          uniforms:
+            modelview = view_mat * model_mat
+            projection = projection_mat
+            time
+
+          attributes:
+
+            a_position_os = boxVertices
+            a_normal_os   = boxNormals
+            a_color    = boxColors
+
+          vertexMain:
+            """
+            gl_Position = projection * modelview * vec4(a_position_os, 1);
+            v_normal_cs  = modelview * vec4(a_normal_os, 0);
+            v_color      = a_color;
+            """
+
+          vertexOut:
+            "out vec4 v_normal_cs"
+            "out vec3 v_color"
+
+          fragmentMain:
+            """
+            color.rgb = v_color * v_normal_cs.z;
+            """
+
+    glClear(GL_DEPTH_BUFFER_BIT)
+
+    if renderBoneNames:
+      for i, _ in joints:
+        let textIndex = jointNameIndices[i]
+        let model_mat = jointMatrices[i].mat4d;
+
+        var pos = projection_mat * view_mat * model_mat * vec4d(0,0,0,1)
+        pos /= pos.w
+
+
+        let rectPos = floor(vec2f(pos.xy) * vec2f(320,240))
+
+        shadingDsl(GL_TRIANGLE_STRIP):
+          numVertices = 4
+
+          uniforms:
+            rectPos
+            rectSize = vec2f(textWidths[textIndex].float32, textHeight.float32)
+            viewSize = vec2f(640,480)
+            tex = textTextures[textIndex]
+
+          attributes:
+            a_texcoord = quadTexCoords
+
+          vertexMain:
+            """
+            gl_Position = vec4( (rectPos + a_texcoord * rectSize) / (viewSize * 0.5f), 0, 1);
+            v_texcoord = a_texcoord * rectSize;
+            v_texcoord.y = rectSize.y - v_texcoord.y;
+            """
+
+          vertexOut:
+            "out vec2 v_texcoord"
+
+          fragmentMain:
+            """
+            vec2 texcoord = gl_FragCoord.xy - rectPos;
+            color = texture(tex, v_texcoord);
+            //color.xy = v_texcoord;
+            """
 
 #    for i, texture in textTextures:
 #      if textWidths[i] > 0:
