@@ -1,12 +1,8 @@
-import opengl, glm, math, strutils, nre, macros, macroutils, sdl2, sdl2/image
+import opengl, glm, math, strutils, nre, macros, macroutils, sdl2, sdl2/image, os
 
 ################################################################################
 #### macro utils ###############################################################
 ################################################################################
-
-macro debugResult(arg: typed) : stmt =
-  echo arg.repr
-  arg
 
 include etc, glm_additions, shapes, samplers, framebuffer, glwrapper, heightmap, typeinfo
 
@@ -14,6 +10,10 @@ include etc, glm_additions, shapes, samplers, framebuffer, glwrapper, heightmap,
 #### etc ###########################################################################
 ####################################################################################
 
+
+  
+  
+  
 type ShaderParam* = tuple[name: string, gl_type: string]
 
 const
@@ -195,7 +195,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
   for i,fragout in fragmentOutputs:
     fragmentOutSection.add format("layout(location = $1) out vec4 $2", $i, fragout)
   var includesSection : seq[string] = @[]
-  var vertexMain: string
+  var vertexMain: NimNode
   var geometryLayout: string
   var geometryMain: string
   var fragmentMain: string
@@ -365,7 +365,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 
 
     of "vertexMain":
-      vertexMain = call[1].strVal
+      vertexMain = call[1]
 
     of "fragmentMain":
       fragmentMain = call[1].strVal
@@ -407,7 +407,20 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
     for i in 0..<attribNames.len:
        attributesSection[i] = format("in $1 $2", attribTypes[i], attribNames[i])
 
-    vertexShaderSource = genShaderSource(sourceHeader, uniformsSection, attributesSection, -1, vertexOutSection, includesSection, vertexMain)
+    vertexShaderSource = genShaderSource(sourceHeader, uniformsSection, attributesSection, -1, vertexOutSection, includesSection, vertexMain.strVal)
+
+  if not vertexMain.isNil:
+    let
+      li = vertexMain.lineinfo
+      p0 = li.find(".nim(")
+      p1 = li.find(',',p0)
+      p2 = li.find(')',p1)
+      basename = li.substr(0, p0-1)
+      line     = li.substr(p0+5, p1-1).parseInt
+      col      = li.substr(p1+1, p2-1).parseInt
+      filename = joinPath(getTempDir(), basename & "_" & $line & ".vert")
+
+    writeFile(filename, vertexShaderSource)
 
   var linkShaderBlock : NimNode
 
@@ -449,7 +462,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
   result = getAst(renderBlockTemplate(numLocations, globalsBlock, linkShaderBlock,
          bufferCreationBlock, initUniformsBlock, setUniformsBlock, drawCommand))
 
-  # result = newCall( bindSym"debugResult", result )
+  result = newCall( bindSym"debugResult", result )
 
 ################################################################################
 ## Shading Dsl Outer ###########################################################

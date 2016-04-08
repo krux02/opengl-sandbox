@@ -9,7 +9,8 @@ var windowsize = vec2f(1280,960)
 var viewport = vec4f(0,0,1280,960)
 
 let window = createWindow("SDL/OpenGL Skeleton", 100, 100, windowsize.x.cint, windowsize.y.cint, SDL_WINDOW_OPENGL) # SDL_WINDOW_MOUSE_CAPTURE
-let context = window.glCreateContext()
+# let context = window.glCreateContext()
+discard window.glCreateContext()
 
 # Initialize OpenGL
 loadExtensions()
@@ -27,7 +28,7 @@ let
   sphereVertices = uvSphereVertices(32,16).arrayBuffer
   sphereNormals = uvSphereNormals(32,16).arrayBuffer
   sphereIndices = uvSphereIndices(32,16).elementArrayBuffer
-  sphereTexCoords = uvSphereTexCoords(32,16).arrayBuffer
+  #sphereTexCoords = uvSphereTexCoords(32,16).arrayBuffer
 
   #sphereVertices  = cylinderVertices(32, 0).arrayBuffer
   #sphereNormals   = cylinderNormals(32, 0).arrayBuffer
@@ -36,12 +37,12 @@ let
 
 var hideNormals, hideDeferredShading, flatShading, wireframe: bool
 
-declareFramebuffer(Fb1FramebufferType):
+declareFramebuffer(FirstFramebuffer):
   depth = createEmptyDepthTexture2D(windowsize)
   color = createEmptyTexture2D(windowsize, GL_RGBA8)
   normal = createEmptyTexture2D(windowsize, GL_RGBA16F)
 
-let fb1 = createFb1FramebufferType()
+let fb1 = createFirstFramebuffer()
 
 if 0 != glSetSwapInterval(-1):
   echo "glSetSwapInterval -1 not supported"
@@ -82,6 +83,7 @@ mapWriteBufferBlock(lightColors):
 var
   effectOrigin = position.xy.vec2f
   effectStartTime = -100.0f
+
 
 
 proc showNormals(mvp: Mat4d, positions: ArrayBuffer[Vec3f], normals: ArrayBuffer[Vec3f], length:float32 = 1, color:Vec3f = vec3f(1)) =

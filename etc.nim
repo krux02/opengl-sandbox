@@ -1,3 +1,7 @@
+macro debugResult(arg: typed) : stmt =
+  echo arg.repr
+  arg
+
 proc mkString*[T](v : T, prefix, sep, postfix : string) : string =
   result = prefix
   var first = true

@@ -365,4 +365,3 @@ proc linkShader(shaders: varargs[GLuint]): GLuint =
     echo "Log: ", result.programInfoLog
     glDeleteProgram(result)
     result = 0
-
