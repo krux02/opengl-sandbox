@@ -92,7 +92,7 @@ proc render() =
   block:
     let time = simulationTime
 
-    var modelview_mat = I4()
+    var modelview_mat = I4d
     modelview_mat = modelview_mat.translate( vec3d(sin(time)*2, cos(time)*2, -7) )
     modelview_mat = modelview_mat.rotate( vec3d(0,0,1), time )
     modelview_mat = modelview_mat.rotate( vec3d(0,1,0), time )

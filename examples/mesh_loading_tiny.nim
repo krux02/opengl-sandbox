@@ -248,7 +248,7 @@ proc main() =
   #  s.y = p.channeloffset[8]; if p.mask and 0x100: s.y += *framedata++ * p.channelscale[8];
   #  s.z = p.channeloffset[9]; if p.mask and 0x200: s.z += *framedata++ * p.channelscale[9];
   #
-  #  var bone_mat = I4()
+  #  var bone_mat = I4d
   #  bone_mat = modelview_mat.translate( vec3d(0, 0, -17) )
   #  bone_mat = modelview_mat.rotate( rot )
   #  modelview_mat = modelview_mat.rotate( vec3d(0,1,0), time )
@@ -266,15 +266,15 @@ proc main() =
 
 
     boneVerticesArray = [
-      vec3f(0,0,0), vec3f(+0.1f, +0.1f, 0.1f), vec3f(+0.1f, -0.1f, 0.1f),
-      vec3f(0,0,0), vec3f(+0.1f, -0.1f, 0.1f), vec3f(-0.1f, -0.1f, 0.1f),
-      vec3f(0,0,0), vec3f(-0.1f, -0.1f, 0.1f), vec3f(-0.1f, +0.1f, 0.1f),
-      vec3f(0,0,0), vec3f(-0.1f, +0.1f, 0.1f), vec3f(+0.1f, +0.1f, 0.1f),
+      vec3f(0,0,0), vec3f(+0.1f, 0.1f, +0.1f), vec3f(+0.1f, 0.1f, -0.1f),
+      vec3f(0,0,0), vec3f(+0.1f, 0.1f, -0.1f), vec3f(-0.1f, 0.1f, -0.1f),
+      vec3f(0,0,0), vec3f(-0.1f, 0.1f, -0.1f), vec3f(-0.1f, 0.1f, +0.1f),
+      vec3f(0,0,0), vec3f(-0.1f, 0.1f, +0.1f), vec3f(+0.1f, 0.1f, +0.1f),
 
-      vec3f(0,0,1), vec3f(+0.1f, -0.1f, 0.1f), vec3f(+0.1f, +0.1f, 0.1f),
-      vec3f(0,0,1), vec3f(-0.1f, -0.1f, 0.1f), vec3f(+0.1f, -0.1f, 0.1f),
-      vec3f(0,0,1), vec3f(-0.1f, +0.1f, 0.1f), vec3f(-0.1f, -0.1f, 0.1f),
-      vec3f(0,0,1), vec3f(+0.1f, +0.1f, 0.1f), vec3f(-0.1f, +0.1f, 0.1f)
+      vec3f(0,1,0), vec3f(+0.1f, 0.1f, -0.1f), vec3f(+0.1f, 0.1f, +0.1f),
+      vec3f(0,1,0), vec3f(-0.1f, 0.1f, -0.1f), vec3f(+0.1f, 0.1f, -0.1f),
+      vec3f(0,1,0), vec3f(-0.1f, 0.1f, +0.1f), vec3f(-0.1f, 0.1f, -0.1f),
+      vec3f(0,1,0), vec3f(+0.1f, 0.1f, +0.1f), vec3f(-0.1f, 0.1f, +0.1f)
     ]
     boneVertices = boneVerticesArray.arrayBuffer
     boneNormals = (block:
@@ -282,9 +282,9 @@ proc main() =
       for i in countup(0, boneVerticesArray.len-1, 3):
         let
           v1 = boneVerticesArray[i + 0]
-          v2 = boneVerticesArray[i + 1]
-          v3 = boneVerticesArray[i + 2]
-          normal = cross(v2-v1,v3-v1).normalize
+          v2 = boneVerticesArray[i + 2]
+          v3 = boneVerticesArray[i + 1]
+          normal = cross(v2-v1, v3-v1).normalize
 
         normals[i + 0] = normal
         normals[i + 1] = normal
@@ -297,6 +297,11 @@ proc main() =
     runGame = true
     time = 0.0f
     projection_mat = perspective(45.0, WindowSize.x / WindowSize.y, 0.1, 100.0)
+
+    offset = vec2d(0)
+    rotation = vec2d(0)
+    boneScale = vec2d(1,1)
+    dragMode = 0
 
     renderMesh = true
     renderBones = true
@@ -330,9 +335,40 @@ proc main() =
           renderBones = not renderBones
         of SDL_SCANCODE_3:
           renderBoneNames = not renderBoneNames
-
         else:
           discard
+
+      if evt.kind in {MouseButtonDown, MouseButtonUp}:
+        let buttonEvent = cast[MouseButtonEventPtr](evt.addr)
+        if evt.kind == MouseButtonDown:
+          if buttonEvent.button == ButtonLeft:
+            dragMode = dragMode or 0x1
+          if buttonEvent.button == ButtonRight:
+            dragMode = dragMode or 0x2
+          if buttonEvent.button == ButtonMiddle:
+            dragMode = dragMode or 0x4
+        if evt.kind == MouseButtonUp:
+          if buttonEvent.button == ButtonLeft:
+            dragMode = dragMode and (not 0x1)
+          if buttonEvent.button == ButtonRight:
+            dragMode = dragMode and (not 0x2)
+          if buttonEvent.button == ButtonMiddle:
+            dragMode = dragMode and (not 0x4)
+
+      if evt.kind == MouseMotion:
+        let
+          motionEvent = cast[MouseMotionEventPtr](evt.addr)
+          motion = vec2d(motionEvent.xrel.float64, motionEvent.yrel.float64)
+        if dragMode == 0x1:
+          rotation = rotation + motion * 0.1
+        if dragMode == 0x2:
+          offset = offset + motion * 0.1
+        if dragMode == 0x4:
+          boneScale.x = boneScale.x * pow(2.0, motion.x / 100)
+          boneScale.y = boneScale.y * pow(2.0, motion.y / 100)
+
+        echo rotation, offset, dragMode
+          
 
     ##################
     #### simulate ####
@@ -340,17 +376,21 @@ proc main() =
 
     time = getTicks().float32 / 1000.0
 
-    var view_mat = I4()
-    view_mat = view_mat.translate( vec3d(0, 0, -17) )
-    view_mat = view_mat.rotate( vec3d(0,0,1), time )
-    view_mat = view_mat.rotate( vec3d(0,1,0), time )
-    view_mat = view_mat.rotate( vec3d(1,0,0), time )
+    var view_mat = I4d
+    view_mat = view_mat.translate( vec3d(0, -1.5f, -17) + vec3d(0, offset.y, offset.x) )
+    view_mat = view_mat.rotate( vec3d(1,0,0), -0.5f )
+    view_mat = view_mat.rotate( vec3d(0,0,1), rotation.x )
+
 
     ################
     #### render ####
     ################
 
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+
+    #  ###############
+    # ## render Mesh ##
+    #  ###############
 
     if renderMesh:
       shadingDsl(GL_TRIANGLES):
@@ -390,18 +430,26 @@ proc main() =
 
     glClear(GL_DEPTH_BUFFER_BIT)
 
+    #  ################  #
+    # ## render bones ## #
+    #  ################  #
+    
     if renderBones:
       for i, joint in joints:
-
-        let parent_mat = jointMatrices[i].mat4d;
-        let model_mat = jointMatrices[i].mat4d;
-
+        var
+          model_mat = jointMatrices[i].mat4d
+          parent_mat = if joint.parent < 0: I4d else: jointMatrices[joint.parent].mat4d
+          inv_parent_mat = parent_mat.inverse
+          inv_model_mat = model_mat.inverse
+          
+        
         shadingDsl(GL_TRIANGLES):
           numVertices = GLsizei(triangles.len * 3)
 
           uniforms:
             modelview = view_mat * model_mat
             projection = projection_mat
+            boneScale = boneScale.vec2f
             time
 
           attributes:
@@ -412,7 +460,7 @@ proc main() =
 
           vertexMain:
             """
-            gl_Position = projection * modelview * vec4(a_position_os, 1);
+            gl_Position = projection * modelview * vec4(a_position_os * boneScale.xyx, 1);
             v_normal_cs  = modelview * vec4(a_normal_os, 0);
             v_color      = a_color;
             """
@@ -428,16 +476,24 @@ proc main() =
 
     glClear(GL_DEPTH_BUFFER_BIT)
 
+    #  #####################
+    # ## render bone names ##
+    #  #####################
+
     if renderBoneNames:
       for i, _ in joints:
         let textIndex = jointNameIndices[i]
         let model_mat = jointMatrices[i].mat4d;
 
         var pos = projection_mat * view_mat * model_mat[3]
+
+        # culling of bone names behind the camera
+        if pos.w <= 0:
+          continue
+  
         pos /= pos.w
 
-
-        let rectPos = floor(vec2f(pos.xy) * vec2f(WindowSize) * vec2f(0.5f))
+        let rectPos = floor(vec2f(pos.xy) * vec2f(WindowSize) * 0.5f)
 
         shadingDsl(GL_TRIANGLE_STRIP):
           numVertices = 4
@@ -467,42 +523,6 @@ proc main() =
             color = texture(tex, v_texcoord);
             //color.xy = v_texcoord;
             """
-
-#    for i, texture in textTextures:
-#      if textWidths[i] > 0:
-#        let
-#          x = 16.0f
-#          y = i.float32 * 16.0f
-#          w = textWidths[i].float32 * 0.5f
-#          h = 16.0f
-#
-#        shadingDsl(GL_TRIANGLE_STRIP):
-#          numVertices = 4
-#
-#          uniforms:
-#            rectPos = vec2f(x,y)
-#            rectSize = vec2f(w,h)
-#            viewSize = vec2f(WindowSize)
-#            tex = textTextures[i]
-#
-#          attributes:
-#            a_texcoord = quadTexCoords
-#
-#          vertexMain:
-#            """
-#            gl_Position = vec4( (rectPos + a_texcoord * rectSize) / (viewSize * 0.5f) - vec2(1), 0, 1);
-#            gl_Position.y *= -1;
-#            v_texcoord = vec2(a_texcoord.x, a_texcoord.y);
-#            """
-#
-#          vertexOut:
-#            "out vec2 v_texcoord"
-#
-#          fragmentMain:
-#            """
-#            color = texture(tex, v_texcoord);
-#            """
-
 
     window.glSwapWindow()
 

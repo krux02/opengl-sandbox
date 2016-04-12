@@ -122,7 +122,7 @@ proc vec2i*(v: Vec2l) : Vec2i = [v.x.int32, v.y.int32].Vec2i
 proc vec2l*(v: Vec2f) : Vec2l = [v.x.int64, v.y.int64].Vec2l
 proc vec2l*(v: Vec2i) : Vec2l = [v.x.int64, v.y.int64].Vec2l
 proc vec2l*(v: Vec2l) : Vec2l = [v.x.int64, v.y.int64].Vec2l
-
+  
 # functions
 
 proc floor*(v : Vec2f) : Vec2f =
@@ -149,20 +149,6 @@ proc mat4d*(mat: Mat4f): Mat4d =
   for i in 0..<4:
    for j in 0..<4:
      result[i][j] = mat[i][j]
-
-proc I4*() : Mat4d = mat4x4(
-  vec4d(1, 0, 0, 0),
-  vec4d(0, 1, 0, 0),
-  vec4d(0, 0, 1, 0),
-  vec4d(0, 0, 0, 1)
-)
-
-proc I4f*() : Mat4f = mat4x4[float32](
-  vec4f(1, 0, 0, 0),
-  vec4f(0, 1, 0, 0),
-  vec4f(0, 0, 1, 0),
-  vec4f(0, 0, 0, 1)
-)
 
 proc diag*(v : Vec2f) : Mat2f =
   result[0][0] = v[0]
@@ -193,6 +179,44 @@ proc diag*(m : Mat4f) : Vec4f =
   result[1] = m[1][1]
   result[2] = m[2][2]
   result[3] = m[3][3]
+
+proc diag*(v : Vec2d) : Mat2d =
+  result[0][0] = v[0]
+  result[1][1] = v[1]
+
+proc diag*(m : Mat2d) : Vec2d =
+  result[0] = m[0][0]
+  result[1] = m[1][1]
+
+proc diag*(v : Vec3d) : Mat3d =
+  result[0][0] = v[0]
+  result[1][1] = v[1]
+  result[2][2] = v[2]
+
+proc diag*(m : Mat3d) : Vec3d =
+  result[0] = m[0][0]
+  result[1] = m[1][1]
+  result[2] = m[2][2]
+
+proc diag*(v : Vec4d) : Mat4d =
+  result[0][0] = v[0]
+  result[1][1] = v[1]
+  result[2][2] = v[2]
+  result[3][3] = v[3]
+
+proc diag*(m : Mat4d) : Vec4d =
+  result[0] = m[0][0]
+  result[1] = m[1][1]
+  result[2] = m[2][2]
+  result[3] = m[3][3]
+  
+const
+  I4d* = diag(vec4d(1.0))
+  I3d* = diag(vec3d(1.0))
+  I2d* = diag(vec2d(1.0))
+  I4f* = diag(vec4f(1.0f))
+  I3f* = diag(vec3f(1.0f))
+  I2f* = diag(vec2f(1.0f))
 
 #quaternion
 

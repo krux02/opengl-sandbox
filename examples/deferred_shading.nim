@@ -128,7 +128,7 @@ proc render() =
 
   let time = simulationTime
 
-  var view_mat = I4()
+  var view_mat = I4d
 
   view_mat = view_mat.translate( position )
   view_mat = view_mat.rotate( vec3d(0,0,1), rotation.y )
