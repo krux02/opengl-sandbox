@@ -2,6 +2,8 @@ import memfiles, glm, ../fancygl, sdl2, sdl2/ttf , opengl, strutils, math
 
 include iqm
 
+const WindowSize = vec2i(1024, 768)
+
 proc iqmFormatString(format : cuint) : string =
   case format
   of IQM_BYTE: "byte"
@@ -58,8 +60,9 @@ proc main() =
   discard sdl2.init(INIT_EVERYTHING)
   discard ttfinit()
 
-  let window = createWindow("SDL/OpenGL Skeleton", 100, 100, 640, 480, SDL_WINDOW_OPENGL) # SDL_WINDOW_MOUSE_CAPTURE
-  let context = window.glCreateContext()
+  let window = createWindow("SDL/OpenGL Skeleton", 100, 100, WindowSize.x, WindowSize.y, SDL_WINDOW_OPENGL) # SDL_WINDOW_MOUSE_CAPTURE
+  # let context = window.glCreateContext()
+  discard window.glCreateContext()
   # Initialize OpenGL
   loadExtensions()
 
@@ -257,8 +260,8 @@ proc main() =
 
 
   let
-    boxVertices = fancygl.boxVertices.arrayBuffer
-    boxNormals  = fancygl.boxNormals.arrayBuffer
+    # boxVertices = fancygl.boxVertices.arrayBuffer
+    # boxNormals  = fancygl.boxNormals.arrayBuffer
     boxColors   = fancygl.boxColors.arrayBuffer
 
 
@@ -293,7 +296,7 @@ proc main() =
   var
     runGame = true
     time = 0.0f
-    projection_mat = perspective(45.0, 640 / 480, 0.1, 100.0)
+    projection_mat = perspective(45.0, WindowSize.x / WindowSize.y, 0.1, 100.0)
 
     renderMesh = true
     renderBones = true
@@ -434,7 +437,7 @@ proc main() =
         pos /= pos.w
 
 
-        let rectPos = floor(vec2f(pos.xy) * vec2f(320,240))
+        let rectPos = floor(vec2f(pos.xy) * vec2f(WindowSize) * vec2f(0.5f))
 
         shadingDsl(GL_TRIANGLE_STRIP):
           numVertices = 4
@@ -442,7 +445,7 @@ proc main() =
           uniforms:
             rectPos
             rectSize = vec2f(textWidths[textIndex].float32, textHeight.float32)
-            viewSize = vec2f(640,480)
+            viewSize = vec2f(WindowSize)
             tex = textTextures[textIndex]
 
           attributes:
@@ -479,7 +482,7 @@ proc main() =
 #          uniforms:
 #            rectPos = vec2f(x,y)
 #            rectSize = vec2f(w,h)
-#            viewSize = vec2f(640,480)
+#            viewSize = vec2f(WindowSize)
 #            tex = textTextures[i]
 #
 #          attributes:
@@ -502,8 +505,6 @@ proc main() =
 
 
     window.glSwapWindow()
-
-
 
 #end main
 

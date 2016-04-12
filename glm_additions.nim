@@ -1,7 +1,28 @@
-
-type Vec4f* = Vec4[float32]
-type Vec3f* = Vec3[float32]
-type Vec2f* = Vec2[float32]
+type
+  Vec4f* = Vec4[float32]
+  Vec3f* = Vec3[float32]
+  Vec2f* = Vec2[float32]
+  Vec4d* = Vec4[float64]
+  Vec3d* = Vec3[float64]
+  Vec2d* = Vec2[float64]
+  Vec4i* = Vec4[int32]
+  Vec3i* = Vec3[int32]
+  Vec2i* = Vec2[int32]
+  Vec4l* = Vec4[int64]
+  Vec3l* = Vec3[int64]
+  Vec2l* = Vec2[int64]
+  Mat4f* = Mat4x4[float32]
+  Mat3f* = Mat3x3[float32]
+  Mat2f* = Mat2x2[float32]
+  Mat4d* = Mat4x4[float64]
+  Mat3d* = Mat3x3[float64]
+  Mat2d* = Mat2x2[float64]
+  Mat4i* = Mat4x4[int32]
+  Mat3i* = Mat3x3[int32]
+  Mat2i* = Mat2x2[int32]
+  Mat4l* = Mat4x4[int64]
+  Mat3l* = Mat3x3[int64]
+  Mat2l* = Mat2x2[int64]
 
 proc vec4f*(x,y,z,w:float32)             : Vec4f = [  x,   y,   z,   w].Vec4f
 proc vec4f*(v:Vec3f,w:float32)           : Vec4f = [v.x, v.y, v.z,   w].Vec4f
@@ -24,10 +45,6 @@ proc vec4f*(a:array[0..3, float32]) : Vec4f = [a[0], a[1], a[2], a[3]].Vec4f
 proc vec3f*(a:array[0..2, float32]) : Vec3f = [a[0], a[1], a[2]].Vec3f
 proc vec2f*(a:array[0..1, float32]) : Vec2f = [a[0], a[1]].Vec2f
 
-type Vec4d* = Vec4[float64]
-type Vec3d* = Vec3[float64]
-type Vec2d* = Vec2[float64]
-
 proc vec4d*(x,y,z,w:float64)             : Vec4d = [  x,   y,   z,   w].Vec4d
 proc vec4d*(v:Vec3d,w:float64)           : Vec4d = [v.x, v.y, v.z,   w].Vec4d
 proc vec4d*(x:float64,v:Vec3d)           : Vec4d = [  x, v.x, v.y, v.z].Vec4d
@@ -45,19 +62,68 @@ proc vec3d*(x:float64)         : Vec3d = [  x,   x,   x].Vec3d
 proc vec2d*(x,y:float64) : Vec2d = [x,y].Vec2d
 proc vec2d*(x:float64)   : Vec2d = [x,x].Vec2d
 
-proc vec4f*(v: Vec4d) : Vec4f = [v.x.float32,v.y.float32,v.z.float32,v.w.float32].Vec4f
-proc vec3f*(v: Vec3d) : Vec3f = [v.x.float32,v.y.float32,v.z.float32].Vec3f
-proc vec2f*(v: Vec2d) : Vec2f = [v.x.float32,v.y.float32].Vec2f
-proc vec4d*(v: Vec4f) : Vec4d = [v.x.float64,v.y.float64,v.z.float64,v.w.float64].Vec4d
-proc vec3d*(v: Vec3f) : Vec3d = [v.x.float64,v.y.float64,v.z.float64].Vec3d
-proc vec2d*(v: Vec2f) : Vec2d = [v.x.float64,v.y.float64].Vec2d
 
-type Mat4f* = Mat4x4[float32]
-type Mat3f* = Mat3x3[float32]
-type Mat2f* = Mat2x2[float32]
-type Mat4d* = Mat4x4[float64]
-type Mat3d* = Mat3x3[float64]
-type Mat2d* = Mat2x2[float64]
+proc vec4i*(x,y,z,w:int32)             : Vec4i = [  x,   y,   z,   w].Vec4i
+proc vec4i*(v:Vec3i; w:int32)          : Vec4i = [v.x, v.y, v.z,   w].Vec4i
+proc vec4i*(x:int32; v:Vec3i)          : Vec4i = [  x, v.x, v.y, v.z].Vec4i
+proc vec4i*(a,b:Vec2i)                 : Vec4i = [a.x, a.y, b.x, b.y].Vec4i
+proc vec4i*(v:Vec2i; z,w:int32)        : Vec4i = [v.x, v.y,   z,   w].Vec4i
+proc vec4i*(x:int32; v:Vec2i; w:int32) : Vec4i = [  x, v.x, v.y,   w].Vec4i
+proc vec4i*(x,y:int32; v:Vec2i)        : Vec4i = [  x,   y, v.x, v.y].Vec4i
+proc vec4i*(x:int32)                   : Vec4i = [  x,   x,   x,   x].Vec4i
+
+proc vec3i*(x,y,z:int32)      : Vec3i = [  x,   y,   z].Vec3i
+proc vec3i*(v:Vec2i; z:int32) : Vec3i = [v.x, v.y,   z].Vec3i
+proc vec3i*(x:int32; v:Vec2i) : Vec3i = [  x, v.x, v.y].Vec3i
+proc vec3i*(x:int32)          : Vec3i = [  x,   x,   x].Vec3i
+
+proc vec2i*(x,y:int32) : Vec2i = [x,y].Vec2i
+proc vec2i*(x:int32)   : Vec2i = [x,x].Vec2i
+
+proc vec4i*(a:array[0..3, int32]) : Vec4i = [a[0], a[1], a[2], a[3]].Vec4i
+proc vec3i*(a:array[0..2, int32]) : Vec3i = [a[0], a[1], a[2]].Vec3i
+proc vec2i*(a:array[0..1, int32]) : Vec2i = [a[0], a[1]].Vec2i
+  
+# conversions
+
+proc vec4f*(v: Vec4d) : Vec4f = [v.x.float32, v.y.float32, v.z.float32, v.w.float32].Vec4f
+proc vec4f*(v: Vec4i) : Vec4f = [v.x.float32, v.y.float32, v.z.float32, v.w.float32].Vec4f
+proc vec4f*(v: Vec4l) : Vec4f = [v.x.float32, v.y.float32, v.z.float32, v.w.float32].Vec4f
+proc vec4d*(v: Vec4f) : Vec4d = [v.x.float64, v.y.float64, v.z.float64, v.w.float64].Vec4d
+proc vec4d*(v: Vec4i) : Vec4d = [v.x.float64, v.y.float64, v.z.float64, v.w.float64].Vec4d
+proc vec4d*(v: Vec4l) : Vec4d = [v.x.float64, v.y.float64, v.z.float64, v.w.float64].Vec4d
+proc vec4i*(v: Vec4f) : Vec4i = [v.x.int32, v.y.int32, v.z.int32, v.w.int32].Vec4i
+proc vec4i*(v: Vec4i) : Vec4i = [v.x.int32, v.y.int32, v.z.int32, v.w.int32].Vec4i
+proc vec4i*(v: Vec4l) : Vec4i = [v.x.int32, v.y.int32, v.z.int32, v.w.int32].Vec4i
+proc vec4l*(v: Vec4f) : Vec4l = [v.x.int64, v.y.int64, v.z.int64, v.w.int64].Vec4l
+proc vec4l*(v: Vec4i) : Vec4l = [v.x.int64, v.y.int64, v.z.int64, v.w.int64].Vec4l
+proc vec4l*(v: Vec4l) : Vec4l = [v.x.int64, v.y.int64, v.z.int64, v.w.int64].Vec4l
+proc vec3f*(v: Vec3d) : Vec3f = [v.x.float32, v.y.float32, v.z.float32].Vec3f
+proc vec3f*(v: Vec3i) : Vec3f = [v.x.float32, v.y.float32, v.z.float32].Vec3f
+proc vec3f*(v: Vec3l) : Vec3f = [v.x.float32, v.y.float32, v.z.float32].Vec3f
+proc vec3d*(v: Vec3f) : Vec3d = [v.x.float64, v.y.float64, v.z.float64].Vec3d
+proc vec3d*(v: Vec3i) : Vec3d = [v.x.float64, v.y.float64, v.z.float64].Vec3d
+proc vec3d*(v: Vec3l) : Vec3d = [v.x.float64, v.y.float64, v.z.float64].Vec3d
+proc vec3i*(v: Vec3f) : Vec3i = [v.x.int32, v.y.int32, v.z.int32].Vec3i
+proc vec3i*(v: Vec3i) : Vec3i = [v.x.int32, v.y.int32, v.z.int32].Vec3i
+proc vec3i*(v: Vec3l) : Vec3i = [v.x.int32, v.y.int32, v.z.int32].Vec3i
+proc vec3l*(v: Vec3f) : Vec3l = [v.x.int64, v.y.int64, v.z.int64].Vec3l
+proc vec3l*(v: Vec3i) : Vec3l = [v.x.int64, v.y.int64, v.z.int64].Vec3l
+proc vec3l*(v: Vec3l) : Vec3l = [v.x.int64, v.y.int64, v.z.int64].Vec3l
+proc vec2f*(v: Vec2d) : Vec2f = [v.x.float32, v.y.float32].Vec2f
+proc vec2f*(v: Vec2i) : Vec2f = [v.x.float32, v.y.float32].Vec2f
+proc vec2f*(v: Vec2l) : Vec2f = [v.x.float32, v.y.float32].Vec2f
+proc vec2d*(v: Vec2f) : Vec2d = [v.x.float64, v.y.float64].Vec2d
+proc vec2d*(v: Vec2i) : Vec2d = [v.x.float64, v.y.float64].Vec2d
+proc vec2d*(v: Vec2l) : Vec2d = [v.x.float64, v.y.float64].Vec2d
+proc vec2i*(v: Vec2f) : Vec2i = [v.x.int32, v.y.int32].Vec2i
+proc vec2i*(v: Vec2i) : Vec2i = [v.x.int32, v.y.int32].Vec2i
+proc vec2i*(v: Vec2l) : Vec2i = [v.x.int32, v.y.int32].Vec2i
+proc vec2l*(v: Vec2f) : Vec2l = [v.x.int64, v.y.int64].Vec2l
+proc vec2l*(v: Vec2i) : Vec2l = [v.x.int64, v.y.int64].Vec2l
+proc vec2l*(v: Vec2l) : Vec2l = [v.x.int64, v.y.int64].Vec2l
+
+# functions
 
 proc floor*(v : Vec2f) : Vec2f =
   result.x = floor(v.x)
