@@ -140,10 +140,6 @@ proc main() =
 
   echo "num vertex arrays: ", vertexArrays.len
   for va in vertexArrays:
-    #echo "---- vertex array ----"
-    #echo "type:   ", va.`type`.iqmTypeString
-    #echo "format: ", va.format.iqmFormatString
-    #echo "size:   ", va.size
 
     if va.`type` == IQM_POSITION and va.format == IQM_FLOAT and va.size == 3:
       echo "got positions"
@@ -188,14 +184,19 @@ proc main() =
   echo "=========================================================================="
   let meshes = memptr[iqmmesh](file, hdr.ofs_meshes, hdr.num_meshes)
   echo "meshes: ", meshes.len
-  for mesh in meshes:
+
+  var meshTextures = newSeq[Texture2D](meshes.len)
+
+  for i, mesh in meshes:
     echo "got iqm mesh:"
     echo "  name:           ", text(mesh.name)
-    echo "  material:       ", mesh.material
+    echo "  material:       ", text(mesh.material)
     echo "  first_vertex:   ", mesh.first_vertex
     echo "  num_vertexes:   ", mesh.num_vertexes
     echo "  first_triangle: ", mesh.first_triangle
     echo "  num_triangles:  ", mesh.num_triangles
+    meshTextures[i] = loadTexture2DFromFile( $text(mesh.material) )
+
 
   echo "=========================================================================="
   let joints = memptr[iqmjoint](file, hdr.ofs_joints, hdr.num_joints)
@@ -427,7 +428,6 @@ proc main() =
     view_mat = view_mat.rotate( vec3d(1,0,0), -0.5f )
     view_mat = view_mat.rotate( vec3d(0,0,1), rotation.x )
 
-
     ################
     #### render ####
     ################
@@ -438,7 +438,7 @@ proc main() =
 
     let
       current_frame = time
-      frame1 = frames[current_frame.floor.int]
+      frame1 = frames[current_frame.floor.int mod hdr.num_frames.int]
       frame2 = frames[(current_frame.floor.int + 1) mod hdr.num_frames.int]
       frameoffset = current_frame - current_frame.floor
 
@@ -456,6 +456,8 @@ proc main() =
     #  ###############
 
     if renderMesh:
+      # TODO render different textures for each mesh
+
       shadingDsl(GL_TRIANGLES):
         numVertices = GLsizei(triangles.len * 3)
 
@@ -463,6 +465,7 @@ proc main() =
           modelview = view_mat
           projection = projection_mat
           outframeTexture
+          material = meshTextures[0]
           time
 
         attributes:
@@ -502,7 +505,8 @@ proc main() =
 
         fragmentMain:
           """
-          color.rgb = v_normal_cs.xyz;
+          color = texture(material, v_texcoord) * v_normal_cs.z;
+          //color.rgb = v_normal_cs.xyz;
           """
 
 
@@ -573,6 +577,7 @@ proc main() =
 
           uniforms:
             rectPos
+            depth = pos.z
             rectSize = vec2f(textWidths[textIndex].float32, textHeight.float32)
             viewSize = vec2f(WindowSize)
             tex = textTextures[textIndex]
@@ -582,7 +587,7 @@ proc main() =
 
           vertexMain:
             """
-            gl_Position = vec4( (rectPos + a_texcoord * rectSize) / (viewSize * 0.5f), 0, 1);
+            gl_Position = vec4( (rectPos + a_texcoord * rectSize) / (viewSize * 0.5f), depth, 1);
             v_texcoord = a_texcoord * rectSize;
             v_texcoord.y = rectSize.y - v_texcoord.y;
             """
@@ -598,8 +603,6 @@ proc main() =
             """
 
     window.glSwapWindow()
-
-#end main
 
 main()
 

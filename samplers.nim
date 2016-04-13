@@ -117,6 +117,10 @@ proc subImage*( texture : TextureRectangle; data : var seq[Mat4f] ) =
 
 proc loadTexture2DFromFile*(filename: string): Texture2D =
   let surface = image.load(filename)
+  if surface.isNil:
+    echo "can't load texture ", filename, ": ", sdl2.getError()
+    return nilTexture2D
+
   defer: freeSurface(surface)
   texture2D(surface)
 
