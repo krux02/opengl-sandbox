@@ -224,6 +224,7 @@ proc main() =
       jointMatrices[i] = joint.matrix * jointMatrices[i]
 
   var outframe = newSeq[Mat4f](joints.len)
+  var outframe_texture = textureRectangle( vec2i(4, joints.len.int32), GL_RGBA32F )
 
   echo "=========================================================================="
 
@@ -310,42 +311,8 @@ proc main() =
       else:
         frames[i][j] = m * inversebaseframe[j.int]
 
-    for a in anims:
-      echo "loaded anim: ", a.name
-
-  #var
-  #  t: Vec3f
-  #  r: Quat4f
-  #  s: Vec3f
-  #
-  #for joint in joints:
-  #  t.x = p.channeloffset[0]; if p.mask and 0x01:  t.x += *framedata++ * p.channelscale[0];
-  #  t.y = p.channeloffset[1]; if p.mask and 0x02:  t.y += *framedata++ * p.channelscale[1];
-  #  t.z = p.channeloffset[2]; if p.mask and 0x04:  t.z += *framedata++ * p.channelscale[2];
-  #  r.x = p.channeloffset[3]; if p.mask and 0x08:  r.x += *framedata++ * p.channelscale[3];
-  #  r.y = p.channeloffset[4]; if p.mask and 0x10:  r.y += *framedata++ * p.channelscale[4];
-  #  r.z = p.channeloffset[5]; if p.mask and 0x20:  r.z += *framedata++ * p.channelscale[5];
-  #  r.w = p.channeloffset[6]; if p.mask and 0x40:  r.w += *framedata++ * p.channelscale[6];
-  #  s.x = p.channeloffset[7]; if p.mask and 0x80:  s.x += *framedata++ * p.channelscale[7];
-  #  s.y = p.channeloffset[8]; if p.mask and 0x100: s.y += *framedata++ * p.channelscale[8];
-  #  s.z = p.channeloffset[9]; if p.mask and 0x200: s.z += *framedata++ * p.channelscale[9];
-  #
-  #  var bone_mat = I4d
-  #  bone_mat = modelview_mat.translate( vec3d(0, 0, -17) )
-  #  bone_mat = modelview_mat.rotate( rot )
-  #  modelview_mat = modelview_mat.rotate( vec3d(0,1,0), time )
-  #  modelview_mat = modelview_mat.rotate( vec3d(1,0,0), time )
-  #
-  #  Matrix3x4 m(rotate.normalize(), translate, scale);
-  #  if(p.parent >= 0) frames[i*hdr.num_poses + j] = baseframe[p.parent] * m * inversebaseframe[j];
-  #  else frames[i*hdr.num_poses + j] = m * inversebaseframe[j];
-
-
   let
-    # boxVertices = fancygl.boxVertices.arrayBuffer
-    # boxNormals  = fancygl.boxNormals.arrayBuffer
     boxColors   = fancygl.boxColors.arrayBuffer
-
 
     boneVerticesArray = [
       vec3f(0,0,0), vec3f(+0.1f, 0.1f, +0.1f), vec3f(+0.1f, 0.1f, -0.1f),
@@ -472,12 +439,15 @@ proc main() =
     let
       current_frame = time
       frame1 = frames[current_frame.floor.int]
-      frame2 = frames[current_frame.floor.int + 1]
+      frame2 = frames[(current_frame.floor.int + 1) mod hdr.num_frames.int]
       frameoffset = current_frame - current_frame.floor
 
     for i in 0 .. < outframe.len:
       let mat = mix( frame1[i], frame2[i], frameoffset )
       outframe[i] = if joints[i].parent >= 0: outframe[joints[i].parent] * mat else: mat
+
+    # write outframe into a texture that can be read from the shader
+    outframeTexture.subImage(outframe)
 
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
@@ -492,6 +462,7 @@ proc main() =
         uniforms:
           modelview = view_mat
           projection = projection_mat
+          outframeTexture
           time
 
         attributes:
@@ -500,12 +471,25 @@ proc main() =
           a_texcoord = meshData.texcoord
           a_normal_os = meshData.normal
           a_tangent_os = meshData.tangent
-          #blendindexes = meshData.blendindexes
-          #blendweights = meshData.blendweights
+          a_blendindexes = meshData.blendindexes
+          a_blendweights = meshData.blendweights
 
         vertexMain:
           """
-          gl_Position = projection * modelview * vec4(a_position, 1);
+          mat4 mat = mat4(0.0);
+          for(int i = 0; i < 4; ++i) {
+            int blendIndex = int(a_blendindexes[i]);
+            float blendWeight = a_blendweights[i];
+
+            mat4 tmp;
+            for(int j = 0; j < 4; ++j) {
+              tmp[j] = texelFetch(outframeTexture, ivec2(j, blendIndex));
+            }
+            mat += tmp * blendWeight;
+          }
+
+
+          gl_Position = projection * modelview * mat * vec4(a_position, 1);
           v_texcoord = a_texcoord;
           v_normal_cs  = modelview * vec4(a_normal_os, 0);
           v_tangent_cs = modelview * a_tangent_os;

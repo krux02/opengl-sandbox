@@ -78,3 +78,8 @@ proc attribNormalized(t: typedesc[Vec3f]) : bool = false
 proc attribSize(t: typedesc[Vec2f]) : GLint = 2
 proc attribType(t: typedesc[Vec2f]) : GLenum = cGL_FLOAT
 proc attribNormalized(t: typedesc[Vec2f]) : bool = false
+
+proc attribSize(t: typedesc[Vec4[uint8]]) : GLint = 4
+proc attribType(t: typedesc[Vec4[uint8]]) : GLenum = cGL_UNSIGNED_BYTE
+proc attribNormalized(t: typedesc[Vec4[uint8]]) : bool = false
+

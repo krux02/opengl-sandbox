@@ -107,8 +107,13 @@ proc textureRectangle*(surface: sdl2.SurfacePtr): TextureRectangle =
   defer: freeSurface(surface2)
   glGenTextures(1, cast[ptr GLuint](result.addr))
   glTextureImage2DEXT(result.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_RGBA, surface2.w, surface2.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
-  #result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
-  #result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+
+proc textureRectangle*(size: Vec2i; internalFormat : GLint = GL_RGBA): TextureRectangle =
+  glGenTextures(1, cast[ptr GLuint](result.addr))
+  glTextureImage2DEXT(result.GLuint, GL_TEXTURE_RECTANGLE, 0, internalFormat, size.x, size.y, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, nil)
+
+proc subImage*( texture : TextureRectangle; data : var seq[Mat4f] ) =
+  glTextureSubImage2DEXT(texture.GLuint, GL_TEXTURE_RECTANGLE, 0, 0, 0, 4, data.len.GLsizei, GL_RGBA, cGL_FLOAT, data[0].addr.pointer )
 
 proc loadTexture2DFromFile*(filename: string): Texture2D =
   let surface = image.load(filename)
