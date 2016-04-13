@@ -83,7 +83,7 @@ proc vec2i*(x:int32)   : Vec2i = [x,x].Vec2i
 proc vec4i*(a:array[0..3, int32]) : Vec4i = [a[0], a[1], a[2], a[3]].Vec4i
 proc vec3i*(a:array[0..2, int32]) : Vec3i = [a[0], a[1], a[2]].Vec3i
 proc vec2i*(a:array[0..1, int32]) : Vec2i = [a[0], a[1]].Vec2i
-  
+
 # conversions
 
 proc vec4f*(v: Vec4d) : Vec4f = [v.x.float32, v.y.float32, v.z.float32, v.w.float32].Vec4f
@@ -122,7 +122,7 @@ proc vec2i*(v: Vec2l) : Vec2i = [v.x.int32, v.y.int32].Vec2i
 proc vec2l*(v: Vec2f) : Vec2l = [v.x.int64, v.y.int64].Vec2l
 proc vec2l*(v: Vec2i) : Vec2l = [v.x.int64, v.y.int64].Vec2l
 proc vec2l*(v: Vec2l) : Vec2l = [v.x.int64, v.y.int64].Vec2l
-  
+
 # functions
 
 proc floor*(v : Vec2f) : Vec2f =
@@ -143,12 +143,19 @@ proc floor*(v : Vec4f) : Vec4f =
 proc mat4f*(mat: Mat4d): Mat4f =
   for i in 0..<4:
    for j in 0..<4:
-     result[i][j] = mat[i][j]
+     result[i][j] = mat[i][j].float32
 
 proc mat4d*(mat: Mat4f): Mat4d =
   for i in 0..<4:
    for j in 0..<4:
-     result[i][j] = mat[i][j]
+     result[i][j] = mat[i][j].float64
+
+proc `+`*(mat1, mat2 : Mat4f) : Mat4f =
+  result[0] = mat1[0] + mat2[0]
+  result[1] = mat1[1] + mat2[1]
+  result[2] = mat1[2] + mat2[2]
+  result[3] = mat1[3] + mat2[3]
+
 
 proc diag*(v : Vec2f) : Mat2f =
   result[0][0] = v[0]
@@ -209,7 +216,7 @@ proc diag*(m : Mat4d) : Vec4d =
   result[1] = m[1][1]
   result[2] = m[2][2]
   result[3] = m[3][3]
-  
+
 const
   I4d* = diag(vec4d(1.0))
   I3d* = diag(vec3d(1.0))
@@ -222,10 +229,10 @@ const
 
 type Quatf* = distinct array[0..3, float32]
 
-proc `[]`(q : Quatf, i : int) : float32 =
+proc `[]`*(q : Quatf, i : int) : float32 =
   array[0..3,float32](q)[i]
 
-proc `[]=`(q : var Quatf, i : int, val : float32) =
+proc `[]=`*(q : var Quatf, i : int, val : float32) =
   array[0..3,float32](q)[i] = val
 
 iterator items*(q: Quatf) : float32 =
@@ -272,6 +279,9 @@ proc length*(q : Quatf) : float32 =
 proc normalize*(q : Quatf) : Quatf =
   q * (1.0f / q.length)
 
+proc mix*[S,T](a,b: S; alpha: T) : S =
+  a * (1 - alpha) + b * alpha
+
 proc mat3*(q : Quatf) : Mat3f =
   let
     txx = 2*q.x*q.x
@@ -294,8 +304,12 @@ type JointPose* = object
   rotate*    : Quatf
   scale*     : Vec3f
 
-proc `[]`(pose : var JointPose, index : int) : var float32 =
+proc `[]`*(pose : var JointPose; index : int) : var float32 =
   cast[ptr array[0..9, float32]](pose.addr)[index]
+
+proc `[]=`*(pose : var JointPose; index : int; val : float32) : void =
+  cast[ptr array[0..9, float32]](pose.addr)[index] = val
+
 
 proc poseMatrix*(jp : JointPose) : Mat4f =
   let scalerot_mat = jp.rotate.normalize.mat3 * jp.scale.diag

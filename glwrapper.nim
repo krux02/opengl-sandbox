@@ -1,11 +1,12 @@
 #### Uniform ####
 
-proc uniform(location: GLint, mat: Mat4x4[float64]) =
-  var mat_float32 = mat4f(mat)
-  glUniformMatrix4fv(location, 1, false, cast[ptr GLfloat](mat_float32.addr))
+proc uniform(location: GLint, mat: Mat4d) =
+  var mat_var = mat.mat4f
+  glUniformMatrix4fv(location, 1, false, cast[ptr GLfloat](mat_var.addr))
 
-proc uniform(location: GLint, mat: var Mat4x4[float32]) =
-  glUniformMatrix4fv(location, 1, false, cast[ptr GLfloat](mat.addr))
+proc uniform(location: GLint, mat: Mat4f) =
+  var mat_var = mat
+  glUniformMatrix4fv(location, 1, false, cast[ptr GLfloat](mat_var.addr))
 
 proc uniform(location: GLint, value: float32) =
   glUniform1f(location, value)

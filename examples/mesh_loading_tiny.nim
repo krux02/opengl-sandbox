@@ -49,6 +49,20 @@ proc memptr[T](file:MemFile, offset: cuint) : ptr T = cast[ptr T](cast[int](file
 proc memptr[T](file:MemFile, offset: cuint, num_elements: cuint) : DataView[T] =
   dataView[T]( cast[pointer](cast[int](file.mem) + offset.int), num_elements.int )
 
+proc grouped[T](t : var seq[T]; groupSize : int) : seq[DataView[T]] =
+  result.newSeq(t.len div groupSize + (if t.len mod groupSize == 0: 0 else: 1))
+  for i in 0 .. < result.len:
+    result[i] = dataView[T]( t[i * groupSize].addr.pointer, min(groupSize, t.len - i * groupSize) )
+
+proc jointPose(ij : iqmjoint) : JointPose =
+  for i in 0 .. < 3:
+    result.translate[i] = ij.translate[i]
+  for i in 0 .. < 4:
+    result.rotate[i]    = ij.rotate[i]
+  for i in 0 .. < 3:
+    result.scale[i]     = ij.scale[i]
+
+
 proc matrix(joint : iqmjoint) : Mat4f =
   var jp : JointPose
   jp.translate = joint.translate.Vec3f
@@ -59,6 +73,8 @@ proc matrix(joint : iqmjoint) : Mat4f =
 proc main() =
   discard sdl2.init(INIT_EVERYTHING)
   discard ttfinit()
+
+  #this is a comment
 
   let window = createWindow("SDL/OpenGL Skeleton", 100, 100, WindowSize.x, WindowSize.y, SDL_WINDOW_OPENGL) # SDL_WINDOW_MOUSE_CAPTURE
   # let context = window.glCreateContext()
@@ -207,6 +223,7 @@ proc main() =
       joint = joints[joint.parent]
       jointMatrices[i] = joint.matrix * jointMatrices[i]
 
+  var outframe = newSeq[Mat4f](joints.len)
 
   echo "=========================================================================="
 
@@ -230,6 +247,71 @@ proc main() =
     echo "  flags:       ", anim.flags.int.toHex(8)
 
   echo "=========================================================================="
+
+  ########################
+  #### load base pose ####
+  ########################
+
+  var
+    baseframe = newSeq[Mat4f](hdr.num_joints.int)
+    inversebaseframe = newSeq[Mat4f](hdr.num_joints.int)
+
+  for i, joint in joints:
+    baseframe[i] = joint.jointPose.poseMatrix
+    inversebaseframe[i] = baseframe[i].inverse
+    if joint.parent >= 0:
+      baseframe[i] = baseframe[joint.parent.int] * baseframe[i]
+      inversebaseframe[i] = inversebaseframe[i] * inversebaseframe[joint.parent.int]
+
+  #############################
+  #### load iqm animations ####
+  #############################
+
+  assert(hdr.num_poses == hdr.num_joints)
+
+  #  lilswap((uint32_t*)&buf[hdr.ofs_poses], hdr.num_poses*sizeof(iqmpose)/sizeof(uint32_t));
+  #  lilswap((uint32_t*)&buf[hdr.ofs_anims], hdr.num_anims*sizeof(iqmanim)/sizeof(uint32_t));
+  #  lilswap((uint16_t*)&buf[hdr.ofs_frames], hdr.num_frames*hdr.num_framechannels);
+  #  //numanims = hdr.num_anims;
+  #  //numframes = hdr.num_frames;
+
+  #  auto anims_ptr = (iqmanim *)&buf[hdr.ofs_anims];
+  #  anims.assign(anims_ptr, anims_ptr + hdr.num_anims);
+  #  auto poses_ptr = (iqmpose*)&buf[hdr.ofs_poses];
+  #  poses.assign(poses_ptr, poses_ptr + hdr.num_poses);
+
+  # let str = texts[hdr.ofs_text.int]
+  var
+    frames_data = newSeq[Mat4f](hdr.num_frames * hdr.num_poses)
+    frames = frames_data.grouped(hdr.num_joints.int)
+
+  let framedata_view = memptr[uint16](file, hdr.ofs_frames, 10000)
+  var framedata_idx = 0
+
+  for i in 0 .. < hdr.num_frames.int:
+    for j, p in poses:
+      var pose : JointPose
+
+      for k in 0 .. < 10:
+        var raw = 0.0f
+        if (p.mask.int and (1 shl k)) != 0:
+           raw = framedata_view[framedata_idx].float32
+           framedata_idx += 1
+
+        let
+          offset = p.channeloffset[k]
+          scale  = p.channelscale[k]
+
+        pose[k] = raw * scale + offset
+
+      let m = pose.poseMatrix
+      if p.parent >= 0:
+        frames[i][j] = baseframe[p.parent.int] * m * inversebaseframe[j.int]
+      else:
+        frames[i][j] = m * inversebaseframe[j.int]
+
+    for a in anims:
+      echo "loaded anim: ", a.name
 
   #var
   #  t: Vec3f
@@ -367,9 +449,6 @@ proc main() =
           boneScale.x = boneScale.x * pow(2.0, motion.x / 100)
           boneScale.y = boneScale.y * pow(2.0, motion.y / 100)
 
-        echo rotation, offset, dragMode
-          
-
     ##################
     #### simulate ####
     ##################
@@ -385,6 +464,20 @@ proc main() =
     ################
     #### render ####
     ################
+
+    #  ###########  #
+    # ## animate ## #
+    #  ###########  #
+
+    let
+      current_frame = time
+      frame1 = frames[current_frame.floor.int]
+      frame2 = frames[current_frame.floor.int + 1]
+      frameoffset = current_frame - current_frame.floor
+
+    for i in 0 .. < outframe.len:
+      let mat = mix( frame1[i], frame2[i], frameoffset )
+      outframe[i] = if joints[i].parent >= 0: outframe[joints[i].parent] * mat else: mat
 
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
@@ -428,26 +521,22 @@ proc main() =
           color.rgb = v_normal_cs.xyz;
           """
 
-    glClear(GL_DEPTH_BUFFER_BIT)
 
     #  ################  #
     # ## render bones ## #
     #  ################  #
-    
+
+    glClear(GL_DEPTH_BUFFER_BIT)
+
     if renderBones:
       for i, joint in joints:
-        var
-          model_mat = jointMatrices[i].mat4d
-          parent_mat = if joint.parent < 0: I4d else: jointMatrices[joint.parent].mat4d
-          inv_parent_mat = parent_mat.inverse
-          inv_model_mat = model_mat.inverse
-          
-        
+        let model_mat = outframe[i] * jointMatrices[i]
+
         shadingDsl(GL_TRIANGLES):
           numVertices = GLsizei(triangles.len * 3)
 
           uniforms:
-            modelview = view_mat * model_mat
+            modelview = view_mat.mat4f * model_mat
             projection = projection_mat
             boneScale = boneScale.vec2f
             time
@@ -483,14 +572,14 @@ proc main() =
     if renderBoneNames:
       for i, _ in joints:
         let textIndex = jointNameIndices[i]
-        let model_mat = jointMatrices[i].mat4d;
+        let model_mat = outframe[i].mat4d * jointMatrices[i].mat4d;
 
         var pos = projection_mat * view_mat * model_mat[3]
 
         # culling of bone names behind the camera
         if pos.w <= 0:
           continue
-  
+
         pos /= pos.w
 
         let rectPos = floor(vec2f(pos.xy) * vec2f(WindowSize) * 0.5f)
