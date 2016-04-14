@@ -62,7 +62,6 @@ proc jointPose(ij : iqmjoint) : JointPose =
   for i in 0 .. < 3:
     result.scale[i]     = ij.scale[i]
 
-
 proc matrix(joint : iqmjoint) : Mat4f =
   var jp : JointPose
   jp.translate = joint.translate.Vec3f
@@ -392,6 +391,8 @@ proc main() =
           renderBoneNames = not renderBoneNames
         of SDL_SCANCODE_4:
           renderNormalMap = not renderNormalMap
+        of SDL_SCANCODE_F10:
+          window.screenshot("screenshot.bmp")
         else:
           discard
 

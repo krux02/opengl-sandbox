@@ -7,6 +7,31 @@ include etc, glm_additions, shapes, samplers, framebuffer, glwrapper, heightmap,
 
 type ShaderParam* = tuple[name: string, gl_type: string]
 
+proc screenshot*(window : sdl2.WindowPtr; filename : string) : bool {.discardable.} =
+  var
+    (w,h) = window.getSize
+    data = newSeq[uint32](w * h)
+    
+  glReadPixels(0,0,w,h,GL_RGBA, GL_UNSIGNED_BYTE, data[0].addr)
+  
+  for y in 0 .. < h div 2:
+    for x in 0 .. < w:
+      swap(data[y*w+x], data[(h-y-1)*w+x])
+  
+  let surface = createRGBSurfaceFrom(data[0].addr,w,h,32,w*4,
+                                     0x0000ffu32,0x00ff00u32,0xff0000u32,0xff000000u32)
+  if surface.isNil:
+    echo "Could not create SDL_Surface from pixel data: ", sdl2.getError()
+    return false
+    
+  defer: surface.freeSurface
+
+  if surface.saveBMP(filename) != 0:
+    echo sdl2.getError()
+    return false
+    
+  true
+  
 const
   sourceHeader = """
 #version 330
