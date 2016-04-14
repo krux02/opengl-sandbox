@@ -1,4 +1,5 @@
 nimcache/
+examples/screenshots/
 main
 *.trace
 tent

@@ -7,7 +7,7 @@ include etc, glm_additions, shapes, samplers, framebuffer, glwrapper, heightmap,
 
 type ShaderParam* = tuple[name: string, gl_type: string]
 
-proc screenshot*(window : sdl2.WindowPtr; filename : string) : bool {.discardable.} =
+proc screenshot*(window : sdl2.WindowPtr; basename : string) : bool {.discardable.} =
   var
     (w,h) = window.getSize
     data = newSeq[uint32](w * h)
@@ -26,11 +26,21 @@ proc screenshot*(window : sdl2.WindowPtr; filename : string) : bool {.discardabl
     
   defer: surface.freeSurface
 
-  if surface.saveBMP(filename) != 0:
+  os.createDir "screenshots"
+
+  var i = 0
+  template filename() : string = "screenshots/" & basename & "_" & intToStr(i,4) & ".bmp"
+  while os.fileExists(filename()):
+    i += 1
+  
+  if surface.saveBMP(filename()):
     echo sdl2.getError()
     return false
     
   true
+
+
+
   
 const
   sourceHeader = """

@@ -392,7 +392,7 @@ proc main() =
         of SDL_SCANCODE_4:
           renderNormalMap = not renderNormalMap
         of SDL_SCANCODE_F10:
-          window.screenshot("screenshot.bmp")
+          window.screenshot("mrfixit")
         else:
           discard
 

@@ -535,6 +535,9 @@ while runGame:
       of SDL_SCANCODE_4:
         wireframe = not wireframe
 
+      of SDL_SCANCODE_F10:
+        screenshot(window, "defered_shading")
+
       else:
         discard
 

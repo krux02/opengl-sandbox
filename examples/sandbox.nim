@@ -243,15 +243,20 @@ while runGame:
         reshape()
     if evt.kind == KeyDown:
       let keyboardEvent = cast[KeyboardEventPtr](addr(evt))
-      if keyboardEvent.keysym.scancode == SDL_SCANCODE_ESCAPE:
+      case keyboardEvent.keysym.scancode
+      of SDL_SCANCODE_ESCAPE:
         runGame = false
-        break
-      if keyboardEvent.keysym.scancode == SDL_SCANCODE_PAUSE:
+      of SDL_SCANCODE_PAUSE:
         if gamePaused:
           gamePaused = false
           simulationTimeOffset = time - simulationTime
         else:
           gamePaused = true
+      of SDL_SCANCODE_F10:
+        screenshot(window, "sandbox")
+      else:
+        discard
+
 
     if evt.kind == MouseMotion:
       let mouseEvent = cast[MouseMotionEventPtr](addr(evt))
