@@ -1,19 +1,10 @@
+########################################################################
+############################### fancy gl ###############################
+########################################################################
+
 import opengl, glm, math, strutils, nre, macros, macroutils, sdl2, sdl2/image, os
-
-################################################################################
-#### macro utils ###############################################################
-################################################################################
-
 include etc, glm_additions, shapes, samplers, framebuffer, glwrapper, heightmap, typeinfo
 
-####################################################################################
-#### etc ###########################################################################
-####################################################################################
-
-
-  
-  
-  
 type ShaderParam* = tuple[name: string, gl_type: string]
 
 const
@@ -154,9 +145,9 @@ template renderBlockTemplate(numLocations: int, globalsBlock, linkShaderBlock, b
     bindIt(nil_vao)
     glUseProgram(0);
 
-################################################################################
-## Shading Dsl #################################################################
-################################################################################
+##################################################################################
+#### Shading Dsl #################################################################
+##################################################################################
 
 proc attribute[T](name: string, value: T, divisor: GLuint) : int = 0
 proc attributes(args : varargs[int]) : int = 0
@@ -170,18 +161,19 @@ proc fragmentMain(src: string): int = 0
 proc geometryMain(layout, src: string): int = 0
 proc includes(args: varargs[int]): int = 0
 proc incl(arg: string): int = 0
-proc numVertices(num: GLSizei): int = 0
-proc numInstances(num: GLSizei): int = 0
+proc numVertices(num: GLsizei): int = 0
+proc numInstances(num: GLsizei): int = 0
+proc vertexOffset(offset: GLsizei) : int = 0
 
-################################################################################
-## Shading Dsl Inner ###########################################################
-################################################################################
+##################################################################################
+#### Shading Dsl Inner ###########################################################
+##################################################################################
 
 macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], statement: varargs[int] ) : stmt =
 
   var numSamplers = 0
   var numLocations = 0
-  var uniformsSection : seq[string] = @[]
+  var uniformsSection = newSeq[string](0)
   var initUniformsBlock = newStmtList()
   var setUniformsBlock = newStmtList()
   var attribNames = newSeq[string](0)
@@ -189,9 +181,9 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
   #var attributesSection : seq[object(name:string, tpe: string)] = @[]
   var globalsBlock = newStmtList()
   var bufferCreationBlock = newStmtList()
-  var vertexOutSection : seq[string] = @[]
-  var geometryOutSection : seq[string] = @[]
-  var fragmentOutSection : seq[string] = @[]
+  var vertexOutSection = newSeq[string](0)
+  var geometryOutSection = newSeq[string](0)
+  var fragmentOutSection = newSeq[string](0)
   for i,fragout in fragmentOutputs:
     fragmentOutSection.add format("layout(location = $1) out vec4 $2", $i, fragout)
   var includesSection : seq[string] = @[]
@@ -201,7 +193,8 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
   var fragmentMain: string
   var hasIndices = false
   var indexType: NimNode = nil
-  var numVertices, numInstances: NimNode
+  var sizeofIndexType = 0
+  var numVertices, numInstances, vertexOffset: NimNode = nil
 
   #### BEGIN PARSE TREE ####
 
@@ -216,6 +209,9 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 
     of "numInstances":
       numInstances = call[1]
+
+    of "vertexOffset":
+      vertexOffset = call[1]
 
     of "uniforms":
       for innerCall in call[1][1].items:
@@ -275,10 +271,13 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
           case value.getType2[1].typeKind
           of ntyInt8, ntyUInt8:
             indexType = bindSym"GL_UNSIGNED_BYTE"
+            sizeofIndexType = 1
           of ntyInt16, ntyUInt16:
             indexType = bindSym"GL_UNSIGNED_SHORT"
+            sizeofIndexType = 2
           of ntyInt32, ntyUInt32:
             indexType = bindSym"GL_UNSIGNED_INT"
+            sizeofIndexType = 4
           of ntyInt, ntyUInt:
             error "int type has to be explicity sized uint8 uint16 or uint32"
           of ntyInt64, ntyUInt64:
@@ -379,13 +378,21 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
       echo "unknownSection"
       echo call.repr
 
+  if fragmentMain.isNil:
+    error("no fragment main")
+      
+  if numVertices.isNil:
+    error "numVertices needs to be assigned"
 
-  if hasIndices and indexType == nil:
+  if vertexOffset.isNil:
+    vertexOffset = newLit(0)
+
+  if hasIndices and indexType.isNil:
     error "has indices, but index Type was never set to anything"
 
   var vertexShaderSource : string
 
-  if vertexMain == nil and geometryMain == nil:
+  if vertexMain.isNil and geometryMain.isNil:
 
     if vertexOutSection.len > 0:
       error "cannot create implicit screen space quad renderer with vertex out section"
@@ -393,22 +400,21 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
     vertexShaderSource = screenTriagleVertexSource
     vertexOutSection.add("out vec2 texCoord")
 
-
-  elif vertexMain == nil:
+  elif vertexMain.isNil:
     vertexShaderSource = forwardVertexShaderSource(sourceHeader, attribNames, attribTypes)
 
 
     vertexOutSection.newSeq(attribNames.len)
     for i in 0..<attribNames.len:
        vertexOutSection[i] = format("out $1 $2", attribTypes[i], attribNames[i])
-
+    
   else:
     var attributesSection = newSeq[string](attribNames.len)
     for i in 0..<attribNames.len:
        attributesSection[i] = format("in $1 $2", attribTypes[i], attribNames[i])
 
     vertexShaderSource = genShaderSource(sourceHeader, uniformsSection, attributesSection, -1, vertexOutSection, includesSection, vertexMain.strVal)
-
+    
   if not vertexMain.isNil:
     let
       li = vertexMain.lineinfo
@@ -417,21 +423,24 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
       p2 = li.find(')',p1)
       basename = li.substr(0, p0-1)
       line     = li.substr(p0+5, p1-1).parseInt
-      col      = li.substr(p1+1, p2-1).parseInt
       filename = joinPath(getTempDir(), basename & "_" & $line & ".vert")
 
     writeFile(filename, vertexShaderSource)
 
   var linkShaderBlock : NimNode
 
-  if geometryMain == nil:
-
+  echo "bisect 3"
+  
+  if geometryMain.isNil:
+    
     let fragmentShaderSource = genShaderSource(sourceHeader, uniformsSection, vertexOutSection, -1, fragmentOutSection, includesSection, fragmentMain)
-
+    
     linkShaderBlock = newCall( bindSym"linkShader",
       newCall( bindSym"compileShader", bindSym"GL_VERTEX_SHADER", newLit(vertexShaderSource) ),
       newCall( bindSym"compileShader", bindSym"GL_FRAGMENT_SHADER", newLit(fragmentShaderSource) ),
     )
+
+    echo "bisect 1"
 
   else:
     let geometryHeader = format("$1\nlayout($2) in;\n$3;\n", sourceHeader, geometryPrimitiveLayout(mode.intVal.GLenum), geometryLayout)
@@ -444,29 +453,29 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
       newCall( bindSym"compileShader", bindSym"GL_FRAGMENT_SHADER", newLit(fragmentShaderSource) ),
     )
 
-
+  echo "end parse tree"
 
   let drawCommand =
-    if hasIndices:
-      if numInstances != nil:
-        newCall( bindSym"glDrawElementsInstanced", mode, numVertices, indexType, newNilLit(), numInstances )
+    if hasIndices: (block:
+      var indicesPtr = newTree( nnkCast, bindSym"pointer", newInfix(bindSym"*", vertexOffset, newLit(sizeofIndexType)))
+      if numInstances.isNil:
+        newCall( bindSym"glDrawElements", mode, numVertices, indexType, indicesPtr )
       else:
-        newCall( bindSym"glDrawElements", mode, numVertices, indexType, newNilLit() )
-
-    else:
-      if numInstances != nil:
-        newCall( bindSym"glDrawArraysInstanced", mode, newLit(0), numVertices, numInstances )
+        newCall( bindSym"glDrawElementsInstanced", mode, numVertices, indexType, indicesPtr, numInstances )
+    ) else:
+      if numInstances.isNil:
+        newCall( bindSym"glDrawArrays", mode, vertexOffset, numVertices )
       else:
-        newCall( bindSym"glDrawArrays", mode, newLit(0), numVertices )
+        newCall( bindSym"glDrawArraysInstanced", mode, vertexOffset, numVertices, numInstances )
 
   result = getAst(renderBlockTemplate(numLocations, globalsBlock, linkShaderBlock,
          bufferCreationBlock, initUniformsBlock, setUniformsBlock, drawCommand))
 
   result = newCall( bindSym"debugResult", result )
 
-################################################################################
-## Shading Dsl Outer ###########################################################
-################################################################################
+##################################################################################
+#### Shading Dsl Outer ###########################################################
+##################################################################################
 
 macro shadingDsl*(mode:GLenum, statement: stmt) : stmt {.immediate.} =
 
@@ -486,6 +495,9 @@ macro shadingDsl*(mode:GLenum, statement: stmt) : stmt {.immediate.} =
         result.add( newCall(bindSym"numVertices", section[1] ) )
       of "numInstances":
         result.add( newCall(bindSym"numInstances", section[1] ) )
+      of "vertexOffset":
+        result.add( newCall(bindSym"vertexOffset", section[1] ) )
+
       else:
         error("unknown named parameter " & $ident.ident)
 
@@ -594,3 +606,6 @@ macro shadingDsl*(mode:GLenum, statement: stmt) : stmt {.immediate.} =
         result.add(includesCall)
       else:
         error("unknown section " & $ident.ident)
+
+# end shadingDsl #
+  

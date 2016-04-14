@@ -356,6 +356,7 @@ proc main() =
     renderMesh = true
     renderBones = true
     renderBoneNames = true
+    renderNormalMap = false
 
   glEnable(GL_DEPTH_TEST)
   #glEnable(GL_CULL_FACE)
@@ -385,6 +386,8 @@ proc main() =
           renderBones = not renderBones
         of SDL_SCANCODE_3:
           renderBoneNames = not renderBoneNames
+        of SDL_SCANCODE_4:
+          renderNormalMap = not renderNormalMap
         else:
           discard
 
@@ -410,9 +413,9 @@ proc main() =
           motionEvent = cast[MouseMotionEventPtr](evt.addr)
           motion = vec2d(motionEvent.xrel.float64, motionEvent.yrel.float64)
         if dragMode == 0x1:
-          rotation = rotation + motion * 0.1
+          rotation = rotation + motion / 100
         if dragMode == 0x2:
-          offset = offset + motion * 0.1
+          offset = offset + motion / 100
         if dragMode == 0x4:
           boneScale.x = boneScale.x * pow(2.0, motion.x / 100)
           boneScale.y = boneScale.y * pow(2.0, motion.y / 100)
@@ -425,8 +428,10 @@ proc main() =
 
     var view_mat = I4d
     view_mat = view_mat.translate( vec3d(0, -1.5f, -17) + vec3d(0, offset.y, offset.x) )
-    view_mat = view_mat.rotate( vec3d(1,0,0), -0.5f )
+    view_mat = view_mat.translate( vec3d(0, 0, 3) )
+    view_mat = view_mat.rotate( vec3d(1,0,0), rotation.y-0.5f )
     view_mat = view_mat.rotate( vec3d(0,0,1), rotation.x )
+    view_mat = view_mat.translate( vec3d(0, 0, -3) )
 
     ################
     #### render ####
@@ -454,60 +459,149 @@ proc main() =
     #  ###############
     # ## render Mesh ##
     #  ###############
+      
+    if renderNormalMap:
+      for i, mesh in meshes:
+        shadingDsl(GL_POINTS):
+          numVertices = mesh.num_vertexes.GLsizei
+          vertexOffset = mesh.first_vertex.GLsizei
+
+          uniforms:
+            modelview = view_mat
+            projection = projection_mat
+            outframeTexture
+
+          attributes:
+            a_position = meshData.position
+            a_texcoord = meshData.texcoord
+            a_normal_os = meshData.normal
+            a_tangent_os = meshData.tangent
+            a_blendindexes = meshData.blendindexes
+            a_blendweights = meshData.blendweights
+
+          vertexMain:
+            """
+            mat4 mat = mat4(0.0);
+            for(int i = 0; i < 4; ++i) {
+              int blendIndex = int(a_blendindexes[i]);
+              float blendWeight = a_blendweights[i];
+    
+              mat4 tmp;
+              for(int j = 0; j < 4; ++j) {
+                tmp[j] = texelFetch(outframeTexture, ivec2(j, blendIndex));
+              }
+              mat += tmp * blendWeight;
+            }
+
+            v_pos_cs = modelview * mat * vec4(a_position, 1);
+            gl_Position = projection * v_pos_cs;
+            v_normal_cs  = normalize(modelview * mat * vec4(a_normal_os, 0));
+            v_tangent_cs = normalize(modelview * mat * a_tangent_os);
+            v_cotangent_cs = vec4(cross(v_normal_cs.xyz, v_tangent_cs.xyz),0);
+            """
+
+          vertexOut:
+            "out vec4 v_pos_cs"
+            "out vec4 v_normal_cs"
+            "out vec4 v_tangent_cs"
+            "out vec4 v_cotangent_cs"
+
+          geometryMain:
+            "layout(line_strip, max_vertices=7) out"
+            """
+            vec4 center_ndc = (projection * v_pos_cs[0]);
+            float scale = center_ndc.w * 0.05;
+            g_color = vec4(1, 0, 0, 1);
+            gl_Position = projection * (v_pos_cs[0] + v_normal_cs[0] * scale);
+            EmitVertex();
+            gl_Position = center_ndc;
+            EmitVertex();
+
+            g_color = vec4(0, 1, 0, 1);
+            EmitVertex();
+            gl_Position = projection * (v_pos_cs[0] + v_tangent_cs[0] * scale);
+            EmitVertex();
+            gl_Position = center_ndc;
+            EmitVertex();
+
+            g_color = vec4(0,0,1,1);
+            EmitVertex();
+            gl_Position = projection * (v_pos_cs[0] + v_cotangent_cs[0] * scale);
+            EmitVertex();
+            
+
+
+            
+            
+
+            """
+
+          geometryOut:
+            "out vec4 g_color"
+  
+          fragmentMain:
+            """
+            color = g_color;
+            """
+      
 
     if renderMesh:
-      # TODO render different textures for each mesh
+      for i, mesh in meshes:
+        shadingDsl(GL_TRIANGLES):
+          numVertices = mesh.num_triangles.GLsizei * 3
+          vertexOffset = mesh.first_triangle.GLsizei * 3
+ 
+          uniforms:
+            modelview = view_mat
+            projection = projection_mat
+            outframeTexture
+            material = meshTextures[i]
+            time
+            renderNormalMap
 
-      shadingDsl(GL_TRIANGLES):
-        numVertices = GLsizei(triangles.len * 3)
+          attributes:
+            indices
+            a_position = meshData.position
+            a_texcoord = meshData.texcoord
+            a_normal_os = meshData.normal
+            a_tangent_os = meshData.tangent
+            a_blendindexes = meshData.blendindexes
+            a_blendweights = meshData.blendweights
 
-        uniforms:
-          modelview = view_mat
-          projection = projection_mat
-          outframeTexture
-          material = meshTextures[0]
-          time
-
-        attributes:
-          indices
-          a_position = meshData.position
-          a_texcoord = meshData.texcoord
-          a_normal_os = meshData.normal
-          a_tangent_os = meshData.tangent
-          a_blendindexes = meshData.blendindexes
-          a_blendweights = meshData.blendweights
-
-        vertexMain:
-          """
-          mat4 mat = mat4(0.0);
-          for(int i = 0; i < 4; ++i) {
-            int blendIndex = int(a_blendindexes[i]);
-            float blendWeight = a_blendweights[i];
-
-            mat4 tmp;
-            for(int j = 0; j < 4; ++j) {
-              tmp[j] = texelFetch(outframeTexture, ivec2(j, blendIndex));
+          vertexMain:
+            """
+              mat4 mat = mat4(0.0);
+              for(int i = 0; i < 4; ++i) {
+                int blendIndex = int(a_blendindexes[i]);
+              float blendWeight = a_blendweights[i];
+  
+              mat4 tmp;
+              for(int j = 0; j < 4; ++j) {
+                tmp[j] = texelFetch(outframeTexture, ivec2(j, blendIndex));
+              }
+              mat += tmp * blendWeight;
             }
-            mat += tmp * blendWeight;
-          }
 
 
-          gl_Position = projection * modelview * mat * vec4(a_position, 1);
-          v_texcoord = a_texcoord;
-          v_normal_cs  = modelview * vec4(a_normal_os, 0);
-          v_tangent_cs = modelview * a_tangent_os;
-          """
+            gl_Position = projection * modelview * mat * vec4(a_position, 1);
+            v_texcoord = a_texcoord;
+            v_normal_cs  = modelview * vec4(a_normal_os, 0);
+            v_tangent_cs = modelview * a_tangent_os;
+            """
 
-        vertexOut:
-          "out vec2 v_texcoord"
-          "out vec4 v_normal_cs"
-          "out vec4 v_tangent_cs"
+          vertexOut:
+            "out vec2 v_texcoord"
+            "out vec4 v_normal_cs"
+            "out vec4 v_tangent_cs"
 
-        fragmentMain:
-          """
-          color = texture(material, v_texcoord) * v_normal_cs.z;
-          //color.rgb = v_normal_cs.xyz;
-          """
+          fragmentMain:
+            """
+            if(renderNormalMap) {
+              color.rgb = v_normal_cs.xyz;
+            } else {
+              color = texture(material, v_texcoord) * v_normal_cs.z;
+            }
+            """
 
 
     #  ################  #
@@ -561,7 +655,6 @@ proc main() =
       for i, _ in joints:
         let textIndex = jointNameIndices[i]
         let model_mat = outframe[i].mat4d * jointMatrices[i].mat4d;
-
         var pos = projection_mat * view_mat * model_mat[3]
 
         # culling of bone names behind the camera
