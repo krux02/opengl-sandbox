@@ -71,19 +71,18 @@ proc matrix(joint : iqmjoint) : Mat4f =
 
 proc main() =
   discard sdl2.init(INIT_EVERYTHING)
+  defer: sdl2.quit()
   discard ttfinit()
-  if TwInit(TW_OPENGL_CORE, nil) == 0:
-    echo "could not initialize AntTweakBar: ", TwGetLastError()
-  defer: discard TwTerminate()
-    
-
-  #this is a comment
 
   let window = createWindow("SDL/OpenGL Skeleton", 100, 100, WindowSize.x, WindowSize.y, SDL_WINDOW_OPENGL) # SDL_WINDOW_MOUSE_CAPTURE
   # let context = window.glCreateContext()
   discard window.glCreateContext()
   # Initialize OpenGL
   loadExtensions()
+
+  if TwInit(TW_OPENGL_CORE, nil) == 0:
+    echo "could not initialize AntTweakBar: ", TwGetLastError()
+  defer: discard TwTerminate()
 
   let quadTexCoords = @[
     vec2f(0,0),
@@ -360,6 +359,25 @@ proc main() =
     renderBones = true
     renderBoneNames = true
     renderNormalMap = false
+    
+  ################################  
+  #### create AntTweakBar gui ####
+  ################################
+
+
+  discard TwWindowSize(WindowSize.x, WindowSize.y)
+
+  var
+    testVar: int32 = 17
+    testfloat: float32 = 18.0
+  
+  var bar = TwNewBar("TwBar")
+  discard TwAddVarRW(bar, "testVar", TW_TYPE_INT32, testVar.addr, "")
+  discard TwAddVarRW(bar, "testFloat", TW_TYPE_FLOAT, testfloat.addr, "")
+  discard TwAddVarRW(bar, "renderBoneNames", TW_TYPE_BOOL8, renderBoneNames.addr, "")
+  discard TwAddVarRW(bar, "renderBones", TW_TYPE_BOOL8, renderBones.addr, "")
+  discard TwAddVarRW(bar, "renderMesh", TW_TYPE_BOOL8, renderMesh.addr, "")
+  discard TwAddVarRW(bar, "renderNormalMap", TW_TYPE_BOOL8, renderNormalMap.addr, "")
 
   glEnable(GL_DEPTH_TEST)
   #glEnable(GL_CULL_FACE)
@@ -372,6 +390,8 @@ proc main() =
 
     var evt = sdl2.defaultEvent
     while pollEvent(evt):
+      var handled = TwEventSDL(cast[pointer](evt.addr), 2.cuchar, 0.cuchar)
+      if handled != 0: continue
 
       if evt.kind == QuitEvent:
         runGame = false
@@ -533,22 +553,13 @@ proc main() =
             EmitVertex();
             gl_Position = projection * (v_pos_cs[0] + v_cotangent_cs[0] * scale);
             EmitVertex();
-            
-
-
-            
-            
-
             """
-
           geometryOut:
-            "out vec4 g_color"
-  
+            "out vec4 g_color" 
           fragmentMain:
             """
             color = g_color;
             """
-      
 
     if renderMesh:
       for i, mesh in meshes:
@@ -645,6 +656,7 @@ proc main() =
             "out vec4 v_normal_cs"
             "out vec3 v_color"
 
+
           fragmentMain:
             """
             color.rgb = v_color * v_normal_cs.z;
@@ -700,6 +712,7 @@ proc main() =
             //color.xy = v_texcoord;
             """
 
+    discard TwDraw()
     window.glSwapWindow()
 
 main()
