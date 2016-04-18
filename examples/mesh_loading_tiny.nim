@@ -1,4 +1,4 @@
-import memfiles, glm, ../fancygl, sdl2, sdl2/ttf , opengl, strutils, math
+import memfiles, glm, ../fancygl, sdl2, sdl2/ttf , opengl, strutils, math, AntTweakBar
 
 include iqm
 
@@ -73,6 +73,10 @@ proc matrix(joint : iqmjoint) : Mat4f =
 proc main() =
   discard sdl2.init(INIT_EVERYTHING)
   discard ttfinit()
+  if TwInit(TW_OPENGL_CORE, nil) == 0:
+    echo "could not initialize AntTweakBar: ", TwGetLastError()
+  defer: discard TwTerminate()
+    
 
   #this is a comment
 
