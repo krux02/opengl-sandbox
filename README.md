@@ -7,7 +7,7 @@ These examples are nothing spelcial from what they are actually doing, the inter
 This renders a simple cube with a different colors on each side. The depth and the color is rendered into a frame buffer. The frame buffer is then used to put a post process on it that simply moves each line of the texture horizontally, simply to show that post processing is possible. Then the cube is rendered again, but this time the geometry shader transforms each face into a normal, so that you can see each face normal as a line.
 
 ![Imgur2](http://i.imgur.com/eF45VTy.png)
-Here you see a test with 500 light sources being rendered via instancing. The process is called deferred shading. So first only the scene without lighting is rendered, and then is a second step each light source is rendered and the result is accumulated into the final image.
+Here you see a test with 500 moving light sources being rendered via instancing. The process is called deferred shading. So first only the scene without lighting is rendered, and then in a second step the effect of each light source is rendered and added into the final image.
 
 ![Imgur3](http://i.imgur.com/Z1OCZip.jpg)
 The light sources from a closer perspective. The light source texture is rendered again via instancing. The texture itself is alpha centauri captured from the hubble space telescope, in case you care.
