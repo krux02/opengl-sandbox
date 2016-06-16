@@ -1,4 +1,4 @@
-import math, sequtils, strutils, sdl2, opengl, ../fancygl, glm
+import math, random, sequtils, strutils, sdl2, opengl, ../fancygl, glm
 
 var hm = createFlatMap(128,64)
 hm.DiamondSquare(64)
@@ -83,9 +83,7 @@ mapWriteBufferBlock(lightColors):
 var
   effectOrigin = position.xy.vec2f
   effectStartTime = -100.0f
-
-
-
+  
 proc showNormals(mvp: Mat4d, positions: ArrayBuffer[Vec3f], normals: ArrayBuffer[Vec3f], length:float32 = 1, color:Vec3f = vec3f(1)) =
 
   shadingDsl(GL_POINTS):

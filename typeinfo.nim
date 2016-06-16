@@ -1,6 +1,8 @@
 # returns a string, and true if it is a sample type
+
+
 proc glslUniformType(value : NimNode): (string, bool) =
-  let tpe = value.getType2
+  let tpe = value.getTypeInst
   if tpe.kind == nnkBracketExpr:
     case $tpe[0]
     of "Mat4x4":
@@ -46,8 +48,7 @@ proc glslUniformType(value : NimNode): (string, bool) =
 
 proc glslAttribType(value : NimNode): string =
   # result = getAst(glslAttribType(value))[0].strVal
-  let tpe = value.getType2
-
+  let tpe = value.getTypeInst
   if $tpe[0] == "seq" or $tpe[0] == "ArrayBuffer":
     tpe[1].glslUniformType[0]
   else:

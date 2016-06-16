@@ -2,7 +2,7 @@
 ############################### fancy gl ###############################
 ########################################################################
 
-import opengl, glm, math, strutils, nre, macros, macroutils, sdl2, sdl2/image, os
+import opengl, glm, math, random, strutils, nre, macros, macroutils, sdl2, sdl2/image, os
 include etc, glm_additions, shapes, samplers, framebuffer, glwrapper, heightmap, typeinfo
 
 type ShaderParam* = tuple[name: string, gl_type: string]
@@ -205,7 +205,6 @@ proc vertexOffset(offset: GLsizei) : int = 0
 ##################################################################################
 
 macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], statement: varargs[int] ) : stmt =
-
   var numSamplers = 0
   var numLocations = 0
   var uniformsSection = newSeq[string](0)
@@ -303,7 +302,8 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 
           hasIndices = true
 
-          case value.getType2[1].typeKind
+          let tpe = value.getTypeInst
+          case tpe[1].typeKind
           of ntyInt8, ntyUInt8:
             indexType = bindSym"GL_UNSIGNED_BYTE"
             sizeofIndexType = 1
@@ -318,13 +318,13 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
           of ntyInt64, ntyUInt64:
             error "64 bit indices not supported"
           else:
-            error("unknown type kind: " & $value.getType2[1].typeKind)
+            error("unknown type kind: " & $value.getTypeImpl[1].typeKind)
 
 
         template foobarTemplate( lhs, rhs, bufferType : expr ) : stmt {.dirty.} =
           var lhs {.global.}: bufferType[rhs[0].type]
 
-        let isSeq:bool = $value.getType2[0] == "seq"
+        let isSeq:bool = $value.getTypeInst[0] == "seq"
 
         if isSeq:
           let bufferType =
@@ -455,7 +455,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
       li = vertexMain.lineinfo
       p0 = li.find(".nim(")
       p1 = li.find(',',p0)
-      p2 = li.find(')',p1)
+      # p2 = li.find(')',p1)
       basename = li.substr(0, p0-1)
       line     = li.substr(p0+5, p1-1).parseInt
       filename = joinPath(getTempDir(), basename & "_" & $line & ".vert")
@@ -463,8 +463,6 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
     writeFile(filename, vertexShaderSource)
 
   var linkShaderBlock : NimNode
-
-  echo "bisect 3"
   
   if geometryMain.isNil:
     
@@ -474,8 +472,6 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
       newCall( bindSym"compileShader", bindSym"GL_VERTEX_SHADER", newLit(vertexShaderSource) ),
       newCall( bindSym"compileShader", bindSym"GL_FRAGMENT_SHADER", newLit(fragmentShaderSource) ),
     )
-
-    echo "bisect 1"
 
   else:
     let geometryHeader = format("$1\nlayout($2) in;\n$3;\n", sourceHeader, geometryPrimitiveLayout(mode.intVal.GLenum), geometryLayout)
@@ -487,8 +483,6 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
       newCall( bindSym"compileShader", bindSym"GL_GEOMETRY_SHADER", newLit(geometryShaderSource) ),
       newCall( bindSym"compileShader", bindSym"GL_FRAGMENT_SHADER", newLit(fragmentShaderSource) ),
     )
-
-  echo "end parse tree"
 
   let drawCommand =
     if hasIndices: (block:
@@ -641,6 +635,3 @@ macro shadingDsl*(mode:GLenum, statement: stmt) : stmt {.immediate.} =
         result.add(includesCall)
       else:
         error("unknown section " & $ident.ident)
-
-# end shadingDsl #
-  

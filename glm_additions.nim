@@ -312,7 +312,12 @@ proc `[]=`*(pose : var JointPose; index : int; val : float32) : void =
 
 
 proc poseMatrix*(jp : JointPose) : Mat4f =
-  let scalerot_mat = jp.rotate.normalize.mat3 * jp.scale.diag
+  let
+    factor1 = jp.rotate.normalize.mat3
+    factor2 = jp.scale.diag
+  
+  let scalerot_mat = factor1 * factor2
+  
   result[0] = vec4(scalerot_mat[0], 0)
   result[1] = vec4(scalerot_mat[1], 0)
   result[2] = vec4(scalerot_mat[2], 0)
