@@ -322,5 +322,3 @@ proc poseMatrix*(jp : JointPose) : Mat4f =
   result[1] = vec4(scalerot_mat[1], 0)
   result[2] = vec4(scalerot_mat[2], 0)
   result[3] = vec4(jp.translate,    1)
-
-

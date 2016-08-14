@@ -1,3 +1,5 @@
+# included from fancygl.nim
+
 #### Uniform ####
 
 proc uniform(location: GLint, mat: Mat4d) =
