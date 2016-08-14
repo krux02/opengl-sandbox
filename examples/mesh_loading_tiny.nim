@@ -227,7 +227,7 @@ proc main() =
       jointMatrices[i] = joint.matrix * jointMatrices[i]
 
   var outframe = newSeq[Mat4f](joints.len)
-  var outframe_texture = textureRectangle( vec2i(4, joints.len.int32), GL_RGBA32F )
+  var outframe_texture = textureRectangle( vec2i(4, joints.len.int32), GL_RGBA32F.GLint )
 
   echo "=========================================================================="
 
@@ -359,8 +359,8 @@ proc main() =
     renderBones = true
     renderBoneNames = true
     renderNormalMap = false
-    
-  ################################  
+
+  ################################
   #### create AntTweakBar gui ####
   ################################
 
@@ -370,7 +370,7 @@ proc main() =
   var
     testVar: int32 = 17
     testfloat: float32 = 18.0
-  
+
   var bar = TwNewBar("TwBar")
   discard TwAddVarRW(bar, "testVar", TW_TYPE_INT32, testVar.addr, "")
   discard TwAddVarRW(bar, "testFloat", TW_TYPE_FLOAT, testfloat.addr, "")
@@ -484,7 +484,7 @@ proc main() =
     #  ###############
     # ## render Mesh ##
     #  ###############
-      
+
     if renderNormalMap:
       for i, mesh in meshes:
         shadingDsl(GL_POINTS):
@@ -510,7 +510,7 @@ proc main() =
             for(int i = 0; i < 4; ++i) {
               int blendIndex = int(a_blendindexes[i]);
               float blendWeight = a_blendweights[i];
-    
+
               mat4 tmp;
               for(int j = 0; j < 4; ++j) {
                 tmp[j] = texelFetch(outframeTexture, ivec2(j, blendIndex));
@@ -555,7 +555,7 @@ proc main() =
             EmitVertex();
             """
           geometryOut:
-            "out vec4 g_color" 
+            "out vec4 g_color"
           fragmentMain:
             """
             color = g_color;
@@ -566,7 +566,7 @@ proc main() =
         shadingDsl(GL_TRIANGLES):
           numVertices = mesh.num_triangles.GLsizei * 3
           vertexOffset = mesh.first_triangle.GLsizei * 3
- 
+
           uniforms:
             modelview = view_mat
             projection = projection_mat
@@ -590,7 +590,7 @@ proc main() =
               for(int i = 0; i < 4; ++i) {
                 int blendIndex = int(a_blendindexes[i]);
               float blendWeight = a_blendweights[i];
-  
+
               mat4 tmp;
               for(int j = 0; j < 4; ++j) {
                 tmp[j] = texelFetch(outframeTexture, ivec2(j, blendIndex));

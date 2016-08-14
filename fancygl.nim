@@ -11,19 +11,19 @@ proc screenshot*(window : sdl2.WindowPtr; basename : string) : bool {.discardabl
   var
     (w,h) = window.getSize
     data = newSeq[uint32](w * h)
-    
+
   glReadPixels(0,0,w,h,GL_RGBA, GL_UNSIGNED_BYTE, data[0].addr)
-  
+
   for y in 0 .. < h div 2:
     for x in 0 .. < w:
       swap(data[y*w+x], data[(h-y-1)*w+x])
-  
+
   let surface = createRGBSurfaceFrom(data[0].addr,w,h,32,w*4,
                                      0x0000ffu32,0x00ff00u32,0xff0000u32,0xff000000u32)
   if surface.isNil:
     echo "Could not create SDL_Surface from pixel data: ", sdl2.getError()
     return false
-    
+
   defer: surface.freeSurface
 
   os.createDir "screenshots"
@@ -32,16 +32,16 @@ proc screenshot*(window : sdl2.WindowPtr; basename : string) : bool {.discardabl
   template filename() : string = "screenshots/" & basename & "_" & intToStr(i,4) & ".bmp"
   while os.fileExists(filename()):
     i += 1
-  
+
   if surface.saveBMP(filename()):
     echo sdl2.getError()
     return false
-    
+
   true
 
 
 
-  
+
 const
   sourceHeader = """
 #version 330
@@ -266,7 +266,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
           initUniformsBlock.add( newCall( bindSym"glUniform1i", locations(numLocations), newLit(numSamplers) ) )
 
           proc activeTexture(texture: int): void =
-            glActiveTexture( (GL_TEXTURE0 + texture).GLenum )
+            glActiveTexture( (GL_TEXTURE0.int + texture).GLenum )
 
           setUniformsBlock.add( newCall( bindSym"activeTexture", newLit(numSamplers) ) )
           setUniformsBlock.add( newCall( bindSym"bindIt", value ) )
@@ -415,7 +415,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 
   if fragmentMain.isNil:
     error("no fragment main")
-      
+
   if numVertices.isNil:
     error "numVertices needs to be assigned"
 
@@ -442,14 +442,14 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
     vertexOutSection.newSeq(attribNames.len)
     for i in 0..<attribNames.len:
        vertexOutSection[i] = format("out $1 $2", attribTypes[i], attribNames[i])
-    
+
   else:
     var attributesSection = newSeq[string](attribNames.len)
     for i in 0..<attribNames.len:
        attributesSection[i] = format("in $1 $2", attribTypes[i], attribNames[i])
 
     vertexShaderSource = genShaderSource(sourceHeader, uniformsSection, attributesSection, -1, vertexOutSection, includesSection, vertexMain.strVal)
-    
+
   if not vertexMain.isNil:
     let
       li = vertexMain.lineinfo
@@ -463,11 +463,11 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
     writeFile(filename, vertexShaderSource)
 
   var linkShaderBlock : NimNode
-  
+
   if geometryMain.isNil:
-    
+
     let fragmentShaderSource = genShaderSource(sourceHeader, uniformsSection, vertexOutSection, -1, fragmentOutSection, includesSection, fragmentMain)
-    
+
     linkShaderBlock = newCall( bindSym"linkShader",
       newCall( bindSym"compileShader", bindSym"GL_VERTEX_SHADER", newLit(vertexShaderSource) ),
       newCall( bindSym"compileShader", bindSym"GL_FRAGMENT_SHADER", newLit(fragmentShaderSource) ),

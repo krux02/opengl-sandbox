@@ -89,7 +89,7 @@ proc loadTextureRectangleFromFile*(filename: string): TextureRectangle =
   let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
   defer: freeSurface(surface2)
   glGenTextures(1, cast[ptr GLuint](result.addr))
-  glTextureImage2DEXT(result.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_RGBA, surface2.w, surface2.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
+  glTextureImage2DEXT(result.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_RGBA.GLint, surface2.w, surface2.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
   result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR)
   result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 
@@ -97,7 +97,7 @@ proc texture2D*(surface: sdl2.SurfacePtr): Texture2D =
   let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
   defer: freeSurface(surface2)
   glGenTextures(1, cast[ptr GLuint](result.addr))
-  glTextureImage2DEXT(result.GLuint, GL_TEXTURE_2D, 0, GL_RGBA, surface2.w, surface2.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
+  glTextureImage2DEXT(result.GLuint, GL_TEXTURE_2D, 0, GL_RGBA.GLint, surface2.w, surface2.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
   result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
   result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
   result.generateMipmap
@@ -106,9 +106,9 @@ proc textureRectangle*(surface: sdl2.SurfacePtr): TextureRectangle =
   let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
   defer: freeSurface(surface2)
   glGenTextures(1, cast[ptr GLuint](result.addr))
-  glTextureImage2DEXT(result.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_RGBA, surface2.w, surface2.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
+  glTextureImage2DEXT(result.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_RGBA.GLint, surface2.w, surface2.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
 
-proc textureRectangle*(size: Vec2i; internalFormat : GLint = GL_RGBA): TextureRectangle =
+proc textureRectangle*(size: Vec2i; internalFormat : GLint = GL_RGBA.GLint): TextureRectangle =
   glGenTextures(1, cast[ptr GLuint](result.addr))
   glTextureImage2DEXT(result.GLuint, GL_TEXTURE_RECTANGLE, 0, internalFormat, size.x, size.y, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, nil)
 
@@ -135,13 +135,13 @@ proc resize*(tex: Texture2D, size: Vec2f) =
   glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, internalFormat.addr)
   glTextureImage2DEXT(tex.GLuint, GL_TEXTURE_2D, 0, internalFormat, size.x.GLsizei, size.y.GLsizei, 0, internalFormat.GLenum, cGL_UNSIGNED_BYTE, nil)
 
-proc createEmptyTexture2D*(size: Vec2f, internalFormat: GLint = GL_RGB) : Texture2D =
+proc createEmptyTexture2D*(size: Vec2f, internalFormat: GLint = GL_RGB.GLint) : Texture2D =
   glGenTextures(1, cast[ptr GLuint](result.addr))
   glTextureImage2DEXT(result.GLuint, GL_TEXTURE_2D, 0, internalFormat, size.x.GLsizei, size.y.GLsizei, 0,GL_RGB, cGL_UNSIGNED_BYTE, nil)
   result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
   result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR)
 
-proc createEmptyDepthTexture2D*(size: Vec2f, internalFormat: GLint = GL_DEPTH_COMPONENT) : Texture2D =
+proc createEmptyDepthTexture2D*(size: Vec2f, internalFormat: GLint = GL_DEPTH_COMPONENT.GLint) : Texture2D =
   glGenTextures(1, cast[ptr GLuint](result.addr))
   glTextureImage2DEXT(result.GLuint, GL_TEXTURE_2D, 0, internalFormat, size.x.GLsizei, size.y.GLsizei, 0,GL_DEPTH_COMPONENT, cGL_FLOAT, nil)
   result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
