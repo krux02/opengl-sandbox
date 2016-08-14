@@ -7,6 +7,8 @@ discard sdl2.init(INIT_EVERYTHING)
 var windowsize = vec2f(640,480)
 var viewport = vec4f(0,0,640,480)
 
+discard glSetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION,3)
+discard glSetAttribute(SDL_GL_CONTEXT_MINOR_VERSION,3)
 let window = createWindow("SDL/OpenGL Skeleton", 100, 100, windowsize.x.cint, windowsize.y.cint, SDL_WINDOW_OPENGL or SDL_WINDOW_RESIZABLE)
 let context = window.glCreateContext()
 
