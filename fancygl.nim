@@ -149,8 +149,7 @@ template renderBlockTemplate(numLocations: int, globalsBlock, linkShaderBlock, b
     globalsBlock
 
     if glProgram == 0:
-
-      gl_program = linkShaderBlock
+      glProgram = linkShaderBlock
       glUseProgram(gl_program)
 
       initUniformsBlock
@@ -500,7 +499,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
   result = getAst(renderBlockTemplate(numLocations, globalsBlock, linkShaderBlock,
          bufferCreationBlock, initUniformsBlock, setUniformsBlock, drawCommand))
 
-  result = newCall( bindSym"debugResult", result )
+  #result = newCall( bindSym"debugResult", result )
 
 ##################################################################################
 #### Shading Dsl Outer ###########################################################

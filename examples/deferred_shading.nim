@@ -5,8 +5,13 @@ hm.DiamondSquare(64)
 
 discard sdl2.init(INIT_EVERYTHING)
 
-var windowsize = vec2f(1280,960)
-var viewport = vec4f(0,0,1280,960)
+var windowsize = vec2f(640,480)
+var viewport = vec4f(0,0,640,480)
+
+doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3)
+doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3)
+doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_FLAGS        , SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG or SDL_GL_CONTEXT_DEBUG_FLAG)
+doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_PROFILE_MASK , SDL_GL_CONTEXT_PROFILE_CORE)
 
 let window = createWindow("SDL/OpenGL Skeleton", 100, 100, windowsize.x.cint, windowsize.y.cint, SDL_WINDOW_OPENGL) # SDL_WINDOW_MOUSE_CAPTURE
 # let context = window.glCreateContext()
@@ -14,6 +19,7 @@ discard window.glCreateContext()
 
 # Initialize OpenGL
 loadExtensions()
+enableDefaultDebugCallback()
 
 let
   crateTexture = loadTexture2DFromFile("crate.png")
@@ -45,23 +51,23 @@ declareFramebuffer(FirstFramebuffer):
 let fb1 = createFirstFramebuffer()
 
 if 0 != glSetSwapInterval(-1):
-  echo "glSetSwapInterval -1 not supported"
+  stdout.write "glSetSwapInterval -1 (late swap tearing) not supported: "
   echo sdl2.getError()
   if 0 != glSetSwapInterval(1):
-    echo "but glSetSwapInterval 1 is ok"
+    echo "setting glSetSwapInterval 1 (synchronized)"
   else:
-    echo "even 1 is not ok"
+    stdout.write "even 1 (synchronized) is not supported: "
     echo sdl2.getError()
 
 glClearColor(0.0, 0.0, 0.0, 1.0)                  # Set background color to black and opaque
 glClearDepth(1.0)                                 # Set background depth to farthest
 glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-culling                          # Set the type of depth-test
-glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST) # Nice perspective corrections
+# glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST) # Nice perspective corrections
 
 
 let projection_mat = perspective(45.0, windowsize.x / windowsize.y, 0.1, 1000.0)
 
-const numLights = 500
+const numLights = 50
 
 var
   mousePos = vec2f(0)
@@ -321,7 +327,7 @@ proc render() =
       for i in 0 .. < poslen:
         let
           distance = time * 30
-          r = float32(float32(i) / numLights) * 500.0f
+          r = float32(i)
           alpha = distance / r
           x = cos(alpha).float32 * r
           y = sin(alpha).float32 * r
@@ -503,9 +509,8 @@ while runGame:
       runGame = false
       break
     if evt.kind == KeyDown:
-      let keyboardEvent = cast[KeyboardEventPtr](addr(evt))
 
-      case keyboardEvent.keysym.scancode
+      case evt.key.keysym.scancode
       of SDL_SCANCODE_ESCAPE:
         runGame = false
         break
@@ -540,12 +545,11 @@ while runGame:
         discard
 
     if evt.kind == MouseMotion:
-      let mouseEvent = cast[MouseMotionEventPtr](addr(evt))
 
-      mousePos.x = mouseEvent.x.float32
-      mousePos.y = 960 - mouseEvent.y.float32
-      rotation.x = clamp( rotation.x - mouseEvent.yrel.float / 128.0 , 0, PI )
-      rotation.y = rotation.y - mouseEvent.xrel.float / 128.0
+      mousePos.x = evt.motion.x.float32
+      mousePos.y = 960 - evt.motion.y.float32
+      rotation.x = clamp( rotation.x - evt.motion.yrel.float / 128.0 , 0, PI )
+      rotation.y = rotation.y - evt.motion.xrel.float / 128.0
 
 
   var state = getKeyboardState()

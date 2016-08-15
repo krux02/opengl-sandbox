@@ -17,24 +17,17 @@ template textureTypeTemplate(name, nilName, target:expr, shadername:string): stm
     when false:
       glTextureParameteriEXT(texture.GLuint, target, pname, param)
     else:
-      var prevTexture:GLint
-      glGetIntegerv(GL_ACTIVE_TEXTURE, prevTexture.addr)
-      glBindTexture(target, texture.GLuint)
-      glTexParameteri(target, pname, param)
-      glBindTexture(target, prevTexture.GLuint)
-
-
-
+      glTextureParameteri(texture.GLuint, pname, param)
 
   proc generateMipmap*(texture: name): void =
     when false:
       glGenerateTextureMipmapEXT(texture.GLuint, target)
     else:
-      var prevTexture:GLint
-      glGetIntegerv(GL_ACTIVE_TEXTURE, prevTexture.addr)
-      glBindTexture(target, texture.GLuint)
-      glGenerateMipmap(target)
-      glBindTexture(target, prevTexture.GLuint)
+      glGenerateTextureMipmap(texture.GLuint)
+
+  proc delete*(texture: name): void =
+    var id = texture.GLuint
+    glDeleteTextures(1, id.addr)
 
 proc geometryNumVerts(mode: GLenum): int =
   case mode
@@ -118,11 +111,14 @@ proc loadTextureRectangleFromFile*(filename: string): TextureRectangle =
 proc texture2D*(surface: sdl2.SurfacePtr): Texture2D =
   let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
   defer: freeSurface(surface2)
-  glGenTextures(1, cast[ptr GLuint](result.addr))
+
+
   when false:
+    glGenTextures(1, cast[ptr GLuint](result.addr))
     glTextureImage2DEXT(result.GLuint, GL_TEXTURE_2D, 0, GL_RGBA.GLint, surface2.w, surface2.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
   else:
-    glTextureStorage2D(result.GLuint, 1, GL_RGBA, surface2.w, surface2.h)
+    glCreateTextures(GL_TEXTURE_2D, 1, cast[ptr GLuint](result.addr))
+    glTextureStorage2D(result.GLuint, 1, GL_RGBA8, surface2.w, surface2.h)
     glTextureSubImage2D(result.GLuint, 0, 0, 0, surface2.w, surface2.h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
 
   result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
@@ -132,19 +128,22 @@ proc texture2D*(surface: sdl2.SurfacePtr): Texture2D =
 proc textureRectangle*(surface: sdl2.SurfacePtr): TextureRectangle =
   let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
   defer: freeSurface(surface2)
-  glGenTextures(1, cast[ptr GLuint](result.addr))
+  
   when false:
+    glGenTextures(1, cast[ptr GLuint](result.addr))
     glTextureImage2DEXT(result.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_RGBA.GLint, surface2.w, surface2.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
   else:
-    glTextureStorage2D(result.GLuint, 1, GL_RGBA, surface2.w, surface2.h)
+    glCreateTextures(GL_TEXTURE_RECTANGLE, 1, cast[ptr GLuint](result.addr))
+    glTextureStorage2D(result.GLuint, 1, GL_RGBA8, surface2.w, surface2.h)
     glTextureSubImage2D(result.GLuint, 0, 0, 0, surface2.w, surface2.h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
 
 
 proc textureRectangle*(size: Vec2i; internalFormat : GLint = GL_RGBA.GLint): TextureRectangle =
-  glGenTextures(1, cast[ptr GLuint](result.addr))
   when false:
+    glGenTextures(1, cast[ptr GLuint](result.addr))
     glTextureImage2DEXT(result.GLuint, GL_TEXTURE_RECTANGLE, 0, internalFormat, size.x, size.y, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, nil)
   else:
+    glCreateTextures(GL_TEXTURE_RECTANGLE, 1, cast[ptr GLuint](result.addr))
     glTextureStorage2D(result.GLuint, 1, internalFormat.GLenum, size.x.GLsizei, size.y.GLsizei)
     # glTextureSubImage2D(tex.GLuint, 0, 0, 0, size.x.GLsizei, size.y.GLsizei, internalFormat,cGL_UNSIGNED_BYTE, nil)
 
@@ -167,34 +166,47 @@ proc loadTexture2DFromFile*(filename: string): Texture2D =
 
 proc size*(tex: Texture2D): Vec2f =
   var w,h: GLint
-  glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, w.addr)
-  glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, h.addr)
+  when false:
+    glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, w.addr)
+    glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, h.addr)
+  else:
+    glGetTextureLevelParameteriv(tex.GLuint, 0, GL_TEXTURE_WIDTH, w.addr)
+    glGetTextureLevelParameteriv(tex.GLuint, 0, GL_TEXTURE_HEIGHT, w.addr)
   result = vec2f(w.float32, h.float32)
 
-proc resize*(tex: Texture2D, size: Vec2f) =
-  var internalFormat: GLint
-  glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, internalFormat.addr)
-  when false:
+when false:
+  # ARB_direct_state_access textures have immutable size :/
+  proc resize*(tex: Texture2D, size: Vec2f) =
+    var internalFormat: GLint
+    glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, internalFormat.addr)
     glTextureImage2DEXT(tex.GLuint, GL_TEXTURE_2D, 0, internalFormat, size.x.GLsizei, size.y.GLsizei, 0, internalFormat.GLenum, cGL_UNSIGNED_BYTE, nil)
-  else:
-    glTextureStorage2D(tex.GLuint, 1, internalFormat.GLenum, size.x.GLsizei, size.y.GLsizei)
-    # glTextureSubImage2D(tex.GLuint, 0, 0, 0, size.x.GLsizei, size.y.GLsizei, internalFormat,cGL_UNSIGNED_BYTE, nil)
+  
+  proc resize*(tex: TextureRectangle, size: Vec2f) =
+    var internalFormat: GLint
+    glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_TEXTURE_INTERNAL_FORMAT, internalFormat.addr)
+    glTextureImage2DEXT(tex.GLuint, GL_TEXTURE_RECTANGLE, 0, internalFormat, size.x.GLsizei, size.y.GLsizei, 0, internalFormat.GLenum, cGL_UNSIGNED_BYTE, nil)
 
-proc createEmptyTexture2D*(size: Vec2f, internalFormat: GLint = GL_RGB.GLint) : Texture2D =
-  glGenTextures(1, cast[ptr GLuint](result.addr))
+proc createEmptyTexture2D*(size: Vec2f, internalFormat: GLint = GL_RGB8.GLint) : Texture2D =
   when false:
+    glGenTextures(1, cast[ptr GLuint](result.addr))
     glTextureImage2DEXT(result.GLuint, GL_TEXTURE_2D, 0, internalFormat, size.x.GLsizei, size.y.GLsizei, 0,GL_RGB, cGL_UNSIGNED_BYTE, nil)
   else:
-    glTextureStorage2D(result.GLuint, 1, internalFormat.GLenum, size.x.GLsizei, size.y.GLsizei)
+    glCreateTextures(GL_TEXTURE_2D, 1, cast[ptr GLuint](result.addr))
+    glTextureStorage2D(
+      result.GLuint, 1, 
+      internalFormat.GLenum, 
+      size.x.GLsizei, size.y.GLsizei
+    )
     # glTextureSubImage2D(tex.GLuint, 0, 0, 0, size.x.GLsizei, size.y.GLsizei, internalFormat,cGL_UNSIGNED_BYTE, nil)
   result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
   result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR)
 
-proc createEmptyDepthTexture2D*(size: Vec2f, internalFormat: GLint = GL_DEPTH_COMPONENT.GLint) : Texture2D =
-  glGenTextures(1, cast[ptr GLuint](result.addr))
+proc createEmptyDepthTexture2D*(size: Vec2f, internalFormat: GLint = GL_DEPTH_COMPONENT24.GLint) : Texture2D =
   when false:
+    glGenTextures(1, cast[ptr GLuint](result.addr))
     glTextureImage2DEXT(result.GLuint, GL_TEXTURE_2D, 0, internalFormat, size.x.GLsizei, size.y.GLsizei, 0,GL_DEPTH_COMPONENT, cGL_FLOAT, nil)
   else:
+    glCreateTextures(GL_TEXTURE_2D, 1, cast[ptr GLuint](result.addr))
     glTextureStorage2D(result.GLuint, 1, internalFormat.GLenum, size.x.GLsizei, size.y.GLsizei)
     # glTextureSubImage2D(tex.GLuint, 0, 0, 0, size.x.GLsizei, size.y.GLsizei, internalFormat,cGL_UNSIGNED_BYTE, nil)
 
@@ -203,28 +215,31 @@ proc createEmptyDepthTexture2D*(size: Vec2f, internalFormat: GLint = GL_DEPTH_CO
 
 proc size*(tex: TextureRectangle): Vec2f =
   var w,h: GLint
-  glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_TEXTURE_WIDTH, w.addr)
-  glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_TEXTURE_HEIGHT, h.addr)
-  result = vec2f(w.float32, h.float32)
-
-proc resize*(tex: TextureRectangle, size: Vec2f) =
-  var internalFormat: GLint
-  glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_TEXTURE_INTERNAL_FORMAT, internalFormat.addr)
   when false:
-    glTextureImage2DEXT(tex.GLuint, GL_TEXTURE_RECTANGLE, 0, internalFormat, size.x.GLsizei, size.y.GLsizei, 0, internalFormat.GLenum, cGL_UNSIGNED_BYTE, nil)
+    glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_TEXTURE_WIDTH, w.addr)
+    glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_TEXTURE_HEIGHT, h.addr)
   else:
-    glTextureStorage2D(tex.GLuint, 1, internalFormat.GLenum, size.x.GLsizei, size.y.GLsizei)
-    # glTextureSubImage2D(tex.GLuint, 0, 0, 0, size.x.GLsizei, size.y.GLsizei, internalFormat,cGL_UNSIGNED_BYTE, nil)
+    glGetTextureLevelParameteriv(tex.GLuint, 0, GL_TEXTURE_WIDTH, w.addr)
+    glGetTextureLevelParameteriv(tex.GLuint, 0, GL_TEXTURE_HEIGHT, h.addr)
+  result = vec2f(w.float32, h.float32)
 
 
 proc saveToBmpFile*(tex: Texture2D, filename: string): void =
   let s = tex.size
   var surface = createRGBSurface(0, s.x.int32, s.y.int32, 32, 0xff000000.uint32, 0x00ff0000, 0x0000ff00, 0x000000ff)  # no alpha, rest default
-  glGetTextureImageEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface.pixels)
+  when false:
+    glGetTextureImageEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface.pixels)
+  else:
+    let bufferSize = GLsizei(s.x * s.y * 4)
+    glGetTextureImage(tex.GLuint, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, bufferSize, surface.pixels)
   surface.saveBMP(filename)
 
 proc saveToBmpFile*(tex: TextureRectangle, filename: string): void =
   let s = tex.size
   var surface = createRGBSurface(0, s.x.int32, s.y.int32, 32, 0xff000000.uint32, 0x00ff0000, 0x0000ff00, 0x000000ff)  # no alpha, rest default
-  glGetTextureImageEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface.pixels)
+  when false:
+    glGetTextureImageEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface.pixels)
+  else:
+    let bufferSize = GLsizei(s.x * s.y * 4)
+    glGetTextureImage(tex.GLuint, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, bufferSize, surface.pixels)
   surface.saveBMP(filename)

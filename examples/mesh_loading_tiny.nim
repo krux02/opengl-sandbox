@@ -74,11 +74,27 @@ proc main() =
   defer: sdl2.quit()
   discard ttfinit()
 
+  doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3)
+  doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3)
+  doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_FLAGS        , SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG or SDL_GL_CONTEXT_DEBUG_FLAG)
+  doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_PROFILE_MASK , SDL_GL_CONTEXT_PROFILE_CORE)
+
   let window = createWindow("SDL/OpenGL Skeleton", 100, 100, WindowSize.x, WindowSize.y, SDL_WINDOW_OPENGL) # SDL_WINDOW_MOUSE_CAPTURE
   # let context = window.glCreateContext()
   discard window.glCreateContext()
   # Initialize OpenGL
   loadExtensions()
+  enableDefaultDebugCallback()
+
+  if 0 != glSetSwapInterval(-1):
+    stdout.write "glSetSwapInterval -1 (late swap tearing) not supported: "
+    echo sdl2.getError()
+    if 0 != glSetSwapInterval(1):
+      echo "setting glSetSwapInterval 1 (synchronized)"
+    else:
+      stdout.write "even 1 (synchronized) is not supported: "
+      echo sdl2.getError()
+
 
   if TwInit(TW_OPENGL_CORE, nil) == 0:
     echo "could not initialize AntTweakBar: ", TwGetLastError()
@@ -92,7 +108,12 @@ proc main() =
   ].arrayBuffer
 
   let textHeight = 16
-  let font = ttf.openFont("/usr/share/fonts/truetype/inconsolata/Inconsolata.otf", textHeight.cint)
+  var font = ttf.openFont("/usr/share/fonts/truetype/inconsolata/Inconsolata.otf", textHeight.cint)
+  if font.isNil:
+    font = ttf.openFont("/usr/share/fonts/TTF/Inconsolata-Regular.ttf", textHeight.cint)
+  if font.isNil:
+    echo "could not load font: ", sdl2.getError()
+    system.quit(1)
 
   var file = memfiles.open("mrfixit.iqm")
   defer:
@@ -390,17 +411,18 @@ proc main() =
 
     var evt = sdl2.defaultEvent
     while pollEvent(evt):
-      var handled = TwEventSDL(cast[pointer](evt.addr), 2.cuchar, 0.cuchar)
-      if handled != 0: continue
+      let handled = TwEventSDL(cast[pointer](evt.addr), 2.cuchar, 0.cuchar) != 0
+      if handled:
+        continue
+      
 
       if evt.kind == QuitEvent:
         runGame = false
         break
 
       if evt.kind == KeyDown:
-        let keyboardEvent = cast[KeyboardEventPtr](addr(evt))
 
-        case keyboardEvent.keysym.scancode
+        case evt.key.keysym.scancode
         of SDL_SCANCODE_ESCAPE:
           runGame = false
         of SDL_SCANCODE_1:
@@ -417,26 +439,23 @@ proc main() =
           discard
 
       if evt.kind in {MouseButtonDown, MouseButtonUp}:
-        let buttonEvent = cast[MouseButtonEventPtr](evt.addr)
         if evt.kind == MouseButtonDown:
-          if buttonEvent.button == ButtonLeft:
+          if evt.button.button == ButtonLeft:
             dragMode = dragMode or 0x1
-          if buttonEvent.button == ButtonRight:
+          if evt.button.button == ButtonRight:
             dragMode = dragMode or 0x2
-          if buttonEvent.button == ButtonMiddle:
+          if evt.button.button == ButtonMiddle:
             dragMode = dragMode or 0x4
         if evt.kind == MouseButtonUp:
-          if buttonEvent.button == ButtonLeft:
+          if evt.button.button == ButtonLeft:
             dragMode = dragMode and (not 0x1)
-          if buttonEvent.button == ButtonRight:
+          if evt.button.button == ButtonRight:
             dragMode = dragMode and (not 0x2)
-          if buttonEvent.button == ButtonMiddle:
+          if evt.button.button == ButtonMiddle:
             dragMode = dragMode and (not 0x4)
 
       if evt.kind == MouseMotion:
-        let
-          motionEvent = cast[MouseMotionEventPtr](evt.addr)
-          motion = vec2d(motionEvent.xrel.float64, motionEvent.yrel.float64)
+        let motion = vec2d(evt.motion.xrel.float64, evt.motion.yrel.float64)
         if dragMode == 0x1:
           rotation = rotation + motion / 100
         if dragMode == 0x2:

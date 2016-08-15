@@ -19,7 +19,22 @@ proc bindRead*(fb: FrameBuffer): void =
   glBindFramebuffer(GL_READ_FRAMEBUFFER, fb.GLuint)
 
 proc createFrameBuffer*(): FrameBuffer =
-  glGenFramebuffers(1, cast[ptr GLuint](result.addr))
+  when false:
+    glGenFramebuffers(1, cast[ptr GLuint](result.addr))
+  else:
+    glCreateFramebuffers(1, cast[ptr GLuint](result.addr));
+
+proc setRenderbuffer(fb: FrameBuffer, attachment, renderbuffertarget: GLenum, renderbuffer: GLuint) =
+  when false:
+    glNamedFramebufferRenderbufferEXT(fb.GLuint, attachment, renderbuffertarget, renderbuffer)
+  else:
+    glNamedFramebufferRenderbuffer(fb.GLuint, attachment, renderbuffertarget, renderbuffer)
+
+proc setTexture(fb: FrameBuffer, attachment: GLuint, texture: Texture2D, level: GLint = 0) =
+  when false:
+    glNamedFramebufferTextureEXT(fb.GLuint, attachment, texture.GLuint, level);
+  else:
+    glNamedFramebufferTexture(fb.GLuint, attachment, texture.GLuint, level);
 
 proc drawBuffers*(fb: FrameBuffer, args : varargs[GLenum]) =
   var tmp = newSeq[GLenum](args.len)
@@ -27,7 +42,10 @@ proc drawBuffers*(fb: FrameBuffer, args : varargs[GLenum]) =
     tmp[i] = arg
 
   if tmp.len > 0:
-    glFramebufferDrawBuffersEXT(fb.GLuint, tmp.len.GLsizei, tmp[0].addr)
+    when false:
+      glFramebufferDrawBuffersEXT(fb.GLuint, tmp.len.GLsizei, tmp[0].addr)
+    else:
+      glNamedFramebufferDrawBuffers(fb.GLuint, tmp.len.GLsizei, tmp[0].addr)
 
 const currentFramebuffer* = 0
 
@@ -52,7 +70,6 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
     let rhs = asgn[1]
 
     if lhs.ident == !"depth":
-        echo rhs.treerepr
         rhs.expectKind(nnkCall)
         depthCreateExpr = rhs;
 
@@ -119,9 +136,9 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
       newDotExpr(!!"result", !!"depth", bindSym"GLuint")
     ))
   else:
-    branchStmtList.add(newCall(bindSym"glNamedFramebufferTextureEXT",
-      newDotExpr(!!"result", !!"glname", bindSym"GLuint"), bindSym"GL_DEPTH_ATTACHMENT",
-      newDotExpr(!!"result", !!"depth", bindSym"GLuint"), newLit(0)
+    branchStmtList.add(newCall(bindSym"setTexture",
+      newDotExpr(!!"result", !!"glname"), bindSym"GL_DEPTH_ATTACHMENT",
+      newDotExpr(!!"result", !!"depth"), newLit(0)
     ))
 
   let drawBuffersCall = newCall(bindSym"drawBuffers", newDotExpr(!!"result", !!"glname"))
@@ -135,10 +152,13 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
       let name = $lhs
       branchStmtList.add(newAssignment( newDotExpr( !!"result", !! name ), rhs))
 
-      branchStmtList.add(newCall(bindSym"glNamedFramebufferTextureEXT",
-        newDotExpr(!!"result", !!"glname", bindSym"GLuint"), !!("GL_COLOR_ATTACHMENT" & $i),
-        newDotExpr(!!"result", !! name, bindSym"GLuint"), newLit(0)
+      branchStmtList.add(newCall(bindSym"setTexture",
+                                 newDotExpr(!!"result", !!"glname"),
+                                 !!("GL_COLOR_ATTACHMENT" & $i), 
+                                 newDotExpr(!!"result", !!name), 
+                                 newLit(0)
       ))
+
       drawBuffersCall.add( newCall(bindSym"GLenum", !!("GL_COLOR_ATTACHMENT" & $i)) )
       i += 1
 
@@ -158,14 +178,12 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
     )
   )
 
-  echo result.repr
-
   let resizeStmtList = newStmtList()
   resizeStmtList.add( newCall(bindSym"resize", newDotExpr(!!"fb", !!"depth"), !!"newsize") )
   for fragOut in fragmentOutputs:
     resizeStmtList.add( newCall(bindSym"resize", newDotExpr(!!"fb", !!fragOut), !!"newsize") )
 
-  result.add(
+  let resizeProc = 
     newNimNode2( nnkProcDef,
       !!"resize",
       newEmptyNode(),
@@ -187,7 +205,6 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
       newEmptyNode(),
       resizeStmtList
     )
-  )
 
   result = newCall( bindSym"debugResult", result )
 
