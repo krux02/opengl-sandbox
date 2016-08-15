@@ -178,7 +178,7 @@ proc len*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]) : int =
     glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_SIZE, size.addr)
   return size.int div sizeof(T).int
 
-proc access[T](buffer: ArrayBuffer[T]) : GLenum =
+proc access*[T](buffer: ArrayBuffer[T]) : GLenum =
   var tmp: GLint
   when false:
     glGetNamedBufferParameterivEXT(buffer.handle, GL_BUFFER_ACCESS, tmp.addr)
@@ -186,7 +186,7 @@ proc access[T](buffer: ArrayBuffer[T]) : GLenum =
     glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_ACCESS, tmp.addr)
   return tmp.GLenum
 
-proc accessFlags[T](buffer: ArrayBuffer[T]) : GLenum =
+proc accessFlags*[T](buffer: ArrayBuffer[T]) : GLenum =
   var tmp: GLint
   when false:
     glGetNamedBufferParameterivEXT(buffer.handle, GL_BUFFER_ACCESS_FLAGS, tmp.addr)
@@ -194,7 +194,7 @@ proc accessFlags[T](buffer: ArrayBuffer[T]) : GLenum =
     glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_ACCESS_FLAGS, tmp.addr)
   return tmp.GLenum
 
-proc immutableStorage[T](buffer: ArrayBuffer[T]) : bool =
+proc immutableStorage*[T](buffer: ArrayBuffer[T]) : bool =
   var tmp: GLint
   when false:
     glGetNamedBufferParameterivEXT(buffer.handle, GL_BUFFER_IMMUTABLE_STORAGE, tmp.addr)
@@ -202,7 +202,7 @@ proc immutableStorage[T](buffer: ArrayBuffer[T]) : bool =
     glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_IMMUTABLE_STORAGE, tmp.addr)
   return tmp != GL_FALSE
 
-proc mapped[T](buffer: ArrayBuffer[T]) : bool =
+proc mapped*[T](buffer: ArrayBuffer[T]) : bool =
   var tmp: GLint
   when false:
     glGetNamedBufferParameterivEXT(buffer.handle, GL_BUFFER_MAPPED, tmp.addr)
@@ -211,7 +211,7 @@ proc mapped[T](buffer: ArrayBuffer[T]) : bool =
     
   return tmp != GL_FALSE
 
-proc mapLength[T](buffer: ArrayBuffer[T]) : int =
+proc mapLength*[T](buffer: ArrayBuffer[T]) : int =
   var tmp: pointer
   when false:
     glGetNamedBufferPointervEXT(buffer.handle, GL_BUFFER_MAP_LENGTH, tmp.addr)
@@ -219,7 +219,7 @@ proc mapLength[T](buffer: ArrayBuffer[T]) : int =
     glGetNamedBufferPointerv(buffer.handle, GL_BUFFER_MAP_LENGTH, tmp.addr)
   return int(tmp)
 
-proc mapOffset[T](buffer: ArrayBuffer[T]) : int =
+proc mapOffset*[T](buffer: ArrayBuffer[T]) : int =
   var tmp: pointer
   when false:
     glGetNamedBufferPointervEXT(buffer.handle, GL_BUFFER_MAP_LENGTH, tmp.addr)
@@ -227,15 +227,15 @@ proc mapOffset[T](buffer: ArrayBuffer[T]) : int =
     glGetNamedBufferPointerv(buffer.handle, GL_BUFFER_MAP_LENGTH, tmp.addr)
   return int(tmp)
 
-proc size[T](buffer: ArrayBuffer[T]) : int =
+proc size*[T](buffer: ArrayBuffer[T]) : int =
   var tmp: GLint
   when false:
-    glGetNamedBufferParameterivEXT(buffer.handle, GL_BUFFER_MAPPED, tmp.addr)
+    glGetNamedBufferParameterivEXT(buffer.handle, GL_BUFFER_SIZE, tmp.addr)
   else:
-    glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_MAPPED, tmp.addr)
+    glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_SIZE, tmp.addr)
   return int(tmp)
 
-proc storageFlags[T](buffer: ArrayBuffer[T]) : GLenum =
+proc storageFlags*[T](buffer: ArrayBuffer[T]) : GLenum =
   var tmp: GLint
   when false:
     glGetNamedBufferParameterivEXT(buffer.handle, GL_BUFFER_STORAGE_FLAGS, tmp.addr)
@@ -243,7 +243,7 @@ proc storageFlags[T](buffer: ArrayBuffer[T]) : GLenum =
     glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_STORAGE_FLAGS, tmp.addr)
   return tmp.GLenum
 
-proc usage[T](buffer: ArrayBuffer[T]) : GLenum =
+proc usage*[T](buffer: ArrayBuffer[T]) : GLenum =
   var tmp: GLint
   when false:
     glGetNamedBufferParameterivEXT(buffer.handle, GL_BUFFER_USAGE, tmp.addr)

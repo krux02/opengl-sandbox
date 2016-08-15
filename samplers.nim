@@ -8,7 +8,7 @@ macro nilName(name:expr) : expr =
 
 template textureTypeTemplate(name, nilName, target:expr, shadername:string): stmt =
   type name* = distinct GLuint
-  const nilName* = name(0)
+  #const nilName* = name(0)
 
   proc bindIt*(texture: name) =
     glBindTexture(target, texture.GLuint)
@@ -108,6 +108,7 @@ proc loadTextureRectangleFromFile*(filename: string): TextureRectangle =
   result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR)
   result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 
+
 proc texture2D*(surface: sdl2.SurfacePtr): Texture2D =
   let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
   defer: freeSurface(surface2)
@@ -159,7 +160,7 @@ proc loadTexture2DFromFile*(filename: string): Texture2D =
   let surface = image.load(filename)
   if surface.isNil:
     echo "can't load texture ", filename, ": ", sdl2.getError()
-    return nilTexture2D
+    return Texture2D(0)
 
   defer: freeSurface(surface)
   texture2D(surface)
@@ -171,8 +172,18 @@ proc size*(tex: Texture2D): Vec2f =
     glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, h.addr)
   else:
     glGetTextureLevelParameteriv(tex.GLuint, 0, GL_TEXTURE_WIDTH, w.addr)
-    glGetTextureLevelParameteriv(tex.GLuint, 0, GL_TEXTURE_HEIGHT, w.addr)
+    glGetTextureLevelParameteriv(tex.GLuint, 0, GL_TEXTURE_HEIGHT, h.addr)
   result = vec2f(w.float32, h.float32)
+
+proc saveToBmpFile*(tex: Texture2D, filename: string): void =
+  let s = tex.size
+  var surface = createRGBSurface(0, s.x.int32, s.y.int32, 32, 0xff000000.uint32, 0x00ff0000, 0x0000ff00, 0x000000ff)  # no alpha, rest default
+  when false:
+    glGetTextureImageEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface.pixels)
+  else:
+    let bufferSize = GLsizei(s.x * s.y * 4)
+    glGetTextureImage(tex.GLuint, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, bufferSize, surface.pixels)
+  surface.saveBMP(filename)
 
 when false:
   # ARB_direct_state_access textures have immutable size :/
@@ -222,17 +233,6 @@ proc size*(tex: TextureRectangle): Vec2f =
     glGetTextureLevelParameteriv(tex.GLuint, 0, GL_TEXTURE_WIDTH, w.addr)
     glGetTextureLevelParameteriv(tex.GLuint, 0, GL_TEXTURE_HEIGHT, h.addr)
   result = vec2f(w.float32, h.float32)
-
-
-proc saveToBmpFile*(tex: Texture2D, filename: string): void =
-  let s = tex.size
-  var surface = createRGBSurface(0, s.x.int32, s.y.int32, 32, 0xff000000.uint32, 0x00ff0000, 0x0000ff00, 0x000000ff)  # no alpha, rest default
-  when false:
-    glGetTextureImageEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface.pixels)
-  else:
-    let bufferSize = GLsizei(s.x * s.y * 4)
-    glGetTextureImage(tex.GLuint, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, bufferSize, surface.pixels)
-  surface.saveBMP(filename)
 
 proc saveToBmpFile*(tex: TextureRectangle, filename: string): void =
   let s = tex.size

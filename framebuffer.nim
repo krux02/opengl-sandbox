@@ -24,13 +24,13 @@ proc createFrameBuffer*(): FrameBuffer =
   else:
     glCreateFramebuffers(1, cast[ptr GLuint](result.addr));
 
-proc setRenderbuffer(fb: FrameBuffer, attachment, renderbuffertarget: GLenum, renderbuffer: GLuint) =
+proc setRenderbuffer*(fb: FrameBuffer, attachment, renderbuffertarget: GLenum, renderbuffer: GLuint) =
   when false:
     glNamedFramebufferRenderbufferEXT(fb.GLuint, attachment, renderbuffertarget, renderbuffer)
   else:
     glNamedFramebufferRenderbuffer(fb.GLuint, attachment, renderbuffertarget, renderbuffer)
 
-proc setTexture(fb: FrameBuffer, attachment: GLuint, texture: Texture2D, level: GLint = 0) =
+proc setTexture*(fb: FrameBuffer, attachment: GLuint, texture: Texture2D, level: GLint = 0) =
   when false:
     glNamedFramebufferTextureEXT(fb.GLuint, attachment, texture.GLuint, level);
   else:
@@ -178,33 +178,34 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
     )
   )
 
-  let resizeStmtList = newStmtList()
-  resizeStmtList.add( newCall(bindSym"resize", newDotExpr(!!"fb", !!"depth"), !!"newsize") )
-  for fragOut in fragmentOutputs:
-    resizeStmtList.add( newCall(bindSym"resize", newDotExpr(!!"fb", !!fragOut), !!"newsize") )
-
-  let resizeProc = 
-    newNimNode2( nnkProcDef,
-      !!"resize",
-      newEmptyNode(),
-      newEmptyNode(),
-      newNimNode2( nnkFormalParams,
-        bindSym"void",
-        newNimNode2(nnkIdentDefs,
-          !!"fb",
-          typename,
-          newEmptyNode()
+  when false:
+    let resizeStmtList = newStmtList()
+    resizeStmtList.add( newCall(bindSym"resize", newDotExpr(!!"fb", !!"depth"), !!"newsize") )
+    for fragOut in fragmentOutputs:
+      resizeStmtList.add( newCall(bindSym"resize", newDotExpr(!!"fb", !!fragOut), !!"newsize") )
+    
+    result.add quote do:
+      newNimNode2( nnkProcDef,
+        !!"resize",
+         newEmptyNode(),
+        newEmptyNode(),
+        newNimNode2( nnkFormalParams,
+          bindSym"void",
+          newNimNode2(nnkIdentDefs,
+            !!"fb",
+             typename,
+            newEmptyNode()
+          ),
+          newNimNode2(nnkIdentDefs,
+            !!"newsize",
+            bindSym"Vec2f",
+            newEmptyNode()
+          )
         ),
-        newNimNode2(nnkIdentDefs,
-          !!"newsize",
-          bindSym"Vec2f",
-          newEmptyNode()
-        )
-      ),
-      newEmptyNode(),
-      newEmptyNode(),
-      resizeStmtList
-    )
+        newEmptyNode(),
+        newEmptyNode(),
+        resizeStmtList
+      )
 
   result = newCall( bindSym"debugResult", result )
 

@@ -499,7 +499,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
   result = getAst(renderBlockTemplate(numLocations, globalsBlock, linkShaderBlock,
          bufferCreationBlock, initUniformsBlock, setUniformsBlock, drawCommand))
 
-  #result = newCall( bindSym"debugResult", result )
+  # result = newCall( bindSym"debugResult", result )
 
 ##################################################################################
 #### Shading Dsl Outer ###########################################################

@@ -12,28 +12,20 @@ doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3)
 doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_FLAGS        , SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG or SDL_GL_CONTEXT_DEBUG_FLAG)
 doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_PROFILE_MASK , SDL_GL_CONTEXT_PROFILE_CORE)
 
-let window = createWindow("SDL/OpenGL Skeleton", 100, 100, windowsize.x.cint, windowsize.y.cint, SDL_WINDOW_OPENGL or SDL_WINDOW_RESIZABLE)
-
+let window = createWindow("SDL/OpenGL Skeleton", 100, 100, windowsize.x.cint, windowsize.y.cint, SDL_WINDOW_OPENGL)
+# or SDL_WINDOW_RESIZABL)
 if window.isNil:
   echo sdl2.getError()
   system.quit(1)
 
 let context = window.glCreateContext()
-
 if context.isNil:
   echo sdl2.getError()
   system.quit(1)
 
-# Initialize OpenGL
+#Initialize OpenGL
 loadExtensions()
-
 enableDefaultDebugCallback()
-
-block:
-  var unusedIds: GLuint = 0
-  glDebugMessageControl(
-    GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE,
-    0, unusedIds.addr, true);
 
 doAssert 0 == glMakeCurrent(window, context)
 
@@ -47,12 +39,12 @@ let indices = toSeq( countup[int8,int8](0, int8(vertex.len-1)) ).elementArrayBuf
 
 let crateTexture = loadTexture2DFromFile("crate.png")
 
+
 declareFramebuffer(Fb1FramebufferType):
   depth = createEmptyDepthTexture2D(windowsize)
   color = createEmptyTexture2D(windowsize)
 
 let fb1 = createFb1FramebufferType()
-
 
 if 0 != glSetSwapInterval(-1):
   stdout.write "glSetSwapInterval -1 (late swap tearing) not supported: "
@@ -62,6 +54,7 @@ if 0 != glSetSwapInterval(-1):
   else:
     stdout.write "even 1 (synchronized) is not supported: "
     echo sdl2.getError()
+
 
 glClearColor(0.0, 0.0, 0.0, 1.0)                  # Set background color to black and opaque
 glClearDepth(1.0)                                 # Set background depth to farthest
@@ -115,7 +108,7 @@ proc render() =
   let mousePosNorm = (mouse - viewport.xy) / viewport.zw
 
   #for i in 0..<5:
-  block:
+  block writeToFramebufferBlock:
     let time = simulationTime
 
     var modelview_mat = I4d
@@ -125,9 +118,8 @@ proc render() =
     modelview_mat = modelview_mat.rotate( vec3d(1,0,0), time )
 
     bindFramebuffer(fb1):
-
       glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
-
+      
       shadingDsl(GL_TRIANGLES):
         numVertices = vertex.len.GLsizei
 
@@ -168,14 +160,17 @@ proc render() =
           vec4 t_col = texture(crateTexture, v_texcoord);
           vec2 offset = gl_FragCoord.xy / 32 + mousePosNorm * 10;
           vec4 mix_col = mymix(t_col, time + dot( vec2(cos(time),sin(time)), offset ));
+
           color = v_col * mix_col;
           //color = t_col;
           //color = (v_eyenormal + vec4(1)) * 0.5;
           //color.rg = vec2(float(int(gl_FragCoord.x) % 256) / 255.0, float(int(gl_FragCoord.y) % 256) / 255.0);
           """
 
+    
     fb1.color.generateMipmap
-
+    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+    
     shadingDsl(GL_TRIANGLES):
       numVertices = 3
 
@@ -238,6 +233,7 @@ proc render() =
         """
         color = g_color;
         """
+    
 
   frameCounter += 1
   glSwapWindow(window) # Swap the front and back frame buffers (double buffering)
@@ -277,7 +273,7 @@ while runGame:
         else:
           gamePaused = true
       of SDL_SCANCODE_F10:
-        screenshot(window, "sandbox")
+        window.screenshot("sandbox")
       else:
         discard
 
