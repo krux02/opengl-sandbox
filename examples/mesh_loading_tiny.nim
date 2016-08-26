@@ -1,73 +1,10 @@
 import memfiles, glm, ../fancygl, sdl2, sdl2/ttf , opengl, strutils, math, AntTweakBar
 
-include iqm
-
 const WindowSize = vec2i(1024, 768)
 
-proc iqmFormatString(format : cuint) : string =
-  case format
-  of IQM_BYTE: "byte"
-  of IQM_UBYTE: "ubyte"
-  of IQM_SHORT: "short"
-  of IQM_USHORT: "ushort"
-  of IQM_INT: "int"
-  of IQM_UINT: "uint"
-  of IQM_HALF: "half"
-  of IQM_FLOAT: "float"
-  of IQM_DOUBLE: "double"
-  else: "INVALID IQM FORMAT TAG: " & $format
-
-
-proc iqmTypeString(t : cuint) : string =
-  case t
-  of IQM_POSITION:     "position"
-  of IQM_TEXCOORD:     "texcoord"
-  of IQM_NORMAL:       "normal"
-  of IQM_TANGENT:      "tangent"
-  of IQM_BLENDINDEXES: "blendindexes"
-  of IQM_BLENDWEIGHTS: "blendweights"
-  of IQM_COLOR:        "color"
-  of IQM_CUSTOM:       "custom"
-  else:                "INVALID IQM TYPE TAG: " & $t
-
-
-type
-  MeshData = object
-    position : ArrayBuffer[Vec3f]
-    texcoord : ArrayBuffer[Vec2f]
-    normal   : ArrayBuffer[Vec3f]
-    tangent  : ArrayBuffer[Vec4f]
-    blendindexes : ArrayBuffer[Vec4[uint8]]
-    blendweights : ArrayBuffer[Vec4[uint8]]
-
-  Mesh = object
-    data : ptr MeshData
-    firstVertex : int
-    numVertices : int
-
-proc memptr[T](file:MemFile, offset: cuint) : ptr T = cast[ptr T](cast[int](file.mem) + offset.int)
-proc memptr[T](file:MemFile, offset: cuint, num_elements: cuint) : DataView[T] =
+proc memptr[T](file:MemFile, offset: int32) : ptr T = cast[ptr T](cast[int](file.mem) + offset.int)
+proc memptr[T](file:MemFile, offset: int32, num_elements: int32) : DataView[T] =
   dataView[T]( cast[pointer](cast[int](file.mem) + offset.int), num_elements.int )
-
-proc grouped[T](t : var seq[T]; groupSize : int) : seq[DataView[T]] =
-  result.newSeq(t.len div groupSize + (if t.len mod groupSize == 0: 0 else: 1))
-  for i in 0 .. < result.len:
-    result[i] = dataView[T]( t[i * groupSize].addr.pointer, min(groupSize, t.len - i * groupSize) )
-
-proc jointPose(ij : iqmjoint) : JointPose =
-  for i in 0 .. < 3:
-    result.translate[i] = ij.translate[i]
-  for i in 0 .. < 4:
-    result.rotate[i]    = ij.rotate[i]
-  for i in 0 .. < 3:
-    result.scale[i]     = ij.scale[i]
-
-proc matrix(joint : iqmjoint) : Mat4f =
-  var jp : JointPose
-  jp.translate = joint.translate.Vec3f
-  jp.rotate    = joint.rotate.Quatf
-  jp.scale     = joint.scale.Vec3f
-  jp.poseMatrix
 
 proc main() =
   discard sdl2.init(INIT_EVERYTHING)
@@ -113,6 +50,7 @@ proc main() =
     font = ttf.openFont("/usr/share/fonts/TTF/Inconsolata-Regular.ttf", textHeight.cint)
   if font.isNil:
     echo "could not load font: ", sdl2.getError()
+    echo "sorry system font locations are hard coded into the program, change that to fix this problem"
     system.quit(1)
 
   var file = memfiles.open("mrfixit.iqm")
@@ -121,74 +59,47 @@ proc main() =
 
   let hdr = memptr[iqmheader](file, 0)
   echo "version:   ", hdr.version
-
+  
   var texts = newSeq[cstring](0)
   let textData = memptr[char](file, hdr.ofs_text, hdr.num_text)
-  var i = 0
-  while i < textData.len:
-    texts.add(cast[cstring](textData[i].addr))
-    while textData[i] != '\0':
+  block:
+    var i = 0
+    while i < textData.len:
+      texts.add(cast[cstring](textData[i].addr))
+      while textData[i] != '\0':
+        i += 1
       i += 1
-    i += 1
 
   var textTextures = newSeq[TextureRectangle](texts.len)
   var textWidths = newSeq[cint](texts.len)
-  i = 0
-  for text in texts:
-    echo "text: ", text
-    if text[0] != '\0':
-      let fg : sdl2.Color = (255.uint8, 255.uint8, 255.uint8, 255.uint8)
-      let bg : sdl2.Color = (0.uint8, 0.uint8, 0.uint8, 255.uint8)
-      let surface = font.renderTextShaded(text, fg, bg)
-      defer: freeSurface(surface)
 
-      textTextures[i] = surface.textureRectangle
-      textWidths[i] = surface.w
-
-    else:
-      textWidths[i] = -1
-
-    i += 1
+  block:
+    var i = 0
+    for text in texts:
+      echo "text: ", text
+      if text[0] != '\0':
+        let fg : sdl2.Color = (255.uint8, 255.uint8, 255.uint8, 255.uint8)
+        let bg : sdl2.Color = (0.uint8, 0.uint8, 0.uint8, 255.uint8)
+        let surface = font.renderTextShaded(text, fg, bg)
+        defer: freeSurface(surface)
+    
+        textTextures[i] = surface.textureRectangle
+        textWidths[i] = surface.w
+    
+      else:
+        textWidths[i] = -1
+    
+      i += 1
 
   echo "texts.len: ", texts.len
   echo "texts:     ", texts.mkString
 
-  let vertexArrays = memptr[iqmvertexarray](file, hdr.ofs_vertexarrays, hdr.num_vertexarrays)
+  
 
-  template text(offset : cuint) : cstring =
+  template text(offset : int32) : cstring =
     cast[cstring](cast[uint](file.mem) + hdr.ofs_text.uint + offset.uint)
 
-
-  var meshData : MeshData
-
-  echo "num vertex arrays: ", vertexArrays.len
-  for va in vertexArrays:
-
-    if va.`type` == IQM_POSITION and va.format == IQM_FLOAT and va.size == 3:
-      echo "got positions"
-      meshData.position = memptr[Vec3f](file, va.offset, hdr.num_vertexes).arrayBuffer
-
-    if va.`type` == IQM_TEXCOORD and va.format == IQM_FLOAT and va.size == 2:
-      echo "got texcoords"
-      meshData.texcoord = memptr[Vec2f](file, va.offset, hdr.num_vertexes ).arrayBuffer
-
-    if va.`type` == IQM_NORMAL and va.format == IQM_FLOAT and va.size == 3:
-      echo "got normals"
-      meshData.normal = memptr[Vec3f](file, va.offset, hdr.num_vertexes ).arrayBuffer
-
-    if va.`type` == IQM_TANGENT and va.format == IQM_FLOAT and va.size == 4:
-      echo "got tangents"
-      meshData.tangent = memptr[Vec4f](file, va.offset, hdr.num_vertexes ).arrayBuffer
-
-    if va.`type` == IQM_BLENDINDEXES and va.format == IQM_UBYTE and va.size == 4:
-      echo "got blend indices"
-      meshData.blendindexes = memptr[Vec4[uint8]](file, va.offset, hdr.num_vertexes ).arrayBuffer
-
-    if va.`type` == IQM_BLENDWEIGHTS and va.format == IQM_UBYTE and va.size == 4:
-      echo "got blend weights"
-      meshData.blendweights = memptr[Vec4[uint8]](file, va.offset, hdr.num_vertexes ).arrayBuffer
-
-  #end for
+  let meshData = hdr.mappedMeshData
 
   echo "=========================================================================="
   let triangles = memptr[iqmtriangle](file, hdr.ofs_triangles, hdr.num_triangles)
@@ -227,9 +138,9 @@ proc main() =
   for joint in joints.take(10):
     echo "name:      ", text(joint.name)
     echo "parent:    ", joint.parent
-    echo "translate: ", joint.translate.Vec3f
-    echo "rotate:    ", joint.rotate.Quatf
-    echo "scale:     ", joint.scale.Vec3f
+    echo "translate: ", joint.translate
+    echo "rotate:    ", joint.rotate
+    echo "scale:     ", joint.scale
 
   var jointNameIndices = newSeq[int](joints.len)
   for i, joint in joints:
@@ -282,7 +193,7 @@ proc main() =
     inversebaseframe = newSeq[Mat4f](hdr.num_joints.int)
 
   for i, joint in joints:
-    baseframe[i] = joint.jointPose.poseMatrix
+    baseframe[i] = joint.matrix
     inversebaseframe[i] = baseframe[i].inverse
     if joint.parent >= 0:
       baseframe[i] = baseframe[joint.parent.int] * baseframe[i]
@@ -315,9 +226,8 @@ proc main() =
 
   for i in 0 .. < hdr.num_frames.int:
     for j, p in poses:
-      var pose : JointPose
-
-      for k in 0 .. < 10:
+      var rawPose : array[0..9, float32]
+      for k in 0 .. high(rawPose):
         var raw = 0.0f
         if (p.mask.int and (1 shl k)) != 0:
            raw = framedata_view[framedata_idx].float32
@@ -327,9 +237,9 @@ proc main() =
           offset = p.channeloffset[k]
           scale  = p.channelscale[k]
 
-        pose[k] = raw * scale + offset
+        rawPose[k] = raw * scale + offset
 
-      let m = pose.poseMatrix
+      let m = jointPose(rawPose).matrix
       if p.parent >= 0:
         frames[i][j] = baseframe[p.parent.int] * m * inversebaseframe[j.int]
       else:
@@ -388,6 +298,8 @@ proc main() =
 
   discard TwWindowSize(WindowSize.x, WindowSize.y)
 
+  var obj_quat : Quatf
+  
   var
     testVar: int32 = 17
     testfloat: float32 = 18.0
@@ -399,6 +311,7 @@ proc main() =
   discard TwAddVarRW(bar, "renderBones", TW_TYPE_BOOL8, renderBones.addr, "")
   discard TwAddVarRW(bar, "renderMesh", TW_TYPE_BOOL8, renderMesh.addr, "")
   discard TwAddVarRW(bar, "renderNormalMap", TW_TYPE_BOOL8, renderNormalMap.addr, "")
+  discard TwAddVarRW(bar, "objRotation", TW_TYPE_QUAT4F, obj_quat.addr, " label='Object rotation' opened=true help='Change the object orientation.' ");
 
   glEnable(GL_DEPTH_TEST)
   #glEnable(GL_CULL_FACE)
@@ -468,18 +381,24 @@ proc main() =
     #### simulate ####
     ##################
 
-    time = getTicks().float32 / 1000.0
+    time = getPerformanceCounter().float64 / getPerformanceFrequency().float64
 
     var view_mat = I4d
+    
     view_mat = view_mat.translate( vec3d(0, -1.5f, -17) + vec3d(0, offset.y, offset.x) )
     view_mat = view_mat.translate( vec3d(0, 0, 3) )
+    
     view_mat = view_mat.rotate( vec3d(1,0,0), rotation.y-0.5f )
     view_mat = view_mat.rotate( vec3d(0,0,1), rotation.x )
+    view_mat = view_mat * obj_quat.mat4.mat4d
+    
     view_mat = view_mat.translate( vec3d(0, 0, -3) )
-
+    
     ################
     #### render ####
     ################
+
+
 
     #  ###########  #
     # ## animate ## #
@@ -530,18 +449,19 @@ proc main() =
               int blendIndex = int(a_blendindexes[i]);
               float blendWeight = a_blendweights[i];
 
-              mat4 tmp;
               for(int j = 0; j < 4; ++j) {
-                tmp[j] = texelFetch(outframeTexture, ivec2(j, blendIndex));
+                mat[j] += blendWeight * texelFetch(outframeTexture, ivec2(j, blendIndex));
               }
-              mat += tmp * blendWeight;
             }
+            mat = modelview * mat;
 
-            v_pos_cs = modelview * mat * vec4(a_position, 1);
-            gl_Position = projection * v_pos_cs;
-            v_normal_cs  = normalize(modelview * mat * vec4(a_normal_os, 0));
-            v_tangent_cs = normalize(modelview * mat * a_tangent_os);
-            v_cotangent_cs = vec4(cross(v_normal_cs.xyz, v_tangent_cs.xyz),0);
+
+            v_pos_cs = mat * vec4(a_position, 1);
+            v_normal_cs  = normalize(mat * vec4(a_normal_os, 0));
+            v_tangent_cs = normalize(mat * vec4(a_tangent_os.xyz, 0));
+            v_cotangent_cs = normalize(vec4(cross(v_normal_cs.xyz, v_tangent_cs.xyz),0));
+
+            v_pos_cs  = mat * vec4(a_position, 1);
             """
 
           vertexOut:
@@ -551,30 +471,35 @@ proc main() =
             "out vec4 v_cotangent_cs"
 
           geometryMain:
-            "layout(line_strip, max_vertices=7) out"
+            "layout(line_strip, max_vertices=6) out"
             """
-            vec4 center_ndc = (projection * v_pos_cs[0]);
+            vec4 center_ndc = projection * v_pos_cs[0];
             float scale = center_ndc.w * 0.05;
+            vec4 pos_r      = projection * (v_pos_cs[0] + v_normal_cs[0] * scale);
+            vec4 pos_g      = projection * (v_pos_cs[0] + v_tangent_cs[0] * scale);
+            vec4 pos_b      = projection * (v_pos_cs[0] + v_cotangent_cs[0] * scale);
+
             g_color = vec4(1, 0, 0, 1);
-            gl_Position = projection * (v_pos_cs[0] + v_normal_cs[0] * scale);
+            gl_Position = pos_r;
             EmitVertex();
             gl_Position = center_ndc;
             EmitVertex();
 
             g_color = vec4(0, 1, 0, 1);
-            EmitVertex();
-            gl_Position = projection * (v_pos_cs[0] + v_tangent_cs[0] * scale);
+            gl_Position = pos_g;
             EmitVertex();
             gl_Position = center_ndc;
             EmitVertex();
 
             g_color = vec4(0,0,1,1);
+            gl_Position = pos_b;
             EmitVertex();
-            gl_Position = projection * (v_pos_cs[0] + v_cotangent_cs[0] * scale);
+            gl_Position = center_ndc;
             EmitVertex();
+
             """
           geometryOut:
-            "out vec4 g_color"
+            "flat out vec4 g_color"
           fragmentMain:
             """
             color = g_color;
@@ -605,16 +530,14 @@ proc main() =
 
           vertexMain:
             """
-              mat4 mat = mat4(0.0);
-              for(int i = 0; i < 4; ++i) {
-                int blendIndex = int(a_blendindexes[i]);
+            mat4 mat = mat4(0.0);
+            for(int i = 0; i < 4; ++i) {
+              int blendIndex = int(a_blendindexes[i]);
               float blendWeight = a_blendweights[i];
 
-              mat4 tmp;
               for(int j = 0; j < 4; ++j) {
-                tmp[j] = texelFetch(outframeTexture, ivec2(j, blendIndex));
+                mat[j] += blendWeight * texelFetch(outframeTexture, ivec2(j, blendIndex));
               }
-              mat += tmp * blendWeight;
             }
 
 

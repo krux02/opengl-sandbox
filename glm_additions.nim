@@ -294,24 +294,23 @@ proc mat3*(q : Quatf) : Mat3f =
     tyw = 2*q.y*q.w
     tzw = 2*q.z*q.w
 
+  result[0] = vec3f(1 - (tyy + tzz),      txy + tzw ,      txz - tyw);
+  result[1] = vec3f(     txy - tzw , 1 - (txx + tzz),      tyz + txw);
+  result[2] = vec3f(     txz + tyw ,      tyz - txw , 1 - (txx + tyy));
 
-  result[0] = vec3(1 - (tyy + tzz),      txy + tzw ,      txz - tyw);
-  result[1] = vec3(     txy - tzw , 1 - (txx + tzz),      tyz + txw);
-  result[2] = vec3(     txz + tyw ,      tyz - txw , 1 - (txx + tyy));
-
+proc mat4*(q : Quatf) : Mat4f =
+  let tmp = q.mat3
+  result[0] = vec4f(tmp[0],0)
+  result[1] = vec4f(tmp[1],0)
+  result[2] = vec4f(tmp[2],0)
+  result[3] = vec4f(0,0,0,1)
+          
 type JointPose* = object
   translate* : Vec3f
   rotate*    : Quatf
   scale*     : Vec3f
 
-proc `[]`*(pose : var JointPose; index : int) : var float32 =
-  cast[ptr array[0..9, float32]](pose.addr)[index]
-
-proc `[]=`*(pose : var JointPose; index : int; val : float32) : void =
-  cast[ptr array[0..9, float32]](pose.addr)[index] = val
-
-
-proc poseMatrix*(jp : JointPose) : Mat4f =
+proc matrix*(jp : JointPose) : Mat4f =
   let
     factor1 = jp.rotate.normalize.mat3
     factor2 = jp.scale.diag

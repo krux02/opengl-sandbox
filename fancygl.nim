@@ -3,7 +3,7 @@
 ########################################################################
 
 import opengl, glm, math, random, strutils, nre, macros, macroutils, sdl2, sdl2/image, os
-include etc, glm_additions, shapes, samplers, framebuffer, glwrapper, heightmap, typeinfo
+include etc, glm_additions, shapes, samplers, framebuffer, glwrapper, heightmap, iqm, typeinfo
 
 type ShaderParam* = tuple[name: string, gl_type: string]
 

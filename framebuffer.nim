@@ -30,7 +30,7 @@ proc setRenderbuffer*(fb: FrameBuffer, attachment, renderbuffertarget: GLenum, r
   else:
     glNamedFramebufferRenderbuffer(fb.GLuint, attachment, renderbuffertarget, renderbuffer)
 
-proc setTexture*(fb: FrameBuffer, attachment: GLuint, texture: Texture2D, level: GLint = 0) =
+proc setTexture*(fb: FrameBuffer, attachment: GLenum, texture: Texture2D, level: GLint = 0) =
   when false:
     glNamedFramebufferTextureEXT(fb.GLuint, attachment, texture.GLuint, level);
   else:
