@@ -57,11 +57,11 @@ proc main() =
   defer:
     close(file)
 
-  let hdr = memptr[iqmheader](file, 0)
-  echo "version:   ", hdr.version
+  let header = cast[ptr iqmheader](file.mem)
+  echo "version:   ", header.version
   
   var texts = newSeq[cstring](0)
-  let textData = memptr[char](file, hdr.ofs_text, hdr.num_text)
+  let textData = memptr[char](file, header.ofs_text, header.num_text)
   block:
     var i = 0
     while i < textData.len:
@@ -97,26 +97,29 @@ proc main() =
   
 
   template text(offset : int32) : cstring =
-    cast[cstring](cast[uint](file.mem) + hdr.ofs_text.uint + offset.uint)
+    cast[cstring](cast[uint](file.mem) + header.ofs_text.uint + offset.uint)
 
-  let meshData = hdr.mappedMeshData
+  let meshData = header.getMeshData.arrayBufferMeshData
+  let triangles = header.getTriangles
+  let indices = header.getIndices.elementArrayBuffer
+  let adjacencies = header.getAdjacencies
+
 
   echo "=========================================================================="
-  let triangles = memptr[iqmtriangle](file, hdr.ofs_triangles, hdr.num_triangles)
+  
   echo "triangles: ", triangles.len
   for tri in triangles.take(10):
     echo tri.vertex[0], ", ", tri.vertex[1], ", ", tri.vertex[2]
-
-  let indices = memptr[uint32](file, hdr.ofs_triangles, hdr.num_triangles * 3).elementArrayBuffer
-
+    
   echo "=========================================================================="
-  let adjacencies = memptr[iqmadjacency](file, hdr.ofs_adjacency, hdr.num_triangles)
+ 
   echo "adjacencies: ", adjacencies.len
   for adj in adjacencies.take(10):
     echo adj.triangle[0], ", ", adj.triangle[1], ", ", adj.triangle[2]
 
   echo "=========================================================================="
-  let meshes = memptr[iqmmesh](file, hdr.ofs_meshes, hdr.num_meshes)
+
+  let meshes = header.getMeshes
   echo "meshes: ", meshes.len
 
   var meshTextures = newSeq[Texture2D](meshes.len)
@@ -131,9 +134,9 @@ proc main() =
     echo "  num_triangles:  ", mesh.num_triangles
     meshTextures[i] = loadTexture2DFromFile( $text(mesh.material) )
 
-
   echo "=========================================================================="
-  let joints = memptr[iqmjoint](file, hdr.ofs_joints, hdr.num_joints)
+  
+  let joints = header.getJoints 
   echo "joints: ", joints.len
   for joint in joints.take(10):
     echo "name:      ", text(joint.name)
@@ -158,12 +161,13 @@ proc main() =
       joint = joints[joint.parent]
       jointMatrices[i] = joint.matrix * jointMatrices[i]
 
-  var outframe = newSeq[Mat4f](joints.len)
+  var outframe         = newSeq[Mat4f](joints.len)
   var outframe_texture = textureRectangle( vec2i(4, joints.len.int32), GL_RGBA32F.GLint )
 
   echo "=========================================================================="
 
-  let poses = memptr[iqmpose](file, hdr.ofs_poses, hdr.num_poses)
+  let poses = header.getPoses
+  
   echo "poses: ", poses.len
   for pose in poses.take(10):
     echo "parent:        ", pose.parent
@@ -173,7 +177,7 @@ proc main() =
 
   echo "=========================================================================="
 
-  let anims = memptr[iqmanim](file, hdr.ofs_anims, hdr.num_anims)
+  let anims = header.getAnims
   echo "anims: ", anims.len
   for anim in anims.take(10):
     echo "  name:        ", text(anim.name)
@@ -189,8 +193,8 @@ proc main() =
   ########################
 
   var
-    baseframe = newSeq[Mat4f](hdr.num_joints.int)
-    inversebaseframe = newSeq[Mat4f](hdr.num_joints.int)
+    baseframe = newSeq[Mat4f](joints.len)
+    inversebaseframe = newSeq[Mat4f](joints.len)
 
   for i, joint in joints:
     baseframe[i] = joint.matrix
@@ -203,7 +207,7 @@ proc main() =
   #### load iqm animations ####
   #############################
 
-  assert(hdr.num_poses == hdr.num_joints)
+  assert(header.num_poses == header.num_joints)
 
   #  lilswap((uint32_t*)&buf[hdr.ofs_poses], hdr.num_poses*sizeof(iqmpose)/sizeof(uint32_t));
   #  lilswap((uint32_t*)&buf[hdr.ofs_anims], hdr.num_anims*sizeof(iqmanim)/sizeof(uint32_t));
@@ -218,13 +222,13 @@ proc main() =
 
   # let str = texts[hdr.ofs_text.int]
   var
-    frames_data = newSeq[Mat4f](hdr.num_frames * hdr.num_poses)
-    frames = frames_data.grouped(hdr.num_joints.int)
+    frames_data = newSeq[Mat4f](header.num_frames * header.num_poses)
+    frames = frames_data.grouped(header.num_joints.int)
 
-  let framedata_view = memptr[uint16](file, hdr.ofs_frames, 10000)
+  let framedata_view = memptr[uint16](file, header.ofs_frames, 10000)
   var framedata_idx = 0
 
-  for i in 0 .. < hdr.num_frames.int:
+  for i in 0 .. < header.num_frames.int:
     for j, p in poses:
       var rawPose : array[0..9, float32]
       for k in 0 .. high(rawPose):
@@ -406,8 +410,8 @@ proc main() =
 
     let
       current_frame = time
-      frame1 = frames[current_frame.floor.int mod hdr.num_frames.int]
-      frame2 = frames[(current_frame.floor.int + 1) mod hdr.num_frames.int]
+      frame1 = frames[current_frame.floor.int mod header.num_frames.int]
+      frame2 = frames[(current_frame.floor.int + 1) mod header.num_frames.int]
       frameoffset = current_frame - current_frame.floor
 
     for i in 0 .. < outframe.len:

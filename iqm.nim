@@ -100,8 +100,16 @@ type
     bbmax*:     Vec3f
     xyradius*:  float32
     radius*:    float32
+
+  iqmMeshData* = object
+    position* : DataView[Vec3f]
+    texcoord* : DataView[Vec2f]
+    normal*   : DataView[Vec3f]
+    tangent*  : DataView[Vec4f]
+    blendindexes* : DataView[Vec4[uint8]]
+    blendweights* : DataView[Vec4[uint8]]
     
-  iqmMappedMeshData* = object
+  iqmArrayBufferMeshData* = object
     position* : ArrayBuffer[Vec3f]
     texcoord* : ArrayBuffer[Vec2f]
     normal*   : ArrayBuffer[Vec3f]
@@ -109,8 +117,8 @@ type
     blendindexes* : ArrayBuffer[Vec4[uint8]]
     blendweights* : ArrayBuffer[Vec4[uint8]]
 
-  iqmMappedMesh* = object
-    data* : ptr iqmMappedMeshData
+  iqmArrayBufferMesh* = object
+    data* : ptr iqmArrayBufferMeshData
     firstVertex* : int
     numVertices* : int
 
@@ -119,38 +127,69 @@ const
 
 proc memptr[T](header: ptr iqmheader, offset: int32) : ptr T =
   cast[ptr T](cast[int](header) + offset.int)
+  
 proc memptr[T](header: ptr iqmheader, offset: int32, num_elements: int32) : DataView[T] =
   dataView[T]( cast[pointer](cast[int](header) + offset.int), num_elements.int )
   
-proc mappedMeshData*(header: ptr iqmheader) : iqmMappedMeshData =
+proc getMeshData*(header: ptr iqmheader) : iqmMeshData =
   let vertexArrays = memptr[iqmvertexarray](header, header.ofs_vertexarrays, header.num_vertexarrays)
   for va in vertexArrays:
     if va.kind == vakPosition and va.format == vafFloat and va.size == 3:
-      result.position = memptr[Vec3f](header, va.offset, header.num_vertexes).arrayBuffer
+      result.position = memptr[Vec3f](header, va.offset, header.num_vertexes)
     if va.kind == vakTexcoord and va.format == vafFloat and va.size == 2:
-      result.texcoord = memptr[Vec2f](header, va.offset, header.num_vertexes ).arrayBuffer
+      result.texcoord = memptr[Vec2f](header, va.offset, header.num_vertexes )
     if va.kind == vakNormal and va.format == vafFloat and va.size == 3:
-      result.normal = memptr[Vec3f](header, va.offset, header.num_vertexes ).arrayBuffer
+      result.normal = memptr[Vec3f](header, va.offset, header.num_vertexes )
     if va.kind == vakTangent and va.format == vafFloat and va.size == 4:
-      result.tangent = memptr[Vec4f](header, va.offset, header.num_vertexes ).arrayBuffer
+      result.tangent = memptr[Vec4f](header, va.offset, header.num_vertexes )
     if va.kind == vakBlendindexes and va.format == vafUByte and va.size == 4:
-      result.blendindexes = memptr[Vec4[uint8]](header, va.offset, header.num_vertexes ).arrayBuffer
+      result.blendindexes = memptr[Vec4[uint8]](header, va.offset, header.num_vertexes )
     if va.kind == vakBlendweights and va.format == vafUByte and va.size == 4:
-      result.blendweights = memptr[Vec4[uint8]](header, va.offset, header.num_vertexes ).arrayBuffer
+      result.blendweights = memptr[Vec4[uint8]](header, va.offset, header.num_vertexes )
 
-  if result.position.handle == 0:
+  if result.position.isNil:
     echo "did not get positions"
-  if result.texcoord.handle == 0:
+  if result.texcoord.isNil:
     echo "did not get texcoords"
-  if result.normal.handle == 0:
+  if result.normal.isNil:
     echo "did not get normal"
-  if result.tangent.handle == 0:
+  if result.tangent.isNil:
     echo "did not get tangent"
-  if result.blendindexes.handle == 0:
+  if result.blendindexes.isNil:
     echo "did not get blendindexes"
-  if result.blendweights.handle == 0:
+  if result.blendweights.isNil:
     echo "did not get blendweights"
-      
+
+proc arrayBufferMeshData*(meshData: iqmMeshData): iqmArrayBufferMeshData =
+  result.position     = meshData.position.arrayBuffer
+  result.texcoord     = meshData.texcoord.arrayBuffer
+  result.normal       = meshData.normal.arrayBuffer
+  result.tangent      = meshData.tangent.arrayBuffer
+  result.blendindexes = meshData.blendindexes.arrayBuffer
+  result.blendweights = meshData.blendweights.arrayBuffer
+    
+proc getMeshes*(header: ptr iqmheader): DataView[iqmmesh] =
+  memptr[iqmmesh](header, header.ofs_meshes, header.num_meshes)
+
+proc getTriangles*(header: ptr iqmheader): DataView[iqmtriangle] =
+  memptr[iqmtriangle](header, header.ofs_triangles, header.num_triangles)
+
+proc getIndices*(header: ptr iqmheader): DataView[uint32] =
+  memptr[uint32](header, header.ofs_triangles, header.num_triangles * 3)
+
+proc getAdjacencies*(header: ptr iqmheader): DataView[iqmadjacency] =
+  memptr[iqmadjacency](header, header.ofs_adjacency, header.num_triangles)
+
+proc getPoses*(header: ptr iqmheader): DataView[iqmpose] =
+  memptr[iqmpose](header, header.ofs_poses, header.num_poses)
+
+proc getAnims*(header: ptr iqmheader): DataView[iqmanim] =
+  memptr[iqmanim](header, header.ofs_anims, header.num_anims)
+
+proc getJoints*(header: ptr iqmheader): DataView[iqmjoint] =
+  memptr[iqmjoint](header, header.ofs_joints, header.num_joints)
+  
+# TODO document grouped
 proc grouped*[T](t : var seq[T]; groupSize : int) : seq[DataView[T]] =
   result.newSeq(t.len div groupSize + (if t.len mod groupSize == 0: 0 else: 1))
   for i in 0 .. < result.len:

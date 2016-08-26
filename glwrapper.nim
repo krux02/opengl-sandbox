@@ -266,7 +266,9 @@ type
     data: ptr UncheckedArray[T]
     size: int
 
-
+proc isNil[T](view: DataView[T] | ReadView[T] | WriteView[T]): bool =
+  view.data.isNil
+  
 proc dataView*[T](data: pointer, size: int) : DataView[T] =
   DataView[T](data: cast[ptr UncheckedArray[T]](data), size: size)
 
@@ -370,16 +372,18 @@ proc arrayBuffer*[T](data : openarray[T], usage: GLenum = GL_STATIC_DRAW): Array
   result.bufferData(usage, data)
 
 proc arrayBuffer*[T](data : DataView[T], usage: GLenum = GL_STATIC_DRAW): ArrayBuffer[T] =
-  result.create
-  result.bufferData(usage, data)
+  if not data.isNil:
+    result.create
+    result.bufferData(usage, data)
 
 proc elementArrayBuffer*[T](data : openarray[T], usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
   result.create
   result.bufferData(usage, data)
 
 proc elementArrayBuffer*[T](data : DataView[T], usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
-  result.create
-  result.bufferData(usage, data)
+  if not data.isNil:
+    result.create
+    result.bufferData(usage, data)
 
 proc uniformBuffer*[T](data : T, usage: GLenum = GL_STATIC_DRAW): UniformBuffer[T] =
   result.create
