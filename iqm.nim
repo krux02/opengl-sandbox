@@ -159,7 +159,7 @@ proc getMeshData*(header: ptr iqmheader) : iqmMeshData =
     echo "did not get blendindexes"
   if result.blendweights.isNil:
     echo "did not get blendweights"
-
+    
 proc arrayBufferMeshData*(meshData: iqmMeshData): iqmArrayBufferMeshData =
   result.position     = meshData.position.arrayBuffer
   result.texcoord     = meshData.texcoord.arrayBuffer
@@ -167,7 +167,17 @@ proc arrayBufferMeshData*(meshData: iqmMeshData): iqmArrayBufferMeshData =
   result.tangent      = meshData.tangent.arrayBuffer
   result.blendindexes = meshData.blendindexes.arrayBuffer
   result.blendweights = meshData.blendweights.arrayBuffer
-    
+
+proc getTexts*(header: ptr iqmheader): seq[cstring] =
+  result.newSeq(0)
+  let textData = memptr[char](header, header.ofs_text, header.num_text)
+  var i = 0
+  while i < textData.len:
+    result.add(cast[cstring](textData[i].addr))
+    while textData[i] != '\0':
+      i += 1
+    i += 1
+  
 proc getMeshes*(header: ptr iqmheader): DataView[iqmmesh] =
   memptr[iqmmesh](header, header.ofs_meshes, header.num_meshes)
 
@@ -188,13 +198,16 @@ proc getAnims*(header: ptr iqmheader): DataView[iqmanim] =
 
 proc getJoints*(header: ptr iqmheader): DataView[iqmjoint] =
   memptr[iqmjoint](header, header.ofs_joints, header.num_joints)
-  
+
+proc getFrames*(header: ptr iqmheader): DataView[uint16] =
+  memptr[uint16](header, header.ofs_frames, header.num_frames)
+
 # TODO document grouped
 proc grouped*[T](t : var seq[T]; groupSize : int) : seq[DataView[T]] =
   result.newSeq(t.len div groupSize + (if t.len mod groupSize == 0: 0 else: 1))
   for i in 0 .. < result.len:
     result[i] = dataView[T]( t[i * groupSize].addr.pointer, min(groupSize, t.len - i * groupSize) )
-
+  
 proc jointPose*(joint: iqmJoint) : JointPose =
   result.translate = joint.translate
   result.rotate    = joint.rotate
@@ -207,3 +220,17 @@ proc jointPose*(data: array[10, float32]): JointPose =
   
 proc matrix*(joint : iqmJoint) : Mat4f =
   joint.jointPose.matrix
+
+
+proc calcBaseframe*(joints: DataView[iqmjoint]) : tuple[baseframe, inversebaseframe: seq[Mat4f]] =
+  result.baseframe.newSeq(joints.len)
+  result.inversebaseframe.newSeq(joints.len)
+
+  for i, joint in joints:
+    result.baseframe[i] = joint.matrix
+    result.inversebaseframe[i] = result.baseframe[i].inverse
+    if joint.parent >= 0:
+      result.baseframe[i] = result.baseframe[joint.parent.int] * result.baseframe[i]
+      result.inversebaseframe[i] = result.inversebaseframe[i] * result.inversebaseframe[joint.parent.int]
+  
+  

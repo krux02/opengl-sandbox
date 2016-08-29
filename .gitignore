@@ -8,6 +8,7 @@ sandbox
 test
 macro_test
 deferred_shading
-mesh_loading
+neuralnetwork
 mesh_loading_tiny
 macroutils
+*.ndb

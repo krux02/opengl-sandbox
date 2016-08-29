@@ -2,10 +2,6 @@ import memfiles, glm, ../fancygl, sdl2, sdl2/ttf , opengl, strutils, math, AntTw
 
 const WindowSize = vec2i(1024, 768)
 
-proc memptr[T](file:MemFile, offset: int32) : ptr T = cast[ptr T](cast[int](file.mem) + offset.int)
-proc memptr[T](file:MemFile, offset: int32, num_elements: int32) : DataView[T] =
-  dataView[T]( cast[pointer](cast[int](file.mem) + offset.int), num_elements.int )
-
 proc main() =
   discard sdl2.init(INIT_EVERYTHING)
   defer: sdl2.quit()
@@ -60,15 +56,7 @@ proc main() =
   let header = cast[ptr iqmheader](file.mem)
   echo "version:   ", header.version
   
-  var texts = newSeq[cstring](0)
-  let textData = memptr[char](file, header.ofs_text, header.num_text)
-  block:
-    var i = 0
-    while i < textData.len:
-      texts.add(cast[cstring](textData[i].addr))
-      while textData[i] != '\0':
-        i += 1
-      i += 1
+  let texts = header.getTexts
 
   var textTextures = newSeq[TextureRectangle](texts.len)
   var textWidths = newSeq[cint](texts.len)
@@ -76,7 +64,6 @@ proc main() =
   block:
     var i = 0
     for text in texts:
-      echo "text: ", text
       if text[0] != '\0':
         let fg : sdl2.Color = (255.uint8, 255.uint8, 255.uint8, 255.uint8)
         let bg : sdl2.Color = (0.uint8, 0.uint8, 0.uint8, 255.uint8)
@@ -91,11 +78,6 @@ proc main() =
     
       i += 1
 
-  echo "texts.len: ", texts.len
-  echo "texts:     ", texts.mkString
-
-  
-
   template text(offset : int32) : cstring =
     cast[cstring](cast[uint](file.mem) + header.ofs_text.uint + offset.uint)
 
@@ -103,47 +85,12 @@ proc main() =
   let triangles = header.getTriangles
   let indices = header.getIndices.elementArrayBuffer
   let adjacencies = header.getAdjacencies
-
-
-  echo "=========================================================================="
-  
-  echo "triangles: ", triangles.len
-  for tri in triangles.take(10):
-    echo tri.vertex[0], ", ", tri.vertex[1], ", ", tri.vertex[2]
-    
-  echo "=========================================================================="
- 
-  echo "adjacencies: ", adjacencies.len
-  for adj in adjacencies.take(10):
-    echo adj.triangle[0], ", ", adj.triangle[1], ", ", adj.triangle[2]
-
-  echo "=========================================================================="
-
   let meshes = header.getMeshes
-  echo "meshes: ", meshes.len
+  let joints = header.getJoints
+  let poses = header.getPoses
+  let (baseframe, inversebaseframe) = joints.calcBaseframe
 
-  var meshTextures = newSeq[Texture2D](meshes.len)
-
-  for i, mesh in meshes:
-    echo "got iqm mesh:"
-    echo "  name:           ", text(mesh.name)
-    echo "  material:       ", text(mesh.material)
-    echo "  first_vertex:   ", mesh.first_vertex
-    echo "  num_vertexes:   ", mesh.num_vertexes
-    echo "  first_triangle: ", mesh.first_triangle
-    echo "  num_triangles:  ", mesh.num_triangles
-    meshTextures[i] = loadTexture2DFromFile( $text(mesh.material) )
-
-  echo "=========================================================================="
-  
-  let joints = header.getJoints 
-  echo "joints: ", joints.len
-  for joint in joints.take(10):
-    echo "name:      ", text(joint.name)
-    echo "parent:    ", joint.parent
-    echo "translate: ", joint.translate
-    echo "rotate:    ", joint.rotate
-    echo "scale:     ", joint.scale
+  echo "texts.len: ", texts.len
 
   var jointNameIndices = newSeq[int](joints.len)
   for i, joint in joints:
@@ -163,13 +110,46 @@ proc main() =
 
   var outframe         = newSeq[Mat4f](joints.len)
   var outframe_texture = textureRectangle( vec2i(4, joints.len.int32), GL_RGBA32F.GLint )
+  
+  echo "=========================================================================="
+  
+  echo "triangles: ", triangles.len
+  for tri in triangles.take(4):
+    echo tri.vertex[0], ", ", tri.vertex[1], ", ", tri.vertex[2]
+    
+  echo "=========================================================================="
+ 
+  echo "adjacencies: ", adjacencies.len
+  for adj in adjacencies.take(4):
+    echo adj.triangle[0], ", ", adj.triangle[1], ", ", adj.triangle[2]
 
   echo "=========================================================================="
 
-  let poses = header.getPoses
+  echo "meshes: ", meshes.len
+
+  var meshTextures = newSeq[Texture2D](meshes.len)
+
+  for i, mesh in meshes:
+    echo "got iqm mesh:"
+    echo "  name:           ", text(mesh.name)
+    echo "  material:       ", text(mesh.material)
+    meshTextures[i] = loadTexture2DFromFile( $text(mesh.material) )
+
+  echo "=========================================================================="
+  
+
+  echo "joints: ", joints.len
+  for joint in joints.take(3):
+    echo "name:      ", text(joint.name)
+    echo "parent:    ", joint.parent
+    echo "translate: ", joint.translate
+    echo "rotate:    ", joint.rotate
+    echo "scale:     ", joint.scale
+
+  echo "=========================================================================="
   
   echo "poses: ", poses.len
-  for pose in poses.take(10):
+  for pose in poses.take(3):
     echo "parent:        ", pose.parent
     echo "mask:          ", pose.mask.int.toHex(8)
     echo "channeloffset: ", pose.channeloffset.mkString()
@@ -188,49 +168,18 @@ proc main() =
 
   echo "=========================================================================="
 
-  ########################
-  #### load base pose ####
-  ########################
-
-  var
-    baseframe = newSeq[Mat4f](joints.len)
-    inversebaseframe = newSeq[Mat4f](joints.len)
-
-  for i, joint in joints:
-    baseframe[i] = joint.matrix
-    inversebaseframe[i] = baseframe[i].inverse
-    if joint.parent >= 0:
-      baseframe[i] = baseframe[joint.parent.int] * baseframe[i]
-      inversebaseframe[i] = inversebaseframe[i] * inversebaseframe[joint.parent.int]
-
-  #############################
-  #### load iqm animations ####
-  #############################
-
   assert(header.num_poses == header.num_joints)
 
-  #  lilswap((uint32_t*)&buf[hdr.ofs_poses], hdr.num_poses*sizeof(iqmpose)/sizeof(uint32_t));
-  #  lilswap((uint32_t*)&buf[hdr.ofs_anims], hdr.num_anims*sizeof(iqmanim)/sizeof(uint32_t));
-  #  lilswap((uint16_t*)&buf[hdr.ofs_frames], hdr.num_frames*hdr.num_framechannels);
-  #  //numanims = hdr.num_anims;
-  #  //numframes = hdr.num_frames;
-
-  #  auto anims_ptr = (iqmanim *)&buf[hdr.ofs_anims];
-  #  anims.assign(anims_ptr, anims_ptr + hdr.num_anims);
-  #  auto poses_ptr = (iqmpose*)&buf[hdr.ofs_poses];
-  #  poses.assign(poses_ptr, poses_ptr + hdr.num_poses);
-
-  # let str = texts[hdr.ofs_text.int]
   var
     frames_data = newSeq[Mat4f](header.num_frames * header.num_poses)
     frames = frames_data.grouped(header.num_joints.int)
 
-  let framedata_view = memptr[uint16](file, header.ofs_frames, 10000)
-  var framedata_idx = 0
+  let framedata_view = header.getFrames
+  var framedata_idx  = 0
 
-  for i in 0 .. < header.num_frames.int:
+  for i in 0 .. < framedata_view.len:
     for j, p in poses:
-      var rawPose : array[0..9, float32]
+      var rawPose : array[10, float32]
       for k in 0 .. high(rawPose):
         var raw = 0.0f
         if (p.mask.int and (1 shl k)) != 0:
@@ -283,7 +232,9 @@ proc main() =
   var
     runGame = true
     time = 0.0f
-    projection_mat = perspective(45.0, WindowSize.x / WindowSize.y, 0.1, 100.0)
+    hor = WindowSize.x / WindowSize.y
+    ver = WindowSize.y / WindowSize.y
+    projection_mat : Mat4d
 
     offset = vec2d(0)
     rotation = vec2d(0)
@@ -291,8 +242,8 @@ proc main() =
     dragMode = 0
 
     renderMesh = true
-    renderBones = true
-    renderBoneNames = true
+    renderBones = false
+    renderBoneNames = false
     renderNormalMap = false
 
   ################################
@@ -304,13 +255,10 @@ proc main() =
 
   var obj_quat : Quatf
   
-  var
-    testVar: int32 = 17
-    testfloat: float32 = 18.0
+  var scale: float32 = 1
 
   var bar = TwNewBar("TwBar")
-  discard TwAddVarRW(bar, "testVar", TW_TYPE_INT32, testVar.addr, "")
-  discard TwAddVarRW(bar, "testFloat", TW_TYPE_FLOAT, testfloat.addr, "")
+  discard TwAddVarRW(bar, "scale", TW_TYPE_FLOAT, scale.addr, " precision=3 step=0.01")
   discard TwAddVarRW(bar, "renderBoneNames", TW_TYPE_BOOL8, renderBoneNames.addr, "")
   discard TwAddVarRW(bar, "renderBones", TW_TYPE_BOOL8, renderBones.addr, "")
   discard TwAddVarRW(bar, "renderMesh", TW_TYPE_BOOL8, renderMesh.addr, "")
@@ -387,6 +335,8 @@ proc main() =
 
     time = getPerformanceCounter().float64 / getPerformanceFrequency().float64
 
+    projection_mat = frustum(-hor * scale, hor * scale, -ver * scale, ver * scale, 1, 100)
+    
     var view_mat = I4d
     
     view_mat = view_mat.translate( vec3d(0, -1.5f, -17) + vec3d(0, offset.y, offset.x) )
@@ -397,6 +347,8 @@ proc main() =
     view_mat = view_mat * obj_quat.mat4.mat4d
     
     view_mat = view_mat.translate( vec3d(0, 0, -3) )
+
+    
     
     ################
     #### render ####

@@ -129,7 +129,7 @@ proc texture2D*(surface: sdl2.SurfacePtr): Texture2D =
 proc textureRectangle*(surface: sdl2.SurfacePtr): TextureRectangle =
   let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
   defer: freeSurface(surface2)
-  
+
   when false:
     glGenTextures(1, cast[ptr GLuint](result.addr))
     glTextureImage2DEXT(result.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_RGBA.GLint, surface2.w, surface2.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
@@ -138,6 +138,14 @@ proc textureRectangle*(surface: sdl2.SurfacePtr): TextureRectangle =
     glTextureStorage2D(result.GLuint, 1, GL_RGBA8, surface2.w, surface2.h)
     glTextureSubImage2D(result.GLuint, 0, 0, 0, surface2.w, surface2.h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
 
+
+proc texture1D*(data: seq[float32]): Texture1D =
+  when false:
+    discard
+  else:
+    glCreateTextures(GL_TEXTURE_1D, 1, cast[ptr GLuint](result.addr))
+    glTextureStorage1D(result.GLuint, 1, GL_R32F, data.len.GLsizei)
+    glTextureSubImage1D(result.GLuint, 0, 0, data.len.GLsizei, GL_RED, cGL_FLOAT, data[0].unsafeAddr)
 
 proc textureRectangle*(size: Vec2i; internalFormat : GLint = GL_RGBA.GLint): TextureRectangle =
   when false:
@@ -191,7 +199,7 @@ when false:
     var internalFormat: GLint
     glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_2D, 0, GL_TEXTURE_INTERNAL_FORMAT, internalFormat.addr)
     glTextureImage2DEXT(tex.GLuint, GL_TEXTURE_2D, 0, internalFormat, size.x.GLsizei, size.y.GLsizei, 0, internalFormat.GLenum, cGL_UNSIGNED_BYTE, nil)
-  
+
   proc resize*(tex: TextureRectangle, size: Vec2f) =
     var internalFormat: GLint
     glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_TEXTURE_INTERNAL_FORMAT, internalFormat.addr)
@@ -204,8 +212,8 @@ proc createEmptyTexture2D*(size: Vec2f, internalFormat: GLint = GL_RGB8.GLint) :
   else:
     glCreateTextures(GL_TEXTURE_2D, 1, cast[ptr GLuint](result.addr))
     glTextureStorage2D(
-      result.GLuint, 1, 
-      internalFormat.GLenum, 
+      result.GLuint, 1,
+      internalFormat.GLenum,
       size.x.GLsizei, size.y.GLsizei
     )
     # glTextureSubImage2D(tex.GLuint, 0, 0, 0, size.x.GLsizei, size.y.GLsizei, internalFormat,cGL_UNSIGNED_BYTE, nil)
