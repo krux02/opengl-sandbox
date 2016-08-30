@@ -96,15 +96,15 @@ const
 
 var weights = newSeq[float32](layerSize * layerSize * numHiddenLayer)
 for i in 0 .. high(weights):
-  weights[i] = generateGaussianNoise(0,0.8) #random(2.0).float32 - 1
+  weights[i] = generateGaussianNoise(0,1.0) #random(2.0).float32 - 1
 
 var firstWeights = newSeq[float32](4 * layerSize)
 for i in 0 .. high(firstWeights):
-  firstWeights[i] = generateGaussianNoise(0,0.8)
+  firstWeights[i] = generateGaussianNoise(0,1.0)
 
 var lastWeights = newSeq[float32](3 * layerSize)
 for i in 0 .. high(lastWeights):
-  lastWeights[i] = generateGaussianNoise(0,0.8)
+  lastWeights[i] = generateGaussianNoise(0,1.0)
 
 #[
 for w in weights:
@@ -161,7 +161,7 @@ proc render() =
 
       inArray[0] = texCoord.x - 0.5;
       inArray[1] = texCoord.y - 0.5;
-      inArray[3] = 1.0;
+      inArray[2] = 1.0;
       //inArray[2] = (mouse.x / viewport.z) * 2.0 - 1.0;
       //inArray[3] = (mouse.y / viewport.w) * 2.0 - 1.0;
 
