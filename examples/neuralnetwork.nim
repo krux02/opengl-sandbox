@@ -2,12 +2,12 @@
 
 import sdl2, opengl, math, random, glm, sequtils, ../fancygl, fenv
 
-randomize()
+# randomize()
 
 discard sdl2.init(INIT_EVERYTHING)
 
-var windowsize = vec2f(1920,1200)
-var viewport = vec4f(0,0,1920,1200)
+var windowsize = vec2f(800,800)
+var viewport = vec4f(0,0,800,800)
 
 doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3)
 doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3)
@@ -200,13 +200,13 @@ proc render() =
       inArray[0] = texCoord.x - 0.5;
       inArray[1] = texCoord.y - 0.5;
       //inArray[2] = 1.0;
-      inArray[2] = (mouse.x / viewport.z) * -2.0 + 1.0;
-      inArray[3] = (mouse.y / viewport.w) * -2.0 + 1.0;
+      inArray[2] = 1.0;//(mouse.x / viewport.z) * -2.0 + 1.0;
+      inArray[3] = 1.0;//(mouse.y / viewport.w) * -2.0 + 1.0;
 
       for(int outIdx = 0; outIdx < layerSize; ++outIdx) {
         float sum = 0;
         for(int inIdx = 0; inIdx < 4; ++inIdx) {
-          sum += texelFetch(firstWeights, (outIdx*layerSize)+inIdx,0).r * inArray[inIdx];
+          sum += texelFetch(firstWeights, (outIdx*4)+inIdx,0).r * inArray[inIdx];
         }
         outArray[outIdx] = sig(sum);
       }
