@@ -6,8 +6,8 @@ randomize()
 
 discard sdl2.init(INIT_EVERYTHING)
 
-var windowsize = vec2f(320,240)
-var viewport = vec4f(0,0,320,240)
+var windowsize = vec2f(1920,1200)
+var viewport = vec4f(0,0,1920,1200)
 
 doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3)
 doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3)
@@ -94,17 +94,25 @@ const
   layerSize = 16
   numHiddenLayer = 8
 
-var weights = newSeq[float32](layerSize * layerSize * numHiddenLayer)
-for i in 0 .. high(weights):
-  weights[i] = generateGaussianNoise(0,1.0) #random(2.0).float32 - 1
+# for i in 0 .. high(weights):
+#   weights[i] = generateGaussianNoise(0,1.0) #random(2.0).float32 - 1
+# for i in 0 .. high(firstWeights):
+#   firstWeights[i] = generateGaussianNoise(0,1.0)
+# for i in 0 .. high(lastWeights):
+#   lastWeights[i] = generateGaussianNoise(0,1.0)
 
-var firstWeights = newSeq[float32](4 * layerSize)
-for i in 0 .. high(firstWeights):
-  firstWeights[i] = generateGaussianNoise(0,1.0)
-
-var lastWeights = newSeq[float32](3 * layerSize)
-for i in 0 .. high(lastWeights):
-  lastWeights[i] = generateGaussianNoise(0,1.0)
+var firstWeights_d0 = newSeq[float32](4 * layerSize)
+var firstWeights_d1 = newSeq[float32](4 * layerSize)
+var firstWeights_d2 = newSeq[float32](4 * layerSize)
+var firstWeights_d3 = newSeq[float32](4 * layerSize)
+var weights_d0      = newSeq[float32](layerSize * layerSize * numHiddenLayer)
+var weights_d1      = newSeq[float32](layerSize * layerSize * numHiddenLayer)
+var weights_d2      = newSeq[float32](layerSize * layerSize * numHiddenLayer)
+var weights_d3      = newSeq[float32](layerSize * layerSize * numHiddenLayer)
+var lastWeights_d0  = newSeq[float32](3 * layerSize)
+var lastWeights_d1  = newSeq[float32](3 * layerSize)
+var lastWeights_d2  = newSeq[float32](3 * layerSize)
+var lastWeights_d3  = newSeq[float32](3 * layerSize)
 
 #[
 for w in weights:
@@ -113,15 +121,12 @@ for w in weights:
   echo "."
 ]#
 
-let weightsTexture = weights.texture1D
-let firstWeightsTexture = firstWeights.texture1D
-let lastWeightsTexture = lastWeights.texture1D
-
 
 const glslCode = """
 float sig(float x) {
   //return x / (1.0 + abs(x));
-  return 1.0/(1.0+exp(-x));
+  //return 1.0/(1.0+exp(-x));
+  return tanh(x);
 }
 
 const int layerSize = 16;
@@ -139,6 +144,39 @@ proc render() =
   let time = simulationTime
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+
+  proc linClamp(x:float32, max:float32 = 1.0, moritz:float32 = 1.0):float32 =
+    return max * tanh(x/moritz)
+
+  proc weightDiff(weight:float32, noise:float32):float32 =
+    # return weight + (weight * noise) + (weight * noise * noise)
+    return weight + noise
+
+  let stdDev:float32 = 0.0001
+  for i in 0 .. high(firstWeights_d0):
+    firstWeights_d3[i] = generateGaussianNoise(0, stdDev)
+    firstWeights_d2[i] = linClamp(firstWeights_d2[i] + firstWeights_d3[i], 0.01, 0.01)
+    firstWeights_d1[i] = linClamp(firstWeights_d1[i] + firstWeights_d2[i], 0.1, 0.1)
+    firstWeights_d0[i] = linClamp(firstWeights_d0[i] + firstWeights_d1[i], 3, 3)
+  for i in 0 .. high(weights_d0):
+    weights_d3[i] = generateGaussianNoise(0, stdDev)
+    weights_d2[i] = linClamp(weights_d2[i] + weights_d3[i], 0.01, 0.01)
+    weights_d1[i] = linClamp(weights_d1[i] + weights_d2[i], 0.1, 0.1)
+    weights_d0[i] = linClamp(weights_d0[i] + weights_d1[i], 4, 4)
+  for i in 0 .. high(lastWeights_d0):
+    lastWeights_d3[i] = generateGaussianNoise(0, stdDev)
+    lastWeights_d2[i] = linClamp(lastWeights_d2[i] + lastWeights_d3[i], 0.01, 0.01)
+    lastWeights_d1[i] = linClamp(lastWeights_d1[i] + lastWeights_d2[i], 0.1, 0.1)
+    lastWeights_d0[i] = linClamp(lastWeights_d0[i] + lastWeights_d1[i], 0.5, 0.5)
+
+  # echo weights_d3[0];
+  # echo weights_d2[0];
+  # echo weights_d1[0];
+  # echo weights_d0[0];
+
+  let weightsTexture = weights_d0.texture1D
+  let firstWeightsTexture = firstWeights_d0.texture1D
+  let lastWeightsTexture = lastWeights_d0.texture1D
 
   shadingDsl(GL_TRIANGLES):
     numVertices = 3
@@ -161,16 +199,16 @@ proc render() =
 
       inArray[0] = texCoord.x - 0.5;
       inArray[1] = texCoord.y - 0.5;
-      inArray[2] = 1.0;
-      //inArray[2] = (mouse.x / viewport.z) * 2.0 - 1.0;
-      //inArray[3] = (mouse.y / viewport.w) * 2.0 - 1.0;
+      //inArray[2] = 1.0;
+      inArray[2] = (mouse.x / viewport.z) * -2.0 + 1.0;
+      inArray[3] = (mouse.y / viewport.w) * -2.0 + 1.0;
 
       for(int outIdx = 0; outIdx < layerSize; ++outIdx) {
         float sum = 0;
-        for(int inIdx = 0; inIdx < 3; ++inIdx) {
+        for(int inIdx = 0; inIdx < 4; ++inIdx) {
           sum += texelFetch(firstWeights, (outIdx*layerSize)+inIdx,0).r * inArray[inIdx];
         }
-        outArray[outIdx] = tanh(sum);
+        outArray[outIdx] = sig(sum);
       }
 
 
@@ -184,7 +222,7 @@ proc render() =
           for(int inIdx = 0; inIdx < layerSize; ++inIdx) {
             sum += texelFetch(weights, (layer*layerSize*layerSize)+(outIdx*layerSize)+inIdx,0).r * inArray[inIdx];
           }
-          outArray[outIdx] = tanh(sum);
+          outArray[outIdx] = sig(sum);
         }
       }
 
@@ -193,12 +231,9 @@ proc render() =
         for(int inIdx = 0; inIdx < layerSize; ++inIdx) {
           sum += texelFetch(lastWeights, (outIdx*layerSize)+inIdx,0).r * outArray[inIdx];
         }
-        color[outIdx] = sig(sum);// * 0.5 + 0.5;
+        color[outIdx] = sig(sum) * 0.5 + 0.5;
       }
 
-      //color.r = outArray[0] * 0.5 + 0.5;
-      //color.g = outArray[1] * 0.5 + 0.5;
-      //color.b = outArray[2] * 0.5 + 0.5;
       """
 
 
