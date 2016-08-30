@@ -109,7 +109,7 @@ proc main() =
       jointMatrices[i] = joint.matrix * jointMatrices[i]
 
   var outframe         = newSeq[Mat4f](joints.len)
-  var outframe_texture = textureRectangle( vec2i(4, joints.len.int32), GL_RGBA32F.GLint )
+  var outframe_texture = textureRectangle( vec2i(4, joints.len.int32), GL_RGBA32F )
   
   echo "=========================================================================="
   

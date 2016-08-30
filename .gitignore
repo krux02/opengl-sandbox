@@ -12,3 +12,4 @@ neuralnetwork
 mesh_loading_tiny
 macroutils
 *.ndb
+*.log

@@ -312,7 +312,7 @@ proc render() =
       0,0, 1280, 960,
       0,0, 1280, 960,
       GL_DEPTH_BUFFER_BIT,
-      GL_NEAREST
+      GL_NEAREST.GLenum
     )
 
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0)

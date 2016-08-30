@@ -1,7 +1,7 @@
 # returns a string, and true if it is a sample type
 
 
-proc glslUniformType(value : NimNode): (string, bool) =
+proc glslUniformType(value : NimNode): tuple[name: string, isSampler: bool] =
   let tpe = value.getTypeInst
   if tpe.kind == nnkBracketExpr:
     case $tpe[0]
@@ -31,6 +31,8 @@ proc glslUniformType(value : NimNode): (string, bool) =
       ("sampler2DRect", true)
     of "float32", "float64", "float":
       ("float", false)
+    of "int16", "int32", "int64", "int":
+      ("int", false)
     of "Mat4d", "Mat4f":
       ("mat4", false)
     of "Mat3d", "Mat3f":

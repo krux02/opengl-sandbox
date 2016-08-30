@@ -415,10 +415,23 @@ proc shaderInfoLog(shader: GLuint): string =
 
 proc showError(log: string, source: string): void =
   let lines = source.splitLines
-  for match in log.findIter(re"(\d+)\((\d+)\).*"):
-    let line_nr = match.captures[1].parseInt;
-    echo lines[line_nr - 1]
-    echo match.match
+  var problems = newSeq[tuple[lineNr: int, column: int, message: string]](0)
+  for match in log.findIter(re"(\d+)\((\d+)\): ([^:]*): (.*)"):
+    let lineNr = match.captures[0].parseInt
+    let column = match.captures[1].parseInt
+    let kind: string = match.captures[2]
+    let message: string = match.captures[3]
+    problems.add( (lineNr, column, message) )
+  stdout.styledWriteLine(fgGreen, "==== start Shader Problems =======================================")
+  for i, line in lines:
+    let lineNr = i + 1
+    stdout.styledWriteLine(fgYellow, intToStr(lineNr, 4), " ", resetStyle, line)
+    for problem in problems:
+      if problem.lineNr == lineNr:
+        stdout.styledWriteLine("     ", fgRed, problem.message)
+  stdout.styledWriteLine(fgGreen, "------------------------------------------------------------------")
+  stdout.styledWriteLine(fgRed, log)
+  stdout.styledWriteLine(fgGreen, "==== end Shader Problems =========================================")
 
 proc programInfoLog(program: GLuint): string =
   var length: GLint = 0
@@ -432,11 +445,7 @@ proc compileShader(shaderType: GLenum, source: string): GLuint =
   glCompileShader(result)
 
   if not result.compileStatus:
-    echo "==== start Shader Problems ======================================="
-    echo source
-    echo "------------------------------------------------------------------"
     showError(result.shaderInfoLog, source)
-    echo "==== end Shader Problems ========================================="
 
 proc linkShader(shaders: varargs[GLuint]): GLuint =
   result = glCreateProgram()

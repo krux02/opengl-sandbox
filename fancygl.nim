@@ -2,7 +2,7 @@
 ############################### fancy gl ###############################
 ########################################################################
 
-import opengl, glm, math, random, strutils, nre, macros, macroutils, sdl2, sdl2/image, os
+import opengl, glm, math, random, strutils, nre, macros, macroutils, sdl2, sdl2/image, os, terminal
 include etc, glm_additions, shapes, samplers, framebuffer, glwrapper, heightmap, iqm, typeinfo
 
 type ShaderParam* = tuple[name: string, gl_type: string]
@@ -38,9 +38,6 @@ proc screenshot*(window : sdl2.WindowPtr; basename : string) : bool {.discardabl
     return false
 
   true
-
-
-
 
 const
   sourceHeader = """
@@ -96,7 +93,6 @@ proc genShaderSource(
   result.add("void main() {\n")
   result.add(mainSrc)
   result.add("\n}\n")
-
 
 proc forwardVertexShaderSource(sourceHeader: string,
     attribNames, attribTypes : openArray[string] ): string =
@@ -217,6 +213,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
   var vertexOutSection = newSeq[string](0)
   var geometryOutSection = newSeq[string](0)
   var fragmentOutSection = newSeq[string](0)
+
   for i,fragout in fragmentOutputs:
     fragmentOutSection.add format("layout(location = $1) out vec4 $2", $i, fragout)
   var includesSection : seq[string] = @[]
@@ -254,6 +251,11 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 
 
         let (glslType, isSample) = value.glslUniformType
+
+        if value.kind in {nnkIntLit, nnkFloatLit}:
+          uniformsSection.add "const " & glslType & " " & name & " = " & value.repr
+          continue
+
         let baseString = "uniform " & glslType & " " & name
 
         initUniformsBlock.add( newAssignment(
