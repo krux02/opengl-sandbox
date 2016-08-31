@@ -128,6 +128,11 @@ float sig(float x) {
   //return 1.0/(1.0+exp(-x));
   return tanh(x);
 }
+vec4 sig(vec4 x) {
+  //return x / (1.0 + abs(x));
+  //return 1.0/(1.0+exp(-x));
+  return tanh(x);
+}
 
 const int layerSize = 16;
 const int numHiddenLayers = 8;
@@ -147,6 +152,7 @@ proc render() =
 
   proc linClamp(x:float32, max:float32 = 1.0, moritz:float32 = 1.0):float32 =
     return max * tanh(x/moritz)
+    # return max * 1/(1 + abs(x/moritz))
 
   proc weightDiff(weight:float32, noise:float32):float32 =
     # return weight + (weight * noise) + (weight * noise * noise)
@@ -162,7 +168,7 @@ proc render() =
     weights_d3[i] = generateGaussianNoise(0, stdDev)
     weights_d2[i] = linClamp(weights_d2[i] + weights_d3[i], 0.01, 0.01)
     weights_d1[i] = linClamp(weights_d1[i] + weights_d2[i], 0.1, 0.1)
-    weights_d0[i] = linClamp(weights_d0[i] + weights_d1[i], 4, 4)
+    weights_d0[i] = linClamp(weights_d0[i] + weights_d1[i], 4, 4 )
   for i in 0 .. high(lastWeights_d0):
     lastWeights_d3[i] = generateGaussianNoise(0, stdDev)
     lastWeights_d2[i] = linClamp(lastWeights_d2[i] + lastWeights_d3[i], 0.01, 0.01)
@@ -174,9 +180,9 @@ proc render() =
   # echo weights_d1[0];
   # echo weights_d0[0];
 
-  let weightsTexture = weights_d0.texture1D
-  let firstWeightsTexture = firstWeights_d0.texture1D
-  let lastWeightsTexture = lastWeights_d0.texture1D
+  let weightsTexture = weights_d0.texture1DVec4
+  let firstWeightsTexture = firstWeights_d0.texture1DVec4
+  let lastWeightsTexture = lastWeights_d0.texture1DVec4
 
   shadingDsl(GL_TRIANGLES):
     numVertices = 3
@@ -193,34 +199,48 @@ proc render() =
 
     fragmentMain:
       """
+      const int layerVec4Count = layerSize/4;
 
-      float inArray[layerSize];
-      float outArray[layerSize];
+      vec4 inArray[layerVec4Count];
+      vec4 outArray[layerVec4Count];
 
-      inArray[0] = texCoord.x - 0.5;
-      inArray[1] = texCoord.y - 0.5;
-      //inArray[2] = 1.0;
-      inArray[2] = 1.0;//(mouse.x / viewport.z) * -2.0 + 1.0;
-      inArray[3] = 1.0;//(mouse.y / viewport.w) * -2.0 + 1.0;
+      inArray[0] = vec4(
+        texCoord.x - 0.5,
+        texCoord.y - 0.5,
+        1.0,
+        1.0);
+        //(mouse.x / viewport.z) * -2.0 + 1.0,
+        //(mouse.y / viewport.w) * -2.0 + 1.0);
 
-      for(int outIdx = 0; outIdx < layerSize; ++outIdx) {
-        float sum = 0;
-        for(int inIdx = 0; inIdx < 4; ++inIdx) {
-          sum += texelFetch(firstWeights, (outIdx*4)+inIdx,0).r * inArray[inIdx];
-        }
-        outArray[outIdx] = sig(sum);
+      for(int outIdx = 0; outIdx < layerVec4Count; ++outIdx) {
+        outArray[outIdx] = sig(vec4(
+          dot(texelFetch(firstWeights, (outIdx*layerVec4Count) + 0,0), inArray[0]),
+          dot(texelFetch(firstWeights, (outIdx*layerVec4Count) + 1,0), inArray[0]),
+          dot(texelFetch(firstWeights, (outIdx*layerVec4Count) + 2,0), inArray[0]),
+          dot(texelFetch(firstWeights, (outIdx*layerVec4Count) + 3,0), inArray[0])
+        ));
       }
 
 
       for(int layer = 0; layer < numHiddenLayers - 1; layer++) {
-        for(int i = 0; i < layerSize; i++) {
+        for(int i = 0; i < layerVec4Count; i++) {
           inArray[i] = outArray[i];
         }
 
-        for(int outIdx = 0; outIdx < layerSize; ++outIdx) {
-          float sum = 0;
-          for(int inIdx = 0; inIdx < layerSize; ++inIdx) {
-            sum += texelFetch(weights, (layer*layerSize*layerSize)+(outIdx*layerSize)+inIdx,0).r * inArray[inIdx];
+        for(int outIdx = 0; outIdx < layerVec4Count; ++outIdx) {
+          vec4 sum = vec4(0);
+          for(int inIdx = 0; inIdx < layerVec4Count; ++inIdx) {
+            vec4 w0 = texelFetch(weights, layer*layerSize*layerVec4Count + (outIdx*4*layerVec4Count) + inIdx*4+0, 0);
+            vec4 w1 = texelFetch(weights, layer*layerSize*layerVec4Count + (outIdx*4*layerVec4Count) + inIdx*4+1, 0);
+            vec4 w2 = texelFetch(weights, layer*layerSize*layerVec4Count + (outIdx*4*layerVec4Count) + inIdx*4+2, 0);
+            vec4 w3 = texelFetch(weights, layer*layerSize*layerVec4Count + (outIdx*4*layerVec4Count) + inIdx*4+3, 0);
+
+            sum += vec4(
+              dot(inArray[inIdx], w0),
+              dot(inArray[inIdx], w1),
+              dot(inArray[inIdx], w2),
+              dot(inArray[inIdx], w3)
+            );
           }
           outArray[outIdx] = sig(sum);
         }
@@ -228,8 +248,8 @@ proc render() =
 
       for(int outIdx = 0; outIdx < 3; ++outIdx) {
         float sum = 0;
-        for(int inIdx = 0; inIdx < layerSize; ++inIdx) {
-          sum += texelFetch(lastWeights, (outIdx*layerSize)+inIdx,0).r * outArray[inIdx];
+        for(int inIdx = 0; inIdx < layerVec4Count; ++inIdx) {
+          sum += dot(outArray[inIdx], texelFetch(lastWeights, (outIdx*layerVec4Count)+inIdx,0));
         }
         color[outIdx] = sig(sum) * 0.5 + 0.5;
       }
