@@ -246,13 +246,16 @@ proc render() =
         }
       }
 
-      for(int outIdx = 0; outIdx < 3; ++outIdx) {
-        float sum = 0;
+        vec4 sum = vec4(0);
         for(int inIdx = 0; inIdx < layerVec4Count; ++inIdx) {
-          sum += dot(outArray[inIdx], texelFetch(lastWeights, (outIdx*layerVec4Count)+inIdx,0));
+          sum += vec4(
+            dot(outArray[inIdx], texelFetch(lastWeights, (0*layerVec4Count)+inIdx,0)),
+            dot(outArray[inIdx], texelFetch(lastWeights, (1*layerVec4Count)+inIdx,0)),
+            dot(outArray[inIdx], texelFetch(lastWeights, (2*layerVec4Count)+inIdx,0)),
+            0.0
+          );
         }
-        color[outIdx] = sig(sum) * 0.5 + 0.5;
-      }
+        color = sig(sum) * vec4(0.5) + vec4(0.5);
 
       """
 
