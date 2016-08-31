@@ -147,6 +147,14 @@ proc texture1D*(data: seq[float32]): Texture1D =
     glTextureStorage1D(result.GLuint, 1, GL_R32F, data.len.GLsizei)
     glTextureSubImage1D(result.GLuint, 0, 0, data.len.GLsizei, GL_RED, cGL_FLOAT, data[0].unsafeAddr)
 
+proc texture1DVec4*(data: seq[float32]): Texture1D =
+  when false:
+    discard
+  else:
+    glCreateTextures(GL_TEXTURE_1D, 1, cast[ptr GLuint](result.addr))
+    glTextureStorage1D(result.GLuint, 1, GL_RGBA32F, data.len.GLsizei div 4)
+    glTextureSubImage1D(result.GLuint, 0, 0, data.len.GLsizei div 4, GL_RGBA, cGL_FLOAT, data[0].unsafeAddr)
+
 proc textureRectangle*(size: Vec2i; internalFormat : GLint = GL_RGBA.GLint): TextureRectangle =
   when false:
     glGenTextures(1, cast[ptr GLuint](result.addr))
