@@ -6,9 +6,20 @@ macro nilName(name:expr) : expr =
   name.expectKind(nnkIdent)
   !!("nil_" & $name)
 
+macro createTextureMacro(name, target: expr): expr =
+  let procName = newIdentNode("create" & $name.ident)
+  result = quote do:
+    proc `procName`*() : `name` =
+      var id : GLuint
+      glCreateTextures(`target`, 1, cast[ptr GLuint](id.addr))
+      `name`(id)
+  echo result.repr
+  
 template textureTypeTemplate(name, nilName, target:expr, shadername:string): stmt =
   type name* = distinct GLuint
   #const nilName* = name(0)
+
+  createTextureMacro(name, target)
 
   proc bindIt*(texture: name) =
     glBindTexture(target, texture.GLuint)
@@ -139,24 +150,26 @@ proc textureRectangle*(surface: sdl2.SurfacePtr): TextureRectangle =
     glTextureSubImage2D(result.GLuint, 0, 0, 0, surface2.w, surface2.h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
 
 
-proc texture1D*(data: seq[float32]): Texture1D =
+proc texture1D*(size: int, internalFormat: GLenum = GL_RGBA8): Texture1D =
   when false:
     discard
   else:
     glCreateTextures(GL_TEXTURE_1D, 1, cast[ptr GLuint](result.addr))
-    glTextureStorage1D(result.GLuint, 1, GL_R32F, data.len.GLsizei)
-    glTextureSubImage1D(result.GLuint, 0, 0, data.len.GLsizei, GL_RED, cGL_FLOAT, data[0].unsafeAddr)
+    glTextureStorage1D(result.GLuint, 1, internalFormat, size.GLsizei)
 
-
-proc texture1DVec4*(data: seq[float32]): Texture1D =
+proc setDataRGBA*( texture: Texture1D, data: seq[float32]) =
   when false:
     discard
   else:
-    glCreateTextures(GL_TEXTURE_1D, 1, cast[ptr GLuint](result.addr))
-    glTextureStorage1D(result.GLuint, 1, GL_RGBA32F, data.len.GLsizei div 4)
-    glTextureSubImage1D(result.GLuint, 0, 0, data.len.GLsizei div 4, GL_RGBA, cGL_FLOAT, data[0].unsafeAddr)
+    glTextureSubImage1D(texture.GLuint, 0, 0, data.len.GLsizei div 4, GL_RGBA, cGL_FLOAT, data[0].unsafeAddr)
 
-proc textureRectangle*(size: Vec2i; internalFormat : GLenum = GL_RGBA): TextureRectangle =
+proc setData*( texture: Texture1D, data: seq[float32]) =
+  when false:
+    discard
+  else:
+    glTextureSubImage1D(texture.GLuint, 0, 0, data.len.GLsizei, GL_RED, cGL_FLOAT, data[0].unsafeAddr)
+    
+proc textureRectangle*(size: Vec2i; internalFormat : GLenum = GL_RGBA8): TextureRectangle =
   when false:
     glGenTextures(1, cast[ptr GLuint](result.addr))
     glTextureImage2DEXT(result.GLuint, GL_TEXTURE_RECTANGLE, 0, internalFormat, size.x, size.y, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, nil)

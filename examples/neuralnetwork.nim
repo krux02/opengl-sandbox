@@ -6,8 +6,8 @@ import sdl2, opengl, math, random, glm, sequtils, ../fancygl, fenv
 
 discard sdl2.init(INIT_EVERYTHING)
 
-var windowsize = vec2f(800,800)
-var viewport = vec4f(0,0,800,800)
+var windowsize = vec2f(320,240)
+var viewport = vec4f(0,0,windowsize)
 
 doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3)
 doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3)
@@ -30,12 +30,6 @@ loadExtensions()
 enableDefaultDebugCallback()
 
 doAssert 0 == glMakeCurrent(window, context)
-
-let
-  vertex = boxVertices.arrayBuffer
-  normal = boxNormals.arrayBuffer
-  color = boxColors.arrayBuffer
-  texcoord = boxTexCoords.arrayBuffer
 
 proc generateGaussianNoise(mu, sigma: float64): float64 =
   let epsilon = fenv.epsilon(float64)
@@ -62,8 +56,6 @@ proc generateGaussianNoise(mu, sigma: float64): float64 =
 
   return z0 * sigma + mu
 
-let indices = toSeq( countup[int8,int8](0, int8(vertex.len-1)) ).elementArrayBuffer
-
 if 0 != glSetSwapInterval(-1):
   stdout.write "glSetSwapInterval -1 (late swap tearing) not supported: "
   echo sdl2.getError()
@@ -82,8 +74,6 @@ glDepthFunc(GL_LEQUAL)                            # Set the type of depth-test
 
 glEnable(GL_CULL_FACE)
 glCullFace(GL_BACK)
-
-var projection_mat : Mat4x4[float]
 
 var
   mouseX, mouseY: int32
@@ -121,7 +111,6 @@ for w in weights:
   echo "."
 ]#
 
-
 const glslCode = """
 float sig(float x) {
   //return x / (1.0 + abs(x));
@@ -137,6 +126,10 @@ vec4 sig(vec4 x) {
 const int layerSize = 16;
 const int numHiddenLayers = 8;
 """
+
+let weightsTexture      = texture1D(weights_d0.len div 4, GL_RGBA32F)
+let firstWeightsTexture = texture1D(firstWeights_d0.len div 4, GL_RGBA32F)
+let lastWeightsTexture  = texture1D(lastWeights_d0.len div 4, GL_RGBA32F)
 
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
@@ -180,9 +173,9 @@ proc render() =
   # echo weights_d1[0];
   # echo weights_d0[0];
 
-  let weightsTexture = weights_d0.texture1DVec4
-  let firstWeightsTexture = firstWeights_d0.texture1DVec4
-  let lastWeightsTexture = lastWeights_d0.texture1DVec4
+  weightsTexture.setDataRGBA(weights_d0)
+  firstWeightsTexture.setDataRGBA(firstWeights_d0)
+  lastWeightsTexture.setDataRGBA(lastWeights_d0)
 
   shadingDsl(GL_TRIANGLES):
     numVertices = 3
