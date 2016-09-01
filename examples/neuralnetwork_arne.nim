@@ -106,9 +106,12 @@ var lastWeights = newSeq[float32](3 * layerSize)
 for i in 0 .. high(lastWeights):
   lastWeights[i] = generateGaussianNoise(0,1.0)
 
-let weightsTexture = weights.texture1D
-let firstWeightsTexture = firstWeights.texture1D
-let lastWeightsTexture = lastWeights.texture1D
+let weightsTexture = texture1D(weights.len, GL_R32F)
+weightsTexture.setData(weights)
+let firstWeightsTexture = texture1D(firstWeights.len, GL_R32F)
+firstWeightsTexture.setData(firstWeights)
+let lastWeightsTexture = texture1D(lastWeights.len, GL_R32F)
+lastWeightsTexture.setData(lastWeights)
 
 const glslCode = """
 float sig(float x) {
