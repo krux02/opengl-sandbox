@@ -82,34 +82,27 @@ var
 
 const
   layerSize = 16
-  numHiddenLayer = 8
-
-# for i in 0 .. high(weights):
-#   weights[i] = generateGaussianNoise(0,1.0) #random(2.0).float32 - 1
-# for i in 0 .. high(firstWeights):
-#   firstWeights[i] = generateGaussianNoise(0,1.0)
-# for i in 0 .. high(lastWeights):
-#   lastWeights[i] = generateGaussianNoise(0,1.0)
+  numHiddenLayers = 8
 
 var firstWeights_d0 = newSeq[float32](4 * layerSize)
 var firstWeights_d1 = newSeq[float32](4 * layerSize)
 var firstWeights_d2 = newSeq[float32](4 * layerSize)
 var firstWeights_d3 = newSeq[float32](4 * layerSize)
-var weights_d0      = newSeq[float32](layerSize * layerSize * numHiddenLayer)
-var weights_d1      = newSeq[float32](layerSize * layerSize * numHiddenLayer)
-var weights_d2      = newSeq[float32](layerSize * layerSize * numHiddenLayer)
-var weights_d3      = newSeq[float32](layerSize * layerSize * numHiddenLayer)
+var weights_d0      = newSeq[float32](layerSize * layerSize * numHiddenLayers)
+var weights_d1      = newSeq[float32](layerSize * layerSize * numHiddenLayers)
+var weights_d2      = newSeq[float32](layerSize * layerSize * numHiddenLayers)
+var weights_d3      = newSeq[float32](layerSize * layerSize * numHiddenLayers)
 var lastWeights_d0  = newSeq[float32](3 * layerSize)
 var lastWeights_d1  = newSeq[float32](3 * layerSize)
 var lastWeights_d2  = newSeq[float32](3 * layerSize)
 var lastWeights_d3  = newSeq[float32](3 * layerSize)
 
-#[
-for w in weights:
-  for i in 0 .. int(floor(w * 80 + 40)):
-    stdout.write " "
-  echo "."
-]#
+for i in 0 .. high(weights_d0):
+  weights_d0[i] = 0.0
+for i in 0 .. high(firstWeights_d0):
+  firstWeights_d0[i] = 0.0
+for i in 0 .. high(lastWeights_d0):
+  lastWeights_d0[i] = 0.0
 
 const glslCode = """
 float sig(float x) {
@@ -122,9 +115,6 @@ vec4 sig(vec4 x) {
   //return 1.0/(1.0+exp(-x));
   return tanh(x);
 }
-
-const int layerSize = 16;
-const int numHiddenLayers = 8;
 """
 
 let weightsTexture      = texture1D(weights_d0.len div 4, GL_RGBA32F)
@@ -145,29 +135,25 @@ proc render() =
 
   proc linClamp(x:float32, max:float32 = 1.0, moritz:float32 = 1.0):float32 =
     return max * tanh(x/moritz)
-    # return max * 1/(1 + abs(x/moritz))
-
-  proc weightDiff(weight:float32, noise:float32):float32 =
-    # return weight + (weight * noise) + (weight * noise * noise)
-    return weight + noise
 
   let stdDev:float32 = 0.0001
   for i in 0 .. high(firstWeights_d0):
     firstWeights_d3[i] = generateGaussianNoise(0, stdDev)
-    firstWeights_d2[i] = linClamp(firstWeights_d2[i] + firstWeights_d3[i], 0.01, 0.01)
-    firstWeights_d1[i] = linClamp(firstWeights_d1[i] + firstWeights_d2[i], 0.1, 0.1)
-    firstWeights_d0[i] = linClamp(firstWeights_d0[i] + firstWeights_d1[i], 3, 3)
+    firstWeights_d2[i] = linClamp(firstWeights_d2[i] + firstWeights_d3[i], 0.01, 0.01) # acceleration
+    firstWeights_d1[i] = linClamp(firstWeights_d1[i] + firstWeights_d2[i], 0.1, 0.1) # velocity
+    firstWeights_d0[i] = linClamp(firstWeights_d0[i] + firstWeights_d1[i], 2, 2) # position
   for i in 0 .. high(weights_d0):
     weights_d3[i] = generateGaussianNoise(0, stdDev)
-    weights_d2[i] = linClamp(weights_d2[i] + weights_d3[i], 0.01, 0.01)
-    weights_d1[i] = linClamp(weights_d1[i] + weights_d2[i], 0.1, 0.1)
-    weights_d0[i] = linClamp(weights_d0[i] + weights_d1[i], 4, 4 )
+    weights_d2[i] = linClamp(weights_d2[i] + weights_d3[i], 0.01, 0.01) # acceleration
+    weights_d1[i] = linClamp(weights_d1[i] + weights_d2[i], 0.1, 0.1) # velocity
+    weights_d0[i] = linClamp(weights_d0[i] + weights_d1[i], 2, 2) # position
   for i in 0 .. high(lastWeights_d0):
     lastWeights_d3[i] = generateGaussianNoise(0, stdDev)
-    lastWeights_d2[i] = linClamp(lastWeights_d2[i] + lastWeights_d3[i], 0.01, 0.01)
-    lastWeights_d1[i] = linClamp(lastWeights_d1[i] + lastWeights_d2[i], 0.1, 0.1)
-    lastWeights_d0[i] = linClamp(lastWeights_d0[i] + lastWeights_d1[i], 0.5, 0.5)
+    lastWeights_d2[i] = linClamp(lastWeights_d2[i] + lastWeights_d3[i], 0.01, 0.01) # acceleration
+    lastWeights_d1[i] = linClamp(lastWeights_d1[i] + lastWeights_d2[i], 0.1, 0.1) # velocity
+    lastWeights_d0[i] = linClamp(lastWeights_d0[i] + lastWeights_d1[i], 0.4, 0.4) # position
 
+  # echo "--"
   # echo weights_d3[0];
   # echo weights_d2[0];
   # echo weights_d1[0];
@@ -189,6 +175,8 @@ proc render() =
       mouse
       time
       viewport
+      numHiddenLayers
+      layerSize
 
     fragmentMain:
       """
@@ -198,8 +186,8 @@ proc render() =
       vec4 outArray[layerVec4Count];
 
       inArray[0] = vec4(
-        texCoord.x - 0.5,
-        texCoord.y - 0.5,
+        (texCoord.x - 0.5)*4,
+        (texCoord.y - 0.5)*4,
         1.0,
         1.0);
         //(mouse.x / viewport.z) * -2.0 + 1.0,
