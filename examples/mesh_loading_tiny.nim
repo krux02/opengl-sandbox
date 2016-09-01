@@ -12,7 +12,7 @@ proc main() =
   doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_FLAGS        , SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG or SDL_GL_CONTEXT_DEBUG_FLAG)
   doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_PROFILE_MASK , SDL_GL_CONTEXT_PROFILE_CORE)
 
-  let window = createWindow("SDL/OpenGL Skeleton", 100, 100, WindowSize.x, WindowSize.y, SDL_WINDOW_OPENGL) # SDL_WINDOW_MOUSE_CAPTURE
+  let window = createWindow("mesh loading", 100, 100, WindowSize.x, WindowSize.y, SDL_WINDOW_OPENGL) # SDL_WINDOW_MOUSE_CAPTURE
   # let context = window.glCreateContext()
   discard window.glCreateContext()
   # Initialize OpenGL
