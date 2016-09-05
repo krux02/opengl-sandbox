@@ -153,12 +153,12 @@ proc render() =
     weights_d3[i] = generateGaussianNoise(0, stdDev)
     weights_d2[i] = linClamp(weights_d2[i] + weights_d3[i], 0.01, 0.01) # acceleration
     weights_d1[i] = linClamp(weights_d1[i] + weights_d2[i], 0.1, 0.1) # velocity
-    weights_d0[i] = linClamp(weights_d0[i] + weights_d1[i], 2, 2) # position
+    weights_d0[i] = linClamp(weights_d0[i] + weights_d1[i], 3, 3) # position
   for i in 0 .. high(lastWeights_d0):
     lastWeights_d3[i] = generateGaussianNoise(0, stdDev)
     lastWeights_d2[i] = linClamp(lastWeights_d2[i] + lastWeights_d3[i], 0.01, 0.01) # acceleration
     lastWeights_d1[i] = linClamp(lastWeights_d1[i] + lastWeights_d2[i], 0.1, 0.1) # velocity
-    lastWeights_d0[i] = linClamp(lastWeights_d0[i] + lastWeights_d1[i], 0.4, 0.4) # position
+    lastWeights_d0[i] = linClamp(lastWeights_d0[i] + lastWeights_d1[i], 0.5, 0.5) # position
 
   # echo "--"
   # echo weights_d3[0];
