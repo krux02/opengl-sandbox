@@ -170,7 +170,7 @@ proc render() =
   firstWeightsTexture.setDataRGBA(firstWeights_d0)
   lastWeightsTexture.setDataRGBA(lastWeights_d0)
 
-  frambuffer0.bindFramebuffer:
+  #frambuffer0.bindFramebuffer:
 
   shadingDsl(GL_TRIANGLES):
     numVertices = 3
