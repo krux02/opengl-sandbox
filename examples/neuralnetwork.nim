@@ -8,6 +8,7 @@ discard sdl2.init(INIT_EVERYTHING)
 
 var windowsize = vec2f(320,240)
 var viewport = vec4f(0,0,windowsize)
+let renderTargetSize = vec2f(320,240)
 
 doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3)
 doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3)
@@ -31,6 +32,12 @@ enableDefaultDebugCallback()
 
 doAssert 0 == glMakeCurrent(window, context)
 
+declareFramebuffer(RenderTarget):
+  depth  = createEmptyDepthTexture2D(renderTargetSize)
+  color  = createEmptyTexture2D(renderTargetSize, GL_RGBA8)
+
+let frambuffer0 = createRenderTarget()
+  
 proc generateGaussianNoise(mu, sigma: float64): float64 =
   let epsilon = fenv.epsilon(float64)
   let two_pi = 2.0 * PI
@@ -162,6 +169,8 @@ proc render() =
   weightsTexture.setDataRGBA(weights_d0)
   firstWeightsTexture.setDataRGBA(firstWeights_d0)
   lastWeightsTexture.setDataRGBA(lastWeights_d0)
+
+  frambuffer0.bindFramebuffer:
 
   shadingDsl(GL_TRIANGLES):
     numVertices = 3
