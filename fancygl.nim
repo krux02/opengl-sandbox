@@ -135,8 +135,9 @@ proc myEnableVertexAttribArray(vao: VertexArrayObject, index: GLint, divisorval:
     vao.enableAttrib(index.GLuint)
     vao.divisor(index.GLuint, divisorval)
 
-template renderBlockTemplate(numLocations: int, globalsBlock, linkShaderBlock, bufferCreationBlock,
-               initUniformsBlock, setUniformsBlock, drawCommand: expr): stmt {. dirty .} =
+template renderBlockTemplate(numLocations: int; globalsBlock, linkShaderBlock,
+                             bufferCreationBlock, initUniformsBlock, setUniformsBlock,
+                             drawCommand: untyped): untyped {. dirty .} =
   block:
     var vao {.global.}: VertexArrayObject
     var glProgram {.global.}: GLuint  = 0
@@ -199,7 +200,7 @@ proc vertexOffset(offset: GLsizei) : int = 0
 #### Shading Dsl Inner ###########################################################
 ##################################################################################
 
-macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], statement: varargs[int] ) : stmt =
+macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], statement: varargs[int] ) : untyped =
   var numSamplers = 0
   var numLocations = 0
   var uniformsSection = newSeq[string](0)
@@ -322,7 +323,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
             error("unknown type kind: " & $value.getTypeImpl[1].typeKind)
 
 
-        template foobarTemplate( lhs, rhs, bufferType : expr ) : stmt {.dirty.} =
+        template foobarTemplate( lhs, rhs, bufferType : untyped ) : untyped {.dirty.} =
           var lhs {.global.}: bufferType[rhs[0].type]
 
         let isSeq:bool = $value.getTypeInst[0] == "seq"
@@ -507,7 +508,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 #### Shading Dsl Outer ###########################################################
 ##################################################################################
 
-macro shadingDsl*(mode:GLenum, statement: stmt) : stmt {.immediate.} =
+macro shadingDsl*(mode:GLenum, statement: untyped) : untyped {.immediate.} =
 
   result = newCall(bindSym"shadingDslInner", mode, !! "fragmentOutputs" )
   # numVertices = result[2]

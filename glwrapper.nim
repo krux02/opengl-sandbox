@@ -61,7 +61,7 @@ proc enableAttrib(vao: VertexArrayObject, index: GLuint) : void =
 
 #proc divisor(vao: VertexArrayObject, index: GLuint) : GLuint =
 
-template blockBind*(vao: VertexArrayObject, blk: stmt) : stmt =
+template blockBind*(vao: VertexArrayObject, blk: untyped) : untyped =
   vao.bindIt
   blk
   nil_vao.bindIt
@@ -148,7 +148,7 @@ proc bufferKind*[T](buffer: UniformBuffer[T]) : GLenum {. inline .} =
 proc bindIt*[T](buffer: AnyBuffer[T]) =
   glBindBuffer(buffer.bufferKind, buffer.handle)
 
-template bindBlock[T](buffer : AnyBuffer[T], blk:untyped) =
+template bindBlock*[T](buffer : AnyBuffer[T], blk:untyped) =
   let buf = buffer
   var outer : GLint
   glGetIntegerv(buf.bindingKind, outer.addr)
@@ -339,21 +339,21 @@ proc mapReadWrite*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): DataView[
     result.data = cast[ptr UncheckedArray[T]](glMapNamedBuffer(buffer.handle, GL_READ_WRITE))
   result.size = buffer.size div sizeof(T)
 
-template mapReadBufferBlock*(buffer, blck: untyped) : stmt =
+template mapReadBufferBlock*(buffer, blck: untyped) : untyped =
   block:
     let mappedBuffer {. inject .} = buffer.mapRead
     defer:
       discard buffer.unmap
     blck
 
-template mapWriteBufferBlock*(buffer: untyped, blck: untyped) : stmt =
+template mapWriteBufferBlock*(buffer: untyped, blck: untyped) : untyped =
   block:
     let mappedBuffer {. inject .} = buffer.mapWrite
     defer:
       discard buffer.unmap
     blck
 
-template mapReadWriteBufferBlock*(buffer: untyped, blck: untyped) : stmt =
+template mapReadWriteBufferBlock*(buffer: untyped, blck: untyped) : untyped =
   block:
     let mappedBuffer {. inject .} = buffer.mapReadWrite
     defer:
