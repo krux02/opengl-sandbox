@@ -128,6 +128,8 @@ let weightsTexture      = texture1D(weights_d0.len div 4, GL_RGBA32F)
 let firstWeightsTexture = texture1D(firstWeights_d0.len div 4, GL_RGBA32F)
 let lastWeightsTexture  = texture1D(lastWeights_d0.len div 4, GL_RGBA32F)
 
+var pos = 0;
+
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
 
@@ -140,8 +142,19 @@ proc render() =
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-  proc linClamp(x:float32, max:float32 = 1.0, moritz:float32 = 1.0):float32 =
+  proc linClamp(x, max = 1.0, moritz:float32 = 1.0):float32 =
     return max * tanh(x/moritz)
+
+  # for _ in 0 ..< 10:
+  #   if pos < (len(weights_d0) + len(firstWeights_d0) + len(lastWeights_d0)):
+  #     if pos < firstWeights_d0.len:
+  #       firstWeights_d0[pos] = generateGaussianNoise(0, 1.0)
+  #     elif pos < firstWeights_d0.len + weights_d0.len:
+  #       weights_d0[pos - firstWeights_d0.len] = generateGaussianNoise(0, 1.0)
+  #     else:
+  #       lastWeights_d0[pos - firstWeights_d0.len - weights_d0.len] = generateGaussianNoise(0, 0.1)
+
+  #   pos = pos + 1
 
   let stdDev:float32 = 0.0001
   for i in 0 .. high(firstWeights_d0):
