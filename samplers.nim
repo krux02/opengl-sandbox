@@ -2,20 +2,20 @@
 #### Sampler Types #############################################################
 ################################################################################
 
-macro nilName(name:expr) : expr =
-  name.expectKind(nnkIdent)
-  !!("nil_" & $name)
 
-macro createTextureMacro(name, target: expr): expr =
+#macro nilName(name:untyped) : untyped =
+#  name.expectKind(nnkIdent)
+#  !!("nil_" & $name)
+
+macro createTextureMacro(name, target: untyped): untyped =
   let procName = newIdentNode("create" & $name.ident)
   result = quote do:
     proc `procName`*() : `name` =
       var id : GLuint
       glCreateTextures(`target`, 1, cast[ptr GLuint](id.addr))
       `name`(id)
-  echo result.repr
   
-template textureTypeTemplate(name, nilName, target:expr, shadername:string): stmt =
+template textureTypeTemplate(name, nilName, target:untyped, shadername:string): untyped =
   type name* = distinct GLuint
   #const nilName* = name(0)
 
