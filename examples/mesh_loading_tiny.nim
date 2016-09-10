@@ -3,31 +3,11 @@ import memfiles, glm, ../fancygl, sdl2, sdl2/ttf , opengl, strutils, math, AntTw
 const WindowSize = vec2i(1024, 768)
 
 proc main() =
-  discard sdl2.init(INIT_EVERYTHING)
+  let (window, context) = defaultSetup(vec2f(WindowSize))
+  
   defer: sdl2.quit()
+  
   discard ttfinit()
-
-  doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3)
-  doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3)
-  doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_FLAGS        , SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG or SDL_GL_CONTEXT_DEBUG_FLAG)
-  doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_PROFILE_MASK , SDL_GL_CONTEXT_PROFILE_CORE)
-
-  let window = createWindow("mesh loading", 100, 100, WindowSize.x, WindowSize.y, SDL_WINDOW_OPENGL) # SDL_WINDOW_MOUSE_CAPTURE
-  # let context = window.glCreateContext()
-  discard window.glCreateContext()
-  # Initialize OpenGL
-  loadExtensions()
-  enableDefaultDebugCallback()
-
-  if 0 != glSetSwapInterval(-1):
-    stdout.write "glSetSwapInterval -1 (late swap tearing) not supported: "
-    echo sdl2.getError()
-    if 0 != glSetSwapInterval(1):
-      echo "setting glSetSwapInterval 1 (synchronized)"
-    else:
-      stdout.write "even 1 (synchronized) is not supported: "
-      echo sdl2.getError()
-
 
   if TwInit(TW_OPENGL_CORE, nil) == 0:
     echo "could not initialize AntTweakBar: ", TwGetLastError()

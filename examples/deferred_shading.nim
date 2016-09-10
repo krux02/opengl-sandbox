@@ -1,25 +1,12 @@
 import math, random, sequtils, strutils, sdl2, opengl, ../fancygl, glm
 
+var windowsize = vec2f(640,480)
+let (window, context) = defaultSetup(windowsize)
+
 var hm = createFlatMap(128,64)
 hm.DiamondSquare(64)
 
-discard sdl2.init(INIT_EVERYTHING)
-
-var windowsize = vec2f(640,480)
-var viewport = vec4f(0,0,640,480)
-
-doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3)
-doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3)
-doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_FLAGS        , SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG or SDL_GL_CONTEXT_DEBUG_FLAG)
-doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_PROFILE_MASK , SDL_GL_CONTEXT_PROFILE_CORE)
-
-let window = createWindow("deferred shading", 100, 100, windowsize.x.cint, windowsize.y.cint, SDL_WINDOW_OPENGL) # SDL_WINDOW_MOUSE_CAPTURE
-# let context = window.glCreateContext()
-discard window.glCreateContext()
-
-# Initialize OpenGL
-loadExtensions()
-enableDefaultDebugCallback()
+var viewport = vec4f(0,0,windowsize)
 
 let
   crateTexture = loadTexture2DFromFile("crate.png")
