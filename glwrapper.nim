@@ -1,5 +1,59 @@
 # included from fancygl.nim
 
+type
+  UncheckedArray {.unchecked.} [t] = array[0,t]
+
+  DataView*[T] = object
+    data: ptr UncheckedArray[T]
+    size: int
+
+  ReadView*[T] = object
+    data: ptr UncheckedArray[T]
+    size: int
+
+  WriteView*[T] = object
+    data: ptr UncheckedArray[T]
+    size: int
+
+proc isNil[T](view: DataView[T] | ReadView[T] | WriteView[T]): bool =
+  view.data.isNil
+  
+proc dataView*[T](data: pointer, size: int) : DataView[T] =
+  DataView[T](data: cast[ptr UncheckedArray[T]](data), size: size)
+
+proc len*(mb : ReadView | WriteView | DataView) : int =
+  mb.size
+
+proc `[]`*[T](mb : ReadView[T], index: int) : T =
+  mb.data[index]
+
+proc `[]=`*[T](mb : WriteView[T], index: int, val: T) : void =
+  mb.data[index] = val
+
+proc `[]`*[T](mb : DataView[T]; index: int) : var T =
+  mb.data[index]
+
+proc `[]=`*[T](mb : DataView[T], index: int, val: T) : void =
+  mb.data[index] = val
+
+iterator items*[T](dv: DataView[T]) : T =
+  let p = dv.data
+  var i = 0
+  while i < dv.size:
+    yield p[i]
+    inc(i)
+
+iterator pairs*[T](dv: DataView[T]): tuple[key: int, val: T] {.inline.} =
+  let p = dv.data
+  var i = 0
+  while i < dv.size:
+    yield (i, p[i])
+    inc(i)
+
+proc take*[T](dv: DataView[T], num: int) : DataView[T] =
+  result.data = dv.data
+  result.size = max(min(num, dv.size), 0)
+
 #### Uniform ####
 
 proc uniform(location: GLint, mat: Mat4d) =
@@ -37,7 +91,7 @@ type VertexArrayObject* = object
     handle: GLuint
 
 proc newVertexArrayObject*() : VertexArrayObject =
-  glGenVertexArrays(1, cast[ptr GLuint](result.addr))
+  glCreateVertexArrays(1, cast[ptr GLuint](result.addr))
 
 const nil_vao* = VertexArrayObject(handle: 0)
 
@@ -110,7 +164,7 @@ proc createElementArrayBuffer*[T](len: int, usage: GLenum): ElementArrayBuffer[T
     glNamedBufferDataEXT(result.handle, len * GLsizeiptr(sizeof(T)), nil, usage)
   else:
     glNamedBufferData(result.handle, len * GLsizeiptr(sizeof(T)), nil, usage)
-
+  
 proc createUniformBuffer*[T](usage: GLenum): UniformBuffer[T] =
   result.create
   when false:
@@ -163,6 +217,13 @@ proc bufferData*[T](buffer: SeqLikeBuffer[T], usage: GLenum, data: openarray[T])
     else:
       glNamedBufferData(buffer.handle, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
 
+proc bufferData*[T](buffer: SeqLikeBuffer[T], usage: GLenum, dataview: DataView[T]) =
+  if buffer.handle.int > 0:
+    when false:
+      glNamedBufferDataEXT( buffer.handle, GLsizeiptr(dataview.len * sizeof(T)), dataview.data, usage)
+    else:
+      glNamedBufferData( buffer.handle, GLsizeiptr(dataview.len * sizeof(T)), dataview.data, usage)
+      
 proc bufferData*[T](buffer: UniformBuffer[T], usage: GLenum, data: T) =
   if buffer.handle.int > 0:
     when false:
@@ -251,60 +312,6 @@ proc usage*[T](buffer: ArrayBuffer[T]) : GLenum =
     glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_USAGE, tmp.addr)
   return tmp.GLenum
 
-type
-  UncheckedArray {.unchecked.} [t] = array[0,t]
-
-  DataView*[T] = object
-    data: ptr UncheckedArray[T]
-    size: int
-
-  ReadView*[T] = object
-    data: ptr UncheckedArray[T]
-    size: int
-
-  WriteView*[T] = object
-    data: ptr UncheckedArray[T]
-    size: int
-
-proc isNil[T](view: DataView[T] | ReadView[T] | WriteView[T]): bool =
-  view.data.isNil
-  
-proc dataView*[T](data: pointer, size: int) : DataView[T] =
-  DataView[T](data: cast[ptr UncheckedArray[T]](data), size: size)
-
-proc len*(mb : ReadView | WriteView | DataView) : int =
-  mb.size
-
-proc `[]`*[T](mb : ReadView[T], index: int) : T =
-  mb.data[index]
-
-proc `[]=`*[T](mb : WriteView[T], index: int, val: T) : void =
-  mb.data[index] = val
-
-proc `[]`*[T](mb : DataView[T]; index: int) : var T =
-  mb.data[index]
-
-proc `[]=`*[T](mb : DataView[T], index: int, val: T) : void =
-  mb.data[index] = val
-
-iterator items*[T](dv: DataView[T]) : T =
-  let p = dv.data
-  var i = 0
-  while i < dv.size:
-    yield p[i]
-    inc(i)
-
-iterator pairs*[T](dv: DataView[T]): tuple[key: int, val: T] {.inline.} =
-  let p = dv.data
-  var i = 0
-  while i < dv.size:
-    yield (i, p[i])
-    inc(i)
-
-proc take*[T](dv: DataView[T], num: int) : DataView[T] =
-  result.data = dv.data
-  result.size = max(min(num, dv.size), 0)
-
 iterator items*[T](buffer: SeqLikeBuffer[T]) : T =
   let mappedBuffer = buffer.mapRead
   defer:
@@ -359,13 +366,6 @@ template mapReadWriteBufferBlock*(buffer: untyped, blck: untyped) : untyped =
     defer:
       discard buffer.unmap
     blck
-
-proc bufferData*[T](buffer: SeqLikeBuffer[T], usage: GLenum, dataview: DataView[T]) =
-  if buffer.handle.int > 0:
-    when false:
-      glNamedBufferDataEXT( buffer.handle, GLsizeiptr(dataview.len * sizeof(T)), dataview.data, usage)
-    else:
-      glNamedBufferData( buffer.handle, GLsizeiptr(dataview.len * sizeof(T)), dataview.data, usage)
 
 proc arrayBuffer*[T](data : openarray[T], usage: GLenum = GL_STATIC_DRAW): ArrayBuffer[T] =
   result.create

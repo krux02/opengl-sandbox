@@ -1,4 +1,5 @@
 type
+  Vec4u8 = Vec4[uint8]
   Vec4f* = Vec4[float32]
   Vec3f* = Vec3[float32]
   Vec2f* = Vec2[float32]

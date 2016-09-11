@@ -168,6 +168,13 @@ proc setData*( texture: Texture1D, data: seq[float32]) =
     discard
   else:
     glTextureSubImage1D(texture.GLuint, 0, 0, data.len.GLsizei, GL_RED, cGL_FLOAT, data[0].unsafeAddr)
+
+proc setData*( texture: Texture1D, data: seq[Vec4u8]) =
+  when false:
+    discard
+  else:
+    glTextureSubImage1D(texture.GLuint, 0, 0, data.len.GLsizei, GL_RGBA, GL_UNSIGNED_BYTE, data[0].unsafeAddr)
+
     
 proc textureRectangle*(size: Vec2i; internalFormat : GLenum = GL_RGBA8): TextureRectangle =
   when false:

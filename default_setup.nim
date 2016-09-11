@@ -34,3 +34,6 @@ proc defaultSetup*(windowsize: Vec2f): tuple[window: WindowPtr, context: GlConte
       echo sdl2.getError()
 
 
+  glEnable(GL_DEPTH_TEST)
+
+

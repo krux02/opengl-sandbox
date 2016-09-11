@@ -130,7 +130,7 @@ proc makeAndBindElementBuffer[T](buffer: var ElementArraybuffer[T]) =
   buffer.create
   buffer.bindIt
 
-proc myEnableVertexAttribArray(vao: VertexArrayObject, index: GLint, divisorval: GLuint): void =
+proc enableAndSetDivisor(vao: VertexArrayObject, index: GLint, divisorval: GLuint): void =
   if index >= 0:
     vao.enableAttrib(index.GLuint)
     vao.divisor(index.GLuint, divisorval)
@@ -320,7 +320,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
           of ntyInt64, ntyUInt64:
             error "64 bit indices not supported"
           else:
-            error("unknown type kind: " & $value.getTypeImpl[1].typeKind)
+            error("wrong kind for indices: " & $value.getTypeImpl[1].typeKind)
 
 
         template foobarTemplate( lhs, rhs, bufferType : untyped ) : untyped {.dirty.} =
@@ -343,7 +343,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
             newCall( bindSym"glGetAttribLocation", !! "glProgram", newLit(name) )
           ))
 
-          bufferCreationBlock.add(newCall(bindSym"myEnableVertexAttribArray", !!"vao", locations(numLocations), newLit(divisor)))
+          bufferCreationBlock.add(newCall(bindSym"enableAndSetDivisor", !!"vao", locations(numLocations), newLit(divisor)))
 
         if isSeq:
           if isAttrib:
@@ -502,22 +502,27 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
   result = getAst(renderBlockTemplate(numLocations, globalsBlock, linkShaderBlock,
          bufferCreationBlock, initUniformsBlock, setUniformsBlock, drawCommand))
 
-  # result = newCall( bindSym"debugResult", result )
-
 ##################################################################################
 #### Shading Dsl Outer ###########################################################
 ##################################################################################
 
 macro shadingDsl*(mode:GLenum, statement: untyped) : untyped {.immediate.} =
 
+  var wrapWithDebugResult = false
+  
   result = newCall(bindSym"shadingDslInner", mode, !! "fragmentOutputs" )
   # numVertices = result[2]
   # numInstances = result[3]
 
   for section in statement.items:
-    section.expectKind({nnkCall, nnkAsgn})
+    section.expectKind({nnkCall, nnkAsgn, nnkIdent})
 
-    if section.kind == nnkAsgn:
+    if section.kind == nnkIdent:
+      if section == ident("debugResult"):
+        wrapWithDebugResult = true
+      else:
+        error("unknown identifier: " & $section.ident)
+    elif section.kind == nnkAsgn:
       section.expectLen(2)
       let ident = section[0]
       ident.expectKind nnkIdent
@@ -637,3 +642,6 @@ macro shadingDsl*(mode:GLenum, statement: untyped) : untyped {.immediate.} =
         result.add(includesCall)
       else:
         error("unknown section " & $ident.ident)
+
+  if wrapWithDebugResult:      
+    result = newCall( bindSym"debugResult", result )
