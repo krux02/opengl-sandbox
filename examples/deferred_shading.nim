@@ -11,7 +11,6 @@ var viewport = vec4f(0,0,windowsize)
 let
   crateTexture = loadTexture2DFromFile("crate.png")
   starTexture = loadTexture2DFromFile("star_symmetric_gray.png")
-  cliffTexture = loadTexture2DFromFile("Cliffs.png")
 
   hmVertices = hm.vertices.arrayBuffer(GL_STATIC_DRAW)
   hmNormals = hm.normals.arrayBuffer(GL_STATIC_DRAW)
@@ -37,14 +36,6 @@ declareFramebuffer(FirstFramebuffer):
 
 let fb1 = createFirstFramebuffer()
 
-if 0 != glSetSwapInterval(-1):
-  stdout.write "glSetSwapInterval -1 (late swap tearing) not supported: "
-  echo sdl2.getError()
-  if 0 != glSetSwapInterval(1):
-    echo "setting glSetSwapInterval 1 (synchronized)"
-  else:
-    stdout.write "even 1 (synchronized) is not supported: "
-    echo sdl2.getError()
 
 glClearColor(0.0, 0.0, 0.0, 1.0)                  # Set background color to black and opaque
 glClearDepth(1.0)                                 # Set background depth to farthest
@@ -54,7 +45,7 @@ glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-c
 
 let projection_mat = perspective(45.0, windowsize.x / windowsize.y, 0.1, 1000.0)
 
-const numLights = 50
+const numLights = 5
 
 var
   mousePos = vec2f(0)
@@ -114,8 +105,10 @@ proc showNormals(mvp: Mat4d, positions: ArrayBuffer[Vec3f], normals: ArrayBuffer
       """
       color.rgb = normalColor;
       """
-
+      
 proc render() =
+
+
 
   let time = simulationTime
 
@@ -150,19 +143,19 @@ proc render() =
     glDepthFunc(GL_LEQUAL)
 
     var baseOffset = vec3f(0,0,0)
-    baseOffset.x = floor(position.x / hm.w.float) * hm.w.float
-    baseOffset.y = floor(position.y / hm.h.float) * hm.h.float
+    baseOffset.x = (round(position.x / hm.w.float) - 1) * hm.w.float
+    baseOffset.y = (round(position.y / hm.h.float) - 1) * hm.h.float
+
 
     shadingDsl(GL_TRIANGLES):
       numVertices = hmindices.len.GLsizei
-      numInstances = 64
+      numInstances = 4
 
       uniforms:
         modelview = view_mat
         projection = projection_mat
         time
         crateTexture
-        cliffTexture
         baseOffset
         lightDir_cs
         effectOrigin
@@ -178,8 +171,9 @@ proc render() =
 
       vertexMain:
         """
-        vec3 offset = vec3(gl_InstanceID % 8 - 4, gl_InstanceID / 8 - 4, 0) * vec3(instanceSize,1) + baseOffset;
-        vec3 pos_ws = pos + offset;
+        vec3 offset = vec3(gl_InstanceID % 2, gl_InstanceID / 2, 0);
+        offset.xy *= instanceSize;
+        vec3 pos_ws = pos + offset + baseOffset;
 
         float effectLength = time - effectStartTime;
         float effectParameter = effectLength * 5.0 - length(pos_ws.xy - effectOrigin) * 0.2;
@@ -296,8 +290,8 @@ proc render() =
     fb1.glname.bindRead
 
     glBlitFramebuffer(
-      0,0, 1280, 960,
-      0,0, 1280, 960,
+      0,0, windowSize.x.int32, windowSize.y.int32,
+      0,0, windowSize.x.int32, windowSize.y.int32,
       GL_DEPTH_BUFFER_BIT,
       GL_NEAREST.GLenum
     )
@@ -321,7 +315,7 @@ proc render() =
           z = hm[x,y] + 1.5f
 
         mappedBuffer[i] = vec3f(x, y, z)
-
+    
     #### render lights ####
     shadingDsl(GL_TRIANGLES):
       numVertices = sphereIndices.len.GLsizei
@@ -332,13 +326,16 @@ proc render() =
         mvp
         inverse_mvp
 
-        scale = 10
+        scale = 5
         lightDir_cs
         viewport
 
         color_tex = fb1.color
         depth_tex = fb1.depth
         normal_tex = fb1.normal
+
+        #offset = vec3f(0)
+        #col    = vec3f(1)
 
       attributes:
         indices = sphereIndices
@@ -479,18 +476,16 @@ proc render() =
   glSwapWindow(window)
 
 var
-  evt = sdl2.defaultEvent
   runGame = true
   gamePaused = false
   simulationTimeOffset = 0.0
   fpsFrameCounter = 0
   fpsFrameCounterStartTime = 0.0
 
-#captureMouse(SDL_True)
-
-while runGame:
+proc mainLoopFunc(): void =
   let time = float64( getTicks() ) / 1000.0
 
+  var evt: sdl2.Event
   while pollEvent(evt):
     if evt.kind == QuitEvent:
       runGame = false
@@ -530,6 +525,12 @@ while runGame:
 
       else:
         discard
+    if evt.kind == MouseButtonDown:
+      var toggle {. global .} = false
+      if evt.button.button == 3:
+        toggle = not toggle
+        discard setRelativeMouseMode(Bool32(toggle))
+        
 
     if evt.kind == MouseMotion:
 
@@ -555,3 +556,7 @@ while runGame:
   render()
   fpsFrameCounter += 1
   frameCounter += 1
+
+
+while runGame:
+  mainLoopFunc()
