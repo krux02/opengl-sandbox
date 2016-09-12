@@ -62,8 +62,16 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
   var depthType:NimNode = nil
   var depthCreateExpr:NimNode = nil
   var useDepthRenderbuffer = true
+  var wrapWithDebugResult = false
 
   for asgn in arg:
+    if asgn.kind == nnkIdent:
+      if asgn == ident("debugResult"):
+        wrapWithDebugResult = true
+        continue
+      else:
+        error("unknow identifier: " & asgn.repr & " did you mean debugResult?")
+    
     asgn.expectKind nnkAsgn
 
     let lhs = asgn[0]
@@ -207,7 +215,8 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
         resizeStmtList
       )
 
-  result = newCall( bindSym"debugResult", result )
+  if wrapWithDebugResult:
+    result = newCall( bindSym"debugResult", result )
 
 template bindFramebuffer*(name, blok: untyped): untyped =
   var drawfb, readfb: GLint

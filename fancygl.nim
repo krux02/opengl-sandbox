@@ -137,11 +137,11 @@ proc enableAndSetDivisor(vao: VertexArrayObject, index: GLint, divisorval: GLuin
 
 template renderBlockTemplate(numLocations: int; globalsBlock, linkShaderBlock,
                              bufferCreationBlock, initUniformsBlock, setUniformsBlock,
-                             drawCommand: untyped): untyped {. dirty .} =
+                             drawCommand: untyped): untyped =
   block:
-    var vao {.global.}: VertexArrayObject
-    var glProgram {.global.}: Program
-    var locations {.global.}: array[numLocations, GLint]
+    var vao {.global, inject.}: VertexArrayObject
+    var glProgram {.global, inject.}: Program
+    var locations {.global, inject.}: array[numLocations, GLint]
 
     globalsBlock
 
@@ -157,10 +157,6 @@ template renderBlockTemplate(numLocations: int; globalsBlock, linkShaderBlock,
       bufferCreationBlock
 
       glBindBuffer(GL_ARRAY_BUFFER, 0)
-
-      glBindVertexArray(0)
-
-      glUseProgram(0)
 
       #for i, loc in locations:
       #  echo "location(", i, "): ", loc
@@ -272,8 +268,8 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
           proc activeTexture(texture: int): void =
             glActiveTexture( (GL_TEXTURE0.int + texture).GLenum )
 
-          setUniformsBlock.add( newCall( bindSym"activeTexture", newLit(numSamplers) ) )
-          setUniformsBlock.add( newCall( bindSym"bindToActiveUnit", value ) )
+          setUniformsBlock.add( newCall(
+            bindSym"bindToUnit", value, newLit(numSamplers)) )
           numSamplers += 1
         else:
           let locationNode =
