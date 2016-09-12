@@ -16,7 +16,7 @@ type
     size: int
 
 proc isNil[T](view: DataView[T] | ReadView[T] | WriteView[T]): bool =
-  view.data.isNil
+  view.data.isNil    
   
 proc dataView*[T](data: pointer, size: int) : DataView[T] =
   DataView[T](data: cast[ptr UncheckedArray[T]](data), size: size)
@@ -54,37 +54,97 @@ proc take*[T](dv: DataView[T], num: int) : DataView[T] =
   result.data = dv.data
   result.size = max(min(num, dv.size), 0)
 
+#### program type ####
+  
+type
+  # TODO make value type
+  Program* = object
+    handle*: GLuint
+    
+  Shader*  = object
+    handle*: GLuint
+    
+  Location* = object
+    ## Location for a uniform or attribute from a shader program.
+    ## Can be -1 for uniforms/attributes that are optimized out
+    index*: GLint
+
+  Binding* = object
+    ## index of a buffer attached to a vertex array objact
+    index*: GLuint
+    
+proc isNil*(program: Program): bool =
+  program.handle == 0
+
+proc isNil*(shader: Shader): bool =
+  shader.handle == 0
+
+proc isValid*(location: Location): bool =
+  location.index >= 0
+
 #### Uniform ####
 
-proc uniform(location: GLint, mat: Mat4d) =
+proc uniform(location: Location, mat: Mat4d) =
   var mat_var = mat.mat4f
-  glUniformMatrix4fv(location, 1, false, cast[ptr GLfloat](mat_var.addr))
+  glUniformMatrix4fv(location.index, 1, false, cast[ptr GLfloat](mat_var.addr))
 
-proc uniform(location: GLint, mat: Mat4f) =
+proc uniform(location: Location, mat: Mat4f) =
   var mat_var = mat
-  glUniformMatrix4fv(location, 1, false, cast[ptr GLfloat](mat_var.addr))
+  glUniformMatrix4fv(location.index, 1, false, cast[ptr GLfloat](mat_var.addr))
 
-proc uniform(location: GLint, value: float32) =
-  glUniform1f(location, value)
+proc uniform(location: Location, value: float32) =
+  glUniform1f(location.index, value)
 
-proc uniform(location: GLint, value: float64) =
-  glUniform1f(location, value)
+proc uniform(location: Location, value: float64) =
+  glUniform1f(location.index, value)
 
-proc uniform(location: GLint, value: int32) =
-  glUniform1i(location, value)
+proc uniform(location: Location, value: int32) =
+  glUniform1i(location.index, value)
 
-proc uniform(location: GLint, value: Vec2f) =
-  glUniform2f(location, value[0], value[1])
+proc uniform(location: Location; value: Vec2f) =
+  glUniform2f(location.index, value[0], value[1])
 
-proc uniform(location: GLint, value: Vec3f) =
-  glUniform3f(location, value[0], value[1], value[2])
+proc uniform(location: Location, value: Vec3f) =
+  glUniform3f(location.index, value[0], value[1], value[2])
 
-proc uniform(location: GLint, value: Vec4f) =
-  glUniform4f(location, value[0], value[1], value[2], value[3])
+proc uniform(location: Location, value: Vec4f) =
+  glUniform4f(location.index, value[0], value[1], value[2], value[3])
 
-proc uniform(location: GLint, value: bool) =
-  glUniform1i(location, value.GLint)
+proc uniform(location: Location, value: bool) =
+  glUniform1i(location.index, value.GLint)
 
+
+proc uniform(program: Program; location: Location; mat: Mat4d) =
+  var mat_var = mat.mat4f
+  glProgramUniformMatrix4fv(program.handle, location.index, 1, false,
+                            cast[ptr GLfloat](mat_var.addr))
+
+proc uniform(program: Program; location: Location, mat: Mat4f) =
+  var mat_var = mat
+  glProgramUniformMatrix4fv(program.handle, location.index, 1, false,
+                            cast[ptr GLfloat](mat_var.addr))
+
+proc uniform(program: Program; location: Location, value: float32) =
+  glProgramUniform1f(program.handle, location.index, value)
+
+proc uniform(program: Program; location: Location, value: float64) =
+  glProgramUniform1f(program.handle, location.index, value)
+
+proc uniform(program: Program; location: Location, value: int32) =
+  glProgramUniform1i(program.handle, location.index, value)
+
+proc uniform(program: Program; location: Location, value: Vec2f) =
+  glProgramUniform2f(program.handle, location.index, value[0], value[1])
+
+proc uniform(program: Program; location: Location, value: Vec3f) =
+  glProgramUniform3f(program.handle, location.index, value[0], value[1], value[2])
+
+proc uniform(program: Program; location: Location, value: Vec4f) =
+  glProgramUniform4f(program.handle, location.index, value[0], value[1], value[2], value[3])
+
+proc uniform(program: Program; location: Location, value: bool) =
+  glProgramUniform1i(program.handle, location.index, value.GLint)
+  
 #### Vertex Array Object ####
 
 type VertexArrayObject* = object
@@ -93,25 +153,24 @@ type VertexArrayObject* = object
 proc newVertexArrayObject*() : VertexArrayObject =
   glCreateVertexArrays(1, cast[ptr GLuint](result.addr))
 
-const nil_vao* = VertexArrayObject(handle: 0)
-
 proc bindIt*(vao: VertexArrayObject) =
   glBindVertexArray(vao.handle)
 
 proc delete*(vao: VertexArrayObject) =
   glDeleteVertexArrays(1, vao.handle.unsafeAddr)
 
-proc divisor(vao: VertexArrayObject, index, divisor: GLuint) : void =
+proc divisor(vao: VertexArrayObject; binding: Binding; divisor: GLuint) : void =
   when false:
-    glVertexArrayVertexBindingDivisorEXT(vao.handle, index, divisor)
+    glVertexArrayVertexBindingDivisorEXT(vao.handle, location.index, divisor)
   else:
-    glVertexArrayBindingDivisor(vao.handle, index, divisor)
+    glVertexArrayBindingDivisor(vao.handle, binding.index, divisor)
 
-proc enableAttrib(vao: VertexArrayObject, index: GLuint) : void =
-  when false:
-    glEnableVertexArrayAttribEXT(vao.handle, index)
-  else:
-    glEnableVertexArrayAttrib(vao.handle, index)
+proc enableAttrib(vao: VertexArrayObject, location: Location) : void =
+  if location.index >= 0:
+    when false:
+      glEnableVertexArrayAttribEXT(vao.handle, location.index)
+    else:
+      glEnableVertexArrayAttrib(vao.handle, location.index.GLuint)
 
 #proc divisor(vao: VertexArrayObject, index: GLuint) : GLuint =
 
@@ -391,27 +450,27 @@ proc uniformBuffer*[T](data : T, usage: GLenum = GL_STATIC_DRAW): UniformBuffer[
 
 #### shader
 
-proc shaderSource(shader: GLuint, source: string) =
+proc shaderSource(shader: Shader, source: string) =
   var source_array: array[1, string] = [source]
   var c_source_array = allocCStringArray(source_array)
   defer: deallocCStringArray(c_source_array)
-  glShaderSource(shader, 1, c_source_array, nil)
+  glShaderSource(shader.handle, 1, c_source_array, nil)
 
-proc compileStatus(shader:GLuint): bool =
+proc compileStatus(shader: Shader): bool =
   var status: GLint
-  glGetShaderiv(shader, GL_COMPILE_STATUS, status.addr)
+  glGetShaderiv(shader.handle, GL_COMPILE_STATUS, status.addr)
   status != 0
 
-proc linkStatus(program:GLuint): bool =
+proc linkStatus(program: Program): bool =
   var status: GLint
-  glGetProgramiv(program, GL_LINK_STATUS, status.addr)
+  glGetProgramiv(program.handle, GL_LINK_STATUS, status.addr)
   status != 0
 
-proc shaderInfoLog(shader: GLuint): string =
+proc shaderInfoLog(shader: Shader): string =
   var length: GLint = 0
-  glGetShaderiv(shader, GL_INFO_LOG_LENGTH, length.addr)
+  glGetShaderiv(shader.handle, GL_INFO_LOG_LENGTH, length.addr)
   result = newString(length.int)
-  glGetShaderInfoLog(shader, length, nil, result)
+  glGetShaderInfoLog(shader.handle, length, nil, result)
 
 proc showError(log: string, source: string): void =
   let lines = source.splitLines
@@ -433,29 +492,38 @@ proc showError(log: string, source: string): void =
   stdout.styledWriteLine(fgRed, log)
   stdout.styledWriteLine(fgGreen, "==== end Shader Problems =========================================")
 
-proc programInfoLog(program: GLuint): string =
+proc programInfoLog(program: Program): string =
   var length: GLint = 0
-  glGetProgramiv(program, GL_INFO_LOG_LENGTH, length.addr);
+  glGetProgramiv(program.handle, GL_INFO_LOG_LENGTH, length.addr);
   result = newString(length.int)
-  glGetProgramInfoLog(program, length, nil, result);
+  glGetProgramInfoLog(program.handle, length, nil, result);
 
-proc compileShader(shaderType: GLenum, source: string): GLuint =
-  result = glCreateShader(shaderType)
+proc compileShader*(shaderType: GLenum, source: string): Shader =
+  result.handle = glCreateShader(shaderType)
   result.shaderSource(source)
-  glCompileShader(result)
+  glCompileShader(result.handle)
 
   if not result.compileStatus:
     showError(result.shaderInfoLog, source)
 
-proc linkShader(shaders: varargs[GLuint]): GLuint =
-  result = glCreateProgram()
+proc linkShader*(shaders: varargs[Shader]): Program =
+  result.handle = glCreateProgram()
 
   for shader in shaders:
-    glAttachShader(result, shader)
-    glDeleteShader(shader)
-  glLinkProgram(result)
+    glAttachShader(result.handle, shader.handle)
+    glDeleteShader(shader.handle)
+  glLinkProgram(result.handle)
 
   if not result.linkStatus:
     echo "Log: ", result.programInfoLog
-    glDeleteProgram(result)
-    result = 0
+    glDeleteProgram(result.handle)
+    result.handle = 0
+
+proc use*(program: Program): void =
+  glUseProgram(program.handle)
+
+proc uniformLocation(program: Program, name: string) : Location =
+  result.index = glGetUniformLocation(program.handle, name)
+
+proc attributeLocation(program: Program, name: string) : Location =
+  result.index = glGetAttribLocation(program.handle, name)

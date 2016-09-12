@@ -32,7 +32,7 @@ template textureTypeTemplate(name, nilName, target:untyped, shadername:string): 
   proc bindToActiveUnit*(texture: name): void =
     glBindTexture(target, texture.handle)
 
-  proc bindToUnit(texture: name, unit: int): void =
+  proc bindToUnit*(texture: name, unit: int): void =
     glBindTextureUnit(unit.GLuint, texture.handle)
 
   proc parameter*(texture: name, pname: GLenum, param: GLint): void =

@@ -1,5 +1,6 @@
 macro debugResult(arg: typed) : stmt =
-  echo arg.repr
+  for str in arg.repr.split("""\x0A"""):
+    echo str
   arg
 
 proc mkString*[T](v : T, prefix, sep, postfix : string) : string =

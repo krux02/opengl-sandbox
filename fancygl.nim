@@ -132,22 +132,22 @@ proc makeAndBindElementBuffer[T](buffer: var ElementArraybuffer[T]) =
 
 proc enableAndSetDivisor(vao: VertexArrayObject, index: GLint, divisorval: GLuint): void =
   if index >= 0:
-    vao.enableAttrib(index.GLuint)
-    vao.divisor(index.GLuint, divisorval)
+    vao.enableAttrib(Location(index: index))
+    vao.divisor(Binding(index: index.GLuint), divisorval)
 
 template renderBlockTemplate(numLocations: int; globalsBlock, linkShaderBlock,
                              bufferCreationBlock, initUniformsBlock, setUniformsBlock,
                              drawCommand: untyped): untyped {. dirty .} =
   block:
     var vao {.global.}: VertexArrayObject
-    var glProgram {.global.}: GLuint  = 0
+    var glProgram {.global.}: Program
     var locations {.global.}: array[numLocations, GLint]
 
     globalsBlock
 
-    if glProgram == 0:
+    if glProgram.isNil:
       glProgram = linkShaderBlock
-      glUseProgram(gl_program)
+      glUseProgram(glProgram.handle)
 
       initUniformsBlock
 
@@ -158,14 +158,14 @@ template renderBlockTemplate(numLocations: int; globalsBlock, linkShaderBlock,
 
       glBindBuffer(GL_ARRAY_BUFFER, 0)
 
-      nil_vao.bindIt
+      glBindVertexArray(0)
 
       glUseProgram(0)
 
       #for i, loc in locations:
       #  echo "location(", i, "): ", loc
 
-    glUseProgram(gl_program)
+    glUseProgram(glProgram.handle)
 
     bindIt(vao)
 
@@ -173,7 +173,7 @@ template renderBlockTemplate(numLocations: int; globalsBlock, linkShaderBlock,
 
     drawCommand
 
-    bindIt(nil_vao)
+    glBindVertexArray(0)
     glUseProgram(0);
 
 ##################################################################################
@@ -199,7 +199,7 @@ proc vertexOffset(offset: GLsizei) : int = 0
 ##################################################################################
 #### Shading Dsl Inner ###########################################################
 ##################################################################################
-
+  
 macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], statement: varargs[int] ) : untyped =
   var numSamplers = 0
   var numLocations = 0
@@ -261,9 +261,11 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 
         initUniformsBlock.add( newAssignment(
           locations(numLocations),
-          newCall( bindSym"glGetUniformLocation", !!"glProgram", newLit(name) )
+          newCall( bindSym"glGetUniformLocation", newDotExpr(!!"glProgram", !!"handle"), newLit(name) )
         ))
 
+        
+          
         if isSample:
           initUniformsBlock.add( newCall( bindSym"glUniform1i", locations(numLocations), newLit(numSamplers) ) )
 
@@ -274,7 +276,12 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
           setUniformsBlock.add( newCall( bindSym"bindToActiveUnit", value ) )
           numSamplers += 1
         else:
-          setUniformsBlock.add( newCall( bindSym"uniform", locations(numLocations), value ) )
+          let locationNode =
+            nnkObjConstr.newTree(
+              bindSym"Location", nnkExprColonExpr.newTree(
+                !!"index",
+                locations(numLocations)))
+          setUniformsBlock.add( newCall( bindSym"uniform", locationNode, value ) )
 
         uniformsSection.add( baseString )
 
@@ -340,7 +347,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
         if isAttrib:
           bufferCreationBlock.add( newAssignment(
             locations(numLocations),
-            newCall( bindSym"glGetAttribLocation", !! "glProgram", newLit(name) )
+            newCall( bindSym"glGetAttribLocation", newDotExpr(!!"glProgram",!!"handle"), newLit(name) )
           ))
 
           bufferCreationBlock.add(newCall(bindSym"enableAndSetDivisor", !!"vao", locations(numLocations), newLit(divisor)))
@@ -630,6 +637,7 @@ macro shadingDsl*(mode:GLenum, statement: untyped) : untyped {.immediate.} =
         stmtList.expectLen(1)
         stmtList[0].expectKind({ nnkTripleStrLit, nnkStrLit })
         result.add( newCall(bindSym"fragmentMain", stmtList[0]) )
+        
 
       of "includes":
         let includesCall = newCall(bindSym"includes")
@@ -643,5 +651,5 @@ macro shadingDsl*(mode:GLenum, statement: untyped) : untyped {.immediate.} =
       else:
         error("unknown section " & $ident.ident)
 
-  if wrapWithDebugResult:      
+  if wrapWithDebugResult:
     result = newCall( bindSym"debugResult", result )
