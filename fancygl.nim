@@ -271,7 +271,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
             glActiveTexture( (GL_TEXTURE0.int + texture).GLenum )
 
           setUniformsBlock.add( newCall( bindSym"activeTexture", newLit(numSamplers) ) )
-          setUniformsBlock.add( newCall( bindSym"bindIt", value ) )
+          setUniformsBlock.add( newCall( bindSym"bindToActiveUnit", value ) )
           numSamplers += 1
         else:
           setUniformsBlock.add( newCall( bindSym"uniform", locations(numLocations), value ) )

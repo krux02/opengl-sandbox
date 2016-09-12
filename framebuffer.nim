@@ -34,7 +34,7 @@ proc setTexture*(fb: FrameBuffer, attachment: GLenum, texture: Texture2D, level:
   when false:
     glNamedFramebufferTextureEXT(fb.GLuint, attachment, texture.GLuint, level);
   else:
-    glNamedFramebufferTexture(fb.GLuint, attachment, texture.GLuint, level);
+    glNamedFramebufferTexture(fb.GLuint, attachment, texture.handle, level);
 
 proc drawBuffers*(fb: FrameBuffer, args : varargs[GLenum]) =
   var tmp = newSeq[GLenum](args.len)
