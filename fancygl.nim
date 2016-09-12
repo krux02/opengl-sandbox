@@ -121,10 +121,17 @@ proc makeAndBindBuffer[T](buffer: var ArrayBuffer[T], index: GLint) =
     buffer.bindIt
     glVertexAttribPointer(index.GLuint, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
 
-proc bindAndAttribPointer[T](buffer: ArrayBuffer[T], index: GLint) =
-  if index >= 0:
+proc bindAndAttribPointer[T](vao: VertexArrayObject, buffer: ArrayBuffer[T], location: Location) =
+  if location.index >= 0:
     buffer.bindIt
-    glVertexAttribPointer(index.GLuint, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
+    glVertexAttribPointer(location.index.GLuint, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
+    #let
+    #  loc = location.index.GLuint
+    #  binding = location.index.GLuint
+    #glVertexArrayVertexBuffer(vao.handle, loc, buffer.handle, 0, 0)
+    #glVertexArrayAttribFormat(vao.handle, loc, attribSize(T),
+    #                          attribType(T), attribNormalized(T), #[ relative offset ?! ]# 0);
+    #glVertexArrayAttribBinding(vao.handle, loc, binding)
 
 proc makeAndBindElementBuffer[T](buffer: var ElementArraybuffer[T]) =
   buffer.create
@@ -141,7 +148,7 @@ template renderBlockTemplate(numLocations: int; globalsBlock, linkShaderBlock,
   block:
     var vao {.global, inject.}: VertexArrayObject
     var glProgram {.global, inject.}: Program
-    var locations {.global, inject.}: array[numLocations, GLint]
+    var locations {.global, inject.}: array[numLocations, Location]
 
     globalsBlock
 
@@ -256,28 +263,23 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
         let baseString = "uniform " & glslType & " " & name
 
         initUniformsBlock.add( newAssignment(
-          locations(numLocations),
+          newDotExpr(locations(numLocations), !!"index"),
           newCall( bindSym"glGetUniformLocation", newDotExpr(!!"glProgram", !!"handle"), newLit(name) )
         ))
 
         
           
         if isSample:
-          initUniformsBlock.add( newCall( bindSym"glUniform1i", locations(numLocations), newLit(numSamplers) ) )
+          initUniformsBlock.add( newCall( bindSym"glUniform1i", newDotExpr(locations(numLocations),
+              !!"index"), newLit(numSamplers) ) )
 
           proc activeTexture(texture: int): void =
             glActiveTexture( (GL_TEXTURE0.int + texture).GLenum )
 
-          setUniformsBlock.add( newCall(
-            bindSym"bindToUnit", value, newLit(numSamplers)) )
+          setUniformsBlock.add( newCall( bindSym"bindToUnit", value, newLit(numSamplers) ) )
           numSamplers += 1
         else:
-          let locationNode =
-            nnkObjConstr.newTree(
-              bindSym"Location", nnkExprColonExpr.newTree(
-                !!"index",
-                locations(numLocations)))
-          setUniformsBlock.add( newCall( bindSym"uniform", locationNode, value ) )
+          setUniformsBlock.add( newCall( bindSym"uniform", !!"glProgram", locations(numLocations), value ) )
 
         uniformsSection.add( baseString )
 
@@ -343,10 +345,14 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
         if isAttrib:
           bufferCreationBlock.add( newAssignment(
             locations(numLocations),
-            newCall( bindSym"glGetAttribLocation", newDotExpr(!!"glProgram",!!"handle"), newLit(name) )
+            newCall( bindSym"attributeLocation", !! "glProgram", newLit(name) )
           ))
 
-          bufferCreationBlock.add(newCall(bindSym"enableAndSetDivisor", !!"vao", locations(numLocations), newLit(divisor)))
+          # this needs to change, when multiple
+          # attributes per buffer should be supported
+          bufferCreationBlock.add(newCall(bindSym"enableAndSetDivisor", !!"vao",
+            newDotExpr(locations(numLocations), !!"index"),
+            newLit(divisor)))
 
         if isSeq:
           if isAttrib:
@@ -366,6 +372,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
         else:
           if isAttrib:
             bufferCreationBlock.add(newCall(bindSym"bindAndAttribPointer",
+              !!"vao",
               value,
               locations(numLocations),
             ))
@@ -524,7 +531,7 @@ macro shadingDsl*(mode:GLenum, statement: untyped) : untyped {.immediate.} =
       if section == ident("debugResult"):
         wrapWithDebugResult = true
       else:
-        error("unknown identifier: " & $section.ident)
+        error("unknown identifier: " & $section.ident & " did you mean debugResult?")
     elif section.kind == nnkAsgn:
       section.expectLen(2)
       let ident = section[0]

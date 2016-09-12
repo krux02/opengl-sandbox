@@ -32,7 +32,7 @@ proc setRenderbuffer*(fb: FrameBuffer, attachment, renderbuffertarget: GLenum, r
 
 proc setTexture*(fb: FrameBuffer, attachment: GLenum, texture: Texture2D, level: GLint = 0) =
   when false:
-    glNamedFramebufferTextureEXT(fb.GLuint, attachment, texture.GLuint, level);
+    glNamedFramebufferTextureEXT(fb.GLuint, attachment, texture.handle, level);
   else:
     glNamedFramebufferTexture(fb.GLuint, attachment, texture.handle, level);
 
