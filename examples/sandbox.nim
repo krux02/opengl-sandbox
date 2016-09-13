@@ -70,6 +70,9 @@ var
   simulationTime = 0.0
   frameCounter = 0
 
+const
+  constVec = vec4f(1,2,3,4)
+  
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
 
@@ -100,6 +103,7 @@ proc render() =
           time
           mousePosNorm
           crateTexture
+          constVec
 
         attributes:
           pos = vertex

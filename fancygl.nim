@@ -255,8 +255,6 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
         let glslType: string = innerCall[3].strVal
         let isSampler: bool  = innerCall[4].boolVal
 
-        #let (glslType, isSample) = value.glslUniformType
-
         if value.kind in {nnkIntLit, nnkFloatLit}:
           uniformsSection.add "const " & glslType & " " & name & " = " & value.repr
           continue

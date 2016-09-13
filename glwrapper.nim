@@ -268,27 +268,36 @@ template bindBlock*[T](buffer : AnyBuffer[T], blk:untyped) =
   buf.bindIt
   blk
   glBindBuffer(buf.bufferKind, GLuint(outer))
-
-proc bufferData*[T](buffer: SeqLikeBuffer[T], usage: GLenum, data: openarray[T]) =
+  
+proc bufferData*[T](buffer: SeqLikeBuffer[T], data: openarray[T], usage: GLenum) =
   if buffer.handle.int > 0:
     when false:
       glNamedBufferDataEXT(buffer.handle, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
     else:
       glNamedBufferData(buffer.handle, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
 
-proc bufferData*[T](buffer: SeqLikeBuffer[T], usage: GLenum, dataview: DataView[T]) =
+proc bufferData*[T](buffer: SeqLikeBuffer[T], dataview: DataView[T], usage: GLenum) =
   if buffer.handle.int > 0:
     when false:
       glNamedBufferDataEXT( buffer.handle, GLsizeiptr(dataview.len * sizeof(T)), dataview.data, usage)
     else:
       glNamedBufferData( buffer.handle, GLsizeiptr(dataview.len * sizeof(T)), dataview.data, usage)
       
-proc bufferData*[T](buffer: UniformBuffer[T], usage: GLenum, data: T) =
+proc bufferData*[T](buffer: UniformBuffer[T], data: T, usage: GLenum) =
   if buffer.handle.int > 0:
     when false:
       glNamedBufferDataEXT(buffer.handle, GLsizeiptr(sizeof(T)), unsafeAddr(data), usage)
     else:
       glNamedBufferData(buffer.handle, GLsizeiptr(sizeof(T)), unsafeAddr(data), usage)
+
+proc setData*[T](buffer: SeqLikeBuffer[T], data: openarray[T]) =
+  if buffer.handle.int > 0:
+    glNamedBufferSubData(buffer.handle, 0, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]))
+
+proc setData*[T](buffer: UniformBuffer[T], data: T) =
+  if buffer.handle.int > 0:
+    glNamedBufferSubData(buffer.handle, 0, GLsizeiptr(sizeof(T)), unsafeAddr(data))      
+
 
 proc len*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]) : int =
   var size: GLint
@@ -347,14 +356,14 @@ proc mapOffset*[T](buffer: ArrayBuffer[T]) : int =
     glGetNamedBufferPointerv(buffer.handle, GL_BUFFER_MAP_LENGTH, tmp.addr)
   return int(tmp)
 
-proc size*[T](buffer: ArrayBuffer[T]) : int =
+proc byteSize*[T](buffer: ArrayBuffer[T]) : int =
   var tmp: GLint
   when false:
     glGetNamedBufferParameterivEXT(buffer.handle, GL_BUFFER_SIZE, tmp.addr)
   else:
     glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_SIZE, tmp.addr)
   return int(tmp)
-
+  
 proc storageFlags*[T](buffer: ArrayBuffer[T]) : GLenum =
   var tmp: GLint
   when false:
@@ -405,21 +414,21 @@ proc mapReadWrite*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): DataView[
     result.data = cast[ptr UncheckedArray[T]](glMapNamedBuffer(buffer.handle, GL_READ_WRITE))
   result.size = buffer.size div sizeof(T)
 
-template mapReadBufferBlock*(buffer, blck: untyped) : untyped =
+template mapReadBufferBlock*(buffer: ArrayBuffer[auto], blck: untyped) : untyped =
   block:
     let mappedBuffer {. inject .} = buffer.mapRead
     defer:
       discard buffer.unmap
     blck
 
-template mapWriteBufferBlock*(buffer: untyped, blck: untyped) : untyped =
+template mapWriteBufferBlock*(buffer: ArrayBuffer[auto], blck: untyped) : untyped =
   block:
     let mappedBuffer {. inject .} = buffer.mapWrite
     defer:
       discard buffer.unmap
     blck
 
-template mapReadWriteBufferBlock*(buffer: untyped, blck: untyped) : untyped =
+template mapReadWriteBufferBlock*(buffer: ArrayBuffer[auto], blck: untyped) : untyped =
   block:
     let mappedBuffer {. inject .} = buffer.mapReadWrite
     defer:
@@ -428,25 +437,25 @@ template mapReadWriteBufferBlock*(buffer: untyped, blck: untyped) : untyped =
 
 proc arrayBuffer*[T](data : openarray[T], usage: GLenum = GL_STATIC_DRAW): ArrayBuffer[T] =
   result.create
-  result.bufferData(usage, data)
+  result.bufferData(data, usage)
 
 proc arrayBuffer*[T](data : DataView[T], usage: GLenum = GL_STATIC_DRAW): ArrayBuffer[T] =
   if not data.isNil:
     result.create
-    result.bufferData(usage, data)
+    result.bufferData(data, usage)
 
 proc elementArrayBuffer*[T](data : openarray[T], usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
   result.create
-  result.bufferData(usage, data)
+  result.bufferData(data, usage)
 
 proc elementArrayBuffer*[T](data : DataView[T], usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
   if not data.isNil:
     result.create
-    result.bufferData(usage, data)
+    result.bufferData(data, usage)
 
 proc uniformBuffer*[T](data : T, usage: GLenum = GL_STATIC_DRAW): UniformBuffer[T] =
   result.create
-  result.bufferData(usage, data)
+  result.bufferData(data, usage)
 
 #### shader
 
@@ -527,3 +536,14 @@ proc uniformLocation(program: Program, name: string) : Location =
 
 proc attributeLocation(program: Program, name: string) : Location =
   result.index = glGetAttribLocation(program.handle, name)
+
+proc readPixel*(x,y: int) : Color =
+  let 
+    w = 1.GLsizei
+    h = 1.GLsizei
+    f = GL_RGBA
+    t = GL_UNSIGNED_BYTE
+    d = result.addr.pointer
+  glReadPixels(x.GLint,y.GLint,w,h,f,t,d)
+
+  
