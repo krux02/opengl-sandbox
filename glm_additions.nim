@@ -332,4 +332,3 @@ proc frustum*(left, right, bottom, top, near, far: float64): Mat4d =
   result[2][3] = -1
   result[3][2] =   (2*far*near)/(near-far)
 
-  

@@ -49,7 +49,7 @@ vec4 mymix(vec4 color, float alpha) {
 """
 
 var
-  projection_mat : Mat4x4[float]
+  projection_mat : Mat4x4[float32]
   viewport: Vec4f
 
 proc setViewportAndProjection() =
@@ -59,7 +59,7 @@ proc setViewportAndProjection() =
   viewport.w = windowsize.y
   # Set the viewport to cover the new window
   glViewport(viewport.x.GLint, viewport.y.GLint, windowsize.x.GLint, windowsize.y.GLint)
-  projection_mat = perspective(45.0, windowsize.x / windowsize.y, 0.1, 100.0)
+  projection_mat = perspective(45'f32, windowsize.x / windowsize.y, 0.1, 100.0)
   # TODO this is not fixed
   # fb1.resize(windowsize.xy)
 
@@ -82,11 +82,11 @@ proc render() =
   block writeToFramebufferBlock:
     let time = simulationTime
 
-    var modelview_mat = I4d
-    modelview_mat = modelview_mat.translate( vec3d(sin(time)*2, cos(time)*2, -7) )
-    modelview_mat = modelview_mat.rotate( vec3d(0,0,1), time )
-    modelview_mat = modelview_mat.rotate( vec3d(0,1,0), time )
-    modelview_mat = modelview_mat.rotate( vec3d(1,0,0), time )
+    var modelview_mat = I4f
+    modelview_mat = modelview_mat.translate( vec3f(sin(time)*2, cos(time)*2, -7) )
+    modelview_mat = modelview_mat.rotate( vec3f(0,0,1), time )
+    modelview_mat = modelview_mat.rotate( vec3f(0,1,0), time )
+    modelview_mat = modelview_mat.rotate( vec3f(1,0,0), time )
 
     bindFramebuffer(fb1):
       glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)

@@ -74,7 +74,7 @@ proc showNormals(mvp: Mat4d, positions: ArrayBuffer[Vec3f], normals: ArrayBuffer
     numVertices = normals.len.GLsizei
 
     uniforms:
-      mvp
+      mvp = mvp.mat4f
       normalColor = color
       scale = length
 
@@ -152,8 +152,8 @@ proc render() =
       numInstances = 4
 
       uniforms:
-        modelview = view_mat
-        projection = projection_mat
+        modelview = view_mat.mat4f
+        projection = projection_mat.mat4f
         time
         crateTexture
         baseOffset
@@ -248,7 +248,7 @@ proc render() =
         time
         viewport
         texSize = fb1.color.size
-        inverse_mvp
+        inverse_mvp = inverse_mvp.mat4f
         border = 0.5f * viewport.zw
 
       fragmentMain:
@@ -322,9 +322,9 @@ proc render() =
       numInstances = numLights.GLsizei
 
       uniforms:
-        normalMat = view_mat
-        mvp
-        inverse_mvp
+        normalMat = view_mat.mat4f
+        mvp       = mvp.mat4f
+        inverse_mvp = inverse_mvp.mat4f
 
         scale = 5
         lightDir_cs
@@ -402,8 +402,8 @@ proc render() =
         star_tex = starTexture
         depth_tex = fb1.depth
 
-        projection_mat
-        view_mat
+        projection_mat = projection_mat.mat4f
+        view_mat       = view_mat.mat4f
 
         scale = 3
         viewport

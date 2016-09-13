@@ -1,22 +1,14 @@
 import ../fancygl, sdl2, opengl, glm, memfiles, OpenMesh, math, hashes, tables, mersenne
 
-type
-  Vec4u8 = Vec4[uint8]
   
-proc `==`(v1,v2: Vec4u8): bool =
-  for i in 0..3:
-    if v1[i] != v2[i]:
-      return false
-  true
-
 var mt = newMersenneTwister(0)
 
-proc randomColor() : Vec4u8 =
-  result.x = mt.getNum.uint8
-  result.y = mt.getNum.uint8
-  result.z = mt.getNum.uint8
-  result.w = 255.uint8
-
+proc randomColor() : Color =
+  result.r = mt.getNum.uint8
+  result.g = mt.getNum.uint8
+  result.b = mt.getNum.uint8
+  result.a = 255.uint8
+  
 proc xyz(v: var Vec4f): var Vec3f =
   return cast[ptr Vec3f](v.addr)[]
 
@@ -52,8 +44,7 @@ proc `==`(v1, v2: Vec3f): bool =
     if v1[i] != v2[i]:
       return false
   true
-    
-
+  
 createMeshType(MyMeshType):
   type
     VertexData = object
@@ -64,7 +55,7 @@ createMeshType(MyMeshType):
       #blendweights:  Vec4u8
 
     FaceData = object
-      color: Vec4u8
+      color: Color
       state: int8
       stateNext: int8
 
@@ -73,6 +64,8 @@ createMeshType(MyMeshType):
 
     EdgeData = object
       someValue : int32
+
+
       
 proc addVertex(mesh: var MyMeshType): MyMeshType_VertexRef =
   let vertex = Vertex(out_halfedge_handle: HalfedgeHandle(-1))
@@ -106,7 +99,7 @@ proc addFace(mesh: var MyMeshType): MyMeshType_FaceRef =
   let face = Face(halfedge_handle: HalfedgeHandle(-1))
   
   mesh.faces.add face
-  var tmp1: Vec4u8
+  var tmp1: Color
   mesh.faceProperties.color.add tmp1
   var tmp2: int8
   mesh.faceProperties.state.add tmp2
@@ -294,7 +287,7 @@ proc main() =
     renderPositionSeq = newSeq[Vec3f](0)
     renderNormalSeq   = newSeq[Vec3f](0)
     renderTexCoordSeq = newSeq[Vec2f](0)
-    renderColorSeq    = newSeq[Vec4u8](0)
+    renderColorSeq    = newSeq[Color](0)
 
   for face in mymesh.faceRefs:
     for halfedge in face.circulateInHalfedges:
@@ -380,7 +373,7 @@ proc main() =
           offset = offset + motion / 100
           
       if evt.kind == MouseButtonDown:
-        var color : Vec4u8
+        var color : Color
         
         let
           x = mousePos.x
@@ -438,8 +431,8 @@ proc main() =
       numVertices = GLsizei(mymesh.faces.len * 3)
     
       uniforms:
-        modelview = view_mat
-        projection
+        modelview = view_mat.mat4f
+        projection = projection.mat4f
       attributes:
         a_position = renderPositionBuffer
         a_normal   = renderNormalBuffer
@@ -454,7 +447,7 @@ proc main() =
       vertexMain:
         """
         gl_Position = projection * modelview * vec4(a_position, 1);
-        v_color = vec4(a_color) / 256.0;
+        v_color = a_color;
         """
       vertexOut:
         "out vec4 v_color"

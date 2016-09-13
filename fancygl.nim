@@ -183,9 +183,9 @@ template renderBlockTemplate(numLocations: int; globalsBlock, linkShaderBlock,
 #### Shading Dsl #################################################################
 ##################################################################################
 
-proc attribute[T](name: string, value: T, divisor: GLuint) : int = 0
+proc attribute[T](name: string, value: T, divisor: GLuint, glslType: string) : int = 0
 proc attributes(args : varargs[int]) : int = 0
-proc shaderArg[T](name: string, value: T): int = 0
+proc shaderArg[T](name: string, value: T, glslType: string, isSampler: bool): int = 0
 proc uniforms(args: varargs[int]): int = 0
 proc vertexOut(args: varargs[string]): int = 0
 proc geometryOut(args: varargs[string]): int = 0
@@ -252,9 +252,10 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
         innerCall[1].expectKind nnkStrLit
         let name = $innerCall[1]
         let value = innerCall[2]
+        let glslType: string = innerCall[3].strVal
+        let isSampler: bool  = innerCall[4].boolVal
 
-
-        let (glslType, isSample) = value.glslUniformType
+        #let (glslType, isSample) = value.glslUniformType
 
         if value.kind in {nnkIntLit, nnkFloatLit}:
           uniformsSection.add "const " & glslType & " " & name & " = " & value.repr
@@ -269,7 +270,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 
         
           
-        if isSample:
+        if isSampler:
           initUniformsBlock.add( newCall( bindSym"glUniform1i", newDotExpr(locations(numLocations),
               !!"index"), newLit(numSamplers) ) )
 
@@ -297,6 +298,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
             innerCall[3].intVal.int
           else:
             0
+        let glslType = innerCall[4].strVal
 
         let buffername = !(name & "Buffer")
 
@@ -381,7 +383,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 
         if isAttrib:
           attribNames.add( name )
-          attribTypes.add( value.glslAttribType )
+          attribTypes.add( glslType )
           # format("in $1 $2", value.glslAttribType, name) )
           numLocations += 1
 
@@ -559,26 +561,48 @@ macro shadingDsl*(mode:GLenum, statement: untyped) : untyped {.immediate.} =
 
         for capture in stmtList.items:
           capture.expectKind({nnkAsgn, nnkIdent})
+
+          var nameNode, identNode: NimNode
+
           if capture.kind == nnkAsgn:
             capture.expectLen 2
             capture[0].expectKind nnkIdent
-            uniformsCall.add( newCall(bindSym"shaderArg", newLit($capture[0]), capture[1] ) )
+            nameNode = newLit($capture[0])
+            identNode = capture[1]
           elif capture.kind == nnkIdent:
-            uniformsCall.add( newCall(bindSym"shaderArg",  newLit($capture), capture) )
+            identNode = capture
+            nameNode  = newLit($capture)
+            
+          let isSampler = newCall(bindSym"glslIsSampler", newCall(bindSym"type", identNode))
+          let glslType  = newCall(bindSym"glslTypeRepr",  newCall(bindSym"type", identNode))
+          uniformsCall.add( newCall(
+            bindSym"shaderArg",  nameNode, identNode, glslType, isSampler) )
 
         result.add(uniformsCall)
 
       of "attributes":
         let attributesCall = newCall(bindSym"attributes")
 
+        
+        
         proc handleCapture(attributesCall, capture: NimNode, divisor: int) =
           capture.expectKind({nnkAsgn, nnkIdent})
+
+          var nameNode, identNode: NimNode
+          
           if capture.kind == nnkAsgn:
             capture.expectLen 2
             capture[0].expectKind nnkIdent
-            attributesCall.add( newCall(bindSym"attribute", newLit($capture[0]), capture[1], newLit(divisor) ) )
+            nameNode = newLit($capture[0])
+            identNode = capture[1]
           elif capture.kind == nnkIdent:
-            attributesCall.add( newCall(bindSym"attribute",  newLit($capture), capture, newLit(divisor)) )
+            nameNode  = newLit($capture)
+            identNode = capture
+            
+          let glslType  = newCall(bindSym"glslTypeRepr",  newCall(
+            bindSym"type", newDotExpr(identNode,!!"T")))
+          attributesCall.add( newCall(
+            bindSym"attribute", nameNode, identNode, newLit(divisor), glslType ) )
 
 
         for capture in stmtList.items:
@@ -653,6 +677,6 @@ macro shadingDsl*(mode:GLenum, statement: untyped) : untyped {.immediate.} =
         result.add(includesCall)
       else:
         error("unknown section " & $ident.ident)
-
+        
   if wrapWithDebugResult:
     result = newCall( bindSym"debugResult", result )

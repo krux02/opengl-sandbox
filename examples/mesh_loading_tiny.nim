@@ -366,8 +366,8 @@ proc main() =
           vertexOffset = mesh.first_vertex.GLsizei
 
           uniforms:
-            modelview = view_mat
-            projection = projection_mat
+            modelview = mat4f(view_mat)
+            projection = mat4f(projection_mat)
             outframeTexture
 
           attributes:
@@ -448,8 +448,8 @@ proc main() =
           vertexOffset = mesh.first_triangle.GLsizei * 3
 
           uniforms:
-            modelview = view_mat
-            projection = projection_mat
+            modelview = mat4f(view_mat)
+            projection = mat4f(projection_mat)
             outframeTexture
             material = meshTextures[i]
             time
@@ -513,7 +513,7 @@ proc main() =
 
           uniforms:
             modelview = view_mat.mat4f * model_mat
-            projection = projection_mat
+            projection = projection_mat.mat4f
             boneScale = boneScale.vec2f
             time
 
