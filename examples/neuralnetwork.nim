@@ -1,6 +1,6 @@
 # OpenGL example using SDL2
 
-import sdl2, opengl, math, random, glm, sequtils, ../fancygl, fenv
+import sdl2, opengl, math, random, glm, sequtils, ../fancygl, fenv, sdl2/audio, fftw3, math
 
 # randomize()
 
@@ -9,6 +9,44 @@ discard sdl2.init(INIT_EVERYTHING)
 var windowsize = vec2f(320,240)
 var viewport = vec4f(0,0,windowsize)
 let renderTargetSize = vec2f(320,240)
+
+const
+  layerSize = 32
+  numHiddenLayers = 4
+
+var wav_spec: AudioSpec
+var wav_length: uint32
+var wav_buffer: ptr uint8
+if loadWAV("song2.wav", wav_spec.addr, wav_buffer.addr, wav_length.addr) == nil:
+  stderr.write "Could not open song.wav: ", sdl2.getError(), "\n"
+var audioBuffer = dataView[int16](wav_buffer.pointer, int(wav_length div 2))
+
+# split stream to left / right channel
+var
+  streamA = newSeq[float64](audioBuffer.len)
+  streamB = newSeq[float64](audioBuffer.len)
+
+for i in 0 ..< (audioBuffer.len div 2):
+  let
+    x = audioBuffer[i*2].float64
+    y = audioBuffer[i*2+1].float64
+    z = float64(high(int16))
+
+  streamA[i] = x / z
+  streamB[i] = y / z
+
+
+const N = 4 * (4 * layerSize + layerSize * layerSize * (numHiddenLayers-1) + 3 * layerSize)
+var input : array[N, float64]
+var output : array[2*N, float64]
+
+let plan = fftw_plan_dft_r2c_1d(N, input[0].addr,
+  cast[ptr fftw_complex](output[0].addr), FFTW_ESTIMATE)
+
+
+
+
+
 
 doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3)
 doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3)
@@ -37,7 +75,7 @@ declareFramebuffer(RenderTarget):
   color  = createEmptyTexture2D(renderTargetSize, GL_RGBA8)
 
 let frambuffer0 = createRenderTarget()
-  
+
 proc generateGaussianNoise(mu, sigma: float64): float64 =
   let epsilon = fenv.epsilon(float64)
   let two_pi = 2.0 * PI
@@ -87,29 +125,25 @@ var
   simulationTime = 0.0
   frameCounter = 0
 
-const
-  layerSize = 16
-  numHiddenLayers = 8
-
 var firstWeights_d0 = newSeq[float32](4 * layerSize)
 var firstWeights_d1 = newSeq[float32](4 * layerSize)
 var firstWeights_d2 = newSeq[float32](4 * layerSize)
 var firstWeights_d3 = newSeq[float32](4 * layerSize)
-var weights_d0      = newSeq[float32](layerSize * layerSize * numHiddenLayers)
-var weights_d1      = newSeq[float32](layerSize * layerSize * numHiddenLayers)
-var weights_d2      = newSeq[float32](layerSize * layerSize * numHiddenLayers)
-var weights_d3      = newSeq[float32](layerSize * layerSize * numHiddenLayers)
+var weights_d0      = newSeq[float32](layerSize * layerSize * (numHiddenLayers-1))
+var weights_d1      = newSeq[float32](layerSize * layerSize * (numHiddenLayers-1))
+var weights_d2      = newSeq[float32](layerSize * layerSize * (numHiddenLayers-1))
+var weights_d3      = newSeq[float32](layerSize * layerSize * (numHiddenLayers-1))
 var lastWeights_d0  = newSeq[float32](3 * layerSize)
 var lastWeights_d1  = newSeq[float32](3 * layerSize)
 var lastWeights_d2  = newSeq[float32](3 * layerSize)
 var lastWeights_d3  = newSeq[float32](3 * layerSize)
 
 for i in 0 .. high(weights_d0):
-  weights_d0[i] = 0.0
+  weights_d1[i] = generateGaussianNoise(0, 1.0)
 for i in 0 .. high(firstWeights_d0):
-  firstWeights_d0[i] = 0.0
+  firstWeights_d1[i] = generateGaussianNoise(0, 1.0)
 for i in 0 .. high(lastWeights_d0):
-  lastWeights_d0[i] = 0.0
+  lastWeights_d1[i] = generateGaussianNoise(0, 1.0)
 
 const glslCode = """
 float sig(float x) {
@@ -128,7 +162,8 @@ let weightsTexture      = texture1D(weights_d0.len div 4, GL_RGBA32F)
 let firstWeightsTexture = texture1D(firstWeights_d0.len div 4, GL_RGBA32F)
 let lastWeightsTexture  = texture1D(lastWeights_d0.len div 4, GL_RGBA32F)
 
-var pos = 0;
+var pos = 0
+var offset = 0
 
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
@@ -156,28 +191,54 @@ proc render() =
 
   #   pos = pos + 1
 
-  let stdDev:float32 = 0.0001
-  for i in 0 .. high(firstWeights_d0):
-    firstWeights_d3[i] = generateGaussianNoise(0, stdDev)
-    firstWeights_d2[i] = linClamp(firstWeights_d2[i] + firstWeights_d3[i], 0.01, 0.01) # acceleration
-    firstWeights_d1[i] = linClamp(firstWeights_d1[i] + firstWeights_d2[i], 0.1, 0.1) # velocity
-    firstWeights_d0[i] = linClamp(firstWeights_d0[i] + firstWeights_d1[i], 2, 2) # position
-  for i in 0 .. high(weights_d0):
-    weights_d3[i] = generateGaussianNoise(0, stdDev)
-    weights_d2[i] = linClamp(weights_d2[i] + weights_d3[i], 0.01, 0.01) # acceleration
-    weights_d1[i] = linClamp(weights_d1[i] + weights_d2[i], 0.1, 0.1) # velocity
-    weights_d0[i] = linClamp(weights_d0[i] + weights_d1[i], 3, 3) # position
-  for i in 0 .. high(lastWeights_d0):
-    lastWeights_d3[i] = generateGaussianNoise(0, stdDev)
-    lastWeights_d2[i] = linClamp(lastWeights_d2[i] + lastWeights_d3[i], 0.01, 0.01) # acceleration
-    lastWeights_d1[i] = linClamp(lastWeights_d1[i] + lastWeights_d2[i], 0.1, 0.1) # velocity
-    lastWeights_d0[i] = linClamp(lastWeights_d0[i] + lastWeights_d1[i], 0.5, 0.5) # position
+  # let stdDev:float32 = 0.0001
+  # for i in 0 .. high(firstWeights_d0):
+  #   firstWeights_d3[i] = generateGaussianNoise(0, stdDev)
+  #   firstWeights_d2[i] = linClamp(firstWeights_d2[i] + firstWeights_d3[i], 0.01, 0.01) # acceleration
+  #   firstWeights_d1[i] = linClamp(firstWeights_d1[i] + firstWeights_d2[i], 0.1, 0.1) # velocity
+  #   firstWeights_d0[i] = linClamp(firstWeights_d0[i] + firstWeights_d1[i], 2, 2) # position
+  # for i in 0 .. high(weights_d0):
+  #   weights_d3[i] = generateGaussianNoise(0, stdDev)
+  #   weights_d2[i] = linClamp(weights_d2[i] + weights_d3[i], 0.01, 0.01) # acceleration
+  #   weights_d1[i] = linClamp(weights_d1[i] + weights_d2[i], 0.1, 0.1) # velocity
+  #   weights_d0[i] = linClamp(weights_d0[i] + weights_d1[i], 3, 3) # position
+  # for i in 0 .. high(lastWeights_d0):
+  #   lastWeights_d3[i] = generateGaussianNoise(0, stdDev)
+  #   lastWeights_d2[i] = linClamp(lastWeights_d2[i] + lastWeights_d3[i], 0.01, 0.01) # acceleration
+  #   lastWeights_d1[i] = linClamp(lastWeights_d1[i] + lastWeights_d2[i], 0.1, 0.1) # velocity
+  #   lastWeights_d0[i] = linClamp(lastWeights_d0[i] + lastWeights_d1[i], 0.5, 0.5) # position
+
+
+  if (offset+N) <= wav_length.int:
+    for i in 0 ..< N:
+      input[i] = streamA[int(offset) + i]
+    fftw_execute(plan)
+
+    for i in 0..< N div 4:
+      let im = (output[i] + output[i + 2] + output[i + 4] + output[i + 6]) / 4.0
+      let re = (output[i+1] + output[i + 3] + output[i + 5] + output[i + 7]) / 4.0
+      let mag = sqrt(im*im + re*re)
+      let w = ln(1.5+mag)*0.5
+      # echo w
+      if i < firstWeights_d0.len:
+        firstWeights_d0[i] = w * firstWeights_d1[i]
+        discard
+      elif i < firstWeights_d0.len + weights_d0.len:
+        weights_d0[i - firstWeights_d0.len] = w * weights_d1[i - firstWeights_d0.len]
+      else:
+        lastWeights_d0[i - firstWeights_d0.len - weights_d0.len] = w * lastWeights_d1[i - firstWeights_d0.len - weights_d0.len]
+        discard
+
+    offset += N div 4;
 
   # echo "--"
   # echo weights_d3[0];
   # echo weights_d2[0];
   # echo weights_d1[0];
+  # echo ""
   # echo weights_d0[0];
+  # echo weights_d0[weights_d0.len div 2];
+  # echo weights_d0[weights_d0.high];
 
   weightsTexture.setDataRGBA(weights_d0)
   firstWeightsTexture.setDataRGBA(firstWeights_d0)

@@ -1,4 +1,4 @@
-import sdl2, sdl2/audio, ../fancygl, fftw3
+import sdl2, sdl2/audio, ../fancygl, fftw3, math
 
 discard sdl2.init(INIT_EVERYTHING)
 
@@ -63,8 +63,11 @@ for offset in 0 .. (wav_length div N):
   fftw_execute(plan)
 
   for i in 0..< N:
-      let x = output[i] * WIDTH / 12 + WIDTH / 2
-      let y = output[i+1] * HEIGHT / 12 + HEIGHT / 2
+      let im = output[i]
+      let re = output[i+1]
+      let mag = sqrt(im*im + re*re)
+      let x = i * WIDTH div N
+      let y = HEiGHT-ln(mag+1)*100
       sdl2.drawPoint(renderer, cint(x), cint(y))
 
   sdl2.present(renderer)
