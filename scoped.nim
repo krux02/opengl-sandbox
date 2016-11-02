@@ -1,3 +1,5 @@
+# included from fancygl.nim
+
 import opengl
 
 proc glSetBool( name : GLenum, value : bool ) : void =

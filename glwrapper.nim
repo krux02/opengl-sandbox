@@ -398,21 +398,21 @@ proc mapRead*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): ReadView[T] =
     result.data = cast[ptr UncheckedArray[T]](glMapNamedBufferEXT(buffer.handle, GL_READ_ONLY))
   else:
     result.data = cast[ptr UncheckedArray[T]](glMapNamedBuffer(buffer.handle, GL_READ_ONLY))
-  result.size = buffer.size div sizeof(T)
+  result.size = buffer.len div sizeof(T)
 
 proc mapWrite*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): WriteView[T] =
   when false:
     result.data = cast[ptr UncheckedArray[T]](glMapNamedBufferEXT(buffer.handle, GL_WRITE_ONLY))
   else:
     result.data = cast[ptr UncheckedArray[T]](glMapNamedBuffer(buffer.handle, GL_WRITE_ONLY))
-  result.size = buffer.size div sizeof(T)
+  result.size = buffer.len div sizeof(T)
 
 proc mapReadWrite*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): DataView[T] =
   when false:
     result.data = cast[ptr UncheckedArray[T]](glMapNamedBufferEXT(buffer.handle, GL_READ_WRITE))
   else:
     result.data = cast[ptr UncheckedArray[T]](glMapNamedBuffer(buffer.handle, GL_READ_WRITE))
-  result.size = buffer.size div sizeof(T)
+  result.size = buffer.len div sizeof(T)
 
 template mapReadBufferBlock*(buffer: ArrayBuffer[auto], blck: untyped) : untyped =
   block:

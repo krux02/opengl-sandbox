@@ -1,6 +1,7 @@
+# included from fancygl.nim
+
 # returns a string, and true if it is a sample type
 import glm
-
 
 template glslTypeRepr(t: typedesc[Vec4[float32]]): string = "vec4"
 template glslTypeRepr(t: typedesc[Vec3[float32]]): string = "vec3"

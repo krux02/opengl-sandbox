@@ -1,3 +1,5 @@
+# included from fancygl.nim
+
 proc nextRnd(): float32 =
   random(1.0).float32 - 0.5f
 

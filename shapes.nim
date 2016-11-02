@@ -1,4 +1,4 @@
-
+# included from fancygl.nim
 
 proc uvSphereVertices*(segments, rings: int): seq[Vec3f] =
   result.newSeq(segments * rings)

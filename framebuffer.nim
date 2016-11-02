@@ -1,3 +1,5 @@
+# included from fancygl.nim
+
 type DepthRenderbuffer* = distinct GLuint
 
 proc bindIt*(drb: DepthRenderbuffer): void =
