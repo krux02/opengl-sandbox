@@ -2,8 +2,9 @@
 ############################### fancy gl ###############################
 ########################################################################
 
-import opengl, glm, math, random, strutils, nre, macros, macroutils, sdl2, sdl2/image, os, terminal
+import opengl, glm, math, random, strutils, nre, macros, macroutils, sdl2, sdl2/image, os, terminal, arnelib
 include etc, glm_additions, default_setup, shapes, samplers, framebuffer, glwrapper, heightmap, iqm, typeinfo
+export opengl, glm, sdl2
 
 type ShaderParam* = tuple[name: string, gl_type: string]
 
@@ -120,7 +121,7 @@ proc makeAndBindBuffer[T](buffer: var ArrayBuffer[T], index: GLint) =
     buffer.create
     buffer.bindIt
     glVertexAttribPointer(index.GLuint, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
-
+    
 proc bindAndAttribPointer[T](vao: VertexArrayObject, buffer: ArrayBuffer[T], location: Location) =
   if location.index >= 0:
     buffer.bindIt
@@ -133,6 +134,22 @@ proc bindAndAttribPointer[T](vao: VertexArrayObject, buffer: ArrayBuffer[T], loc
     #                          attribType(T), attribNormalized(T), #[ relative offset ?! ]# 0);
     #glVertexArrayAttribBinding(vao.handle, loc, binding)
 
+proc bindAndAttribPointer(vao: VertexArrayObject; view: ArrayBufferView; location: Location): void =
+  if location.index >= 0:
+    view.buffer.bindIt
+    glVertexAttribPointer(
+      location.index.GLuint,
+      attribSize(view.T),
+      attribType(view.T),
+      attribNormalized(view.T),
+      view.stride.GLsizei,
+      cast[pointer](view.offset)
+    )
+    
+#ArrayBufferView*[S,T] = object
+#    buffer*: ArrayBuffer[S]
+#    offset*, stride*: int
+    
 proc makeAndBindElementBuffer[T](buffer: var ElementArraybuffer[T]) =
   buffer.create
   buffer.bindIt

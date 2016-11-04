@@ -8,13 +8,32 @@ let (window,context) = defaultSetup(windowsize)
     
 let crateTexture = loadTexture2DFromFile("crate.png")
 
+
+
+type
+  VertexStruct = object
+    pos: Vec3f
+    normal: Vec3f
+    color: Vec3f
+    texcoord: Vec2f
+
+var interleavedBoxVertices = newSeq[VertexStruct](boxVertices.len)
+
+for i, vertex in interleavedBoxVertices.mpairs:
+  vertex.pos      = boxVertices[i]
+  vertex.normal   = boxNormals[i]
+  vertex.color    = boxColors[i]
+  vertex.texcoord = boxTexCoords[i]
+
+let boxBuffer = interleavedBoxVertices.arrayBuffer
+
 let
-  vertex = boxVertices.arrayBuffer
-  normal = boxNormals.arrayBuffer
-  color = boxColors.arrayBuffer
-  texcoord = boxTexCoords.arrayBuffer
+  vertex = boxBuffer.view(pos)
+  normal = boxBuffer.view(normal)
+  color =  boxBuffer.view(color)
+  texcoord = boxBuffer.view(texcoord)
   
-let indices = toSeq( countup[int8,int8](0, int8(vertex.len-1)) ).elementArrayBuffer
+let indices = toSeq( countup[int8,int8](0, int8(high(boxvertices)))).elementArrayBuffer
 
 declareFramebuffer(Fb1FramebufferType):
   depth = createEmptyDepthTexture2D(windowsize)

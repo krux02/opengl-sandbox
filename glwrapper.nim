@@ -457,6 +457,35 @@ proc uniformBuffer*[T](data : T, usage: GLenum = GL_STATIC_DRAW): UniformBuffer[
   result.create
   result.bufferData(data, usage)
 
+#### ArrayBufferView
+
+type
+  ArrayBufferView*[S,T] = object
+    buffer*: ArrayBuffer[S]
+    offset*, stride*: int
+
+proc len*(ab: ArrayBufferView): int = ab.buffer.len
+proc high*(ab: ArrayBufferView): int = ab.buffer.len - 1
+    
+template view*(buf: ArrayBuffer; member: untyped): untyped =
+  var dummyVal : buf.T
+  var res : ArrayBufferView[buf.T, dummyVal.member.type]
+  res.buffer = buf
+  res.offset = cast[int](dummyVal.member.addr) - cast[int](dummyVal.addr)
+  res.stride = sizeof(buf.T)
+  res
+  
+when isMainModule:
+  type TestType = object
+    a,b,c,d: float32
+    
+  var testArrayBuffer = ArrayBuffer[TestType](handle : 7)
+
+  assert testArrayBuffer.view(a) == ArrayBufferView[TestType,int](buffer: ArrayBuffer[TestType](handle: 7), offset: 0, stride: 16)
+  assert testArrayBuffer.view(b) == ArrayBufferView[TestType,int](buffer: ArrayBuffer[TestType](handle: 7), offset: 4, stride: 16)
+  assert testArrayBuffer.view(c) == ArrayBufferView[TestType,int](buffer: ArrayBuffer[TestType](handle: 7), offset: 8, stride: 16)
+  assert testArrayBuffer.view(d) == ArrayBufferView[TestType,int](buffer: ArrayBuffer[TestType](handle: 7), offset:12, stride: 16)
+  
 #### shader
 
 proc shaderSource(shader: Shader, source: string) =

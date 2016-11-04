@@ -36,9 +36,6 @@ proc newTypeDef(name, tpe: NimNode): NimNode {.compileTime.} =
     )
   )
 
-proc newDotExpr*(a,b,c: NimNode): NimNode {. compileTime .} =
-  newDotExpr(newDotExpr(a,b),c)
-
 proc newObjectTy*( name, recList: NimNode ): NimNode {.compileTime.} =
   result = newTypeDef(name,
     newNimNode2(nnkObjectTy, newEmptyNode(), newEmptyNode(), recList)
