@@ -1,6 +1,6 @@
 # OpenGL example using SDL2
 
-import sdl2, opengl, math, glm, sequtils, ../fancygl
+import sdl2, math, sequtils, ../fancygl
 
 var windowsize = vec2f(640,480)
 
@@ -8,24 +8,20 @@ let (window,context) = defaultSetup(windowsize)
     
 let crateTexture = loadTexture2DFromFile("crate.png")
 
-
-
 type
   VertexStruct = object
-    pos: Vec3f
-    normal: Vec3f
-    color: Vec3f
+    pos:      Vec3f
+    normal:   Vec3f
+    color:    Vec3f
     texcoord: Vec2f
 
-var interleavedBoxVertices = newSeq[VertexStruct](boxVertices.len)
+var boxBuffer = createArrayBuffer[VertexStruct](boxVertices.len)
 
-for i, vertex in interleavedBoxVertices.mpairs:
+for i, vertex in boxBuffer.mpairs:
   vertex.pos      = boxVertices[i]
   vertex.normal   = boxNormals[i]
   vertex.color    = boxColors[i]
   vertex.texcoord = boxTexCoords[i]
-
-let boxBuffer = interleavedBoxVertices.arrayBuffer
 
 let
   vertex = boxBuffer.view(pos)
@@ -40,16 +36,6 @@ declareFramebuffer(Fb1FramebufferType):
   color = createEmptyTexture2D(windowsize)
 
 let fb1 = createFb1FramebufferType()
-
-
-glClearColor(0.0, 0.0, 0.0, 1.0)                  # Set background color to black and opaque
-glClearDepth(1.0)                                 # Set background depth to farthest
-glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-culling
-glDepthFunc(GL_LEQUAL)                            # Set the type of depth-test
-#glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST) # Nice perspective corrections
-
-glEnable(GL_CULL_FACE)
-glCullFace(GL_BACK)
 
 const glslCode = """
 vec4 mymix(vec4 color, float alpha) {
@@ -161,7 +147,6 @@ proc render() =
           //color.rg = vec2(float(int(gl_FragCoord.x) % 256) / 255.0, float(int(gl_FragCoord.y) % 256) / 255.0);
           """
 
-    
     fb1.color.generateMipmap
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
     
@@ -227,12 +212,9 @@ proc render() =
         """
         color = g_color;
         """
-    
-
+  
   frameCounter += 1
   glSwapWindow(window) # Swap the front and back frame buffers (double buffering)
-
-# Main loop
 
 var
   evt = sdl2.defaultEvent

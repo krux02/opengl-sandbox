@@ -59,7 +59,7 @@ var
   lightPositions = createArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW)
   lightColors = createArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW)
 
-mapWriteBufferBlock(lightColors):
+mapWriteBlock(lightColors):
   let maximum = lightColors.len - 1
   for i in 0 .. maximum:
     mappedBuffer[i] = vec3f(random(1.0).float32, random(1.0).float32, random(1.0).float32)
@@ -303,7 +303,7 @@ proc render() =
     glCullFace(GL_FRONT)
     glDepthFunc(GL_GEQUAL)
 
-    mapWriteBufferBlock(lightPositions):
+    mapWriteBlock(lightPositions):
       let poslen = numLights
       for i in 0 .. < poslen:
         let

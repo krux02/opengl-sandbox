@@ -2,35 +2,15 @@
 
 import sdl2, opengl, math, random, glm, sequtils, ../fancygl, fenv
 
-# randomize()
-
-discard sdl2.init(INIT_EVERYTHING)
+# TODO use defaultSetup
 
 var windowsize = vec2f(320,240)
 var viewport = vec4f(0,0,windowsize)
 let renderTargetSize = vec2f(320,240)
 
-doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3)
-doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3)
-doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_FLAGS        , SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG or SDL_GL_CONTEXT_DEBUG_FLAG)
-doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_PROFILE_MASK , SDL_GL_CONTEXT_PROFILE_CORE)
+var (window, context) = defaultSetup(windowsize)
 
-let window = createWindow("neural network graphics", 100, 100, windowsize.x.cint, windowsize.y.cint, SDL_WINDOW_OPENGL)
-# or SDL_WINDOW_RESIZABL)
-if window.isNil:
-  echo sdl2.getError()
-  system.quit(1)
-
-let context = window.glCreateContext()
-if context.isNil:
-  echo sdl2.getError()
-  system.quit(1)
-
-#Initialize OpenGL
-loadExtensions()
-enableDefaultDebugCallback()
-
-doAssert 0 == glMakeCurrent(window, context)
+glDisable(GL_DEPTH_TEST)
 
 declareFramebuffer(RenderTarget):
   depth  = createEmptyDepthTexture2D(renderTargetSize)

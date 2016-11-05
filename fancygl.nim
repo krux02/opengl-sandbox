@@ -1,8 +1,8 @@
 ########################################################################
 ############################### fancy gl ###############################
 ########################################################################
-
-import opengl, glm, math, random, strutils, nre, macros, macroutils, sdl2, sdl2/image, os, terminal, arnelib
+import arnelib, opengl, glm, math, random, strutils, nre, macros,
+       macroutils, sdl2, sdl2/image, os, terminal
 include etc, glm_additions, default_setup, shapes, samplers, framebuffer, glwrapper, heightmap, iqm, typeinfo
 export opengl, glm, sdl2
 
@@ -318,7 +318,6 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
         let buffername = !(name & "Buffer")
 
         let isAttrib = name != "indices"
-        #echo "attribute ", value.glslAttribType, " ", name
 
         if not isAttrib:
           if hasIndices:
@@ -327,6 +326,10 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
           hasIndices = true
 
           let tpe = value.getTypeInst
+
+          if $tpe[0].symbol != "ElementArrayBuffer" and $tpe[0].symbol != "seq":
+            error("incompatible container type for indices: " & tpe.repr, value)
+          
           case tpe[1].typeKind
           of ntyInt8, ntyUInt8:
             indexType = bindSym"GL_UNSIGNED_BYTE"
@@ -338,11 +341,11 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
             indexType = bindSym"GL_UNSIGNED_INT"
             sizeofIndexType = 4
           of ntyInt, ntyUInt:
-            error "int type has to be explicity sized uint8 uint16 or uint32"
+            error("int type has to be explicity sized uint8 uint16 or uint32", value)
           of ntyInt64, ntyUInt64:
-            error "64 bit indices not supported"
+            error("64 bit indices not supported", value)
           else:
-            error("wrong kind for indices: " & $value.getTypeImpl[1].typeKind)
+            error("wrong kind for indices: " & $value.getTypeImpl[1].typeKind, value)
 
 
         template foobarTemplate( lhs, rhs, bufferType : untyped ) : untyped {.dirty.} =
@@ -533,11 +536,10 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 #### Shading Dsl Outer ###########################################################
 ##################################################################################
 
-macro shadingDsl*(mode:GLenum, statement: untyped) : untyped {.immediate.} =
-
+macro shadingDsl*(mode:GLenum, statement: untyped) : untyped =
   var wrapWithDebugResult = false
-  
   result = newCall(bindSym"shadingDslInner", mode, !! "fragmentOutputs" )
+  
   # numVertices = result[2]
   # numInstances = result[3]
 

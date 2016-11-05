@@ -36,23 +36,66 @@ proc `[]`*[T](mb : DataView[T]; index: int) : var T =
 proc `[]=`*[T](mb : DataView[T], index: int, val: T) : void =
   mb.data[index] = val
 
-iterator items*[T](dv: DataView[T]) : T =
-  let p = dv.data
+iterator items*[T](view: ReadView[T]) : T =
+  let p = view.data
   var i = 0
-  while i < dv.size:
+  while i < view.size:
     yield p[i]
     inc(i)
 
-iterator pairs*[T](dv: DataView[T]): tuple[key: int, val: T] {.inline.} =
-  let p = dv.data
+iterator pairs*[T](view: ReadView[T]): tuple[key: int, val: T] {.inline.} =
+  let p = view.data
   var i = 0
-  while i < dv.size:
+  while i < view.size:
     yield (i, p[i])
     inc(i)
 
-proc take*[T](dv: DataView[T], num: int) : DataView[T] =
-  result.data = dv.data
-  result.size = max(min(num, dv.size), 0)
+iterator items*[T](view: DataView[T]) : T =
+  let p = view.data
+  var i = 0
+  while i < view.size:
+    yield p[i]
+    inc(i)
+
+iterator pairs*[T](view: DataView[T]): tuple[key: int, val: T] {.inline.} =
+  let p = view.data
+  var i = 0
+  while i < view.size:
+    yield (i, p[i])
+    inc(i)
+
+iterator mitems*[T](view: DataView[T]) : var T =
+  let p = view.data
+  var i = 0
+  while i < view.size:
+    yield p[i]
+    inc(i)
+
+iterator mpairs*[T](view: DataView[T]): tuple[key: int, val: var T] {.inline.} =
+  let p = view.data
+  var i = 0
+  while i < view.size:
+    yield (i, p[i])
+    inc(i)
+
+iterator mitems*[T](wv: WriteView[T]) : var T =
+  let p = wv.data
+  var i = 0
+  while i < wv.size:
+    yield p[i]
+    inc(i)
+
+iterator mpairs*[T](wv: WriteView[T]): tuple[key: int, val: var T] {.inline.} =
+  let p = wv.data
+  var i = 0
+  while i < wv.size:
+    yield (i, p[i])
+    inc(i)
+        
+    
+proc take*[T](view: DataView[T], num: int) : DataView[T] =
+  result.data = view.data
+  result.size = max(min(num, view.size), 0)
 
 #### program type ####
   
@@ -148,7 +191,7 @@ proc uniform(program: Program; location: Location, value: bool) =
 #### Vertex Array Object ####
 
 type VertexArrayObject* = object
-    handle: GLuint
+    handle*: GLuint
 
 proc newVertexArrayObject*() : VertexArrayObject =
   glCreateVertexArrays(1, cast[ptr GLuint](result.addr))
@@ -183,11 +226,11 @@ template blockBind*(vao: VertexArrayObject, blk: untyped) : untyped =
 
 type
   ArrayBuffer*[T]        = object
-    handle: GLuint
+    handle*: GLuint
   ElementArrayBuffer*[T] = object
-    handle: GLuint
+    handle*: GLuint
   UniformBuffer*[T]      = object
-    handle: GLuint
+    handle*: GLuint
 
 type SeqLikeBuffer[T] = ArrayBuffer[T] | ElementArrayBuffer[T]
 type AnyBuffer[T] = ArrayBuffer[T] | ElementArrayBuffer[T] | UniformBuffer[T]
@@ -210,21 +253,21 @@ proc create*[T](arrayBuffer: var UniformBuffer[T] ) : void =
   else:
     glCreateBuffers(1, arrayBuffer.handle.addr)
 
-proc createArrayBuffer*[T](len: int, usage: GLenum): ArrayBuffer[T] =
+proc createArrayBuffer*[T](len: int, usage: GLenum = GL_STATIC_DRAW): ArrayBuffer[T] =
   result.create
   when false:
     glNamedBufferDataEXT(result.handle, len * GLsizeiptr(sizeof(T)), nil, usage)
   else:
     glNamedBufferData(result.handle, len * GLsizeiptr(sizeof(T)), nil, usage)
 
-proc createElementArrayBuffer*[T](len: int, usage: GLenum): ElementArrayBuffer[T] =
+proc createElementArrayBuffer*[T](len: int, usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
   result.create
   when false:
     glNamedBufferDataEXT(result.handle, len * GLsizeiptr(sizeof(T)), nil, usage)
   else:
     glNamedBufferData(result.handle, len * GLsizeiptr(sizeof(T)), nil, usage)
   
-proc createUniformBuffer*[T](usage: GLenum): UniformBuffer[T] =
+proc createUniformBuffer*[T](usage: GLenum = GL_STATIC_DRAW): UniformBuffer[T] =
   result.create
   when false:
     glNamedBufferDataEXT(result.handle, GLsizeiptr(sizeof(T)), nil, usage)
@@ -384,9 +427,30 @@ iterator items*[T](buffer: SeqLikeBuffer[T]) : T =
   let mappedBuffer = buffer.mapRead
   defer:
     discard buffer.unmap
-  for item in mappedBuffer:
+  for item in mappedBuffer.items:
     yield item
 
+iterator pairs*[T](buffer: SeqLikeBuffer[T]) : tuple[key: int, val: T] =
+  let mappedBuffer = buffer.mapRead
+  defer:
+    discard buffer.unmap
+  for i, item in mappedBuffer.pairs:
+    yield (i, item)
+
+iterator mitems*[T](buffer: SeqLikeBuffer[T]) : var T =
+  let mappedBuffer = buffer.mapReadWrite
+  defer:
+    discard buffer.unmap
+  for item in mappedBuffer.mitems:
+    yield item
+
+iterator mpairs*[T](buffer: SeqLikeBuffer[T]) : tuple[key: int, val: var T] =
+  let mappedBuffer = buffer.mapReadWrite
+  defer:
+    discard buffer.unmap
+  for i, item in mappedBuffer.mpairs:
+    yield (i, item)
+    
 proc unmap*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): bool =
   when false:
     glUnmapNamedBufferEXT(buffer.handle) != GL_FALSE.GLboolean
@@ -398,37 +462,37 @@ proc mapRead*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): ReadView[T] =
     result.data = cast[ptr UncheckedArray[T]](glMapNamedBufferEXT(buffer.handle, GL_READ_ONLY))
   else:
     result.data = cast[ptr UncheckedArray[T]](glMapNamedBuffer(buffer.handle, GL_READ_ONLY))
-  result.size = buffer.len div sizeof(T)
+  result.size = buffer.len
 
 proc mapWrite*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): WriteView[T] =
   when false:
     result.data = cast[ptr UncheckedArray[T]](glMapNamedBufferEXT(buffer.handle, GL_WRITE_ONLY))
   else:
     result.data = cast[ptr UncheckedArray[T]](glMapNamedBuffer(buffer.handle, GL_WRITE_ONLY))
-  result.size = buffer.len div sizeof(T)
+  result.size = buffer.len
 
 proc mapReadWrite*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): DataView[T] =
   when false:
     result.data = cast[ptr UncheckedArray[T]](glMapNamedBufferEXT(buffer.handle, GL_READ_WRITE))
   else:
     result.data = cast[ptr UncheckedArray[T]](glMapNamedBuffer(buffer.handle, GL_READ_WRITE))
-  result.size = buffer.len div sizeof(T)
+  result.size = buffer.len
 
-template mapReadBufferBlock*(buffer: ArrayBuffer[auto], blck: untyped) : untyped =
+template mapReadBlock*(buffer: ArrayBuffer[auto], blck: untyped) : untyped =
   block:
     let mappedBuffer {. inject .} = buffer.mapRead
     defer:
       discard buffer.unmap
     blck
 
-template mapWriteBufferBlock*(buffer: ArrayBuffer[auto], blck: untyped) : untyped =
+template mapWriteBlock*(buffer: ArrayBuffer[auto], blck: untyped) : untyped =
   block:
     let mappedBuffer {. inject .} = buffer.mapWrite
     defer:
       discard buffer.unmap
     blck
 
-template mapReadWriteBufferBlock*(buffer: ArrayBuffer[auto], blck: untyped) : untyped =
+template mapReadWriteBlock*(buffer: ArrayBuffer[auto], blck: untyped) : untyped =
   block:
     let mappedBuffer {. inject .} = buffer.mapReadWrite
     defer:
@@ -474,7 +538,13 @@ template view*(buf: ArrayBuffer; member: untyped): untyped =
   res.offset = cast[int](dummyVal.member.addr) - cast[int](dummyVal.addr)
   res.stride = sizeof(buf.T)
   res
-  
+
+proc splitView*(buf: ArrayBuffer[Mat4f]): array[4, ArrayBufferView[Mat4f, Vec4f]] =
+  for i in 0 .. 3:
+    result[i].buffer = buf
+    result[i].offset = i * 4 * sizeof(float32)
+    result[i].stride = 4 * 4 * sizeof(float32)
+
 when isMainModule:
   type TestType = object
     a,b,c,d: float32

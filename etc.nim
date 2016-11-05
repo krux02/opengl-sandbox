@@ -1,6 +1,6 @@
 # included from fancygl.nim
 
-macro debugResult(arg: typed) : stmt =
+macro debugResult(arg: typed) : untyped =
   for str in arg.repr.split("""\x0A"""):
     echo str
   arg
