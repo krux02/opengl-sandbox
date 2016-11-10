@@ -117,45 +117,42 @@ proc forwardVertexShaderSource(sourceHeader: string,
   echo "forwardVertexShaderSource:\n", result
 
 proc makeAndBindBuffer[T](buffer: var ArrayBuffer[T], index: GLint) =
-  if index >= 0:
+  if 0 <= index:
     buffer.create
     buffer.bindIt
     glVertexAttribPointer(index.GLuint, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
     
 proc bindAndAttribPointer[T](vao: VertexArrayObject, buffer: ArrayBuffer[T], location: Location) =
-  if location.index >= 0:
-    
-    buffer.bindIt
-    glVertexAttribPointer(location.index.GLuint, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
-    
-    #[
-    let
-      loc = location.index.GLuint
-      binding = buffer.index.GLuint
-      
-    glVertexArrayVertexBuffer(vao.handle, loc, buffer.handle, 0, 0)
-    
-    glVertexArrayAttribFormat(vao.handle, loc, attribSize(T),
-                              attribType(T), attribNormalized(T), #[ relative offset ?! ]# 0);
-            
-    glVertexArrayAttribBinding(vao.handle, loc, binding)
-    ]#
+  if 0 <= location.index:
+    let loc = location.index.GLuint
+    glVertexArrayVertexBuffer(vao.handle, loc, buffer.handle, 0, GLsizei(sizeof(T)))
+    glVertexArrayAttribFormat(vao.handle, loc, attribSize(T), attribType(T), attribNormalized(T), #[ relative offset ?! ]# 0);
+    glVertexArrayAttribBinding(vao.handle, loc, loc)
 
 proc bindAndAttribPointer(vao: VertexArrayObject; view: ArrayBufferView; location: Location): void =
-  if location.index >= 0:
-    view.buffer.bindIt
-    glVertexAttribPointer(
-      location.index.GLuint,
-      attribSize(view.T),
-      attribType(view.T),
-      attribNormalized(view.T),
-      view.stride.GLsizei,
-      cast[pointer](view.offset)
-    )
+  if 0 <= location.index:
+    let loc = location.index.GLuint
+    glVertexArrayVertexBuffer(vao.handle, loc, view.buffer.handle, GLsizei(view.offset), GLsizei(view.stride))
+    glVertexArrayAttribFormat(vao.handle, loc, attribSize(view.T), attribType(view.T), attribNormalized(view.T), #[ relative offset ?! ]# 0);
+    glVertexArrayAttribBinding(vao.handle, loc, loc)
+
+proc setBuffer[T](vao: VertexArrayObject; buffer: ArrayBuffer[T]; location: Location): void =
+  if 0 <= location.index:
+    let loc = location.index.GLuint
+    glVertexArrayVertexBuffer(vao.handle, loc, buffer.handle, 0, GLsizei(sizeof(T)))
+    
+proc setBuffer(vao: VertexArrayObject; view: ArrayBufferView; location: Location): void =
+  if 0 <= location.index:
+    let loc = location.index.GLuint
+    glVertexArrayVertexBuffer(vao.handle, loc, view.buffer.handle, GLsizei(view.offset), GLsizei(view.stride))
+    
     
 #ArrayBufferView*[S,T] = object
 #    buffer*: ArrayBuffer[S]
 #    offset*, stride*: int
+
+proc binding(loc: Location): Binding =
+  result.index = loc.index.GLuint
     
 proc makeAndBindElementBuffer[T](buffer: var ElementArraybuffer[T]) =
   buffer.create
@@ -179,7 +176,6 @@ template renderBlockTemplate(numLocations: int; globalsBlock, linkShaderBlock,
       initUniformsBlock
 
       vao = newVertexArrayObject()
-      vao.bindIt
 
       bufferCreationBlock
 
@@ -276,10 +272,10 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
         let isSampler: bool  = innerCall[4].boolVal
 
         if value.kind in {nnkIntLit, nnkFloatLit}:
-          uniformsSection.add "const " & glslType & " " & name & " = " & value.repr
+          uniformsSection.add s"const $glslType $name = ${value.repr}"
           continue
 
-        let baseString = "uniform " & glslType & " " & name
+        let baseString = s"uniform $glslType $name"
 
         initUniformsBlock.add( newAssignment(
           newDotExpr(locations(numLocations), !!"index"),
@@ -361,20 +357,20 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
         if isAttrib:
           let location = locations(numLocations)
           let nameLit = newLit(name)
-          let attributeLocation = bindSym"attributeLocation"
-          let enableAttrib      = bindSym"enableAttrib"
-          let divisor           = bindSym"divisor"
+          #let attributeLocation = bindSym"attributeLocation"
+          #let enableAttrib      = bindSym"enableAttrib"
+          #let divisor           = bindSym"divisor"
+          #let binding           = bindSym"binding"
           
           let divisorLit = newLit(divisorVal)
           
           bufferCreationBlock.addAll quote do:
-            `location` = `attributeLocation`(glProgram, `nameLit`)
+            `location` = attributeLocation(glProgram, `nameLit`)
             # this needs to change, when multiple
             # attributes per buffer should be supported
             if 0 <= `location`.index:
-              `enableAttrib`(`vao`, `location`)
-              let binding = Binding(index: `location`.index.GLuint)
-              `divisor`(`vao`, binding, `divisorLit`)
+              enableAttrib(`vao`, `location`)
+              divisor(`vao`, binding(`location`), `divisorLit`)
 
         if isSeq:
           if isAttrib:
@@ -395,10 +391,11 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
             let location = locations(numLocations)
             bufferCreationBlock.addAll quote do:
               bindAndAttribPointer(`vao`, `value`, `location`)
-              
+            setUniformsBlock.addAll quote do:
+              setBuffer(`vao`, `value`, `location`)
           else:
-            bufferCreationBlock.addAll quote do:
-              bindIt(`value`)
+            setUniformsBlock.addAll quote do:
+              bindIt(`vao`, `value`)
 
         if isAttrib:
           attribNames.add( name )
@@ -491,7 +488,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
       # p2 = li.find(')',p1)
       basename = li.substr(0, p0-1)
       line     = li.substr(p0+5, p1-1).parseInt
-      filename = joinPath(getTempDir(), basename & "_" & $line & ".vert")
+      filename = joinPath(getTempDir(), s"${basename}_${line}.vert")
 
     writeFile(filename, vertexShaderSource)
 
