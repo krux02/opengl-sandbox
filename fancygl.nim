@@ -124,15 +124,22 @@ proc makeAndBindBuffer[T](buffer: var ArrayBuffer[T], index: GLint) =
     
 proc bindAndAttribPointer[T](vao: VertexArrayObject, buffer: ArrayBuffer[T], location: Location) =
   if location.index >= 0:
+    
     buffer.bindIt
     glVertexAttribPointer(location.index.GLuint, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
-    #let
-    #  loc = location.index.GLuint
-    #  binding = location.index.GLuint
-    #glVertexArrayVertexBuffer(vao.handle, loc, buffer.handle, 0, 0)
-    #glVertexArrayAttribFormat(vao.handle, loc, attribSize(T),
-    #                          attribType(T), attribNormalized(T), #[ relative offset ?! ]# 0);
-    #glVertexArrayAttribBinding(vao.handle, loc, binding)
+    
+    #[
+    let
+      loc = location.index.GLuint
+      binding = buffer.index.GLuint
+      
+    glVertexArrayVertexBuffer(vao.handle, loc, buffer.handle, 0, 0)
+    
+    glVertexArrayAttribFormat(vao.handle, loc, attribSize(T),
+                              attribType(T), attribNormalized(T), #[ relative offset ?! ]# 0);
+            
+    glVertexArrayAttribBinding(vao.handle, loc, binding)
+    ]#
 
 proc bindAndAttribPointer(vao: VertexArrayObject; view: ArrayBufferView; location: Location): void =
   if location.index >= 0:
@@ -154,10 +161,6 @@ proc makeAndBindElementBuffer[T](buffer: var ElementArraybuffer[T]) =
   buffer.create
   buffer.bindIt
 
-proc enableAndSetDivisor(vao: VertexArrayObject, index: GLint, divisorval: GLuint): void =
-  if index >= 0:
-    vao.enableAttrib(Location(index: index))
-    vao.divisor(Binding(index: index.GLuint), divisorval)
 
 template renderBlockTemplate(numLocations: int; globalsBlock, linkShaderBlock,
                              bufferCreationBlock, initUniformsBlock, setUniformsBlock,
@@ -283,14 +286,9 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
           newCall( bindSym"glGetUniformLocation", newDotExpr(!!"glProgram", !!"handle"), newLit(name) )
         ))
 
-        
-          
         if isSampler:
           initUniformsBlock.add( newCall( bindSym"glUniform1i", newDotExpr(locations(numLocations),
               !!"index"), newLit(numSamplers) ) )
-
-          proc activeTexture(texture: int): void =
-            glActiveTexture( (GL_TEXTURE0.int + texture).GLenum )
 
           setUniformsBlock.add( newCall( bindSym"bindToUnit", value, newLit(numSamplers) ) )
           numSamplers += 1
@@ -306,7 +304,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
         innerCall[1].expectKind nnkStrLit
         let name = $innerCall[1]
         let value = innerCall[2]
-        let divisor: int =
+        let divisorVal: int =
           if innerCall[3].kind == nnkHiddenStdConv:
             innerCall[3][1].intVal.int
           elif innerCall[3].kind == nnkIntLit:
@@ -315,13 +313,14 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
             0
         let glslType = innerCall[4].strVal
 
-        let buffername = !(name & "Buffer")
+        let bufferSym = genSym(nskVar, name & "Buffer")
+        let vao = ident"vao"
 
         let isAttrib = name != "indices"
 
         if not isAttrib:
           if hasIndices:
-            error "has already indices"
+            error "has already indices", innerCall
 
           hasIndices = true
 
@@ -347,10 +346,6 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
           else:
             error("wrong kind for indices: " & $value.getTypeImpl[1].typeKind, value)
 
-
-        template foobarTemplate( lhs, rhs, bufferType : untyped ) : untyped {.dirty.} =
-          var lhs {.global.}: bufferType[rhs[0].type]
-
         let isSeq:bool = $value.getTypeInst[0] == "seq"
 
         if isSeq:
@@ -360,44 +355,50 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
             else:
               bindSym"ElementArrayBuffer"
 
-          globalsBlock.add(getAst(foobarTemplate( !! buffername, value, bufferType )))
+          globalsBlock.addAll quote do:
+            var `bufferSym` {.global.}: `bufferType`[`value`[0].type]
 
         if isAttrib:
-          bufferCreationBlock.add( newAssignment(
-            locations(numLocations),
-            newCall( bindSym"attributeLocation", !! "glProgram", newLit(name) )
-          ))
-
-          # this needs to change, when multiple
-          # attributes per buffer should be supported
-          bufferCreationBlock.add(newCall(bindSym"enableAndSetDivisor", !!"vao",
-            newDotExpr(locations(numLocations), !!"index"),
-            newLit(divisor)))
+          let location = locations(numLocations)
+          let nameLit = newLit(name)
+          let attributeLocation = bindSym"attributeLocation"
+          let enableAttrib      = bindSym"enableAttrib"
+          let divisor           = bindSym"divisor"
+          
+          let divisorLit = newLit(divisorVal)
+          
+          bufferCreationBlock.addAll quote do:
+            `location` = `attributeLocation`(glProgram, `nameLit`)
+            # this needs to change, when multiple
+            # attributes per buffer should be supported
+            if 0 <= `location`.index:
+              `enableAttrib`(`vao`, `location`)
+              let binding = Binding(index: `location`.index.GLuint)
+              `divisor`(`vao`, binding, `divisorLit`)
 
         if isSeq:
           if isAttrib:
-            bufferCreationBlock.add(newCall(bindSym"makeAndBindBuffer",
-              !! buffername,
-              locations(numLocations),
-            ))
+            let location = locations(numLocations)
+            bufferCreationBlock.addAll quote do:
+              makeAndBindBuffer(`bufferSym`, `location`)
 
           else:
-            bufferCreationBlock.add(newCall(bindSym"makeAndBindElementBuffer",
-              !! buffername,
-            ))
+            bufferCreationBlock.addAll quote do:
+              makeAndBindElementBuffer(`bufferSym`)
 
-          setUniformsBlock.add(newCall(bindSym"bindIt", !! buffername))
-          setUniformsBlock.add(newCall(bindSym"bufferData", !! buffername, bindSym"GL_STREAM_DRAW", value))
+          setUniformsBlock.addAll quote do:
+            bindIt(`bufferSym`)
+            bufferData(`bufferSym`, GL_STREAM_DRAW, `value`)
 
         else:
           if isAttrib:
-            bufferCreationBlock.add(newCall(bindSym"bindAndAttribPointer",
-              !!"vao",
-              value,
-              locations(numLocations),
-            ))
+            let location = locations(numLocations)
+            bufferCreationBlock.addAll quote do:
+              bindAndAttribPointer(`vao`, `value`, `location`)
+              
           else:
-            bufferCreationBlock.add(newCall(bindSym"bindIt", value))
+            bufferCreationBlock.addAll quote do:
+              bindIt(`value`)
 
         if isAttrib:
           attribNames.add( name )
@@ -494,27 +495,37 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 
     writeFile(filename, vertexShaderSource)
 
-  var linkShaderBlock : NimNode
 
+
+  let link = bindSym"linkShader"
+  let compile = bindSym"compileShader"
+  let VS = bindSym"GL_VERTEX_SHADER"
+  let FS = bindSym"GL_FRAGMENT_SHADER"
+  let GS = bindSym"GL_GEOMETRY_SHADER"
+  let vsSrcLit = newLit vertexShaderSource
+
+  var linkShaderBlock : NimNode
   if geometryMain.isNil:
 
-    let fragmentShaderSource = genShaderSource(sourceHeader, uniformsSection, vertexOutSection, -1, fragmentOutSection, includesSection, fragmentMain)
-
-    linkShaderBlock = newCall( bindSym"linkShader",
-      newCall( bindSym"compileShader", bindSym"GL_VERTEX_SHADER", newLit(vertexShaderSource) ),
-      newCall( bindSym"compileShader", bindSym"GL_FRAGMENT_SHADER", newLit(fragmentShaderSource) ),
-    )
-
+    let fsSrcLit = newLit genShaderSource(sourceHeader, uniformsSection, vertexOutSection, -1, fragmentOutSection, includesSection, fragmentMain)
+    
+    linkShaderBlock = head quote do:
+      `link`(
+        `compile`( `VS`, `vsSrcLit`),
+        `compile`( `FS`, `fsSrcLit`)
+      )
+      
   else:
     let geometryHeader = format("$1\nlayout($2) in;\n$3;\n", sourceHeader, geometryPrimitiveLayout(mode.intVal.GLenum), geometryLayout)
-    let geometryShaderSource = genShaderSource(geometryHeader, uniformsSection, vertexOutSection, geometryNumVerts(mode.intVal.GLenum), geometryOutSection, includesSection, geometryMain)
-    let fragmentShaderSource = genShaderSource(sourceHeader, uniformsSection, geometryOutSection, -1, fragmentOutSection, includesSection, fragmentMain)
+    let gsSrcLit = newLit genShaderSource(geometryHeader, uniformsSection, vertexOutSection, geometryNumVerts(mode.intVal.GLenum), geometryOutSection, includesSection, geometryMain)
+    let fsSrcLit = newLit genShaderSource(sourceHeader, uniformsSection, geometryOutSection, -1, fragmentOutSection, includesSection, fragmentMain)
 
-    linkShaderBlock = newCall( bindSym"linkShader",
-      newCall( bindSym"compileShader", bindSym"GL_VERTEX_SHADER", newLit(vertexShaderSource) ),
-      newCall( bindSym"compileShader", bindSym"GL_GEOMETRY_SHADER", newLit(geometryShaderSource) ),
-      newCall( bindSym"compileShader", bindSym"GL_FRAGMENT_SHADER", newLit(fragmentShaderSource) ),
-    )
+    linkShaderBlock = head quote do:
+      `link`(
+        `compile`(`VS`, `vsSrcLit`),
+        `compile`(`GS`, `gsSrcLit`),
+        `compile`(`FS`, `fsSrcLit`)
+      )
 
   let drawCommand =
     if hasIndices: (block:

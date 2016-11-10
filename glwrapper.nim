@@ -196,9 +196,9 @@ type VertexArrayObject* = object
 proc newVertexArrayObject*() : VertexArrayObject =
   glCreateVertexArrays(1, cast[ptr GLuint](result.addr))
 
-proc bindIt*(vao: VertexArrayObject) =
+proc bindIt*(vao: VertexArrayObject): void =
   glBindVertexArray(vao.handle)
-
+  
 proc delete*(vao: VertexArrayObject) =
   glDeleteVertexArrays(1, vao.handle.unsafeAddr)
 
@@ -207,7 +207,7 @@ proc divisor(vao: VertexArrayObject; binding: Binding; divisor: GLuint) : void =
     glVertexArrayVertexBindingDivisorEXT(vao.handle, location.index, divisor)
   else:
     glVertexArrayBindingDivisor(vao.handle, binding.index, divisor)
-
+    
 proc enableAttrib(vao: VertexArrayObject, location: Location) : void =
   if location.index >= 0:
     when false:
@@ -253,6 +253,9 @@ proc create*[T](arrayBuffer: var UniformBuffer[T] ) : void =
   else:
     glCreateBuffers(1, arrayBuffer.handle.addr)
 
+proc bindIt*(vao: VertexArrayObject; indices: ElementArrayBuffer): void =
+  glVertexArrayElementBuffer(vao.handle, indices.handle)
+    
 proc createArrayBuffer*[T](len: int, usage: GLenum = GL_STATIC_DRAW): ArrayBuffer[T] =
   result.create
   when false:

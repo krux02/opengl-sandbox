@@ -36,12 +36,10 @@ declareFramebuffer(FirstFramebuffer):
 
 let fb1 = createFirstFramebuffer()
 
-
 glClearColor(0.0, 0.0, 0.0, 1.0)                  # Set background color to black and opaque
 glClearDepth(1.0)                                 # Set background depth to farthest
 glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-culling                          # Set the type of depth-test
 # glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST) # Nice perspective corrections
-
 
 let projection_mat = perspective(45.0, windowsize.x / windowsize.y, 0.1, 1000.0)
 
