@@ -51,12 +51,12 @@ proc uvSphereIndices*(segments, rings: int): seq[int16] =
 ### cylinder ###
 
 proc cylinderVertices*(segments: int, topRadius: float32 = 1): seq[Vec3f] =
-  result.newSeq(segments * 4 + 2)
+  result.newSeq((segments+1) * 4 + 2)
 
-  result[2 * segments] = vec3f(0,0,-1)
-  result[3 * segments + 1] = vec3f(0,0, 1)
+  result[2 * (segments+1)] = vec3f(0,0,-1)
+  result[3 * (segments+1) + 1] = vec3f(0,0, 1)
 
-  for j in 0 .. < segments:
+  for j in 0 .. segments:
     let
       beta = (j / segments) * 2 * PI
       x = cos(beta).float32
@@ -66,20 +66,20 @@ proc cylinderVertices*(segments: int, topRadius: float32 = 1): seq[Vec3f] =
 
     result[2*j+0] = bottom
     result[2*j+1] = top
-    result[2*segments + 1 + j] = bottom
-    result[3*segments + 2 + j] = top
+    result[2*(segments+1) + 1 + j] = bottom
+    result[3*(segments+1) + 2 + j] = top
 
 proc cylinderNormals*(segments: int, topRadius: float32 = 1): seq[Vec3f] =
-  result.newSeq(segments * 4 + 2)
+  result.newSeq((segments+1) * 4 + 2)
 
-  result[2 * segments] = vec3f(0,0,-1)
-  result[3 * segments + 1] = vec3f(0,0, 1)
+  result[2 * (segments+1)] = vec3f(0,0,-1)
+  result[3 * (segments+1) + 1] = vec3f(0,0, 1)
 
   let n = vec2f(2,1-topRadius).normalize
 
   echo n
 
-  for j in 0 .. < segments:
+  for j in 0 .. segments:
     let
       beta = (j / segments) * 2 * PI
       x = cos(beta).float32
@@ -87,16 +87,16 @@ proc cylinderNormals*(segments: int, topRadius: float32 = 1): seq[Vec3f] =
 
     result[2*j+0] = vec3f( vec2(x, y) * n.x, n.y)
     result[2*j+1] = vec3f( vec2(x, y) * n.x, n.y)
-    result[2*segments + 1 + j] = vec3f(0,0,-1)
-    result[3*segments + 2 + j] = vec3f(0,0, 1)
+    result[2*(segments+1) + 1 + j] = vec3f(0,0,-1)
+    result[3*(segments+1) + 2 + j] = vec3f(0,0, 1)
 
 proc cylinderTexCoords*(segments: int): seq[Vec2f] =
-  result.newSeq(segments * 4 + 2)
+  result.newSeq((segments+1) * 4 + 2)
 
-  result[2 * segments] = vec2f(0.5f)
-  result[3 * segments + 1] = vec2f(0.5f)
+  result[2 * (segments+1)] = vec2f(0.5f)
+  result[3 * (segments+1) + 1] = vec2f(0.5f)
 
-  for j in 0 .. < segments:
+  for j in 0 .. segments:
     let
       u = (j / segments).float32
       beta = (j / segments) * 2 * PI
@@ -105,13 +105,13 @@ proc cylinderTexCoords*(segments: int): seq[Vec2f] =
 
     result[2*j+0] = vec2f(u, 0)
     result[2*j+1] = vec2f(u, 1)
-    result[2*segments + 1 + j] = vec2f(x,y)
-    result[3*segments + 2 + j] = vec2f(x,y)
+    result[2*(segments+1) + 1 + j] = vec2f(x,y)
+    result[3*(segments+1) + 2 + j] = vec2f(x,y)
 
 proc cylinderIndices*(segments: int): seq[int16] =
   result.newSeq(0)
 
-  for i in 0 ..< segments - 1:
+  for i in 0 ..< segments:
     let
       i1 = int16( i * 2 + 0 )
       i2 = int16( i * 2 + 1 )
@@ -121,25 +121,25 @@ proc cylinderIndices*(segments: int): seq[int16] =
     result.add([i1,i3,i2,i2,i3,i4])
 
   let
-    i1 = int16( segments * 2 - 2 )
-    i2 = int16( segments * 2 - 1 )
+    i1 = int16( (segments+1) * 2 - 2 )
+    i2 = int16( (segments+1) * 2 - 1 )
     i3 = int16( 0 )
     i4 = int16( 1 )
 
   result.add([i1,i3,i2,i2,i3,i4])
 
 
-  var base = int16(2 * segments)
+  var base = int16(2 * (segments+1))
 
-  for i in 0 ..< int16(segments - 1):
+  for i in 0 ..< int16(segments):
     let ii = i.int16
     result.add( [ base , base + ii + 2, base + ii + 1 ] )
 
   result.add( [ base , base + 1, base + segments.int16 ] )
 
-  base = int16(3 * segments + 1)
+  base = int16(3 * (segments+1) + 1)
 
-  for i in 0 ..< segments - 1:
+  for i in 0 ..< segments:
     let ii = i.int16
     result.add( [ base, base + ii + 1, base + ii + 2 ] )
 
