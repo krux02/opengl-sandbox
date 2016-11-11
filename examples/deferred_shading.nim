@@ -64,7 +64,7 @@ mapWriteBlock(lightColors):
 
 var
   effectOrigin = position.xy.vec2f
-  effectStartTime = -100.0f
+  effectTimer  = newStopWatch(true, 100)
   
 proc showNormals(mvp: Mat4d, positions: ArrayBuffer[Vec3f], normals: ArrayBuffer[Vec3f], length:float32 = 1, color:Vec3f = vec3f(1)) =
 
@@ -157,7 +157,7 @@ proc render() =
         baseOffset
         lightDir_cs
         effectOrigin
-        effectStartTime
+        effectLength = effectTimer.time.float32
         instanceSize = vec2f(hm.w.float32, hm.h.float32)
         flatShading
 
@@ -173,7 +173,6 @@ proc render() =
         offset.xy *= instanceSize;
         vec3 pos_ws = pos + offset + baseOffset;
 
-        float effectLength = time - effectStartTime;
         float effectParameter = effectLength * 5.0 - length(pos_ws.xy - effectOrigin) * 0.2;
         float effect = cos(clamp(effectParameter, -3.14, 3.14)) + 1;
 
@@ -475,15 +474,12 @@ proc render() =
 
 var
   runGame = true
-  gamePaused = false
-  simulationTimeOffset = 0.0
+  gameTimer    = newStopWatch(true)
+  fpsTimer     = newStopWatch(true)
   fpsFrameCounter = 0
-  fpsFrameCounterStartTime = 0.0
 
 proc mainLoopFunc(): void =
-  let time = float64( getTicks() ) / 1000.0
-
-  var evt: sdl2.Event
+  var evt: sdl2.Event  = defaultEvent
   while pollEvent(evt):
     if evt.kind == QuitEvent:
       runGame = false
@@ -497,15 +493,11 @@ proc mainLoopFunc(): void =
 
       of SDL_SCANCODE_SPACE:
         effectOrigin = position.xy.vec2f
-        effectStartTime = simulationTime
+        effectTimer.reset
 
       of SDL_SCANCODE_PAUSE:
-        if gamePaused:
-          gamePaused = false
-          simulationTimeOffset = time - simulationTime
-        else:
-          gamePaused = true
-
+        gameTimer.toggle
+        
       of SDL_SCANCODE_1:
         hideDeferredShading = not hideDeferredShading
 
@@ -523,6 +515,7 @@ proc mainLoopFunc(): void =
 
       else:
         discard
+        
     if evt.kind == MouseButtonDown:
       var toggle {. global .} = false
       if evt.button.button == 3:
@@ -531,7 +524,6 @@ proc mainLoopFunc(): void =
         
 
     if evt.kind == MouseMotion:
-
       mousePos.x = evt.motion.x.float32
       mousePos.y = 960 - evt.motion.y.float32
       rotation.x = clamp( rotation.x - evt.motion.yrel.float / 128.0 , 0, PI )
@@ -543,13 +535,12 @@ proc mainLoopFunc(): void =
   movement.z = (state[SDL_SCANCODE_D.int].float - state[SDL_SCANCODE_E.int].float) * 0.4
   movement.x = (state[SDL_SCANCODE_F.int].float - state[SDL_SCANCODE_S.int].float) * 0.4
 
-  if not gamePaused:
-    simulationTime = time - simulationTimeOffset
+  simulationTime = gameTimer.time
 
-  if time - fpsFrameCounterStartTime >= 1:
+  if fpsTimer.time >= 1:
     echo "FPS: ", fpsFrameCounter
     fpsFrameCounter = 0
-    fpsFrameCounterStartTime = time
+    fpsTimer.reset
 
   render()
   fpsFrameCounter += 1

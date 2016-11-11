@@ -211,7 +211,8 @@ proc main() =
 
   var
     runGame = true
-    time = 0.0f
+    simulationTimer = newStopWatch(true)
+    fpsTimer        = newStopWatch(true)
     hor = WindowSize.x / WindowSize.y
     ver = WindowSize.y / WindowSize.y
     projection_mat : Mat4d
@@ -313,8 +314,6 @@ proc main() =
     #### simulate ####
     ##################
 
-    time = getPerformanceCounter().float64 / getPerformanceFrequency().float64
-
     projection_mat = frustum(-hor * scale, hor * scale, -ver * scale, ver * scale, 1, 100)
     
     var view_mat = I4d
@@ -327,13 +326,12 @@ proc main() =
     view_mat = view_mat * obj_quat.mat4.mat4d
     
     view_mat = view_mat.translate( vec3d(0, 0, -3) )
-
-    
     
     ################
     #### render ####
     ################
 
+    let frameTime = simulationTimer.time
 
 
     #  ###########  #
@@ -341,10 +339,10 @@ proc main() =
     #  ###########  #
 
     let
-      current_frame = time
-      frame1 = frames[current_frame.floor.int mod header.num_frames.int]
-      frame2 = frames[(current_frame.floor.int + 1) mod header.num_frames.int]
-      frameoffset = current_frame - current_frame.floor
+      animFrame = frameTime * 15
+      frame1 = frames[animFrame.floor.int mod header.num_frames.int]
+      frame2 = frames[(animFrame.floor.int + 1) mod header.num_frames.int]
+      frameoffset = animFrame - animFrame.floor
 
     for i in 0 .. < outframe.len:
       let mat = mix( frame1[i], frame2[i], frameoffset )
@@ -452,7 +450,7 @@ proc main() =
             projection = mat4f(projection_mat)
             outframeTexture
             material = meshTextures[i]
-            time
+            time = frameTime
             renderNormalMap
 
           attributes:
@@ -515,7 +513,7 @@ proc main() =
             modelview = view_mat.mat4f * model_mat
             projection = projection_mat.mat4f
             boneScale = boneScale.vec2f
-            time
+            time = frameTime
 
           attributes:
 

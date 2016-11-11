@@ -72,7 +72,7 @@ setViewportAndProjection() # Set up initial viewport and projection
   
 var
   mouseX, mouseY: int32
-  simulationTime = 0.0
+  gameTimer    = newStopWatch(true)
   frameCounter = 0
 
 const
@@ -88,7 +88,7 @@ proc render() =
 
   #for i in 0..<5:
   block writeToFramebufferBlock:
-    let time = simulationTime
+    let time = gameTimer.time
 
     var modelview_mat = I4f
     modelview_mat = modelview_mat.translate( vec3f(sin(time)*2, cos(time)*2, -7) )
@@ -217,15 +217,12 @@ proc render() =
   glSwapWindow(window) # Swap the front and back frame buffers (double buffering)
 
 var
-  evt = sdl2.defaultEvent
+  evt: sdl2.Event = sdl2.defaultEvent
   runGame = true
-  gamePaused = false
-  simulationTimeOffset = 0.0
+  fpsTimer = newStopWatch(true)
   fpsFrameCounter = 0
-  fpsFrameCounterStartTime = 0.0
 
 while runGame:
-  let time = float64( getTicks() ) / 1000.0
 
   while pollEvent(evt):
     if evt.kind == QuitEvent:
@@ -241,11 +238,7 @@ while runGame:
       of SDL_SCANCODE_ESCAPE:
         runGame = false
       of SDL_SCANCODE_PAUSE:
-        if gamePaused:
-          gamePaused = false
-          simulationTimeOffset = time - simulationTime
-        else:
-          gamePaused = true
+        gameTimer.toggle
       of SDL_SCANCODE_F10:
         window.screenshot("sandbox")
       else:
@@ -255,14 +248,11 @@ while runGame:
     if evt.kind == MouseMotion:
       mouseX = evt.motion.x
       mouseY = evt.motion.y
-
-  if not gamePaused:
-    simulationTime = time - simulationTimeOffset
-
-  if time - fpsFrameCounterStartTime >= 1:
+      
+  if fpsTimer.time >= 1:
     echo "FPS: ", fpsFrameCounter
     fpsFrameCounter = 0
-    fpsFrameCounterStartTime = time
+    fpsTimer.reset
 
   render()
   fpsframeCounter += 1

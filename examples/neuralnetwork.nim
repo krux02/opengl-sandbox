@@ -64,7 +64,7 @@ glCullFace(GL_BACK)
 
 var
   mouseX, mouseY: int32
-  simulationTime = 0.0
+  gameTimer = newStopWatch(true)
   frameCounter = 0
 
 const
@@ -118,7 +118,7 @@ proc render() =
   #let mouseY_Norm = (mouseY.float32 / screenHeight.float32)
   let mousePosNorm = (mouse - viewport.xy) / viewport.zw
 
-  let time = simulationTime
+  let time = gameTimer.time
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
@@ -251,14 +251,10 @@ proc render() =
 var
   evt = sdl2.defaultEvent
   runGame = true
-  gamePaused = false
-  simulationTimeOffset = 0.0
+  fpsTimer = newStopWatch(true)
   fpsFrameCounter = 0
-  fpsFrameCounterStartTime = 0.0
 
 while runGame:
-  let time = float64( getTicks() ) / 1000.0
-
   while pollEvent(evt):
     if evt.kind == QuitEvent:
       runGame = false
@@ -272,28 +268,21 @@ while runGame:
       of SDL_SCANCODE_ESCAPE:
         runGame = false
       of SDL_SCANCODE_PAUSE:
-        if gamePaused:
-          gamePaused = false
-          simulationTimeOffset = time - simulationTime
-        else:
-          gamePaused = true
+        gameTimer.toggle
       of SDL_SCANCODE_F10:
         window.screenshot("sandbox")
       else:
         discard
 
-
     if evt.kind == MouseMotion:
       mouseX = evt.motion.x
       mouseY = evt.motion.y
 
-  if not gamePaused:
-    simulationTime = time - simulationTimeOffset
-
-  if time - fpsFrameCounterStartTime >= 1:
+  
+  if fpsTimer.time >= 1:
     echo "FPS: ", fpsFrameCounter
+    fpsTimer.reset
     fpsFrameCounter = 0
-    fpsFrameCounterStartTime = time
 
   render()
   fpsframeCounter += 1

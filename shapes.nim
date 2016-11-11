@@ -1,10 +1,10 @@
 # included from fancygl.nim
 
 proc uvSphereVertices*(segments, rings: int): seq[Vec3f] =
-  result.newSeq(segments * rings)
+  result.newSeq((segments+1) * rings)
   result.setLen(0)
 
-  for j in 0 .. < segments:
+  for j in 0 .. segments:
     let
       beta = (j / segments) * 2 * PI
       x = cos(beta).float32
@@ -23,10 +23,10 @@ proc uvSphereNormals*(segments, rings: int): seq[Vec3f] =
   uvSphereVertices(segments, rings)
 
 proc uvSphereTexCoords*(segments, rings: int): seq[Vec2f] =
-  result.newSeq(segments * rings)
+  result.newSeq((segments+1) * rings)
   result.setLen(0)
 
-  for j in 0 .. < segments:
+  for j in 0 .. segments:
     let beta = (j / segments).float32
 
     for i in 0 .. < rings:
@@ -36,10 +36,10 @@ proc uvSphereTexCoords*(segments, rings: int): seq[Vec2f] =
 
 
 proc uvSphereIndices*(segments, rings: int): seq[int16] =
-  result.newSeq(segments * rings * 6)
+  result.newSeq((segments+1) * rings * 6)
   result.setLen(0)
 
-  for segment in 0 ..< segments - 1:
+  for segment in 0 ..< segments:
     for ring in 0 ..< rings - 1:
       let
         i1 = int16( ring +     segment * rings )
@@ -47,15 +47,6 @@ proc uvSphereIndices*(segments, rings: int): seq[int16] =
         i3 = int16( ring +     segment * rings + rings )
         i4 = int16( ring + 1 + segment * rings + rings )
       result.add([i1,i2,i3,i3,i2,i4])
-
-  for ring in 0 ..< rings - 1:
-    let
-      i1 = int16( ring +     segments * rings - rings )
-      i2 = int16( ring + 1 + segments * rings - rings )
-      i3 = int16( ring +     0 )
-      i4 = int16( ring + 1 + 0 )
-
-    result.add([i1,i2,i3,i3,i2,i4])
 
 ### cylinder ###
 

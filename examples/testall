@@ -1,0 +1,5 @@
+#!/bin/bash
+
+for file in $(find . -executable -type f); do
+  nim c -r $file
+done

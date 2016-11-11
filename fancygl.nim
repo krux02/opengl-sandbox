@@ -3,7 +3,7 @@
 ########################################################################
 import arnelib, opengl, glm, math, random, strutils, nre, macros,
        macroutils, sdl2, sdl2/image, os, terminal
-include etc, glm_additions, default_setup, shapes, samplers, framebuffer, glwrapper, heightmap, iqm, typeinfo
+include etc, stopwatch, glm_additions, default_setup, shapes, samplers, framebuffer, glwrapper, heightmap, iqm, typeinfo
 export opengl, glm, sdl2
 
 type ShaderParam* = tuple[name: string, gl_type: string]
