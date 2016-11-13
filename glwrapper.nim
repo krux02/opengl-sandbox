@@ -585,13 +585,21 @@ proc shaderInfoLog(shader: Shader): string =
 
 proc showError(log: string, source: string): void =
   let lines = source.splitLines
-  var problems = newSeq[tuple[lineNr: int, column: int, message: string]](0)
+  var problems = newSeq[tuple[lineNr: int, message: string]](0)
+  # matches on intel driver
   for match in log.findIter(re"(\d+)\((\d+)\): ([^:]*): (.*)"):
     let lineNr = match.captures[0].parseInt
-    let column = match.captures[1].parseInt
+    let notTheColumn = match.captures[1].parseInt
     let kind: string = match.captures[2]
     let message: string = match.captures[3]
-    problems.add( (lineNr, column, message) )
+    problems.add( (lineNr, message) )
+  # matches on nvidia driver
+  for match in log.findIter(re"(\d+)\((\d+)\) : ([^:]*): (.*)"):
+    let lineNr = match.captures[1].parseInt
+    let notTheColumn = match.captures[0].parseInt
+    let kind: string = match.captures[2]
+    let message: string = match.captures[3]
+    problems.add( (lineNr, message) )
   stdout.styledWriteLine(fgGreen, "==== start Shader Problems =======================================")
   for i, line in lines:
     let lineNr = i + 1
@@ -601,7 +609,9 @@ proc showError(log: string, source: string): void =
         stdout.styledWriteLine("     ", fgRed, problem.message)
   stdout.styledWriteLine(fgGreen, "------------------------------------------------------------------")
   stdout.styledWriteLine(fgRed, log)
+  stdout.styledWriteLine(fgGreen, "------------------------------------------------------------------")
   stdout.styledWriteLine(fgGreen, "==== end Shader Problems =========================================")
+  
 
 proc programInfoLog(program: Program): string =
   var length: GLint = 0

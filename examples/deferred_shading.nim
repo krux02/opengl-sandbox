@@ -233,7 +233,7 @@ proc render() =
         norm = fb1.normal
         time
         viewport
-        texSize = fb1.color.size
+        texSize = fb1.color.size.vec2f
         inverse_mvp = inverse_mvp.mat4f
         border = 0.5f * viewport.zw
 

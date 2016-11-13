@@ -58,7 +58,7 @@ proc vertices*(hm: var HeightMap) : seq[Vec3f] =
 
   for y in 0 .. hm.h:
     for x in 0 .. hm.w:
-      result.add vec3f(x.float32,y.float32,hm[x,y])
+      result.add vec3f(x.float32 + 0.5f,y.float32 + 0.5f,hm[x,y])
 
 proc normals*(hm: var HeightMap) : seq[Vec3f] =
   result.newSeq(hm.w * hm.h)
@@ -76,7 +76,7 @@ proc flatVertices*(hm: var HeightMap) : seq[Vec3f] =
 
   for y in 0 .. hm.h:
     for x in 0 .. hm.w:
-      result.add vec3f(x.float32,y.float32,0)
+      result.add vec3f(x.float32 + 0.5f,y.float32 + 0.5f,0)
 
 
 proc indices*(hm: var HeightMap) : seq[int32] =
@@ -107,17 +107,12 @@ proc texCoords*(hm: var HeightMap) : seq[Vec2f] =
   result.newSeq(hm.w * hm.h)
   result.setLen(0)
 
-  let
-    wf = hm.w.float32
-    hf = hm.h.float32
+  let scale = vec2f(1.0f / hm.w.float32, 1.0f / hm.h.float32)
 
   for y in 0 .. hm.h:
     for x in 0 .. hm.w:
-      let
-        xf = x.float32
-        yf = y.float32
-
-      result.add vec2f(xf / wf, yf / hf)
+      let pos = vec2f(x.float32 + 0.5f, y.float32 + 0.5f)
+      result.add(pos * scale)
 
 proc minMax*(hm: HeightMap): (float,float) =
   result[0] = Inf
