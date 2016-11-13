@@ -10,6 +10,11 @@ type HeightMap* = object
   w,h: int
   dataseq: seq[float32]
 
+proc w*(hm: HeightMap): int = hm.w
+proc h*(hm: HeightMap): int = hm.h
+proc size*(hm: HeightMap): Vec2i = vec2i(hm.w.int32, hm.h.int32)
+proc data*(hm: HeightMap): seq[float32] = hm.dataseq
+
 proc `[]`*(hm: var HeightMap, x,y: int): float32 {. inline .} =
   let
     nx = x and (hm.w - 1)

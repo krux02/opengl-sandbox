@@ -1,4 +1,4 @@
-import math, random, sequtils, strutils, sdl2, opengl, ../fancygl, glm
+import math, random, sequtils, strutils, ../fancygl
 
 var windowsize = vec2f(640,480)
 let (window, context) = defaultSetup(windowsize)
@@ -19,13 +19,8 @@ let
 
   sphereVertices = uvSphereVertices(32,16).arrayBuffer
   sphereNormals = uvSphereNormals(32,16).arrayBuffer
-  sphereIndices = uvSphereIndices(32,16).elementArrayBuffer
   #sphereTexCoords = uvSphereTexCoords(32,16).arrayBuffer
-
-  #sphereVertices  = cylinderVertices(32, 0).arrayBuffer
-  #sphereNormals   = cylinderNormals(32, 0).arrayBuffer
-  #sphereTexCoords = cylinderTexCoords(32).arrayBuffer
-  #sphereIndices   = cylinderIndices(32).elementArrayBuffer
+  sphereIndices = uvSphereIndices(32,16).elementArrayBuffer
 
 var hideNormals, hideDeferredShading, flatShading, wireframe: bool
 
@@ -36,19 +31,17 @@ declareFramebuffer(FirstFramebuffer):
 
 let fb1 = createFirstFramebuffer()
 
-glClearColor(0.0, 0.0, 0.0, 1.0)                  # Set background color to black and opaque
-glClearDepth(1.0)                                 # Set background depth to farthest
-glEnable(GL_DEPTH_TEST)                           # Enable depth testing for z-culling                          # Set the type of depth-test
-# glHint(GL_PERSPECTIVE_CORRECTION_HINT, GL_NICEST) # Nice perspective corrections
-
 let projection_mat = perspective(45.0, windowsize.x / windowsize.y, 0.1, 1000.0)
 
 const numLights = 5
 
 var
+  runGame = true
   mousePos = vec2f(0)
-  simulationTime = 0.0
-  frameCounter = 0
+  
+  gameTimer       = newStopWatch(true)
+  fpsTimer        = newStopWatch(true)
+  fpsFrameCounter = 0
 
   movement = vec3d(0,0,0)
   rotation = vec2d(PI/2,0)
@@ -57,10 +50,8 @@ var
   lightPositions = createArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW)
   lightColors = createArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW)
 
-mapWriteBlock(lightColors):
-  let maximum = lightColors.len - 1
-  for i in 0 .. maximum:
-    mappedBuffer[i] = vec3f(random(1.0).float32, random(1.0).float32, random(1.0).float32)
+for color in lightColors.mitems:
+  color = vec3f(random(1.0).float32, random(1.0).float32, random(1.0).float32)
 
 var
   effectOrigin = position.xy.vec2f
@@ -105,10 +96,8 @@ proc showNormals(mvp: Mat4d, positions: ArrayBuffer[Vec3f], normals: ArrayBuffer
       """
       
 proc render() =
-
-
-
-  let time = simulationTime
+  
+  let time = gameTimer.time
 
   var view_mat = I4d
 
@@ -472,14 +461,9 @@ proc render() =
 
   glSwapWindow(window)
 
-var
-  runGame = true
-  gameTimer    = newStopWatch(true)
-  fpsTimer     = newStopWatch(true)
-  fpsFrameCounter = 0
 
 proc mainLoopFunc(): void =
-  var evt: sdl2.Event  = defaultEvent
+  var evt: Event  = defaultEvent
   while pollEvent(evt):
     if evt.kind == QuitEvent:
       runGame = false
@@ -535,8 +519,6 @@ proc mainLoopFunc(): void =
   movement.z = (state[SDL_SCANCODE_D.int].float - state[SDL_SCANCODE_E.int].float) * 0.4
   movement.x = (state[SDL_SCANCODE_F.int].float - state[SDL_SCANCODE_S.int].float) * 0.4
 
-  simulationTime = gameTimer.time
-
   if fpsTimer.time >= 1:
     echo "FPS: ", fpsFrameCounter
     fpsFrameCounter = 0
@@ -544,8 +526,6 @@ proc mainLoopFunc(): void =
 
   render()
   fpsFrameCounter += 1
-  frameCounter += 1
-
 
 while runGame:
   mainLoopFunc()

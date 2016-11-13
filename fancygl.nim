@@ -426,6 +426,8 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
         if innerCall[1].kind == nnkSym:
           let sym = innerCall[1].symbol
           includesSection.add(sym.getImpl.strVal)
+        if innerCall[1].kind in {nnkStrLit, nnkTripleStrLit}:
+          includesSection.add(innerCall[1].strVal)
 
 
     of "vertexMain":
@@ -695,7 +697,7 @@ macro shadingDsl*(mode:GLenum, statement: untyped) : untyped =
         let includesCall = newCall(bindSym"includes")
 
         for statement in stmtList:
-          statement.expectKind( nnkIdent )
+          statement.expectKind({nnkIdent,nnkStrLit,nnkTripleStrLit})
 
           includesCall.add( newCall(bindSym"incl", statement) )
 

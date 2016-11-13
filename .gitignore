@@ -14,3 +14,5 @@ macroutils
 *.ndb
 *.log
 neuralnetwork_arne
+openmesh
+waves
