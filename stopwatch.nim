@@ -2,15 +2,27 @@
 #proc getPerformanceCounter(): uint64
 #proc getPerformanceFrequency(): uint64
 
+proc counterToSeconds(counter: int64): float64 =
+  float64(counter) / float64(getPerformanceFrequency())
+
 type
   StopWatch* = object
     ## a stopwatch that uses the performance counter from sdl internally
     value : int64  # when running it's the offset, otherwise, it's the timer when it was stopped the last time
     running: bool
 
-proc reset*(this: var StopWatch): void =
+proc reset*(this: var StopWatch): float64 {.discardable.} =
   ## sets the timer to zero
-  this.value = getPerformanceCounter().int64
+  let counter = getPerformanceCounter().int64
+
+  result = counterToSeconds(
+    if this.running:
+      counter - this.value
+    else:
+      this.value
+  )
+  
+  this.value = counter
 
 proc newStopWatch*(running: bool; startTime: float64 = 0.0) : StopWatch =
   ## creates a new stop watch
@@ -34,13 +46,13 @@ proc stop*(this: var StopWatch): void =
 
 proc time*(this: StopWatch): float64 =
   ## returns time in seconds
-  let counter = 
+  counterToSeconds(
     if this.running:
       getPerformanceCounter().int64 - this.value
     else:
       this.value
-
-  float64(counter) / float64(getPerformanceFrequency())
+  )
+  
 
 proc running*(this: StopWatch): bool =
   ## tells weather this stopwatch is running

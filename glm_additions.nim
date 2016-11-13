@@ -143,20 +143,53 @@ proc vec2l*(v: Vec2l) : Vec2l = [v.x.int64, v.y.int64].Vec2l
 
 # functions
 
-proc floor*(v : Vec2f) : Vec2f =
+export math.floor
+
+proc floor*(v : Vec2) : Vec2 =
   result.x = floor(v.x)
   result.y = floor(v.y)
 
-proc floor*(v : Vec3f) : Vec3f =
+proc floor*(v : Vec3) : Vec3 =
   result.x = floor(v.x)
   result.y = floor(v.y)
   result.z = floor(v.z)
 
-proc floor*(v : Vec4f) : Vec4f =
+proc floor*(v : Vec4) : Vec4 =
   result.x = floor(v.x)
   result.y = floor(v.y)
   result.z = floor(v.z)
   result.w = floor(v.w)
+
+
+proc clamp*[T](arg: Vec4[T]; minVal, maxVal: T): Vec4[T] =
+  result.x = clamp(arg.x, minVal, maxVal)
+  result.y = clamp(arg.y, minVal, maxVal)
+  result.z = clamp(arg.z, minVal, maxVal)
+  result.w = clamp(arg.w, minVal, maxVal)
+
+proc clamp*[T](arg, minVal, maxVal: Vec4[T]): Vec4[T] =
+  result.x = clamp(arg.x, minVal.x, maxVal.x)
+  result.y = clamp(arg.y, minVal.y, maxVal.y)
+  result.z = clamp(arg.z, minVal.z, maxVal.z)
+  result.w = clamp(arg.w, minVal.w, maxVal.w)
+
+proc clamp*[T](arg: Vec3[T]; minVal, maxVal: T): Vec3[T] =
+  result.x = clamp(arg.x, minVal, maxVal)
+  result.y = clamp(arg.y, minVal, maxVal)
+  result.z = clamp(arg.z, minVal, maxVal)
+
+proc clamp*[T](arg, minVal, maxVal: Vec3[T]): Vec3[T] =
+  result.x = clamp(arg.x, minVal.x, maxVal.x)
+  result.y = clamp(arg.y, minVal.y, maxVal.y)
+  result.z = clamp(arg.z, minVal.z, maxVal.z)
+
+proc clamp*[T](arg: Vec2[T]; minVal, maxVal: T): Vec2[T] =
+  result.x = clamp(arg.x, minVal, maxVal)
+  result.y = clamp(arg.y, minVal, maxVal)
+
+proc clamp*[T](arg, minVal, maxVal: Vec2[T]): Vec2[T] =
+  result.x = clamp(arg.x, minVal.x, maxVal.x)
+  result.y = clamp(arg.y, minVal.y, maxVal.y)
 
 proc mat4f*(mat: Mat4d): Mat4f =
   for i in 0..<4:
