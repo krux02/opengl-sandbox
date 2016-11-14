@@ -144,6 +144,8 @@ proc vec2l*(v: Vec2l) : Vec2l = [v.x.int64, v.y.int64].Vec2l
 # functions
 
 export math.floor
+export math.sin
+export math.cos
 
 proc floor*(v : Vec2) : Vec2 =
   result.x = floor(v.x)
@@ -316,7 +318,7 @@ proc `[]=`*(q : var Quatf, i : int, val : float32) =
 iterator items*(q: Quatf) : float32 =
   for i in 0 .. 3:
     yield q[i]
-
+    
 proc `$`*(q : Quatf) : string = q.mkString("quatf(", ", ", ")")
 
 proc x*(q : Quatf) : float32 = q[0]

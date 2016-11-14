@@ -3,9 +3,37 @@
 ########################################################################
 import arnelib, opengl, glm, math, random, strutils, nre, macros,
        macroutils, sdl2, sdl2/image, os, terminal
-include etc, stopwatch, glm_additions, default_setup, shapes, samplers, framebuffer, glwrapper, heightmap, iqm, typeinfo
+include etc, glm_additions, stopwatch, default_setup, shapes, samplers, framebuffer, glwrapper, heightmap, iqm, typeinfo
 export opengl, glm, sdl2
 
+# sdl additions
+
+proc size*(window: WindowPtr): Vec2i =
+  var x,y: cint
+  getSize(window, x, y)
+  result.x = x
+  result.y = y
+
+proc `size=`*(window: WindowPtr; size: Vec2i): void =
+  setSize(window, size.x, size.y)
+
+proc position*(window: WindowPtr): Vec2i =
+  var x,y: cint
+  getPosition(window, x, y)
+  result.x = x
+  result.y = y
+
+proc `position=`*(window: WindowPtr; pos: Vec2i): void =
+  setPosition(window, pos.x, pos.y)
+  
+
+proc title*(window: WindowPtr): string =
+  result = $getTitle(window)
+
+proc `title=`*(window: WindowPtr; title: string): void =
+  setTitle(window, title)
+  
+  
 type ShaderParam* = tuple[name: string, gl_type: string]
 
 proc screenshot*(window : sdl2.WindowPtr; basename : string) : bool {.discardable.} =

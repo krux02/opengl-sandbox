@@ -1,10 +1,10 @@
 import ../fancygl, arnelib
 
-var windowsize = vec2f(1024,768)
-let (window, context) = defaultSetup(windowsize)
+let (window, context) = defaultSetup()
+let windowsize = vec2f(window.size)
 
 const
-  numParticles   = 16000
+  numParticles   = 2000
   maxParticleAge = 16.0'f64
 
 type ParticleRenderData = object
@@ -38,6 +38,23 @@ for particle in particleSimulationData.mitems():
   particle.vel.y = randNormal().float32 * 32
   particle.birthday = - rand_f64() * maxParticleAge
 
+
+type
+  ParticleRef = object
+    simulationData: ptr ParticleSimulationData
+    renderData: ptr ParticleRenderData
+
+proc pos(this: ParticleRef): var Vec2f =
+  this.renderData.pos
+proc col(this: ParticleRef): var Vec3f =
+  this.renderData.col
+proc rot(this: ParticleRef): var float32 =
+  this.renderData.rot
+proc vel(this: ParticleRef): var Vec2f =
+  this.simulationData.vel
+proc birthday(this: ParticleRef): var float64 =
+  this.simulationData.birthday
+  
 var running = true
 var gameTimer = newStopWatch(true)
 var frameTimer = newStopWatch(true)
@@ -52,41 +69,41 @@ glDisable(GL_DEPTH_TEST)
 glEnable(GL_BLEND)
 glBlendFunc(GL_SRC_ALPHA, GL_ONE)
 
-proc modulo(x,y: float32): float32 =
-  x - y * floor(x / y)
-
-proc modulo(v1,v2: Vec2f): Vec2f =
-  result.x = modulo(v1.x, v2.x)
-  result.y = modulo(v1.y, v2.y)
+var mouseX, mouseY: int32
+var pmouseX, pmouseY: int32
 
 while running:
   let frameTime = frameTimer.reset
   let time = gameTimer.time
 
-  for i, renderData in cpuParticleRenderData.mpairs():
-    template simData : untyped = particleSimulationData[i]
+  pmouseX = mouseX
+  pmouseY = mouseY
+  discard getMouseState(mouseX.addr, mouseY.addr)
+  mouseY = windowsize.y.int32 - mouseY
+
+  let dirx = float32(cos(time * 5))
+  let diry = float32(sin(time * 5))
+
+  for i in 0 ..< numParticles:
+    let particle = ParticleRef(simulationData: particleSimulationData[i].addr, renderData: cpuParticleRenderData[i].addr)
     
-    renderData.pos += simData.vel * frameTime.float32
+    particle.pos += particle.vel * frameTime.float32
 
-    renderData.pos = clamp(renderData.pos, vec2f(0), windowsize)
+    let flipX = 1'f32 - float32(windowsize.x < particle.pos.x or particle.pos.x < 0) * 2
+    let flipY = 1'f32 - float32(windowsize.y < particle.pos.y or particle.pos.y < 0) * 2
 
-    let flipX = float32(windowsize.x < renderData.pos.x or renderData.pos.x < 0) * 2 - 1;
-    let flipY = float32(windowsize.y < renderData.pos.y or renderData.pos.x < 0) * 2 - 1;
+    particle.pos() = clamp(particle.pos, vec2f(0), windowsize)
 
-    simData.vel = simData.vel * vec2f(flipX, flipY)
-    if i == 17:
-      echo simData.birthday
-      echo renderData.pos
+    particle.vel.x = particle.vel.x * flipX
+    particle.vel.y = particle.vel.y * flipY
       
-    if simData.birthday + maxParticleAge < time:    
-      simData.birthday = time
-      simData.vel.x = 32
-      simData.vel.y = 128
-      renderData.pos = vec2f(windowsize.x / 2, 20)
-
+    if particle.birthday + maxParticleAge < time:    
+      particle.birthday() = time
+      particle.vel.x = 128 * dirx + randNormal() * 16
+      particle.vel.y = 128 * diry + randNormal() * 16
+      particle.pos() = mix(vec2f(pmouseX.float32, pmouseY.float32), vec2f(mouseX.float32, mouseY.float32), rand_f32())
 
   particleRenderData.setData(cpuParticleRenderData)
-
 
   var evt = defaultEvent
   while evt.pollEvent:
@@ -106,11 +123,13 @@ while running:
 
   glClear(GL_COLOR_BUFFER_BIT)
 
+  glEnable(GL_BLEND)
+
   shadingDsl(GL_POINTS):
     numVertices = numParticles
 
     uniforms:
-      time = float32(time)
+      time = float32(time+100)
       mvp
       particleSize = vec2f(16,4)
 
@@ -129,6 +148,7 @@ while running:
       "out vec4 v_color"
       "out vec2 v_pos"
       "out float v_rot"
+      "flat out float v_id"
     geometryMain:
       "layout(triangle_strip, max_vertices=4) out"
       """
@@ -150,6 +170,65 @@ while running:
 
       gl_Position = mvp * vec4(v_pos[0] + r * (particleSize * vec2( 1, 1)), 0, 1);
       EmitVertex();
+      """
+    geometryOut:
+      "out vec4 g_color"
+    fragmentMain:
+      """
+      color = g_color;
+      """
+
+  glDisable(GL_BLEND)
+
+  shadingDsl(GL_POINTS):
+    numVertices = numParticles
+
+    uniforms:
+      time = float32(time+100)
+      mvp
+      particleSize = vec2f(16,4)
+
+    attributes:
+      a_pos = posView
+      a_color = colView
+      a_rot  = rotView
+
+    vertexMain:
+      """
+      v_pos = a_pos;
+      v_color = vec4(a_color,0.25);
+      v_rot = a_rot;
+      """
+    vertexOut:
+      "out vec4 v_color"
+      "out vec2 v_pos"
+      "out float v_rot"
+      "flat out float v_id"
+    geometryMain:
+      "layout(line_strip, max_vertices=5) out"
+      """
+      g_color = v_color[0];
+
+      float s = sin(time * v_rot[0]);
+      float c = cos(time * v_rot[0]);
+
+      mat2 r = mat2(vec2(c,s),vec2(-s,c));
+
+      gl_Position = mvp * vec4(v_pos[0] + r * (particleSize * vec2(-1,-1)), 0, 1);
+      EmitVertex();
+
+      gl_Position = mvp * vec4(v_pos[0] + r * (particleSize * vec2( 1,-1)), 0, 1);
+      EmitVertex();
+
+      gl_Position = mvp * vec4(v_pos[0] + r * (particleSize * vec2( 1, 1)), 0, 1);
+      EmitVertex();
+
+      gl_Position = mvp * vec4(v_pos[0] + r * (particleSize * vec2(-1, 1)), 0, 1);
+      EmitVertex();
+
+      gl_Position = mvp * vec4(v_pos[0] + r * (particleSize * vec2(-1,-1)), 0, 1);
+      EmitVertex();
+
       """
     geometryOut:
       "out vec4 g_color"

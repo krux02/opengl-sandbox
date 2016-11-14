@@ -1,5 +1,12 @@
+#[
+import sdl2, opengl, arnelib
+proc enableDefaultDebugCallback(): void
+type Vec2i = object
+  x,y: int32
+proc vec2i(x,y: int32): Vec2i = Vec2i(x:x, y:y)
+]#
 
-proc defaultSetup*(windowsize: Vec2f): tuple[window: WindowPtr, context: GlContextPtr] =
+proc defaultSetup*(windowsize: Vec2i = vec2i(-1,-1)): tuple[window: WindowPtr, context: GlContextPtr] =
   discard sdl2.init(INIT_EVERYTHING)
 
   doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3)
@@ -7,8 +14,21 @@ proc defaultSetup*(windowsize: Vec2f): tuple[window: WindowPtr, context: GlConte
   doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_FLAGS        , SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG or SDL_GL_CONTEXT_DEBUG_FLAG)
   doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_PROFILE_MASK , SDL_GL_CONTEXT_PROFILE_CORE)
 
-  result.window = createWindow("SDL/OpenGL Skeleton", 100, 100, windowsize.x.cint, windowsize.y.cint, SDL_WINDOW_OPENGL)
-# or SDL_WINDOW_RESIZABL)
+  if getNumVideoDisplays() < 1:
+    write stderr, "no monitor detected, need at least one, but got: ", getNumVideoDisplays()
+    quit(QuitFailure)
+
+  let flags =
+    if windowsize.x < 0:
+      SDL_WINDOW_OPENGL or SDL_WINDOW_FULLSCREEN_DESKTOP
+    else:
+      SDL_WINDOW_OPENGL
+    
+  let posx = SDL_WINDOWPOS_UNDEFINED.cint
+  let posy = SDL_WINDOWPOS_UNDEFINED.cint
+
+  result.window = createWindow("SDL/OpenGL Skeleton", posx, posy, windowsize.x, windowsize.y, flags)
+
   if result.window.isNil:
     echo sdl2.getError()
     system.quit(1)
@@ -35,5 +55,8 @@ proc defaultSetup*(windowsize: Vec2f): tuple[window: WindowPtr, context: GlConte
 
 
   glEnable(GL_DEPTH_TEST)
+
+
+
 
 
