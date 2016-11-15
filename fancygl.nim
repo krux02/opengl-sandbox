@@ -32,7 +32,9 @@ proc title*(window: WindowPtr): string =
 
 proc `title=`*(window: WindowPtr; title: string): void =
   setTitle(window, title)
-  
+
+proc size*(surface: SurfacePtr): Vec2i =
+  vec2i(surface.w, surface.h)
   
 type ShaderParam* = tuple[name: string, gl_type: string]
 

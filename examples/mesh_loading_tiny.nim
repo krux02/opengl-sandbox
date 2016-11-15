@@ -3,7 +3,7 @@ import memfiles, glm, ../fancygl, sdl2, sdl2/ttf , opengl, strutils, math, AntTw
 const WindowSize = vec2i(1024, 768)
 
 proc main() =
-  let (window, context) = defaultSetup(vec2f(WindowSize))
+  let (window, context) = defaultSetup(WindowSize)
   
   defer: sdl2.quit()
   

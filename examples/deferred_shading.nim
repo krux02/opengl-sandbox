@@ -1,7 +1,7 @@
 import math, random, sequtils, strutils, ../fancygl
 
 var windowsize = vec2f(640,480)
-let (window, context) = defaultSetup(windowsize)
+let (window, context) = defaultSetup(windowsize.vec2i)
 
 var hm = createFlatMap(128,64)
 hm.DiamondSquare(64)
@@ -57,7 +57,7 @@ var
   effectOrigin = position.xy.vec2f
   effectTimer  = newStopWatch(true, 100)
   
-proc showNormals(mvp: Mat4d, positions: ArrayBuffer[Vec3f], normals: ArrayBuffer[Vec3f], length:float32 = 1, color:Vec3f = vec3f(1)) =
+proc showNormals(mvp: Mat4d, positions: ArrayBuffer[Vec4f], normals: ArrayBuffer[Vec4f], length:float32 = 1, color:Vec4f = vec4f(1)) =
 
   shadingDsl(GL_POINTS):
     numVertices = normals.len.GLsizei
@@ -78,21 +78,21 @@ proc showNormals(mvp: Mat4d, positions: ArrayBuffer[Vec3f], normals: ArrayBuffer
       """
 
     vertexOut:
-      "out vec3 v_normal"
-      "out vec3 v_pos"
+      "out vec4 v_normal"
+      "out vec4 v_pos"
 
     geometryMain:
       "layout(line_strip, max_vertices=2) out"
       """
-      gl_Position = mvp * vec4(v_pos[0], 1);
+      gl_Position = mvp * v_pos[0];
       EmitVertex();
-      gl_Position = mvp * vec4(v_pos[0] + v_normal[0] * scale, 1);
+      gl_Position = mvp * (v_pos[0] + v_normal[0] * scale);
       EmitVertex();
       """
 
     fragmentMain:
       """
-      color.rgb = normalColor;
+      color = normalColor;
       """
       
 proc render() =
@@ -335,15 +335,15 @@ proc render() =
 
       vertexMain:
         """
-        gl_Position = mvp * vec4(pos * scale + offset, 1);
-        v_normal = (normalMat * vec4(normal,0)).xyz;
+        gl_Position = mvp * vec4(pos.xyz * scale + offset, 1);
+        v_normal = normalMat * normal;
         v_col = col;
         //v_texCoord = texCoord;
         v_lightPos = offset;
         """
 
       vertexOut:
-        "out vec3 v_normal"
+        "out vec4 v_normal"
         "out vec3 v_col"
         "out vec3 v_lightPos"
 

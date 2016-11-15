@@ -4,11 +4,11 @@ import sdl2, opengl, math, random, glm, sequtils, ../fancygl, fenv
 
 # TODO use defaultSetup
 
-var windowsize = vec2f(320,240)
+var windowsize = vec2f(640,480)
 var viewport = vec4f(0,0,windowsize)
 let renderTargetSize = vec2f(320,240)
 
-var (window, context) = defaultSetup(windowsize)
+var (window, context) = defaultSetup(windowsize.vec2i)
 
 glDisable(GL_DEPTH_TEST)
 

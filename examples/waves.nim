@@ -1,7 +1,7 @@
 import math, random, sequtils, strutils, ../fancygl
 
 var windowsize = vec2f(1024,768)
-let (window, context) = defaultSetup(windowsize)
+let (window, context) = defaultSetup(windowsize.vec2i)
 
 discard setRelativeMouseMode(Bool32(true))
 var hm = createFlatMap(128,128)

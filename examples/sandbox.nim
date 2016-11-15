@@ -2,17 +2,16 @@
 
 import sdl2, math, sequtils, ../fancygl
 
-var windowsize = vec2f(640,480)
-
+let windowsize = vec2i(640, 480)
 let (window,context) = defaultSetup(windowsize)
-    
+
 let crateTexture = loadTexture2DFromFile("crate.png")
 
 type
   VertexStruct = object
-    pos:      Vec3f
-    normal:   Vec3f
-    color:    Vec3f
+    pos:      Vec4f
+    normal:   Vec4f
+    color:    Vec4f
     texcoord: Vec2f
 
 var boxBuffer = createArrayBuffer[VertexStruct](boxVertices.len)
@@ -32,8 +31,8 @@ let
 let indices = toSeq( countup[int8,int8](0, int8(high(boxvertices)))).elementArrayBuffer
 
 declareFramebuffer(Fb1FramebufferType):
-  depth = createEmptyDepthTexture2D(windowsize)
-  color = createEmptyTexture2D(windowsize)
+  depth = createEmptyDepthTexture2D(windowsize.vec2f)
+  color = createEmptyTexture2D(windowsize.vec2f)
 
 let fb1 = createFb1FramebufferType()
 
@@ -60,8 +59,8 @@ var
 proc setViewportAndProjection() =
   viewport.x = 0
   viewport.y = 0
-  viewport.z = windowsize.x
-  viewport.w = windowsize.y
+  viewport.z = windowsize.x.float32
+  viewport.w = windowsize.y.float32
   # Set the viewport to cover the new window
   glViewport(viewport.x.GLint, viewport.y.GLint, windowsize.x.GLint, windowsize.y.GLint)
   projection_mat = perspective(45'f32, windowsize.x / windowsize.y, 0.1, 100.0)
@@ -81,7 +80,7 @@ const
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
 
-  let mouse = vec2f(mouseX.float32, windowsize.y - mouseY.float32)
+  let mouse = vec2f(mouseX.float32, float32(windowsize.y - mouseY))
   #let mouseX_Norm = (mouseX.float32 / screenWidth.float32)
   #let mouseY_Norm = (mouseY.float32 / screenHeight.float32)
   let mousePosNorm = (mouse - viewport.xy) / viewport.zw
@@ -122,10 +121,10 @@ proc render() =
 
         vertexMain:
           """
-          gl_Position = projection * modelview * vec4(pos, 1);
-          v_eyepos = modelview * vec4(pos,1);
-          v_eyenormal = modelview * vec4(normal, 0);
-          v_col = vec4(col,1);
+          gl_Position = projection * modelview * pos;
+          v_eyepos = modelview * pos;
+          v_eyenormal = modelview * normal;
+          v_col = col;
           v_texcoord = texcoord;
           """
 
@@ -159,7 +158,7 @@ proc render() =
         depth = fb1.depth
         time
         viewport
-        texSize = fb1.color.size
+        texSize = fb1.color.size.vec2f
 
       fragmentMain:
         """
@@ -183,8 +182,8 @@ proc render() =
 
       vertexMain:
         """
-        gl_Position = modelview * vec4(pos, 1);
-        v_eyepos = modelview * vec4(pos,1);
+        gl_Position = modelview * pos;
+        v_eyepos = modelview * pos;
         """
 
       vertexOut:
@@ -228,11 +227,11 @@ while runGame:
     if evt.kind == QuitEvent:
       runGame = false
       break
-    if evt.kind == WindowEvent:
-      if evt.window.event == WindowEvent_Resized:
-        windowsize.x = evt.window.data1.float32
-        windowsize.y = evt.window.data2.float32
-        setViewportAndProjection()
+    #if evt.kind == WindowEvent:
+    #  #if evt.window.event == WindowEvent_Resized:
+    #  #  windowsize.x = evt.window.data1.float32
+    #  #  windowsize.y = evt.window.data2.float32
+    #  #  etViewportAndProjection()
     if evt.kind == KeyDown:
       case evt.key.keysym.scancode
       of SDL_SCANCODE_ESCAPE:
