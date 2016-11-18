@@ -92,8 +92,6 @@ proc cylinderNormals*(segments: int, topRadius: float32 = 1): seq[Vec4f] =
 
   let n = vec2f(2,1-topRadius).normalize
 
-  echo n
-
   for j in 0 .. segments:
     let
       beta = (j / segments) * 2 * PI

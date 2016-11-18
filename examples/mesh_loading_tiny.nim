@@ -2,6 +2,8 @@ import memfiles, glm, ../fancygl, sdl2, sdl2/ttf , opengl, strutils, math, AntTw
 
 const WindowSize = vec2i(1024, 768)
 
+proc `$`(v: Vec): string = glm.`$`(v)
+
 proc main() =
   let (window, context) = defaultSetup(WindowSize)
   
@@ -323,7 +325,7 @@ proc main() =
     
     view_mat = view_mat.rotate( vec3d(1,0,0), rotation.y-0.5f )
     view_mat = view_mat.rotate( vec3d(0,0,1), rotation.x )
-    view_mat = view_mat * obj_quat.mat4.mat4d
+    view_mat = view_mat * obj_quat.mat4(vec4f(0,0,0,1)).mat4d
     
     view_mat = view_mat.translate( vec3d(0, 0, -3) )
     

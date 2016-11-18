@@ -26,6 +26,8 @@ template glslTypeRepr(t: typedesc[Texture2D]): string = "sampler2D"
 template glslTypeRepr(t: typedesc[Texture3D]): string = "sampler3D"
 template glslTypeRepr(t: typedesc[TextureRectangle]): string = "sampler2DRect"
 
+template glslTypeRepr(t: typedesc[Texture2DArray]): string = "sampler2DArray"
+
 template glslIsSampler(t: typedesc[Vec4[float32]]): bool = false
 template glslIsSampler(t: typedesc[Vec3[float32]]): bool = false
 template glslIsSampler(t: typedesc[Vec2[float32]]): bool = false
@@ -46,6 +48,8 @@ template glslIsSampler(t: typedesc[Texture1D]): bool = true
 template glslIsSampler(t: typedesc[Texture2D]): bool = true
 template glslIsSampler(t: typedesc[Texture3D]): bool = true
 template glslIsSampler(t: typedesc[TextureRectangle]): bool = true
+template glslIsSampler(t: typedesc[Texture2DArray]): bool = true
+template glslIsSampler(t: typedesc[Texture2DArrayShadow]): bool = true
 
 proc attribSize(t: typedesc[Vec4d]) : GLint       = 4
 proc attribType(t: typedesc[Vec4d]) : GLenum      = cGL_DOUBLE

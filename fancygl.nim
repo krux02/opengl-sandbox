@@ -11,8 +11,7 @@ export opengl, glm, sdl2
 proc size*(window: WindowPtr): Vec2i =
   var x,y: cint
   getSize(window, x, y)
-  result.x = x
-  result.y = y
+  Vec2i(arr: [x.int32, y.int32])
 
 proc `size=`*(window: WindowPtr; size: Vec2i): void =
   setSize(window, size.x, size.y)
@@ -20,8 +19,7 @@ proc `size=`*(window: WindowPtr; size: Vec2i): void =
 proc position*(window: WindowPtr): Vec2i =
   var x,y: cint
   getPosition(window, x, y)
-  result.x = x
-  result.y = y
+  Vec2i(arr: [x.int32, y.int32])
 
 proc `position=`*(window: WindowPtr; pos: Vec2i): void =
   setPosition(window, pos.x, pos.y)

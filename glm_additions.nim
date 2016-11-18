@@ -1,5 +1,21 @@
 export glm
 
+export math.floor
+export math.sin
+export math.cos
+
+
+const
+  I4d* = diag(vec4d(1.0))
+  I3d* = diag(vec3d(1.0))
+  I2d* = diag(vec2d(1.0))
+  I4f* = diag(vec4f(1.0f))
+  I3f* = diag(vec3f(1.0f))
+  I2f* = diag(vec2f(1.0f))
+
+
+#[
+
 type
   Vec4u8 = Vec4[uint8]
   Vec4f* = Vec4[float32]
@@ -143,10 +159,6 @@ proc vec2l*(v: Vec2l) : Vec2l = [v.x.int64, v.y.int64].Vec2l
 
 # functions
 
-export math.floor
-export math.sin
-export math.cos
-
 proc floor*(v : Vec2) : Vec2 =
   result.x = floor(v.x)
   result.y = floor(v.y)
@@ -192,16 +204,6 @@ proc clamp*[T](arg: Vec2[T]; minVal, maxVal: T): Vec2[T] =
 proc clamp*[T](arg, minVal, maxVal: Vec2[T]): Vec2[T] =
   result.x = clamp(arg.x, minVal.x, maxVal.x)
   result.y = clamp(arg.y, minVal.y, maxVal.y)
-
-proc mat4f*(mat: Mat4d): Mat4f =
-  for i in 0..<4:
-   for j in 0..<4:
-     result[i][j] = mat[i][j].float32
-
-proc mat4d*(mat: Mat4f): Mat4d =
-  for i in 0..<4:
-   for j in 0..<4:
-     result[i][j] = mat[i][j].float64
 
 proc `+`*(mat1, mat2 : Mat4f) : Mat4f =
   result[0] = mat1[0] + mat2[0]
@@ -287,14 +289,6 @@ proc diag*(m : Mat4d) : Vec4d =
   result[2] = m[2][2]
   result[3] = m[3][3]
   
-const
-  I4d* = diag(vec4d(1.0))
-  I3d* = diag(vec3d(1.0))
-  I2d* = diag(vec2d(1.0))
-  I4f* = diag(vec4f(1.0f))
-  I3f* = diag(vec3f(1.0f))
-  I2f* = diag(vec2f(1.0f))
-
 proc `-`*(m1,m2: SomeMat): SomeMat =
   for col in 0 ..< numCols(SomeMat):
     for row in 0 ..< numRows(SomeMat):
@@ -423,12 +417,16 @@ proc mat4*(q: Quatf; v: Vec4f = vec4f(0,0,0,1)): Mat4f =
 
 proc mat4*(q: Quatf; v: Vec3f): Mat4f = mat4(q, vec4f(v,1))
 
+]#
+
 type JointPose* = object
   translate* : Vec3f
   rotate*    : Quatf
   scale*     : Vec3f
 
 proc matrix*(jp : JointPose) : Mat4f =
+  poseMatrix(jp.translate, jp.rotate, jp.scale)
+#[  
   let
     factor1 = jp.rotate.normalize.mat3
     factor2 = jp.scale.diag
@@ -439,8 +437,10 @@ proc matrix*(jp : JointPose) : Mat4f =
   result[1] = vec4(scalerot_mat[1], 0)
   result[2] = vec4(scalerot_mat[2], 0)
   result[3] = vec4(jp.translate,    1)
+]#
+  
 
-proc frustum*(left, right, bottom, top, near, far: float64): Mat4d =
+proc frustum*(left, right, bottom, top, near, far: float64): Mat4[float64] =
   result[0][0] =       (2*near)/(right-left)
   result[1][1] =       (2*near)/(top-bottom)
   result[2][2] =     (far+near)/(near-far)

@@ -128,7 +128,7 @@ proc isValid*(location: Location): bool =
 #### Uniform ####
 
 proc uniform(location: Location, mat: Mat4d) =
-  var mat_var = mat.mat4f
+  var mat_var = mat4f(mat)
   glUniformMatrix4fv(location.index, 1, false, cast[ptr GLfloat](mat_var.addr))
 
 proc uniform(location: Location, mat: Mat4f) =
