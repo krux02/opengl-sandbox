@@ -4,15 +4,13 @@ export math.floor
 export math.sin
 export math.cos
 
-
 const
-  I4d* = diag(vec4d(1.0))
-  I3d* = diag(vec3d(1.0))
-  I2d* = diag(vec2d(1.0))
-  I4f* = diag(vec4f(1.0f))
-  I3f* = diag(vec3f(1.0f))
-  I2f* = diag(vec2f(1.0f))
-
+  I4d* : Mat4d = diag(vec4d(1))
+  I3d* : Mat3d = diag(vec3d(1))
+  I2d* : Mat2d = diag(vec2d(1))
+  I4f* : Mat4f = diag(vec4f(1))
+  I3f* : Mat3f = diag(vec3f(1))
+  I2f* : Mat2f = diag(vec2f(1))
 
 #[
 
