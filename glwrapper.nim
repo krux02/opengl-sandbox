@@ -453,7 +453,21 @@ iterator mpairs*[T](buffer: SeqLikeBuffer[T]) : tuple[key: int, val: var T] =
     discard buffer.unmap
   for i, item in mappedBuffer.mpairs:
     yield (i, item)
-    
+
+iterator witems*[T](buffer: SeqLikeBuffer[T]) : var T =
+  let mappedBuffer = buffer.mapWrite
+  defer:
+    discard buffer.unmap
+  for item in mappedBuffer.mitems:
+    yield item
+
+iterator wpairs*[T](buffer: SeqLikeBuffer[T]) : tuple[key: int, val: var T] =
+  let mappedBuffer = buffer.mapWrite
+  defer:
+    discard buffer.unmap
+  for i, item in mappedBuffer.mpairs:
+    yield (i, item)
+
 proc unmap*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): bool =
   when false:
     glUnmapNamedBufferEXT(buffer.handle) != GL_FALSE.GLboolean

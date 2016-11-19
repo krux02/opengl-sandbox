@@ -47,6 +47,22 @@ template textureTypeTemplate(name, nilName, target:untyped, shadername:string): 
     var id = texture.handle
     glDeleteTextures(1, id.addr)
 
+proc unbindTextures(first,count: int): void =
+  when true:
+    glBindTextures(first.GLuint, count.GLsizei, nil)
+  else:
+    for textureUnit in first ..< first + count:
+      glBindTextureUnit(GLuint(textureUnit), 0);
+
+proc bindTextures(first: int; handles: openarray[GLuint]): void =
+  when true:
+    glBindTextures(first.GLuint, handles.len.GLsizei, handles[0].unsafeaddr)
+  else:
+    for i in 0 ..< handles.len:
+      let textureUnit = GLuint(first + i)
+      let texture: GLuint = handles[i]
+      glBindTextureUnit(textureUnit, texture)
+    
 proc geometryNumVerts(mode: GLenum): int =
   case mode
   of GL_POINTS: 1

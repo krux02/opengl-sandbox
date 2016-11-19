@@ -248,7 +248,9 @@ proc vertexOffset(offset: GLsizei) : int = 0
 ##################################################################################
   
 macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], statement: varargs[int] ) : untyped =
+  # initialize with number of global textures, as soon as that is supported
   var numSamplers = 0
+  
   var numLocations = 0
   var uniformsSection = newSeq[string](0)
   var initUniformsBlock = newStmtList()
@@ -273,6 +275,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
   var indexType: NimNode = nil
   var sizeofIndexType = 0
   var numVertices, numInstances, vertexOffset: NimNode = nil
+  var bindTexturesCall = newCall(bindSym"bindTextures", newLit(numSamplers), nnkBracket.newTree)
 
   #### BEGIN PARSE TREE ####
 
@@ -294,7 +297,8 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
     of "uniforms":
       for innerCall in call[1][1].items:
         innerCall[1].expectKind nnkStrLit
-        let name = $innerCall[1]
+        let nameLit = innerCall[1]
+        let name = $nameLit
         let value = innerCall[2]
         let glslType: string = innerCall[3].strVal
         let isSampler: bool  = innerCall[4].boolVal
@@ -305,19 +309,26 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 
         let baseString = s"uniform $glslType $name"
 
-        initUniformsBlock.add( newAssignment(
-          newDotExpr(locations(numLocations), !!"index"),
-          newCall( bindSym"glGetUniformLocation", newDotExpr(!!"glProgram", !!"handle"), newLit(name) )
-        ))
+        let loc = locations(numLocations)
+
+        initUniformsBlock.add head quote do:
+          `loc`.index = glGetUniformLocation(glProgram.handle, `nameLit`)
 
         if isSampler:
-          initUniformsBlock.add( newCall( bindSym"glUniform1i", newDotExpr(locations(numLocations),
-              !!"index"), newLit(numSamplers) ) )
-
-          setUniformsBlock.add( newCall( bindSym"bindToUnit", value, newLit(numSamplers) ) )
+          let bindingIndexLit = newLit(numSamplers)
+          initUniformsBlock.add head quote do:
+            glUniform1i(`loc`.index, `bindingIndexLit`)
+            
+          bindTexturesCall[2].add head quote do:
+            `value`.handle
+            
+          #setUniformsBlock.add head quote do:
+          #  bindToUnit(`value`, `bindingIndexLit`)
+            
           numSamplers += 1
         else:
-          setUniformsBlock.add( newCall( bindSym"uniform", !!"glProgram", locations(numLocations), value ) )
+          setUniformsBlock.add head quote do:
+            glProgram.uniform(`loc`, `value`)
 
         uniformsSection.add( baseString )
 
@@ -419,6 +430,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
             let location = locations(numLocations)
             bufferCreationBlock.addAll quote do:
               bindAndAttribPointer(`vao`, `value`, `location`)
+              
             setUniformsBlock.addAll quote do:
               setBuffer(`vao`, `value`, `location`)
           else:
@@ -473,6 +485,9 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
       echo "unknownSection"
       echo call.repr
 
+  if bindTexturesCall[2].len > 0: #actually got any uniform textures
+    setUniformsBlock.add bindTexturesCall
+      
   if fragmentMain.isNil:
     error("no fragment main")
 
