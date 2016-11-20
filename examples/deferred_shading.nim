@@ -1,12 +1,12 @@
-import math, random, sequtils, strutils, ../fancygl
+import arnelib, sequtils, strutils, ../fancygl
 
-var windowsize = vec2f(640,480)
-let (window, context) = defaultSetup(windowsize.vec2i)
+var windowsize = vec2i(640,480)
+let (window, context) = defaultSetup(windowsize)
 
 var hm = createFlatMap(128,64)
 hm.DiamondSquare(64)
 
-var viewport = vec4f(0,0,windowsize)
+var viewport = vec4f(0,0,windowsize.vec2f)
 
 let
   crateTexture = loadTexture2DFromFile("crate.png")
@@ -51,7 +51,7 @@ var
   lightColors = createArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW)
 
 for color in lightColors.mitems:
-  color = vec3f(random(1.0).float32, random(1.0).float32, random(1.0).float32)
+  color = vec3f(rand_f32(), rand_f32(), rand_f32())
 
 var
   effectOrigin = position.xy.vec2f
@@ -130,9 +130,7 @@ proc render() =
     glDepthFunc(GL_LEQUAL)
 
     var baseOffset = vec3f(0,0,0)
-    baseOffset.x = (round(position.x / hm.w.float) - 1) * hm.w.float
-    baseOffset.y = (round(position.y / hm.h.float) - 1) * hm.h.float
-
+    baseOffset.xy = (round(position.xy.vec2f / hm.size.vec2f) - vec2f(1)) * hm.size.vec2f
 
     shadingDsl(GL_TRIANGLES):
       numVertices = hmindices.len.GLsizei

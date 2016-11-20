@@ -4,6 +4,7 @@
 import arnelib, opengl, glm, math, random, strutils, nre, macros,
        macroutils, sdl2, sdl2/image, os, terminal
 include etc, glm_additions, stopwatch, default_setup, shapes, samplers, framebuffer, glwrapper, heightmap, iqm, typeinfo
+
 export opengl, glm, sdl2
 
 # sdl additions
