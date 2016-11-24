@@ -3,7 +3,8 @@
 ########################################################################
 import arnelib, opengl, glm, math, random, strutils, nre, macros,
        macroutils, sdl2, sdl2/image, os, terminal
-include etc, glm_additions, stopwatch, default_setup, shapes, samplers, framebuffer, glwrapper, heightmap, iqm, typeinfo
+
+include etc, glm_additions, stopwatch, default_setup, shapes, samplers, framebuffer, glwrapper, heightmap, iqm, typeinfo, camera
 
 export opengl, glm, sdl2
 
@@ -240,9 +241,9 @@ proc fragmentMain(src: string): int = 0
 proc geometryMain(layout, src: string): int = 0
 proc includes(args: varargs[int]): int = 0
 proc incl(arg: string): int = 0
-proc numVertices(num: GLsizei): int = 0
-proc numInstances(num: GLsizei): int = 0
-proc vertexOffset(offset: GLsizei) : int = 0
+proc numVertices(num: int): int = 0
+proc numInstances(num: int): int = 0
+proc vertexOffset(offset: int) : int = 0
 
 ##################################################################################
 #### Shading Dsl Inner ###########################################################
@@ -287,13 +288,13 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
     call.expectKind nnkCall
     case $call[0]
     of "numVertices":
-      numVertices = call[1]
+      numVertices = newCall(ident"GLsizei", call[1])
 
     of "numInstances":
-      numInstances = call[1]
+      numInstances = newCall(ident"GLsizei", call[1])
 
     of "vertexOffset":
-      vertexOffset = call[1]
+      vertexOffset = newCall(ident"GLsizei", call[1])
 
     of "uniforms":
       for innerCall in call[1][1].items:

@@ -67,7 +67,7 @@ proc render() =
   baseOffset.y = (floor(position.y / hm.h.float) - 1) * hm.h.float
 
   shadingDsl(GL_TRIANGLES):
-    numVertices = hmindices.len.GLsizei
+    numVertices = hmindices.len
     numInstances = 9
 
     uniforms:

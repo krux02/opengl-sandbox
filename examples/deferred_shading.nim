@@ -3,7 +3,7 @@ import arnelib, sequtils, strutils, ../fancygl
 var windowsize = vec2i(640,480)
 let (window, context) = defaultSetup(windowsize)
 
-var hm = createFlatMap(128,64)
+var hm = newHeightMap(128,64)
 hm.DiamondSquare(64)
 
 var viewport = vec4f(0,0,windowsize.vec2f)
@@ -60,7 +60,7 @@ var
 proc showNormals(mvp: Mat4d, positions: ArrayBuffer[Vec4f], normals: ArrayBuffer[Vec4f], length:float32 = 1, color:Vec4f = vec4f(1)) =
 
   shadingDsl(GL_POINTS):
-    numVertices = normals.len.GLsizei
+    numVertices = normals.len
 
     uniforms:
       mvp = mvp.mat4f
@@ -129,11 +129,11 @@ proc render() =
     glCullFace(GL_BACK)
     glDepthFunc(GL_LEQUAL)
 
-    var baseOffset = vec3f(0,0,0)
+    var baseOffset = vec4f(0,0,0,0)
     baseOffset.xy = (round(position.xy.vec2f / hm.size.vec2f) - vec2f(1)) * hm.size.vec2f
 
     shadingDsl(GL_TRIANGLES):
-      numVertices = hmindices.len.GLsizei
+      numVertices = hmindices.len
       numInstances = 4
 
       uniforms:
@@ -156,9 +156,9 @@ proc render() =
 
       vertexMain:
         """
-        vec3 offset = vec3(gl_InstanceID % 2, gl_InstanceID / 2, 0);
+        vec4 offset = vec4(gl_InstanceID % 2, gl_InstanceID / 2, 0, 0);
         offset.xy *= instanceSize;
-        vec3 pos_ws = pos + offset + baseOffset;
+        vec4 pos_ws = pos + offset + baseOffset;
 
         float effectParameter = effectLength * 5.0 - length(pos_ws.xy - effectOrigin) * 0.2;
         float effect = cos(clamp(effectParameter, -3.14, 3.14)) + 1;
@@ -166,29 +166,28 @@ proc render() =
         pos_ws.z += effect * 10.0 / (effectLength + 1);
 
         v_texcoord = texcoord * instanceSize;
-        v_pos_cs = (modelview * vec4(pos_ws, 1)).xyz;
+        v_pos_cs = modelview * pos_ws;
         v_pos_ws = pos_ws;
-        v_normal_cs = (modelview * vec4(normal,0)).xyz;
-
+        v_normal_cs = modelview * normal;
         v_normal_ws = normal;
         """
 
       vertexOut:
         "out vec2 v_texcoord"
-        "out vec3 v_pos_cs"
-        "out vec3 v_pos_ws"
-        "out vec3 v_normal_cs"
-        "out vec3 v_normal_ws"
+        "out vec4 v_pos_cs"
+        "out vec4 v_pos_ws"
+        "out vec4 v_normal_cs"
+        "out vec4 v_normal_ws"
 
       geometryMain:
         "layout(triangle_strip, max_vertices=3) out"
         """
         if( flatShading ) {
-          g_normal_cs = normalize(cross(v_pos_cs[1] - v_pos_cs[0], v_pos_cs[2] - v_pos_cs[0]));
+          g_normal_cs.xyz = normalize(cross(v_pos_cs[1].xyz - v_pos_cs[0].xyz, v_pos_cs[2].xyz - v_pos_cs[0].xyz));
         }
 
         for( int i=0; i < 3; i++) {
-          gl_Position = projection * vec4(v_pos_cs[i], 1);
+          gl_Position = projection * v_pos_cs[i];
           g_texcoord = v_texcoord[i];
           g_normal_ws = v_normal_ws[i];
           if( !flatShading ) {
@@ -201,13 +200,13 @@ proc render() =
 
       geometryOut:
         "out vec2 g_texcoord"
-        "out vec3 g_normal_cs"
-        "out vec3 g_normal_ws"
+        "out vec4 g_normal_cs"
+        "out vec4 g_normal_ws"
 
       fragmentMain:
         """
         color = texture(crateTexture, g_texcoord);
-        normal.rgb = g_normal_cs;
+        normal = g_normal_cs;
         """
     #end shadingDsl
   #end bindFramebuffer(fb1)
@@ -302,8 +301,8 @@ proc render() =
     
     #### render lights ####
     shadingDsl(GL_TRIANGLES):
-      numVertices = sphereIndices.len.GLsizei
-      numInstances = numLights.GLsizei
+      numVertices = sphereIndices.len
+      numInstances = numLights
 
       uniforms:
         normalMat = view_mat.mat4f
@@ -380,7 +379,7 @@ proc render() =
     glDisable(GL_DEPTH_TEST)
 
     shadingDsl(GL_POINTS):
-      numVertices = numLights.GLsizei
+      numVertices = numLights
 
       uniforms:
         star_tex = starTexture

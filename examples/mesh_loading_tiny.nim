@@ -362,8 +362,8 @@ proc main() =
     if renderNormalMap:
       for i, mesh in meshes:
         shadingDsl(GL_POINTS):
-          numVertices = mesh.num_vertexes.GLsizei
-          vertexOffset = mesh.first_vertex.GLsizei
+          numVertices = mesh.num_vertexes
+          vertexOffset = mesh.first_vertex
 
           uniforms:
             modelview = mat4f(view_mat)
@@ -444,8 +444,8 @@ proc main() =
     if renderMesh:
       for i, mesh in meshes:
         shadingDsl(GL_TRIANGLES):
-          numVertices = mesh.num_triangles.GLsizei * 3
-          vertexOffset = mesh.first_triangle.GLsizei * 3
+          numVertices = mesh.num_triangles * 3
+          vertexOffset = mesh.first_triangle * 3
 
           uniforms:
             modelview = mat4f(view_mat)
@@ -509,7 +509,7 @@ proc main() =
         let model_mat = outframe[i] * jointMatrices[i]
 
         shadingDsl(GL_TRIANGLES):
-          numVertices = GLsizei(triangles.len * 3)
+          numVertices = triangles.len * 3
 
           uniforms:
             modelview = view_mat.mat4f * model_mat

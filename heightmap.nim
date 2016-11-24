@@ -1,11 +1,5 @@
 # included from fancygl.nim
 
-proc nextRnd(): float32 =
-  random(1.0).float32 - 0.5f
-
-proc lerp(start, stop, amt: float32) : float32 =
-  (1 - amt) * start + amt * stop
-
 type HeightMap* = object
   w,h: int
   dataseq: seq[float32]
@@ -15,52 +9,45 @@ proc h*(hm: HeightMap): int = hm.h
 proc size*(hm: HeightMap): Vec2i = vec2i(hm.w.int32, hm.h.int32)
 proc data*(hm: HeightMap): seq[float32] = hm.dataseq
 
-proc `[]`*(hm: var HeightMap, x,y: int): float32 {. inline .} =
-  let
-    nx = x and (hm.w - 1)
-    ny = y and (hm.h - 1)
-
-  hm.dataseq[nx + hm.w * ny]
+template linearIndex(x,y): untyped =
+  (x and (hm.w - 1)) + hm.w * (y and hm.h - 1)
+  
+proc `[]`*(hm: HeightMap, x,y: int): float32 {. inline .} =
+  hm.dataseq[linearIndex(x,y)]
 
 proc `[]=`*(hm: var HeightMap, x,y: int; value: float32)  {. inline .} =
-  let
-    nx = x and (hm.w - 1)
-    ny = y and (hm.h - 1)
-
-  hm.dataseq[nx + hm.w * ny] = value
+  hm.dataseq[linearIndex(x,y)] = value
 
 proc `[]`*(hm: HeightMap, x,y: float32): float32 {. inline .} =
   let
     bx = x.floor.int
     by = y.floor.int
-
-    nx1 = bx and (hm.w - 1)
-    nx2 = (bx + 1) and (hm.w - 1)
-    ny1 = by and (hm.h - 1)
-    ny2 = (by + 1) and (hm.h - 1)
-
-    d1 = hm.dataseq[nx1 + hm.w * ny1]
-    d2 = hm.dataseq[nx2 + hm.w * ny1]
-    d3 = hm.dataseq[nx1 + hm.w * ny2]
-    d4 = hm.dataseq[nx2 + hm.w * ny2]
+    
+    d1 = hm.dataseq[linearIndex(bx  , by  )]
+    d2 = hm.dataseq[linearIndex(bx+1, by  )]
+    d3 = hm.dataseq[linearIndex(bx  , by+1)]
+    d4 = hm.dataseq[linearIndex(bx+1, by+1)]
 
     rx = x - x.floor
     ry = y - y.floor
 
-  lerp( lerp(d1,d2, rx), lerp(d3,d4, rx), ry )
+  mix( mix(d1,d2, rx), mix(d3,d4, rx), ry )
 
 proc `[]`*(hm: HeightMap, pos: Vec2f) : float32 {. inline .} =
   hm[pos.x, pos.y]
 
-proc vertices*(hm: var HeightMap) : seq[Vec3f] =
+proc `[]`*(hm: HeightMap, pos: Vec2i) : float32 {. inline .} =
+  hm.dataseq[linearIndex(pos.x, pos.y)]
+
+proc vertices*(hm: HeightMap) : seq[Vec4f] =
   result.newSeq(hm.w * hm.h)
   result.setLen(0)
 
   for y in 0 .. hm.h:
     for x in 0 .. hm.w:
-      result.add vec3f(x.float32 + 0.5f,y.float32 + 0.5f,hm[x,y])
+      result.add vec4f(x.float32 + 0.5f,y.float32 + 0.5f,hm[x,y],1'f32)
 
-proc normals*(hm: var HeightMap) : seq[Vec3f] =
+proc normals*(hm: HeightMap) : seq[Vec4f] =
   result.newSeq(hm.w * hm.h)
   result.setLen(0)
 
@@ -68,18 +55,18 @@ proc normals*(hm: var HeightMap) : seq[Vec3f] =
     for x in 0 .. hm.w:
       let v1 = vec3f(2, 0, hm[x+1, y] - hm[x-1, y])
       let v2 = vec3f(0, 2, hm[x, y+1] - hm[x, y-1])
-      result.add(normalize(cross(v1,v2)))
+      result.add(vec4f(normalize(cross(v1,v2)), 0))
 
-proc flatVertices*(hm: var HeightMap) : seq[Vec3f] =
+proc flatVertices*(hm: HeightMap) : seq[Vec4f] =
   result.newSeq(hm.w * hm.h)
   result.setLen(0)
 
   for y in 0 .. hm.h:
     for x in 0 .. hm.w:
-      result.add vec3f(x.float32 + 0.5f,y.float32 + 0.5f,0)
+      result.add vec4f(x.float32 + 0.5f,y.float32 + 0.5f,0,1)
 
 
-proc indices*(hm: var HeightMap) : seq[int32] =
+proc indices*(hm: HeightMap) : seq[int32] =
   result.newSeq(hm.w * hm.h * 6)
   result.setLen(0)
 
@@ -101,9 +88,7 @@ proc indices*(hm: var HeightMap) : seq[int32] =
       else:
         result.add([i1,i2,i3,i3,i2,i4])
 
-
-
-proc texCoords*(hm: var HeightMap) : seq[Vec2f] =
+proc texCoords*(hm: HeightMap) : seq[Vec2f] =
   result.newSeq(hm.w * hm.h)
   result.setLen(0)
 
@@ -122,6 +107,7 @@ proc minMax*(hm: HeightMap): (float,float) =
     result[0] = min(result[0], v)
     result[1] = max(result[1], v)
 
+# TODO add to glm  
 proc linMap(v,min,max, newMin, newMax: float32): float32 =
   (v - min) * (newMax - newMin) / (max - min) + newMin
 
@@ -159,7 +145,7 @@ proc DiamondSquare*(hm: var HeightMap, startfactor: float32): void =
 
         let x = i + stepSize div 2
         let y = j + stepSize div 2
-        hm[x,y] = sum * 0.25f + nextRnd() * factor
+        hm[x,y] = sum * 0.25f + (rand_f32() - 0.5f) * factor
 
   proc diamonds(hm: var HeightMap): void =
     for i in countup(0, w-1, stepSize):
@@ -180,7 +166,7 @@ proc DiamondSquare*(hm: var HeightMap, startfactor: float32): void =
             sum += hm[i, j+stepSize]
             count += 1
 
-          hm[i,j] = (sum / count) + nextRnd() * factor
+          hm[i,j] = (sum / count) + (rand_f32() - 0.5f) * factor
 
 
   while stepSize > 0:
@@ -192,7 +178,7 @@ proc DiamondSquare*(hm: var HeightMap, startfactor: float32): void =
     diamonds(hm)
     factor *= 0.5f
 
-proc createFlatMap*(width,height: int): HeightMap =
+proc newHeightMap*(width,height: int): HeightMap =
   result.w = width
   result.h = height
   result.dataseq = newSeq[float32](width*height)

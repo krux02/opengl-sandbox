@@ -40,15 +40,17 @@ proc defaultSetup*(windowsize: Vec2i = vec2i(-1,-1)): tuple[window: WindowPtr, c
 
   #Initialize OpenGL
   loadExtensions()
+
+  echo "extensions loaded"
   enableDefaultDebugCallback()
 
   doAssert 0 == glMakeCurrent(result.window, result.context)
 
   if 0 != glSetSwapInterval(-1):
-    stdout.write "glSetSwapInterval -1 (late swap tearing) not supported: "
+    stdout.write "late swap tearing not supported: "
     echo sdl2.getError()
     if 0 != glSetSwapInterval(1):
-      echo "setting glSetSwapInterval 1 (synchronized)"
+      echo "setting swap interval synchronized"
     else:
       stdout.write "even 1 (synchronized) is not supported: "
       echo sdl2.getError()

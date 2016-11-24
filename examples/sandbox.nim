@@ -3,7 +3,7 @@
 import sdl2, math, sequtils, ../fancygl
 
 let windowsize = vec2i(640, 480)
-let (window,context) = defaultSetup(windowsize)
+let (window, context) = defaultSetup(windowsize)
 
 let crateTexture = loadTexture2DFromFile("crate.png")
 
@@ -31,8 +31,8 @@ let
 let indices = toSeq( countup[int8,int8](0, int8(high(boxvertices)))).elementArrayBuffer
 
 declareFramebuffer(Fb1FramebufferType):
-  depth = createEmptyDepthTexture2D(windowsize.vec2f)
-  color = createEmptyTexture2D(windowsize.vec2f)
+  depth = createEmptyDepthTexture2D(windowsize)
+  color = createEmptyTexture2D(windowsize)
 
 let fb1 = createFb1FramebufferType()
 
@@ -99,7 +99,7 @@ proc render() =
       glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
       
       shadingDsl(GL_TRIANGLES):
-        numVertices = vertex.len.GLsizei
+        numVertices = vertex.len
 
         uniforms:
           modelview = modelview_mat
@@ -171,7 +171,7 @@ proc render() =
 
     # render face normals using the geometry shader
     shadingDsl(GL_TRIANGLES):
-      numVertices = vertex.len.GLsizei
+      numVertices = vertex.len
 
       uniforms:
         modelview = modelview_mat

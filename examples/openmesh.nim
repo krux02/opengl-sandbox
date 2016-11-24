@@ -441,7 +441,7 @@ proc main() =
 
     shadingDsl(GL_TRIANGLES):
       debugResult
-      numVertices = GLsizei(mymesh.faces.len * 3)
+      numVertices = mymesh.faces.len * 3
     
       uniforms:
         modelview = view_mat.mat4f
