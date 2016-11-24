@@ -1,4 +1,4 @@
-import arnelib, sequtils, strutils, ../fancygl
+import libarne, sequtils, strutils, ../fancygl
 
 var windowsize = vec2i(640,480)
 let (window, context) = defaultSetup(windowsize)

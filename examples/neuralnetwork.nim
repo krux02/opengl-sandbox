@@ -1,6 +1,6 @@
 # OpenGL example using SDL2
 
-import sequtils, ../fancygl, arnelib, fenv
+import sequtils, ../fancygl, libarne, fenv
 
 # TODO use defaultSetup
 

@@ -1,5 +1,5 @@
 #[
-import sdl2, opengl, arnelib
+import sdl2, opengl, libarne
 proc enableDefaultDebugCallback(): void
 type Vec2i = object
   x,y: int32

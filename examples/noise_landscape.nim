@@ -95,7 +95,7 @@ float calcHeight(vec2 pos) {
 """
 
 
-import ../fancygl, arnelib
+import ../fancygl, libarne
 
 let heightmap = newHeightMap(128,128)
 
