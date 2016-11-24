@@ -1,22 +1,22 @@
 # OpenGL example using SDL2
 
-import sdl2, opengl, math, random, glm, sequtils, ../fancygl, fenv
+import sequtils, ../fancygl, arnelib, fenv
 
 # TODO use defaultSetup
 
 var windowsize = vec2f(640,480)
 var viewport = vec4f(0,0,windowsize)
-let renderTargetSize = vec2f(320,240)
+let renderTargetSize = vec2i(320,240)
 
 var (window, context) = defaultSetup(windowsize.vec2i)
 
 glDisable(GL_DEPTH_TEST)
 
 declareFramebuffer(RenderTarget):
-  depth  = createEmptyDepthTexture2D(renderTargetSize)
-  color  = createEmptyTexture2D(renderTargetSize, GL_RGBA8)
+  depth  = newDepthTexture2D(renderTargetSize)
+  color  = newTexture2D(renderTargetSize, GL_RGBA8)
 
-let frambuffer0 = createRenderTarget()
+let frambuffer0 = newRenderTarget()
   
 proc generateGaussianNoise(mu, sigma: float64): float64 =
   let epsilon = fenv.epsilon(float64)
@@ -31,27 +31,17 @@ proc generateGaussianNoise(mu, sigma: float64): float64 =
     return z1 * sigma + mu;
 
   var
-    u1 = random(1.0)
-    u2 = random(1.0)
+    u1 = rand_f64()
+    u2 = rand_f64()
 
   while  u1 <= epsilon:
-    u1 = random(1.0)
-    u2 = random(1.0)
+    u1 = rand_f64()
+    u2 = rand_f64()
 
   z0 = sqrt(-2.0 * ln(u1)) * cos(two_pi * u2)
   z1 = sqrt(-2.0 * ln(u1)) * sin(two_pi * u2)
 
   return z0 * sigma + mu
-
-if 0 != glSetSwapInterval(-1):
-  stdout.write "glSetSwapInterval -1 (late swap tearing) not supported: "
-  echo sdl2.getError()
-  if 0 != glSetSwapInterval(1):
-    echo "setting glSetSwapInterval 1 (synchronized)"
-  else:
-    stdout.write "even 1 (synchronized) is not supported: "
-    echo sdl2.getError()
-
 
 glClearColor(0.0, 0.0, 0.0, 1.0)                  # Set background color to black and opaque
 glClearDepth(1.0)                                 # Set background depth to farthest
@@ -104,14 +94,16 @@ vec4 sig(vec4 x) {
 }
 """
 
-let weightsTexture      = texture1D(weights_d0.len div 4, GL_RGBA32F)
-let firstWeightsTexture = texture1D(firstWeights_d0.len div 4, GL_RGBA32F)
-let lastWeightsTexture  = texture1D(lastWeights_d0.len div 4, GL_RGBA32F)
+let weightsTexture      = newTexture1D(weights_d0.len div 4, GL_RGBA32F)
+let firstWeightsTexture = newTexture1D(firstWeights_d0.len div 4, GL_RGBA32F)
+let lastWeightsTexture  = newTexture1D(lastWeights_d0.len div 4, GL_RGBA32F)
 
 var pos = 0;
 
+glDisable(GL_DEPTH_TEST)
+    
 proc render() =
-  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
+  glClear(GL_COLOR_BUFFER_BIT) # Clear color and depth buffers
 
   let mouse = vec2f(mouseX.float32, windowsize.y - mouseY.float32)
   #let mouseX_Norm = (mouseX.float32 / screenWidth.float32)
@@ -249,7 +241,7 @@ proc render() =
 # Main loop
 
 var
-  evt = sdl2.defaultEvent
+  evt = defaultEvent
   runGame = true
   fpsTimer = newStopWatch(true)
   fpsFrameCounter = 0

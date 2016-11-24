@@ -1,6 +1,6 @@
 # OpenGL example using SDL2
 
-import sdl2, math, sequtils, ../fancygl
+import sequtils, ../fancygl
 
 let windowsize = vec2i(640, 480)
 let (window, context) = defaultSetup(windowsize)
@@ -31,10 +31,10 @@ let
 let indices = toSeq( countup[int8,int8](0, int8(high(boxvertices)))).elementArrayBuffer
 
 declareFramebuffer(Fb1FramebufferType):
-  depth = createEmptyDepthTexture2D(windowsize)
-  color = createEmptyTexture2D(windowsize)
+  depth = newDepthTexture2D(windowsize)
+  color = newTexture2D(windowsize)
 
-let fb1 = createFb1FramebufferType()
+let fb1 = newFb1FramebufferType()
 
 const glslCode = """
 vec4 mymix(vec4 color, float alpha) {
@@ -216,7 +216,7 @@ proc render() =
   glSwapWindow(window) # Swap the front and back frame buffers (double buffering)
 
 var
-  evt: sdl2.Event = sdl2.defaultEvent
+  evt: Event = defaultEvent
   runGame = true
   fpsTimer = newStopWatch(true)
   fpsFrameCounter = 0

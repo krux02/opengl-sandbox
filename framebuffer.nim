@@ -5,7 +5,7 @@ type DepthRenderbuffer* = distinct GLuint
 proc bindIt*(drb: DepthRenderbuffer): void =
   glBindRenderbuffer(GL_RENDERBUFFER, drb.GLuint)
 
-proc createDepthRenderBuffer*(size: Vec2f) : DepthRenderbuffer =
+proc newDepthRenderBuffer*(size: Vec2f) : DepthRenderbuffer =
   glGenRenderbuffers(1, cast[ptr GLuint](result.addr))
   glNamedRenderbufferStorageEXT(result.GLuint, GL_DEPTH_COMPONENT, size.x.GLsizei, size.y.GLsizei)
 
@@ -20,7 +20,7 @@ proc bindDraw*(fb: FrameBuffer): void =
 proc bindRead*(fb: FrameBuffer): void =
   glBindFramebuffer(GL_READ_FRAMEBUFFER, fb.GLuint)
 
-proc createFrameBuffer*(): FrameBuffer =
+proc newFrameBuffer*(): FrameBuffer =
   when false:
     glGenFramebuffers(1, cast[ptr GLuint](result.addr))
   else:
@@ -83,14 +83,14 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
         rhs.expectKind(nnkCall)
         depthCreateExpr = rhs;
 
-        if rhs[0].ident == !"createDepthRenderBuffer":
+        if rhs[0].ident == !"newDepthRenderBuffer":
           depthType = bindSym"DepthRenderbuffer"
           useDepthRenderbuffer = true
-        elif rhs[0].ident == !"createEmptyDepthTexture2D":
+        elif rhs[0].ident == !"newDepthTexture2D":
           depthType = bindSym"Texture2D"
           useDepthRenderbuffer = false
         else:
-          error "expected call to either createDepthRenderBuffer or createEmptyDepthTexture2D"
+          error "expected call to either newDepthRenderBuffer or newDepthTexture2D", rhs
 
     else:
       fragmentOutputs.add($asgn[0])
@@ -133,7 +133,7 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
   let branchStmtList = newStmtList()
 
   branchStmtList.add(newAssignment(newDotExpr(!!"result", !!"glname"),
-    newCall(bindSym"createFrameBuffer")
+    newCall(bindSym"newFrameBuffer")
   ))
 
   branchStmtList.add(newAssignment(newDotExpr(!!"result", !!"depth"),
@@ -176,7 +176,7 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
 
   result.add(
     newNimNode2( nnkProcDef,
-      !!( join(["create",$typename]) ),
+      !!("new" & $typename),
       newEmptyNode(),
       newEmptyNode(),
       newNimNode2( nnkFormalParams,

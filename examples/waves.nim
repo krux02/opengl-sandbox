@@ -1,10 +1,10 @@
-import math, random, sequtils, strutils, ../fancygl
+import sequtils, strutils, ../fancygl
 
 var windowsize = vec2f(1024,768)
 let (window, context) = defaultSetup(windowsize.vec2i)
 
 discard setRelativeMouseMode(Bool32(true))
-var hm = createFlatMap(128,128)
+var hm = newHeightMap(128,128)
 hm.DiamondSquare(64)
 
 let
@@ -13,7 +13,7 @@ let
   hmVertices  = arrayBuffer(hm.vertices, GL_STATIC_DRAW)
   hmNormals   = arrayBuffer(hm.normals, GL_STATIC_DRAW)
   hmTexCoords = arrayBuffer(hm.texCoords, GL_STATIC_DRAW)
-  hmIndices   = elementArrayBuffer(hm.indices, GL_STATIC_DRAW)
+  hmIndices   = elementArrayBuffer(hm.indicesTriangles, GL_STATIC_DRAW)
 
 var heightsTexture = texture2D(hm.size, GL_R32F)
 heightsTexture.parameter(GL_TEXTURE_WRAP_S, GL_REPEAT)

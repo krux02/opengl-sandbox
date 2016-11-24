@@ -35,6 +35,40 @@ proc `title=`*(window: WindowPtr; title: string): void =
 
 proc size*(surface: SurfacePtr): Vec2i =
   vec2i(surface.w, surface.h)
+
+proc rel*(evt: MouseMotionEventObj): Vec2i =
+  result.x = evt.xrel
+  result.y = evt.yrel
+
+proc pos*(evt: MouseMotionEventObj): Vec2i =
+  result.x = evt.x
+  result.y = evt.y
+
+proc pos*(evt: MouseButtonEventObj): Vec2i =
+  result.x = evt.x
+  result.y = evt.y
+
+proc pos*(evt: MouseWheelEventObj): Vec2i =
+  result.x = evt.x
+  result.y = evt.y
+
+proc rel*(evt: MouseMotionEventPtr): Vec2i =
+  result.x = evt.xrel
+  result.y = evt.yrel
+
+proc pos*(evt: MouseMotionEventPtr): Vec2i =
+  result.x = evt.x
+  result.y = evt.y
+
+proc pos*(evt: MouseButtonEventPtr): Vec2i =
+  result.x = evt.x
+  result.y = evt.y
+
+proc pos*(evt: MouseWheelEventPtr): Vec2i =
+  result.x = evt.x
+  result.y = evt.y
+
+
   
 type ShaderParam* = tuple[name: string, gl_type: string]
 

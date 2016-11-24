@@ -66,15 +66,15 @@ proc flatVertices*(hm: HeightMap) : seq[Vec4f] =
       result.add vec4f(x.float32 + 0.5f,y.float32 + 0.5f,0,1)
 
 
-proc indices*(hm: HeightMap) : seq[int32] =
+proc indicesTriangles*(hm: HeightMap) : seq[int32] =
   result.newSeq(hm.w * hm.h * 6)
   result.setLen(0)
 
   for y in 0 ..< hm.h:
     for x in 0 ..< hm.w:
       let
-        i1 = int32(x     + (hm.w + 1) * y)
-        i2 = int32(x + 1 + (hm.w + 1) * y)
+        i1 = int32(x     + (hm.w + 1) * y      )
+        i2 = int32(x + 1 + (hm.w + 1) * y      )
         i3 = int32(x     + (hm.w + 1) * (y + 1))
         i4 = int32(x + 1 + (hm.w + 1) * (y + 1))
 
@@ -87,6 +87,30 @@ proc indices*(hm: HeightMap) : seq[int32] =
         result.add([i3,i1,i4,i4,i1,i2])
       else:
         result.add([i1,i2,i3,i3,i2,i4])
+
+proc indicesTriangleStrip*(hm: HeightMap): seq[int32] =
+  result.newSeq(0)
+
+  for y in 0 ..< hm.h:
+    for x in 0 .. hm.w:
+      result.add int32(x     + (hm.w + 1) * (y + 1))
+      result.add int32(x     + (hm.w + 1) *  y     )
+      #if y != 0 and x == 0:
+      #  result.add result.back
+      #if x == hm.w:
+      #  result.add result.back
+
+    result.add -1
+
+proc indicesQuads*(hm: HeightMap): seq[int32] =
+  result.newSeq(0)
+  for y in 0 ..< hm.h:
+    for x in 0 ..< hm.w:
+      result.add int32(x     + (hm.w + 1) * y      )
+      result.add int32(x + 1 + (hm.w + 1) * y      )
+      result.add int32(x     + (hm.w + 1) * (y + 1))
+      result.add int32(x + 1 + (hm.w + 1) * (y + 1))
+
 
 proc texCoords*(hm: HeightMap) : seq[Vec2f] =
   result.newSeq(hm.w * hm.h)

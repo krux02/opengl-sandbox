@@ -4,14 +4,16 @@
 #### Sampler Types #############################################################
 ################################################################################
 
+#[
 macro createTextureMacro(name, target: untyped): untyped =
-  let procName = newIdentNode("create" & $name.ident)
+  let procName = newIdentNode("new" & $name.ident)
   result = quote do:
     proc `procName`*() : `name` =
       var id : GLuint
       glCreateTextures(`target`, 1,  id.addr)
       `name`(handle: id)
-  
+]#
+
 template textureTypeTemplate(name, nilName, target:untyped, shadername:string): untyped =
   type
     name* = object
@@ -20,7 +22,7 @@ template textureTypeTemplate(name, nilName, target:untyped, shadername:string): 
   proc `$`*(texture: name): string =
     $texture.handle
 
-  createTextureMacro(name, target)
+  #createTextureMacro(name, target)
 
   proc isValid*(texture: name): bool =
     texture.handle.int > 0 and glIsTexture(texture.handle)
@@ -255,7 +257,7 @@ proc textureRectangle*(surface: sdl2.SurfacePtr): TextureRectangle =
     glTextureStorage2D(result.handle, 1, GL_RGBA8, surface2.w, surface2.h)
     glTextureSubImage2D(result.handle, 0, 0, 0, surface2.w, surface2.h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
     
-proc texture1D*(size: int, internalFormat: GLenum = GL_RGBA8): Texture1D =
+proc newTexture1D*(size: int, internalFormat: GLenum = GL_RGBA8): Texture1D =
   when false:
     discard
   else:
@@ -348,7 +350,7 @@ when false:
     glGetTextureLevelParameterivEXT(tex.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_TEXTURE_INTERNAL_FORMAT, internalFormat.addr)
     glTextureImage2DEXT(tex.handle, GL_TEXTURE_RECTANGLE, 0, internalFormat, size.x.GLsizei, size.y.GLsizei, 0, internalFormat.GLenum, cGL_UNSIGNED_BYTE, nil)
 
-proc createEmptyTexture2D*(size: Vec2i, internalFormat: GLenum = GL_RGB8) : Texture2D =
+proc newTexture2D*(size: Vec2i, internalFormat: GLenum = GL_RGB8) : Texture2D =
   when false:
     glGenTextures(1, cast[ptr GLuint](result.addr))
     glTextureImage2DEXT(result.handle, GL_TEXTURE_2D, 0, internalFormat, size.x.GLsizei, size.y.GLsizei, 0,GL_RGB, cGL_UNSIGNED_BYTE, nil)
@@ -364,7 +366,7 @@ proc createEmptyTexture2D*(size: Vec2i, internalFormat: GLenum = GL_RGB8) : Text
   result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
   result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR)
 
-proc createEmptyDepthTexture2D*(size: Vec2i, internalFormat: GLenum = GL_DEPTH_COMPONENT24) : Texture2D =
+proc newDepthTexture2D*(size: Vec2i, internalFormat: GLenum = GL_DEPTH_COMPONENT24) : Texture2D =
   let levels = min(size.x, size.y).float32.log2.floor.GLint
   when false:
     glGenTextures(1, result.handle.addr)

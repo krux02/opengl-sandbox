@@ -15,7 +15,7 @@ let
   hmVertices = hm.vertices.arrayBuffer(GL_STATIC_DRAW)
   hmNormals = hm.normals.arrayBuffer(GL_STATIC_DRAW)
   hmTexCoords = hm.texCoords.arrayBuffer(GL_STATIC_DRAW)
-  hmIndices = hm.indices.elementArrayBuffer(GL_STATIC_DRAW)
+  hmIndices = hm.indicesTriangles.elementArrayBuffer(GL_STATIC_DRAW)
 
   sphereVertices = uvSphereVertices(32,16).arrayBuffer
   sphereNormals = uvSphereNormals(32,16).arrayBuffer
@@ -25,45 +25,48 @@ let
 var hideNormals, hideDeferredShading, flatShading, wireframe: bool
 
 declareFramebuffer(FirstFramebuffer):
-  depth = createEmptyDepthTexture2D(windowsize)
-  color = createEmptyTexture2D(windowsize, GL_RGBA8)
-  normal = createEmptyTexture2D(windowsize, GL_RGBA16F)
+  depth = newDepthTexture2D(windowsize)
+  color = newTexture2D(windowsize, GL_RGBA8)
+  normal = newTexture2D(windowsize, GL_RGBA16F)
 
-let fb1 = createFirstFramebuffer()
+let fb1 = newFirstFramebuffer()
 
-let projection_mat = perspective(45.0, windowsize.x / windowsize.y, 0.1, 1000.0)
+let projMat = perspective(45.0f, float32(windowsize.x / windowsize.y), 0.1f, 1000.0f)
 
-const numLights = 5
+const numLights = 500
 
 var
   runGame = true
   mousePos = vec2f(0)
   
-  gameTimer       = newStopWatch(true)
-  fpsTimer        = newStopWatch(true)
-  fpsFrameCounter = 0
+  gameTimer  = newStopWatch(true)
+  fpsTimer   = newStopWatch(true)
+  frame          = 0
+  fpsFrameMarker = 0
 
-  movement = vec3d(0,0,0)
-  rotation = vec2d(PI/2,0)
-  position = vec3d(0,0, hm[0,0] + 10 )
+  camera = newCamera()
+  rotation = vec2f(0, 0)
+  #position = vec3d(0,0, hm[0,0] + 10 )
+  
+  lightPositions = newArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW)
+  lightColors = newArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW)
 
-  lightPositions = createArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW)
-  lightColors = createArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW)
-
+camera.pos.z = hm[0,0] + 10
+  
 for color in lightColors.mitems:
   color = vec3f(rand_f32(), rand_f32(), rand_f32())
 
 var
-  effectOrigin = position.xy.vec2f
+  effectOrigin = camera.pos.xy
   effectTimer  = newStopWatch(true, 100)
   
-proc showNormals(mvp: Mat4d, positions: ArrayBuffer[Vec4f], normals: ArrayBuffer[Vec4f], length:float32 = 1, color:Vec4f = vec4f(1)) =
+proc showNormals(mvp: Mat4f, positions: ArrayBuffer[Vec4f], normals: ArrayBuffer[Vec4f], length:float32 = 1, color:Vec4f = vec4f(1)) =
 
   shadingDsl(GL_POINTS):
     numVertices = normals.len
 
     uniforms:
-      mvp = mvp.mat4f
+      mvp
       normalColor = color
       scale = length
 
@@ -99,19 +102,9 @@ proc render() =
   
   let time = gameTimer.time
 
-  var view_mat = I4d
-
-  view_mat = view_mat.translate( position )
-  view_mat = view_mat.rotate( vec3d(0,0,1), rotation.y )
-  view_mat = view_mat.rotate( vec3d(1,0,0), rotation.x )
-
-
-  let movement_ws = (view_mat * vec4d(movement, 0)).xyz
-  position = position + movement_ws
-
-  view_mat = view_mat.inverse
-
-  let lightDir_cs = (view_mat * vec3d(0.577).vec4d(0)).xyz.vec3f
+  let viewMat = camera.viewMat()
+  
+  let lightDir_cs = view_mat * vec4f(vec3f(0.577f),0)
 
   # Clear color and depth buffers
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT)
@@ -130,15 +123,15 @@ proc render() =
     glDepthFunc(GL_LEQUAL)
 
     var baseOffset = vec4f(0,0,0,0)
-    baseOffset.xy = (round(position.xy.vec2f / hm.size.vec2f) - vec2f(1)) * hm.size.vec2f
+    baseOffset.xy = (round(camera.pos.xy / hm.size.vec2f) - vec2f(1)) * hm.size.vec2f
 
     shadingDsl(GL_TRIANGLES):
       numVertices = hmindices.len
       numInstances = 4
 
       uniforms:
-        modelview = view_mat.mat4f
-        projection = projection_mat.mat4f
+        modelview = viewMat
+        projection = projMat
         time
         crateTexture
         baseOffset
@@ -214,7 +207,7 @@ proc render() =
   glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
 
   var
-    mvp = projection_mat * view_mat
+    mvp = projMat * viewMat
     inverse_mvp = mvp
 
   inverse_mvp = inverse(inverse_mvp)
@@ -231,7 +224,7 @@ proc render() =
         time
         viewport
         texSize = fb1.color.size.vec2f
-        inverse_mvp = inverse_mvp.mat4f
+        inverse_mvp = inverse_mvp
         border = 0.5f * viewport.zw
 
       fragmentMain:
@@ -305,9 +298,9 @@ proc render() =
       numInstances = numLights
 
       uniforms:
-        normalMat = view_mat.mat4f
-        mvp       = mvp.mat4f
-        inverse_mvp = inverse_mvp.mat4f
+        normalMat = viewMat
+        mvp       = mvp
+        inverse_mvp = inverse_mvp
 
         scale = 5
         lightDir_cs
@@ -385,8 +378,8 @@ proc render() =
         star_tex = starTexture
         depth_tex = fb1.depth
 
-        projection_mat = projection_mat.mat4f
-        view_mat       = view_mat.mat4f
+        projection_mat = projMat
+        view_mat       = viewMat
 
         scale = 3
         viewport
@@ -454,12 +447,13 @@ proc render() =
   glDepthFunc(GL_LESS)
 
   if not hideNormals:
-    showNormals(projection_mat * view_mat, sphereVertices, sphereNormals, 0.3f)
+    showNormals(projMat * viewMat, sphereVertices, sphereNormals, 0.3f)
 
   glSwapWindow(window)
 
 
 proc mainLoopFunc(): void =
+  
   var evt: Event  = defaultEvent
   while pollEvent(evt):
     if evt.kind == QuitEvent:
@@ -473,7 +467,7 @@ proc mainLoopFunc(): void =
         break
 
       of SDL_SCANCODE_SPACE:
-        effectOrigin = position.xy.vec2f
+        effectOrigin = camera.pos.xy
         effectTimer.reset
 
       of SDL_SCANCODE_PAUSE:
@@ -507,22 +501,28 @@ proc mainLoopFunc(): void =
     if evt.kind == MouseMotion:
       mousePos.x = evt.motion.x.float32
       mousePos.y = 960 - evt.motion.y.float32
-      rotation.x = clamp( rotation.x - evt.motion.yrel.float / 128.0 , 0, PI )
-      rotation.y = rotation.y - evt.motion.xrel.float / 128.0
+      rotation.xy -= evt.motion.rel.yx.vec2f / 128.0
+      rotation.x = clamp(rotation.x , 0, PI)
 
-
+  var movement = vec3f(0,0,0)
   var state = getKeyboardState()
-
+  
   movement.z = (state[SDL_SCANCODE_D.int].float - state[SDL_SCANCODE_E.int].float) * 0.4
   movement.x = (state[SDL_SCANCODE_F.int].float - state[SDL_SCANCODE_S.int].float) * 0.4
 
+  camera.moveRelative(movement)
+
+  camera.dir = quatf(0,0,0,1)
+  camera.turnRelativeX(rotation.x)
+  camera.turnAbsoluteZ(rotation.y)
+  
   if fpsTimer.time >= 1:
-    echo "FPS: ", fpsFrameCounter
-    fpsFrameCounter = 0
+    echo "FPS: ", frame - fpsFrameMarker
+    fpsFrameMarker = frame
     fpsTimer.reset
 
   render()
-  fpsFrameCounter += 1
+  frame += 1
 
 while runGame:
   mainLoopFunc()

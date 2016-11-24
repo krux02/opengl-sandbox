@@ -235,56 +235,61 @@ type
 type SeqLikeBuffer[T] = ArrayBuffer[T] | ElementArrayBuffer[T]
 type AnyBuffer[T] = ArrayBuffer[T] | ElementArrayBuffer[T] | UniformBuffer[T]
 
-proc create*[T](arrayBuffer: var ArrayBuffer[T] ) : void =
+
+proc new*[T](arrayBuffer: var ArrayBuffer[T] ) : void =
   when false:
     glGenBuffers(1, arrayBuffer.handle.addr)
   else:
     glCreateBuffers(1, arrayBuffer.handle.addr)
 
-proc create*[T](arrayBuffer: var ElementArrayBuffer[T] ) : void =
+proc new*[T](arrayBuffer: var ElementArrayBuffer[T] ) : void =
   when false:
     glGenBuffers(1, arrayBuffer.handle.addr)
   else:
     glCreatebuffers(1, arrayBuffer.handle.addr)
 
-proc create*[T](arrayBuffer: var UniformBuffer[T] ) : void =
+proc new*[T](arrayBuffer: var UniformBuffer[T] ) : void =
   when false:
     glGenBuffers(1, arrayBuffer.handle.addr)
   else:
     glCreateBuffers(1, arrayBuffer.handle.addr)
 
+
 proc bindIt*(vao: VertexArrayObject; indices: ElementArrayBuffer): void =
   glVertexArrayElementBuffer(vao.handle, indices.handle)
     
-proc createArrayBuffer*[T](len: int, usage: GLenum = GL_STATIC_DRAW): ArrayBuffer[T] =
-  result.create
+proc newArrayBuffer*[T](length: int, usage: GLenum = GL_STATIC_DRAW): ArrayBuffer[T] =
+  result.new
   when false:
-    glNamedBufferDataEXT(result.handle, len * GLsizeiptr(sizeof(T)), nil, usage)
+    glNamedBufferDataEXT(result.handle, length * GLsizeiptr(sizeof(T)), nil, usage)
   else:
-    glNamedBufferData(result.handle, len * GLsizeiptr(sizeof(T)), nil, usage)
+    glNamedBufferData(result.handle, length * GLsizeiptr(sizeof(T)), nil, usage)
 
-proc createElementArrayBuffer*[T](len: int, usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
-  result.create
+proc newElementArrayBuffer*[T](length: int, usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
+  result.new
   when false:
-    glNamedBufferDataEXT(result.handle, len * GLsizeiptr(sizeof(T)), nil, usage)
+    glNamedBufferDataEXT(result.handle, length * GLsizeiptr(sizeof(T)), nil, usage)
   else:
-    glNamedBufferData(result.handle, len * GLsizeiptr(sizeof(T)), nil, usage)
+    glNamedBufferData(result.handle, length * GLsizeiptr(sizeof(T)), nil, usage)
   
-proc createUniformBuffer*[T](usage: GLenum = GL_STATIC_DRAW): UniformBuffer[T] =
-  result.create
+proc newUniformBuffer*[T](usage: GLenum = GL_STATIC_DRAW): UniformBuffer[T] =
+  result.new
   when false:
     glNamedBufferDataEXT(result.handle, GLsizeiptr(sizeof(T)), nil, usage)
   else:
     glNamedBufferData(result.handle, GLsizeiptr(sizeof(T)), nil, usage)
 
+proc glGetInteger(name: GLenum): GLint =
+  glGetIntegerv(name, result.addr)
+    
 proc currentArrayBuffer*[T](): ArrayBuffer[T] =
-  glGetIntegerv(GL_ARRAY_BUFFER_BINDING, cast[ptr GLint](result.addr))
+  result.handle = GLuint(glGetInteger(GL_ARRAY_BUFFER_BINDING))
 
 proc currentElementArrayBuffer*[T](): ElementArrayBuffer[T] =
-  glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, cast[ptr GLint](result.addr))
+  result.handle = GLuint(glGetInteger(GL_ELEMENT_ARRAY_BUFFER_BINDING))
 
 proc currentUniformBuffer*[T](): UniformBuffer[T] =
-  glGetIntegerv(GL_UNIFORM_BUFFER_BINDING, cast[ptr GLint](result.addr))
+  result.handle = GLuint(glGetInteger(GL_UNIFORM_BUFFER_BINDING))
 
 proc bindingKind*[T](buffer: ArrayBuffer[T]) : GLenum {. inline .} =
   GL_ARRAY_BUFFER_BINDING
@@ -335,7 +340,7 @@ proc bufferData*[T](buffer: UniformBuffer[T], data: T, usage: GLenum) =
       glNamedBufferDataEXT(buffer.handle, GLsizeiptr(sizeof(T)), unsafeAddr(data), usage)
     else:
       glNamedBufferData(buffer.handle, GLsizeiptr(sizeof(T)), unsafeAddr(data), usage)
-
+      
 proc setData*[T](buffer: SeqLikeBuffer[T], data: openarray[T]) =
   if buffer.handle.int > 0:
     glNamedBufferSubData(buffer.handle, 0, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]))
@@ -517,25 +522,25 @@ template mapReadWriteBlock*(buffer: ArrayBuffer[auto], blck: untyped) : untyped 
     blck
 
 proc arrayBuffer*[T](data : openarray[T], usage: GLenum = GL_STATIC_DRAW): ArrayBuffer[T] =
-  result.create
+  result.new
   result.bufferData(data, usage)
 
 proc arrayBuffer*[T](data : DataView[T], usage: GLenum = GL_STATIC_DRAW): ArrayBuffer[T] =
   if not data.isNil:
-    result.create
+    result.new
     result.bufferData(data, usage)
 
 proc elementArrayBuffer*[T](data : openarray[T], usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
-  result.create
+  result.new
   result.bufferData(data, usage)
 
 proc elementArrayBuffer*[T](data : DataView[T], usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
   if not data.isNil:
-    result.create
+    result.new
     result.bufferData(data, usage)
 
 proc uniformBuffer*[T](data : T, usage: GLenum = GL_STATIC_DRAW): UniformBuffer[T] =
-  result.create
+  result.new
   result.bufferData(data, usage)
 
 #### ArrayBufferView

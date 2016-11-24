@@ -4,7 +4,7 @@ let (window, context) = defaultSetup()
 let windowsize = vec2f(window.size)
 
 const
-  numParticles   = 200000
+  numParticles   = 2000
   maxParticleAge = 16.0'f64
 
 type ParticleRenderData = object

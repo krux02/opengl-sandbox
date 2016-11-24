@@ -24,10 +24,16 @@ proc moveAbolute*(cam: var Camera; offset: Vec3f): void =
 
 proc turnRelative*(cam: var Camera; q: Quatf): void =
   cam.dir *= q
-    
+
+proc turnAbsolute*(cam: var Camera; q: Quatf): void =
+  cam.dir = q * cam.dir
+  
 proc turnRelative*(cam: var Camera; axis: Vec3f; angle: float32): void =
   cam.turnRelative(quatf(axis, angle))
 
+proc turnAbsolute*(cam: var Camera; axis: Vec3f; angle: float32): void =
+  cam.turnAbsolute(quatf(axis, angle))
+  
 proc turnRelativeX*(cam: var Camera; angle: float32): void =
   cam.turnRelative(quatf(vec3f(1,0,0), angle))
   
@@ -36,6 +42,16 @@ proc turnRelativeY*(cam: var Camera; angle: float32): void =
   
 proc turnRelativeZ*(cam: var Camera; angle: float32): void =
   cam.turnRelative(quatf(vec3f(0,0,1), angle))
+
+proc turnAbsoluteX*(cam: var Camera; angle: float32): void =
+  cam.turnAbsolute(quatf(vec3f(1,0,0), angle))
+  
+proc turnAbsoluteY*(cam: var Camera; angle: float32): void =
+  cam.turnAbsolute(quatf(vec3f(0,1,0), angle))
+  
+proc turnAbsoluteZ*(cam: var Camera; angle: float32): void =
+  cam.turnAbsolute(quatf(vec3f(0,0,1), angle))
+
   
 proc lookAt*(cam: var Camera; pos: Vec3f; up: Vec3f = vec3f(0,0,1)): void =
   var f = normalize(cam.pos.xyz - pos)
