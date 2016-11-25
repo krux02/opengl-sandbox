@@ -1,4 +1,4 @@
-import ../fancygl, libarne
+import ../fancygl
 
 let (window, context) = defaultSetup()
 let windowsize = vec2f(window.size)

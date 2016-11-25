@@ -1,4 +1,4 @@
-import ../fancygl, libarne, glm, glm/noise
+import ../fancygl, glm, glm/noise
 
 let windowsize = vec2i(512,512)
 let (window, context) = defaultSetup(windowsize)

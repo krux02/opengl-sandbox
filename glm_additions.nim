@@ -424,26 +424,4 @@ type JointPose* = object
 
 proc matrix*(jp : JointPose) : Mat4f =
   poseMatrix(jp.translate, jp.rotate, jp.scale)
-#[  
-  let
-    factor1 = jp.rotate.normalize.mat3
-    factor2 = jp.scale.diag
-  
-  let scalerot_mat = factor1 * factor2
-  
-  result[0] = vec4(scalerot_mat[0], 0)
-  result[1] = vec4(scalerot_mat[1], 0)
-  result[2] = vec4(scalerot_mat[2], 0)
-  result[3] = vec4(jp.translate,    1)
-]#
-  
-
-proc frustum*(left, right, bottom, top, near, far: float64): Mat4[float64] =
-  result[0][0] =       (2*near)/(right-left)
-  result[1][1] =       (2*near)/(top-bottom)
-  result[2][2] =     (far+near)/(near-far)
-  result[2][0] =   (right+left)/(right-left)
-  result[2][1] =   (top+bottom)/(top-bottom)
-  result[2][3] = -1
-  result[3][2] =   (2*far*near)/(near-far)
 

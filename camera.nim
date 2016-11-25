@@ -87,7 +87,6 @@ proc lookAtMat*(eye, center, up: Vec3f) : Mat4f =
   result[3][3] = 1
 
 when isMainModule:
-  import libarne
   
   var eye, center, up: Vec3f
   for i in 0 .. 2:

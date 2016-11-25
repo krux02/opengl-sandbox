@@ -1,12 +1,13 @@
 ########################################################################
 ############################### fancy gl ###############################
 ########################################################################
-import libarne, opengl, glm, math, random, strutils, nre, macros,
-       macroutils, sdl2, sdl2/image, os, terminal
+import opengl, glm, math, random, strutils, nre, macros,
+       macroutils, sdl2, sdl2/image, os, terminal, basic_random
 
-include etc, glm_additions, stopwatch, default_setup, shapes, samplers, framebuffer, glwrapper, heightmap, iqm, typeinfo, camera
+include etc, glm_additions, stopwatch, default_setup, shapes, samplers,
+       framebuffer, glwrapper, heightmap, iqm, typeinfo, camera
 
-export opengl, glm, sdl2
+export opengl, glm, sdl2, basic_random, macroutils.s
 
 # sdl additions
 
@@ -525,10 +526,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
     setUniformsBlock.add bindTexturesCall
       
   if fragmentMain.isNil:
-    error("no fragment main")
-
-  if numVertices.isNil:
-    error "numVertices needs to be assigned"
+    error "no fragment main"
 
   if vertexOffset.isNil:
     vertexOffset = newLit(0)
@@ -539,9 +537,12 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
   var vertexShaderSource : string
 
   if vertexMain.isNil and geometryMain.isNil:
+    # implicit screen space triangle
 
     if vertexOutSection.len > 0:
       error "cannot create implicit screen space quad renderer with vertex out section"
+
+    numVertices = newLit(3)
 
     vertexShaderSource = screenTriagleVertexSource
     vertexOutSection.add("out vec2 texCoord")
@@ -572,6 +573,10 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
       filename = joinPath(getTempDir(), s"${basename}_${line}.vert")
 
     writeFile(filename, vertexShaderSource)
+
+  if numVertices.isNil:
+    error "numVertices needs to be assigned"
+
 
 
 

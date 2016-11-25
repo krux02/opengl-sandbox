@@ -1,10 +1,54 @@
-#[
-import sdl2, opengl, libarne
-proc enableDefaultDebugCallback(): void
-type Vec2i = object
-  x,y: int32
-proc vec2i(x,y: int32): Vec2i = Vec2i(x:x, y:y)
-]#
+when isMainModule:
+  import sdl2, opengl, glm
+
+proc debugCallback(source: GLenum, `type`: GLenum, id: GLuint, severity: GLenum, length: GLsizei, message: cstring, userParam: pointer): void {. cdecl .} =
+  if severity == GL_DEBUG_SEVERITY_NOTIFICATION:
+    return
+
+  echo "<gl-debug-callback>"
+  echo "message: ", message
+  stdout.write "type: "
+  case `type`
+  of GL_DEBUG_TYPE_ERROR:
+    echo "ERROR"
+  of GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR:
+    echo "DEPRECATED_BEHAVIOR"
+  of GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:
+    echo "UNDEFINED_BEHAVIOR"
+  of GL_DEBUG_TYPE_PORTABILITY:
+    echo "PORTABILITY"
+  of GL_DEBUG_TYPE_PERFORMANCE:
+    echo "PERFORMANCE"
+  of GL_DEBUG_TYPE_MARKER:
+    echo "MARKER"
+  of GL_DEBUG_TYPE_PUSH_GROUP:
+    echo "PUSH_GROUP"
+  of GL_DEBUG_TYPE_POP_GROUP:
+    echo "POP_GROUP"
+  of GL_DEBUG_TYPE_OTHER:
+    echo "OTHER"
+  else:
+    echo "¿ ", `type`.int, " ?"
+
+  echo "id: ", id
+  stdout.write "severity: "
+  case severity
+  of GL_DEBUG_SEVERITY_LOW:
+    echo "LOW"
+  of GL_DEBUG_SEVERITY_MEDIUM:
+    echo "MEDIUM"
+  of GL_DEBUG_SEVERITY_HIGH:
+    echo "HIGH"
+  of GL_DEBUG_SEVERITY_NOTIFICATION:
+    echo "NOTIFICATION"
+  else:
+    echo "¿ ", severity.int, " ?"
+  echo "<gl-debug-callback/>"
+
+proc enableDefaultDebugCallback*() =
+  glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB)
+  glDebugMessageCallbackARB(cast[GLdebugProcArb](debugCallback), nil);
+
 
 proc defaultSetup*(windowsize: Vec2i = vec2i(-1,-1)): tuple[window: WindowPtr, context: GlContextPtr] =
   discard sdl2.init(INIT_EVERYTHING)
