@@ -6,7 +6,7 @@ import ../fancygl, fenv, sequtils
 
 var (window, context) = defaultSetup()
 let windowSize = window.size
-let renderTargetSize = windowSize div 2
+let renderTargetSize = windowSize div 1
 
 glDisable(GL_DEPTH_TEST)
 

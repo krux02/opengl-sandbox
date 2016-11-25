@@ -4,7 +4,7 @@ let (window, context) = defaultSetup()
 let windowsize = vec2f(window.size)
 
 const
-  numParticles   = 2000
+  numParticles   = 5000
   maxParticleAge = 16.0'f64
 
 type ParticleRenderData = object
@@ -115,6 +115,8 @@ while running:
       of SDL_SCANCODE_ESCAPE:
         running = false
         break
+      of SDL_SCANCODE_F10:
+        screenshot(window, "particles")
       of SDL_SCANCODE_PAUSE:
         gameTimer.toggle
 
