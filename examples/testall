@@ -1,5 +1,5 @@
 #!/bin/bash
 
-for file in $(find . -executable -type f); do
+for file in $(find . -type f -regex '^.*\.nim$'); do
   nim c -r $file
 done

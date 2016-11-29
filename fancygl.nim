@@ -283,7 +283,6 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
   var numVertices, numInstances, vertexOffset: NimNode = nil
   var bindTexturesCall = newCall(bindSym"bindTextures", newLit(numSamplers), nnkBracket.newTree)
 
-
   #### BEGIN PARSE TREE ####
   #let renderObject = ident"renderObject"
   #let vao     = newDotExpr(renderObject, ident"vao")
@@ -596,10 +595,10 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
                             
   result = quote do:
     block:
-      var `vao` {.global, inject.}: VertexArrayObject
-      var `program` {.global, inject.}: Program
-      var `locations` {.global, inject.}: array[`numLocationsLit`, Location]
-      #var `renderObject` {.global, inject.}: RenderObject[`numLocationsLit`]
+      var `vao` {.global.}: VertexArrayObject
+      var `program` {.global.}: Program
+      var `locations` {.global.}: array[`numLocationsLit`, Location]
+      #var `renderObject` {.global.}: RenderObject[`numLocationsLit`]
 
       `globalsBlock`
 
