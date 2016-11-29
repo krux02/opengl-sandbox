@@ -259,8 +259,6 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
   var setUniformsBlock = newStmtList()
   var attribNames = newSeq[string](0)
   var attribTypes = newSeq[string](0)
-  #var attributesSection : seq[object(name:string, tpe: string)] = @[]
-  var globalsBlock = newStmtList()
   var bufferCreationBlock = newStmtList()
   var vertexOutSection = newSeq[string](0)
   var geometryOutSection = newSeq[string](0)
@@ -359,9 +357,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 
         let bufferSym = genSym(nskVar, name & "Buffer")
 
-        let isAttrib = name != "indices"
-
-        if not isAttrib:
+        if name == "indices":
           if hasIndices:
             error "has already indices", innerCall
 
@@ -369,8 +365,8 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 
           let tpe = value.getTypeInst
 
-          if $tpe[0].symbol != "ElementArrayBuffer" and $tpe[0].symbol != "seq":
-            error("incompatible container type for indices: " & tpe.repr, value)
+          if tpe[0].repr != "ElementArrayBuffer":
+            error("need ElementArrayBuffer type for indices, got: " & tpe.repr, value)
           
           case tpe[1].typeKind
           of ntyInt8, ntyUInt8:
@@ -389,19 +385,10 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
           else:
             error("wrong kind for indices: " & $value.getTypeImpl[1].typeKind, value)
 
-        let isSeq:bool = $value.getTypeInst[0] == "seq"
+          setUniformsBlock.addAll quote do:
+            bindIt(`vao`, `value`)
 
-        if isSeq:
-          let bufferType =
-            if isAttrib:
-              bindSym"ArrayBuffer"
-            else:
-              bindSym"ElementArrayBuffer"
-
-          globalsBlock.addAll quote do:
-            var `bufferSym` {.global.}: `bufferType`[`value`[0].type]
-
-        if isAttrib:
+        else:
           let location = getLocation(numLocations)
           let nameLit = newLit(name)
           #let attributeLocation = bindSym"attributeLocation"
@@ -419,38 +406,16 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
               enableAttrib(`vao`, `location`)
               divisor(`vao`, binding(`location`), `divisorLit`)
 
-        if isSeq:
-          if isAttrib:
-            let location = getLocation(numLocations)
-            bufferCreationBlock.addAll quote do:
-              makeAndBindBuffer(`bufferSym`, `location`)
-
-          else:
-            bufferCreationBlock.addAll quote do:
-              makeAndBindElementBuffer(`bufferSym`)
+            bindAndAttribPointer(`vao`, `value`, `location`)
 
           setUniformsBlock.addAll quote do:
-            bindIt(`bufferSym`)
-            bufferData(`bufferSym`, GL_STREAM_DRAW, `value`)
+            setBuffer(`vao`, `value`, `location`)
 
-        else:
-          if isAttrib:
-            let location = getLocation(numLocations)
-            bufferCreationBlock.addAll quote do:
-              bindAndAttribPointer(`vao`, `value`, `location`)
-              
-            setUniformsBlock.addAll quote do:
-              setBuffer(`vao`, `value`, `location`)
-          else:
-            setUniformsBlock.addAll quote do:
-              bindIt(`vao`, `value`)
-
-        if isAttrib:
           attribNames.add( name )
           attribTypes.add( glslType )
           # format("in $1 $2", value.glslAttribType, name) )
           numLocations += 1
-
+            
     of "vertexOut":
       #echo "vertexOut"
 
@@ -595,8 +560,6 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
       var `program` {.global.}: Program
       var `locations` {.global.}: array[`numLocationsLit`, Location]
       #var `renderObject` {.global.}: RenderObject[`numLocationsLit`]
-
-      `globalsBlock`
 
       if `program`.isNil:
         `program` = `linkShaderBlock`
