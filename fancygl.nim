@@ -69,10 +69,6 @@ proc pos*(evt: MouseWheelEventPtr): Vec2i =
   result.x = evt.x
   result.y = evt.y
 
-
-  
-type ShaderParam* = tuple[name: string, gl_type: string]
-
 proc screenshot*(window : sdl2.WindowPtr; basename : string) : bool {.discardable.} =
   var
     (w,h) = window.getSize
@@ -699,8 +695,6 @@ macro shadingDsl*(mode:GLenum, statement: untyped) : untyped =
 
       of "attributes":
         let attributesCall = newCall(bindSym"attributes")
-
-        
         
         proc handleCapture(attributesCall, capture: NimNode, divisor: int) =
           capture.expectKind({nnkAsgn, nnkIdent})
