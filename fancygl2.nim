@@ -223,12 +223,14 @@ proc makeAndBindElementBuffer[T](buffer: var ElementArraybuffer[T]) =
   buffer.create
   buffer.bindIt
 
+
 type
   RenderObject*[N: static[int]] = object
     vao*: VertexArrayObject
     program*: Program
     locations*: array[N, Location]
-                  
+    
+
 ##################################################################################
 #### Shading Dsl #################################################################
 ##################################################################################
@@ -253,10 +255,16 @@ proc vertexOffset(offset: int) : int = 0
 #### Shading Dsl Inner ###########################################################
 ##################################################################################
   
-macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], statement: varargs[int] ) : untyped =
+macro shadingDslInner(renderObject: untyped; mode: GLenum, fragmentOutputs: static[openArray[string]], statement: varargs[int] ) : untyped =
+
+  echo "ro:   ", renderObject.repr
+  echo "mode: ", mode.repr
+  echo "fo:   ", fragmentOutputs.repr
+  echo "stmt: ", statement.repr
+  
+  
   # initialize with number of global textures, as soon as that is supported
   var numSamplers = 0
-  
   var numLocations = 0
   var uniformsSection = newSeq[string](0)
   var initUniformsBlock = newStmtList()
@@ -283,18 +291,16 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
   var numVertices, numInstances, vertexOffset: NimNode = nil
   var bindTexturesCall = newCall(bindSym"bindTextures", newLit(numSamplers), nnkBracket.newTree)
 
+  let boombox = genSym(nskVar, "renderObject")
+  #echo "renderObject: ", renderObject.repr
+  renderObject.expectKind({nnkIdent, nnkSym})
 
   #### BEGIN PARSE TREE ####
-  #let renderObject = ident"renderObject"
-  #let vao     = newDotExpr(renderObject, ident"vao")
-  #let program = newDotExpr(renderObject, ident"program")
-  
-  let vao = genSym(nskVar, "vao")
-  let program = genSym(nskVar, "program")
-  let locations = genSym(nskVar, "locations")
 
-  proc getlocation(i: int) : NimNode =
-    newBracketExpr(locations, newLit(i))
+  proc locations(i: int) : NimNode =
+    let iLit = newLit(i)
+    head quote do:
+      `renderObject`.locations[`iLit`]
 
   for call in statement.items:
     call.expectKind nnkCall
@@ -323,10 +329,10 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 
         let baseString = s"uniform $glslType $name"
 
-        let loc = getLocation(numLocations)
+        let loc = locations(numLocations)
 
         initUniformsBlock.add head quote do:
-          `loc`.index = glGetUniformLocation(`program`.handle, `nameLit`)
+          `loc`.index = glGetUniformLocation(`renderObject`.program.handle, `nameLit`)
 
         if isSampler:
           let bindingIndexLit = newLit(numSamplers)
@@ -342,7 +348,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
           numSamplers += 1
         else:
           setUniformsBlock.add head quote do:
-            `program`.uniform(`loc`, `value`)
+            `renderObject`.program.uniform(`loc`, `value`)
 
         uniformsSection.add( baseString )
 
@@ -363,6 +369,8 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
         let glslType = innerCall[4].strVal
 
         let bufferSym = genSym(nskVar, name & "Buffer")
+        
+        let vao = newDotExpr(renderObject,ident"vao")
 
         let isAttrib = name != "indices"
 
@@ -407,7 +415,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
             var `bufferSym` {.global.}: `bufferType`[`value`[0].type]
 
         if isAttrib:
-          let location = getLocation(numLocations)
+          let location = locations(numLocations)
           let nameLit = newLit(name)
           #let attributeLocation = bindSym"attributeLocation"
           #let enableAttrib      = bindSym"enableAttrib"
@@ -417,7 +425,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
           let divisorLit = newLit(divisorVal)
           
           bufferCreationBlock.addAll quote do:
-            `location` = attributeLocation(`program`, `nameLit`)
+            `location` = attributeLocation(`renderObject`.program, `nameLit`)
             # this needs to change, when multiple
             # attributes per buffer should be supported
             if 0 <= `location`.index:
@@ -426,7 +434,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 
         if isSeq:
           if isAttrib:
-            let location = getLocation(numLocations)
+            let location = locations(numLocations)
             bufferCreationBlock.addAll quote do:
               makeAndBindBuffer(`bufferSym`, `location`)
 
@@ -440,7 +448,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 
         else:
           if isAttrib:
-            let location = getLocation(numLocations)
+            let location = locations(numLocations)
             bufferCreationBlock.addAll quote do:
               bindAndAttribPointer(`vao`, `value`, `location`)
               
@@ -553,8 +561,11 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
   if numVertices.isNil:
     error "numVertices needs to be assigned"
 
+
+
+
   let vsSrcLit = newLit vertexShaderSource
-  
+
   var linkShaderBlock : NimNode
   if geometryMain.isNil:
 
@@ -565,7 +576,6 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
         compileShader(GL_VERTEX_SHADER, `vsSrcLit`),
         compileShader(GL_FRAGMENT_SHADER, `fsSrcLit`)
       )
-
       
   else:
     let geometryHeader = format("$1\nlayout($2) in;\n$3;\n", sourceHeader, geometryPrimitiveLayout(mode.intVal.GLenum), geometryLayout)
@@ -592,24 +602,29 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
       else:
         newCall( bindSym"glDrawArraysInstanced", mode, vertexOffset, numVertices, numInstances )
 
+  #result = getAst(renderBlockTemplate(numLocations, globalsBlock, linkShaderBlock,
+  #       bufferCreationBlock, initUniformsBlock, setUniformsBlock, drawCommand))
+
+  #template renderBlockTemplate(numLocations: int; globalsBlock, linkShaderBlock,
+  #                           bufferCreationBlock, initUniformsBlock, setUniformsBlock, drawCommand: untyped): untyped =
   let numLocationsLit = newLit(numLocations)
-                            
+  
   result = quote do:
     block:
-      var `vao` {.global, inject.}: VertexArrayObject
-      var `program` {.global, inject.}: Program
-      var `locations` {.global, inject.}: array[`numLocationsLit`, Location]
-      #var `renderObject` {.global, inject.}: RenderObject[`numLocationsLit`]
+      #var vao {.global, inject.}: VertexArrayObject
+      #var glProgram {.global, inject.}: Program
+      #var locations {.global, inject.}: array[numLocationsLit, Location]
+      
+      var `renderObject` {.global, inject.}: RenderObject[`numLocationsLit`]
 
       `globalsBlock`
 
-      if `program`.isNil:
-        `program` = `linkShaderBlock`
-        glUseProgram(`program`.handle)
+      if `renderObject`.program.isNil:
+        `renderObject`.program = `linkShaderBlock`
 
         `initUniformsBlock`
 
-        `vao` = newVertexArrayObject()
+        `renderObject`.vao = newVertexArrayObject()
 
         `bufferCreationBlock`
 
@@ -618,19 +633,14 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
         #for i, loc in locations:
         #  echo "location(", i, "): ", loc
 
-        #echo `program`.handle, " ", `vao`.handle
-        
-
-      glUseProgram(`program`.handle)
-      glBindVertexArray(`vao`.handle)
+      glUseProgram(`renderObject`.program.handle)
+      glBindVertexArray(`renderObject`.vao.handle)
 
       `setUniformsBlock`
-
       `drawCommand`
 
       glBindVertexArray(0)
-      glUseProgram(0);
-
+      glUseProgram(0)
 
 
 ##################################################################################
@@ -639,11 +649,11 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 
 macro shadingDsl*(mode:GLenum, statement: untyped) : untyped =
   var wrapWithDebugResult = false
-  result = newCall(bindSym"shadingDslInner", mode, !! "fragmentOutputs" )
-  
-  # numVertices = result[2]
-  # numInstances = result[3]
 
+  #let renderObject = genSym(nskVar, "renderObject")
+  result = head quote do:
+    shadingDslInner(bananas, `mode`, fragmentOutputs)
+  
   for section in statement.items:
     section.expectKind({nnkCall, nnkAsgn, nnkIdent})
 
@@ -706,21 +716,22 @@ macro shadingDsl*(mode:GLenum, statement: untyped) : untyped =
         proc handleCapture(attributesCall, capture: NimNode, divisor: int) =
           capture.expectKind({nnkAsgn, nnkIdent})
 
-          var nameNode, identNode: NimNode
+          let divisorLit = newLit(divisor)
+
+          let name =
+            if capture.kind == nnkAsgn:
+              newLit(capture[0].repr)
+            else:
+              newLit(capture.repr)
+          let identNode =
+            if capture.kind == nnkAsgn:
+              capture[1]
+            else:
+              capture
           
-          if capture.kind == nnkAsgn:
-            capture.expectLen 2
-            capture[0].expectKind nnkIdent
-            nameNode = newLit($capture[0])
-            identNode = capture[1]
-          elif capture.kind == nnkIdent:
-            nameNode  = newLit($capture)
-            identNode = capture
-            
-          let glslType  = newCall(bindSym"glslTypeRepr",  newCall(
-            bindSym"type", newDotExpr(identNode,!!"T")))
-          attributesCall.add( newCall(
-            bindSym"attribute", nameNode, identNode, newLit(divisor), glslType ) )
+          attributesCall.add head quote do:
+            attribute(`name`, `identNode`, `divisorLit`, glslTypeRepr(type(`identNode`.T)))
+          #attributesCall.add( newCall( bindSym"attribute", nameNode, identNode, divisorLit, glslType ) )
 
 
         for capture in stmtList.items:
@@ -750,6 +761,11 @@ macro shadingDsl*(mode:GLenum, statement: untyped) : untyped =
         for section in stmtList.items:
           section.expectKind({nnkStrLit, nnkTripleStrLit, nnkAsgn, nnkIdent})
           case section.kind
+          of nnkStrLit:
+            outCall.add section
+          of nnkTripleStrLit:
+            for line in section.strVal.splitLines:
+              outCall.add line.strip.newLit
           of nnkAsgn:
             let name = newLit(section[0].repr)
             let identNode = section[1]
@@ -764,12 +780,6 @@ macro shadingDsl*(mode:GLenum, statement: untyped) : untyped =
             outCall.add head quote do:
               "out " & glslTypeRepr(type(`identNode`.T)) & " " & `name`
 
-
-          of nnkStrLit:
-            outCall.add section
-          of nnkTripleStrLit:
-            for line in section.strVal.splitLines:
-              outCall.add line.strip.newLit
           else:
             error "unreachable"
 
@@ -792,7 +802,6 @@ macro shadingDsl*(mode:GLenum, statement: untyped) : untyped =
         stmtList[0].expectKind({ nnkTripleStrLit, nnkStrLit })
         result.add( newCall(bindSym"fragmentMain", stmtList[0]) )
         
-
       of "includes":
         let includesCall = newCall(bindSym"includes")
 
@@ -804,6 +813,8 @@ macro shadingDsl*(mode:GLenum, statement: untyped) : untyped =
         result.add(includesCall)
       else:
         error("unknown section " & $ident.ident, section)
+
+  echo result.repr
         
   if wrapWithDebugResult:
     result = newCall( bindSym"debugResult", result )
