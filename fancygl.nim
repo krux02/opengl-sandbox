@@ -249,14 +249,18 @@ proc vertexOffset(offset: int) : int = 0
 #### Shading Dsl Inner ###########################################################
 ##################################################################################
   
-macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], statement: varargs[int] ) : untyped =
+macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; fragmentOutputs: static[openArray[string]]; statement: varargs[int] ) : untyped =
   # initialize with number of global textures, as soon as that is supported
   var numSamplers = 0
-  
+
+  let program = if programIdent.kind == nnkNilLit: genSym(nskVar, "program") else: programIdent
+  let vao = if vaoIdent.kind == nnkNilLit: genSym(nskVar, "vao") else: vaoIdent
+  let locations = genSym(nskVar, "locations")
+
   var numLocations = 0
   var uniformsSection = newSeq[string](0)
   var initUniformsBlock = newStmtList()
-  var setUniformsBlock = newStmtList()
+  var drawBlock = newStmtList()
   var attribNames = newSeq[string](0)
   var attribTypes = newSeq[string](0)
   var bufferCreationBlock = newStmtList()
@@ -282,9 +286,6 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
   #let vao     = newDotExpr(renderObject, ident"vao")
   #let program = newDotExpr(renderObject, ident"program")
   
-  let vao = genSym(nskVar, "vao")
-  let program = genSym(nskVar, "program")
-  let locations = genSym(nskVar, "locations")
 
   proc getlocation(i: int) : NimNode =
     newBracketExpr(locations, newLit(i))
@@ -329,12 +330,9 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
           bindTexturesCall[2].add head quote do:
             `value`.handle
             
-          #setUniformsBlock.add head quote do:
-          #  bindToUnit(`value`, `bindingIndexLit`)
-            
           numSamplers += 1
         else:
-          setUniformsBlock.add head quote do:
+          drawBlock.add head quote do:
             `program`.uniform(`loc`, `value`)
 
         uniformsSection.add( baseString )
@@ -385,7 +383,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
           else:
             error("wrong kind for indices: " & $value.getTypeImpl[1].typeKind, value)
 
-          setUniformsBlock.addAll quote do:
+          drawBlock.addAll quote do:
             bindIt(`vao`, `value`)
 
         else:
@@ -408,7 +406,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
 
             bindAndAttribPointer(`vao`, `value`, `location`)
 
-          setUniformsBlock.addAll quote do:
+          drawBlock.addAll quote do:
             setBuffer(`vao`, `value`, `location`)
 
           attribNames.add( name )
@@ -459,7 +457,7 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
       echo call.repr
 
   if bindTexturesCall[2].len > 0: #actually got any uniform textures
-    setUniformsBlock.add bindTexturesCall
+    drawBlock.add bindTexturesCall
       
   if fragmentMain.isNil:
     error "no fragment main"
@@ -539,65 +537,56 @@ macro shadingDslInner(mode: GLenum, fragmentOutputs: static[openArray[string]], 
         compileShader(GL_FRAGMENT_SHADER, `fsSrcLit`)
       )
 
-  let drawCommand =
-    if hasIndices: (block:
-      var indicesPtr = newTree( nnkCast, bindSym"pointer", newInfix(bindSym"*", vertexOffset, newLit(sizeofIndexType)))
-      if numInstances.isNil:
-        newCall( bindSym"glDrawElements", mode, numVertices, indexType, indicesPtr )
-      else:
-        newCall( bindSym"glDrawElementsInstanced", mode, numVertices, indexType, indicesPtr, numInstances )
-    ) else:
-      if numInstances.isNil:
-        newCall( bindSym"glDrawArrays", mode, vertexOffset, numVertices )
-      else:
-        newCall( bindSym"glDrawArraysInstanced", mode, vertexOffset, numVertices, numInstances )
+
+  if hasIndices:
+    var indicesPtr = newTree( nnkCast, bindSym"pointer", newInfix(bindSym"*", vertexOffset, newLit(sizeofIndexType)))
+    if numInstances.isNil:
+      drawBlock.add newCall( bindSym"glDrawElements", mode, numVertices, indexType, indicesPtr )
+    else:
+      drawBlock.add newCall( bindSym"glDrawElementsInstanced", mode, numVertices, indexType, indicesPtr, numInstances )
+  else:
+    if numInstances.isNil:
+      drawBlock.add newCall( bindSym"glDrawArrays", mode, vertexOffset, numVertices )
+    else:
+      drawBlock.add newCall( bindSym"glDrawArraysInstanced", mode, vertexOffset, numVertices, numInstances )
 
   let numLocationsLit = newLit(numLocations)
                             
   result = quote do:
-    block:
-      var `vao` {.global.}: VertexArrayObject
-      var `program` {.global.}: Program
-      var `locations` {.global.}: array[`numLocationsLit`, Location]
-      #var `renderObject` {.global.}: RenderObject[`numLocationsLit`]
+    var `vao` {.global.}: VertexArrayObject
+    var `program` {.global.}: Program
+    var `locations` {.global.}: array[`numLocationsLit`, Location]
+    #var `renderObject` {.global.}: RenderObject[`numLocationsLit`]
 
-      if `program`.isNil:
-        `program` = `linkShaderBlock`
-        glUseProgram(`program`.handle)
-
-        `initUniformsBlock`
-
-        `vao` = newVertexArrayObject()
-
-        `bufferCreationBlock`
-
-        glBindBuffer(GL_ARRAY_BUFFER, 0)
-
-        #for i, loc in locations:
-        #  echo "location(", i, "): ", loc
-
-        #echo `program`.handle, " ", `vao`.handle
-        
-
+    if `program`.isNil:
+      `program` = `linkShaderBlock`
       glUseProgram(`program`.handle)
-      glBindVertexArray(`vao`.handle)
 
-      `setUniformsBlock`
+      `initUniformsBlock`
 
-      `drawCommand`
+      `vao` = newVertexArrayObject()
 
-      glBindVertexArray(0)
-      glUseProgram(0);
+      `bufferCreationBlock`
 
+      glBindBuffer(GL_ARRAY_BUFFER, 0)
 
+    glUseProgram(`program`.handle)
+    glBindVertexArray(`vao`.handle)
+
+    `drawBlock`
+
+    glBindVertexArray(0)
+    glUseProgram(0);
+
+                    
 
 ##################################################################################
 #### Shading Dsl Outer ###########################################################
 ##################################################################################
-
+                    
 macro shadingDsl*(mode:GLenum, statement: untyped) : untyped =
   var wrapWithDebugResult = false
-  result = newCall(bindSym"shadingDslInner", mode, !! "fragmentOutputs" )
+  result = newCall(bindSym"shadingDslInner", newNilLit(), newNilLit(), mode, ident"fragmentOutputs" )
   
   # numVertices = result[2]
   # numInstances = result[3]
@@ -621,6 +610,16 @@ macro shadingDsl*(mode:GLenum, statement: untyped) : untyped =
         result.add( newCall(bindSym"numInstances", section[1] ) )
       of "vertexOffset":
         result.add( newCall(bindSym"vertexOffset", section[1] ) )
+      of "programIdent":
+        if result[1].kind == nnkNilLit:
+          result[1] = section[1]
+        else:
+          error("double declaration of programIdent", section)
+      of "vaoIdent":
+        if result[2].kind == nnkNilLit:
+          result[2] = section[1]
+        else:
+          error("double declaration of vaoIdent", section)
 
       else:
         error("unknown named parameter " & $ident.ident)

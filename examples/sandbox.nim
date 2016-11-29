@@ -99,6 +99,7 @@ proc render() =
       glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
       
       shadingDsl(GL_TRIANGLES):
+        debugResult
         numVertices = vertex.len
 
         uniforms:
