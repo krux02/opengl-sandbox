@@ -233,6 +233,10 @@ proc attribute[T](name: string, value: T, divisor: GLuint, glslType: string) : i
 proc attributes(args : varargs[int]) : int = 0
 proc shaderArg[T](name: string, value: T, glslType: string, isSampler: bool): int = 0
 proc uniforms(args: varargs[int]): int = 0
+
+
+# TODO add tag for output variables weather they are transform feedback, or not
+  
 proc vertexOut(args: varargs[string]): int = 0
 proc geometryOut(args: varargs[string]): int = 0
 proc fragmentOut(args: varargs[string]): int = 0

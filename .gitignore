@@ -16,5 +16,6 @@ examples/mesh_loading_tiny
 examples/waves
 examples/openmesh
 examples/particles
+examples/particles_transform_feedback
 examples/cpu_noise
 examples/noise_landscape

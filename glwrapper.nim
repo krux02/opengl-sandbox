@@ -127,6 +127,7 @@ proc isValid*(location: Location): bool =
 
 #### Uniform ####
 
+#[
 proc uniform(location: Location, mat: Mat4d) =
   var mat_var = mat4f(mat)
   glUniformMatrix4fv(location.index, 1, false, cast[ptr GLfloat](mat_var.addr))
@@ -155,7 +156,7 @@ proc uniform(location: Location, value: Vec4f) =
 
 proc uniform(location: Location, value: bool) =
   glUniform1i(location.index, value.GLint)
-
+]#
 
 proc uniform(program: Program; location: Location; mat: Mat4d) =
   var mat_var = mat.mat4f
@@ -677,4 +678,35 @@ proc readPixel*(x,y: int) : Color =
     d = result.addr.pointer
   glReadPixels(x.GLint,y.GLint,w,h,f,t,d)
 
-  
+proc readPixel*(pos: Vec2i) : Color = readPixel(pos.x.int, pos.y.int)
+
+##########################
+# # transform feedback # #
+##########################
+
+template transformFeedbackBlock(primitiveMode: GLenum; blk: untyped): untyped =
+  block:
+    glBeginTransformFeedback(primitiveMode)
+    defer:
+      glEndTransformFeedback()
+    blk
+    
+type
+  TransformFeedback* = object
+    handle*: GLuint
+          
+proc newTransformFeedback*() : TransformFeedback =
+  glCreateTransformFeedbacks(GLsizei(1), result.handle.addr)
+
+proc delete*(tf: TransformFeedback): void =
+  glDeleteTransformFeedbacks(GLsizei(1), tf.handle.unsafeAddr)
+    
+template blockBind*(tf: TransformFeedback; blk: untyped): untyped =
+  block:
+    glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, tf.handle);
+    defer:
+      glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, 0);
+    blk
+
+
+    
