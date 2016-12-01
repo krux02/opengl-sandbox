@@ -17,7 +17,7 @@ macro createTextureMacro(name, target: untyped): untyped =
 template textureTypeTemplate(name, nilName, target:untyped, shadername:string): untyped =
   type
     name* = object
-      handle: GLuint
+      handle*: GLuint
   #const nilName* = name(0)
   proc `$`*(texture: name): string =
     $texture.handle
@@ -150,25 +150,24 @@ proc loadTextureRectangleFromFile*(filename: string): TextureRectangle =
   result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 
 
-proc texture2D*(surface: sdl2.SurfacePtr): Texture2D =
+proc subImage*(this: Texture2D; surface: sdl2.SurfacePtr; pos: Vec2i = vec2i(0); level: int = 0): void =
   let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
   defer: freeSurface(surface2)
 
+  glTextureSubImage2D(this.handle, level.GLint, pos.x, pos.y, surface2.w, surface2.h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
 
-  when false:
-    glGenTextures(1, cast[ptr GLuint](result.addr))
-    glTextureImage2DEXT(result.GLuint, GL_TEXTURE_2D, 0, GL_RGBA.GLint, surface2.w, surface2.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
-  else:
-    glCreateTextures(GL_TEXTURE_2D, 1, cast[ptr GLuint](result.addr))
-    let levels = min(surface2.w, surface2.h).float32.log2.floor.GLint
-    glTextureStorage2D(result.handle, levels, GL_RGBA8, surface2.w, surface2.h)
-    glTextureSubImage2D(result.handle, 0, 0, 0, surface2.w, surface2.h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
-    glGenerateTextureMipmap(result.handle)
+  
+proc texture2D*(surface: sdl2.SurfacePtr): Texture2D =
+  glCreateTextures(GL_TEXTURE_2D, 1, cast[ptr GLuint](result.addr))
+  let levels = min(surface.w, surface.h).float32.log2.floor.GLint
+  glTextureStorage2D(result.handle, levels, GL_RGBA8, surface.w, surface.h)
+  result.subImage(surface)
+  glGenerateTextureMipmap(result.handle)
 
   result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
   result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
   result.generateMipmap
-
+  
 proc texture2D*(size: Vec2i, internalFormat: GLenum = GL_RGBA8): Texture2D =
   when false:
     discard
@@ -204,10 +203,13 @@ proc setData*(texture: Texture2D; data: seq[Vec4u8], level: int = 0): void =
   glTextureSubImage2D(texture.handle, l, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, data[0].unsafeAddr)
 
     
-proc texture2DArray*(size: Vec2i; depth: int; internalFormat: GLenum = GL_RGBA8): Texture2DArray =
+proc newTexture2DArray*(size: Vec2i; depth: int; levels: int; internalFormat: GLenum = GL_RGBA8): Texture2DArray =
   glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, result.handle.addr)
-  let levels = min(size.x, size.y).float32.log2.floor.GLint
-  glTextureStorage3D(result.handle, levels, internalFormat, size.x.GLsizei, size.y.GLsizei, depth.GLsizei)
+  glTextureStorage3D(result.handle, levels.GLint, internalFormat, size.x.GLsizei, size.y.GLsizei, depth.GLsizei)
+
+proc newTexture2DArray*(size: Vec2i; depth: int; internalFormat: GLenum = GL_RGBA8): Texture2DArray =
+  let levels = max(min(size.x, size.y).float32.log2.floor.int, 1)
+  newTexture2DArray(size, depth, levels, internalFormat)
 
 proc size*(tex: Texture2DArray): tuple[size : Vec2i, depth: int] =
   var w,h,d: GLint
@@ -215,7 +217,17 @@ proc size*(tex: Texture2DArray): tuple[size : Vec2i, depth: int] =
   glGetTextureLevelParameteriv(tex.handle, 0, GL_TEXTURE_HEIGHT, h.addr)
   glGetTextureLevelParameteriv(tex.handle, 0, GL_TEXTURE_DEPTH, d.addr)
   result = (size: vec2i(w,h), depth: int(d))
+  
+proc subImage*(this: Texture2DArray; surface: sdl2.SurfacePtr; pos: Vec2i = vec2i(0); layer: int; level: int = 0): void =
+  let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
+  defer: freeSurface(surface2)
 
+  let (a,b) = this.size
+  echo glm.`$` a, " ", b
+
+  echo(this.handle, " ", level.GLint, " ", pos.x.GLint, pos.y.GLint, layer.GLint, " ", surface2.w.GLsizei, " ", surface2.h.GLsizei, " ", 1)
+  glTextureSubImage3D(this.handle, level.GLint, pos.x.GLint, pos.y.GLint, layer.GLint, surface2.w.GLsizei, surface2.h.GLsizei, 1, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
+  
 proc `[]=`*(tex: Texture2DArray; i: int; surface: sdl2.SurfacePtr): void =
   let (size, d) = tex.size
   assert size.x == surface.w

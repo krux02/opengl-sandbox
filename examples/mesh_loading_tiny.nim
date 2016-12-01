@@ -1,10 +1,12 @@
-import memfiles, glm, ../fancygl, sdl2, sdl2/ttf , opengl, strutils, math, AntTweakBar
+import memfiles, glm, ../fancygl, sdl2, sdl2/ttf , opengl, strutils, sequtils, math, AntTweakBar, ../text
 
 const WindowSize = vec2i(1024, 768)
 
 proc `$`(v: Vec): string = glm.`$`(v)
 
 proc main() =
+  echo "Hello World from main"
+  
   let (window, context) = defaultSetup(WindowSize)
   
   defer: sdl2.quit()
@@ -27,8 +29,8 @@ proc main() =
   if font.isNil:
     font = ttf.openFont("/usr/share/fonts/TTF/Inconsolata-Regular.ttf", textHeight.cint)
   if font.isNil:
-    echo "could not load font: ", sdl2.getError()
-    echo "sorry system font locations are hard coded into the program, change that to fix this problem"
+    echo "from example: could not load font: ", sdl2.getError()
+    echo "from example: sorry system font locations are hard coded into the program, change that to fix this problem"
     system.quit(1)
 
   var file = memfiles.open("mrfixit.iqm")
@@ -40,9 +42,14 @@ proc main() =
   
   let texts = header.getTexts
 
-  var textTextures = newSeq[TextureRectangle](texts.len)
-  var textWidths = newSeq[cint](texts.len)
+  let textTextures = textureArray(texts.mapIt($it))
+  let (textSize, _) = textTextures.size
 
+  let textPositions = newArrayBuffer[Vec4f](texts.len)
+  let textPixelPositions = newArrayBuffer[Vec2i](texts.len)
+  #var textWidths    = newArrayBuffer[Vec4f](texts.len)
+
+  #[
   block:
     var i = 0
     for text in texts:
@@ -51,6 +58,8 @@ proc main() =
         let bg : sdl2.Color = (0.uint8, 0.uint8, 0.uint8, 255.uint8)
         let surface = font.renderTextShaded(text, fg, bg)
         defer: freeSurface(surface)
+
+        surface.flipY
     
         textTextures[i] = surface.textureRectangle
         textWidths[i] = surface.w
@@ -59,6 +68,7 @@ proc main() =
         textWidths[i] = -1
     
       i += 1
+  ]#
 
   template text(offset : int32) : cstring =
     cast[cstring](cast[uint](file.mem) + header.ofs_text.uint + offset.uint)
@@ -74,13 +84,14 @@ proc main() =
 
   echo "texts.len: ", texts.len
 
-  var jointNameIndices = newSeq[int](joints.len)
+  var jointNameIndices = newSeq[float32](joints.len)
   for i, joint in joints:
     let jointName = text(joint.name)
     var j = 0
     while jointName != texts[j]:
       j += 1
-    jointNameIndices[i] = j
+    jointNameIndices[i] = float32(j)
+  let jointNameIndicesBuffer = jointNameIndices.arrayBuffer
 
   var jointMatrices = newSeq[Mat4f](joints.len)
   for i in 0 .. < joints.len:
@@ -249,8 +260,8 @@ proc main() =
   discard TwAddVarRW(bar, "objRotation", TW_TYPE_QUAT4F, obj_quat.addr, " label='Object rotation' opened=true help='Change the object orientation.' ");
 
   glEnable(GL_DEPTH_TEST)
-  #glEnable(GL_CULL_FACE)
-  #glCullFace(GL_FRONT)
+  glEnable(GL_CULL_FACE)
+  glCullFace(GL_FRONT)
 
   while runGame:
     #######################
@@ -427,7 +438,7 @@ proc main() =
             gl_Position = center_ndc;
             EmitVertex();
 
-            g_color = vec4(0,0,1,1);
+            g_color = vec4(0, 0, 1, 1);
             gl_Position = pos_b;
             EmitVertex();
             gl_Position = center_ndc;
@@ -452,7 +463,7 @@ proc main() =
             projection = mat4f(projection_mat)
             outframeTexture
             material = meshTextures[i]
-            time = frameTime
+            time = float32(frameTime)
             renderNormalMap
 
           attributes:
@@ -515,7 +526,7 @@ proc main() =
             modelview = view_mat.mat4f * model_mat
             projection = projection_mat.mat4f
             boneScale = boneScale.vec2f
-            time = frameTime
+            time = float32(frameTime)
 
           attributes:
 
@@ -532,12 +543,13 @@ proc main() =
 
           vertexOut:
             "out vec4 v_normal_cs"
-            "out vec3 v_color"
+            "out vec4 v_color"
 
 
           fragmentMain:
             """
-            color.rgb = v_color * v_normal_cs.z;
+            color.rgb = v_color.rgb * v_normal_cs.z;
+            color.a = v_color.a;
             """
 
     glClear(GL_DEPTH_BUFFER_BIT)
@@ -546,9 +558,58 @@ proc main() =
     # ## render bone names ##
     #  #####################
 
+    let normalizedRectSize = vec2f(textSize) / vec2f(WindowSize) * 2.0f
+
+    textPositions.mapWriteBlock:
+      textPixelPositions.mapWriteBlock:        
+        for i, _ in joints:
+          let model_mat = outframe[i].mat4d * jointMatrices[i].mat4d
+          var pos = projection_mat * view_mat * model_mat[3]
+          pos /= pos.w
+          textPositions[i] = vec4f(pos)
+          textPixelPositions[i] = vec2i(vec2f(pos.xy + 1) * 0.5f * vec2f(WindowSize))
+
+    
     if renderBoneNames:
+      shadingDsl(GL_TRIANGLE_STRIP):
+          numVertices = 4
+          numInstances = joints.len
+
+          uniforms:
+            textTextures
+            normalizedRectSize
+
+            windowSize = vec2f(WindowSize)
+
+          attributes:
+            a_texcoord = quadTexCoords
+            
+            instanceData:
+              a_position = textPositions
+              a_textIndex = jointNameIndicesBuffer
+
+          vertexMain:
+            """
+            gl_Position = a_position + vec4(normalizedRectSize * a_texcoord, 0, 0);
+            rectPosPixels = ivec2((a_position.xy + 1) * 0.5 * windowSize);
+            textIndex = int(a_textIndex);
+            """
+
+          vertexOut:
+            "flat out ivec2 rectPosPixels"
+            "flat out int textIndex"
+
+          fragmentMain:
+            """
+            ivec2 texcoord = ivec2(gl_FragCoord.xy) - rectPosPixels;
+            color = texelFetch(textTextures, ivec3(texcoord, textIndex), 0);
+            """
+
+      #[
       for i, _ in joints:
         let textIndex = jointNameIndices[i]
+
+        echo s"i: $i textIndex: $textIndex"
         let model_mat = outframe[i].mat4d * jointMatrices[i].mat4d;
         var pos = projection_mat * view_mat * model_mat[3]
 
@@ -558,37 +619,39 @@ proc main() =
 
         pos /= pos.w
 
-        let rectPos = floor(vec2f(pos.xy) * vec2f(WindowSize) * 0.5f)
-
         shadingDsl(GL_TRIANGLE_STRIP):
           numVertices = 4
 
           uniforms:
-            rectPos
-            depth = pos.z
-            rectSize = vec2f(textWidths[textIndex].float32, textHeight.float32)
-            viewSize = vec2f(WindowSize)
-            tex = textTextures[textIndex]
+            position = vec4f(pos)
+            textTextures
+            textIndex = int32(textIndex)
+            normalizedRectSize
+
+            windowSize = vec2f(WindowSize)
 
           attributes:
             a_texcoord = quadTexCoords
 
           vertexMain:
             """
-            gl_Position = vec4( (rectPos + a_texcoord * rectSize) / (viewSize * 0.5f), depth, 1);
-            v_texcoord = a_texcoord * rectSize;
-            v_texcoord.y = rectSize.y - v_texcoord.y;
+            gl_Position = position + vec4(normalizedRectSize * a_texcoord, 0, 0);
+            rectPosPixels = ivec2((position.xy + 1) * 0.5 * windowSize);
             """
 
           vertexOut:
-            "out vec2 v_texcoord"
+            "flat out ivec2 rectPosPixels"
+            
 
           fragmentMain:
             """
-            vec2 texcoord = gl_FragCoord.xy - rectPos;
-            color = texture(tex, v_texcoord);
-            //color.xy = v_texcoord;
+            ivec2 texcoord = ivec2(gl_FragCoord.xy) - rectPosPixels;
+            color = texelFetch(textTextures, ivec3(texcoord, textIndex), 0);
             """
+
+      ]#
+
+      
 
     discard TwDraw()
     window.glSwapWindow()

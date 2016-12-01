@@ -1,5 +1,5 @@
 when isMainModule:
-  import sdl2, opengl, glm
+  import sdl2, sdl2/ttf, opengl, glm
 
 proc debugCallback(source: GLenum, `type`: GLenum, id: GLuint, severity: GLenum, length: GLsizei, message: cstring, userParam: pointer): void {. cdecl .} =
   if severity == GL_DEBUG_SEVERITY_NOTIFICATION:
@@ -50,8 +50,12 @@ proc enableDefaultDebugCallback*() =
   glDebugMessageCallbackARB(cast[GLdebugProcArb](debugCallback), nil);
 
 
-proc defaultSetup*(windowsize: Vec2i = vec2i(-1,-1)): tuple[window: WindowPtr, context: GlContextPtr] =
+proc defaultSetup*(windowsize: Vec2i = vec2i(-1,-1); windowTitle: string = "minimal engine"): tuple[window: WindowPtr, context: GlContextPtr] =
   discard sdl2.init(INIT_EVERYTHING)
+  discard 
+  if ttf_init():
+    write stderr, getError()
+
 
   doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3)
   doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3)
@@ -71,7 +75,7 @@ proc defaultSetup*(windowsize: Vec2i = vec2i(-1,-1)): tuple[window: WindowPtr, c
   let posx = SDL_WINDOWPOS_UNDEFINED.cint
   let posy = SDL_WINDOWPOS_UNDEFINED.cint
 
-  result.window = createWindow("SDL/OpenGL Skeleton", posx, posy, windowsize.x, windowsize.y, flags)
+  result.window = createWindow(windowTitle, posx, posy, windowsize.x, windowsize.y, flags)
 
   if result.window.isNil:
     echo sdl2.getError()

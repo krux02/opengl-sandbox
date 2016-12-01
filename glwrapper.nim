@@ -1,4 +1,6 @@
 # included from fancygl.nim
+when isMainModule:
+  import glm, opengl, macros
 
 type
   UncheckedArray {.unchecked.} [t] = array[0,t]
@@ -127,56 +129,30 @@ proc isValid*(location: Location): bool =
 
 #### Uniform ####
 
-#[
-proc uniform(location: Location, mat: Mat4d) =
-  var mat_var = mat4f(mat)
-  glUniformMatrix4fv(location.index, 1, false, cast[ptr GLfloat](mat_var.addr))
-
-proc uniform(location: Location, mat: Mat4f) =
-  var mat_var = mat
-  glUniformMatrix4fv(location.index, 1, false, cast[ptr GLfloat](mat_var.addr))
-
-proc uniform(location: Location, value: float32) =
-  glUniform1f(location.index, value)
-
-proc uniform(location: Location, value: float64) =
-  glUniform1f(location.index, value)
-
-proc uniform(location: Location, value: int32) =
-  glUniform1i(location.index, value)
-
-proc uniform(location: Location; value: Vec2f) =
-  glUniform2f(location.index, value[0], value[1])
-
-proc uniform(location: Location, value: Vec3f) =
-  glUniform3f(location.index, value[0], value[1], value[2])
-
-proc uniform(location: Location, value: Vec4f) =
-  glUniform4f(location.index, value[0], value[1], value[2], value[3])
-
-proc uniform(location: Location, value: bool) =
-  glUniform1i(location.index, value.GLint)
-]#
-
+proc cptr(mat: Mat): ptr Mat.T = cast[ptr Mat.T](mat.unsafeAddr)
+proc cptr(vec: Vec): ptr Vec.T = cast[ptr Vec.T](vec.unsafeAddr)
+  
+  
 proc uniform(program: Program; location: Location; mat: Mat4d) =
-  var mat_var = mat.mat4f
-  glProgramUniformMatrix4fv(program.handle, location.index, 1, false,
-                            cast[ptr GLfloat](mat_var.addr))
+  glProgramUniformMatrix4dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
 
 proc uniform(program: Program; location: Location, mat: Mat4f) =
-  var mat_var = mat
-  glProgramUniformMatrix4fv(program.handle, location.index, 1, false,
-                            cast[ptr GLfloat](mat_var.addr))
+  glProgramUniformMatrix4fv(program.handle, location.index, 1, false, cast[ptr GLfloat](mat.unsafeAddr))
 
+  
 proc uniform(program: Program; location: Location, value: float32) =
   glProgramUniform1f(program.handle, location.index, value)
 
 proc uniform(program: Program; location: Location, value: float64) =
-  glProgramUniform1f(program.handle, location.index, value)
+  glProgramUniform1d(program.handle, location.index, value)
 
 proc uniform(program: Program; location: Location, value: int32) =
   glProgramUniform1i(program.handle, location.index, value)
 
+proc uniform(program: Program; location: Location, value: bool) =
+  glProgramUniform1i(program.handle, location.index, value.GLint)
+
+  
 proc uniform(program: Program; location: Location, value: Vec2f) =
   glProgramUniform2f(program.handle, location.index, value[0], value[1])
 
@@ -186,8 +162,37 @@ proc uniform(program: Program; location: Location, value: Vec3f) =
 proc uniform(program: Program; location: Location, value: Vec4f) =
   glProgramUniform4f(program.handle, location.index, value[0], value[1], value[2], value[3])
 
-proc uniform(program: Program; location: Location, value: bool) =
-  glProgramUniform1i(program.handle, location.index, value.GLint)
+  
+proc uniform(program: Program; location: Location, value: Vec2d) =
+  glProgramUniform2d(program.handle, location.index, value[0], value[1])
+
+proc uniform(program: Program; location: Location, value: Vec3d) =
+  glProgramUniform3d(program.handle, location.index, value[0], value[1], value[2])
+
+proc uniform(program: Program; location: Location, value: Vec4d) =
+  glProgramUniform4d(program.handle, location.index, value[0], value[1], value[2], value[3])
+
+
+proc uniform(program: Program; location: Location, value: Vec2i) =
+  glProgramUniform2i(program.handle, location.index, value[0], value[1])
+
+proc uniform(program: Program; location: Location, value: Vec3i) =
+  glProgramUniform3i(program.handle, location.index, value[0], value[1], value[2])
+
+proc uniform(program: Program; location: Location, value: Vec4i) =
+  glProgramUniform4i(program.handle, location.index, value[0], value[1], value[2], value[3])
+
+  
+proc uniform(program: Program; location: Location, value: Vec2b) =
+  glProgramUniform2i(program.handle, location.index, value[0].GLint, value[1].GLint)
+
+proc uniform(program: Program; location: Location, value: Vec3b) =
+  glProgramUniform3i(program.handle, location.index, value[0].GLint, value[1].GLint, value[2].GLint)
+
+proc uniform(program: Program; location: Location, value: Vec4b) =
+  glProgramUniform4i(program.handle, location.index, value[0].GLint, value[1].GLint, value[2].GLint, value[3].GLint)
+
+  
   
 #### Vertex Array Object ####
 
@@ -501,26 +506,35 @@ proc mapReadWrite*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): DataView[
     result.data = cast[ptr UncheckedArray[T]](glMapNamedBuffer(buffer.handle, GL_READ_WRITE))
   result.size = buffer.len
 
-template mapReadBlock*(buffer: ArrayBuffer[auto], blck: untyped) : untyped =
-  block:
-    let mappedBuffer {. inject .} = buffer.mapRead
-    defer:
-      discard buffer.unmap
-    blck
+macro mapReadBlock*(buffer: ArrayBuffer, blck: untyped) : untyped =
+  buffer.expectKind nnkSym
+  let ident = ident(buffer.repr)
+  result = quote do:
+    block:
+      let `ident` {. inject .} = `buffer`.mapRead
+      defer:
+        discard `buffer`.unmap
+      `blck`
 
-template mapWriteBlock*(buffer: ArrayBuffer[auto], blck: untyped) : untyped =
-  block:
-    let mappedBuffer {. inject .} = buffer.mapWrite
-    defer:
-      discard buffer.unmap
-    blck
+macro mapWriteBlock*(buffer: ArrayBuffer, blck: untyped) : untyped =
+  buffer.expectKind nnkSym
+  let ident = ident(buffer.repr)
+  result = quote do:
+    block:
+      let `ident` {. inject .} = `buffer`.mapWrite
+      defer:
+        discard `buffer`.unmap
+      `blck`
 
-template mapReadWriteBlock*(buffer: ArrayBuffer[auto], blck: untyped) : untyped =
-  block:
-    let mappedBuffer {. inject .} = buffer.mapReadWrite
-    defer:
-      discard buffer.unmap
-    blck
+macro mapReadWriteBlock*(buffer: ArrayBuffer, blck: untyped) : untyped =
+  buffer.expectKind nnkSym
+  let ident = ident(buffer.repr)
+  result = quote do:
+    block:
+      let `ident` {. inject .} = `buffer`.mapReadWrite
+      defer:
+        discard `buffer`.unmap
+      `blck`
 
 proc arrayBuffer*[T](data : openarray[T], usage: GLenum = GL_STATIC_DRAW): ArrayBuffer[T] =
   result.new

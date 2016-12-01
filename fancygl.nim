@@ -2,7 +2,7 @@
 ############################### fancy gl ###############################
 ########################################################################
 import opengl, glm, math, random, strutils, nre, macros,
-       macroutils, sdl2, sdl2/image, os, terminal, basic_random
+       macroutils, sdl2, sdl2/image, sdl2/ttf, os, terminal, basic_random
 
 include etc, glm_additions, stopwatch, default_setup, shapes, samplers,
        framebuffer, glwrapper, heightmap, iqm, typeinfo, camera
@@ -69,6 +69,28 @@ proc pos*(evt: MouseWheelEventPtr): Vec2i =
   result.x = evt.x
   result.y = evt.y
 
+
+proc flipY*(surface: SurfacePtr): void =
+  assert(not surface.isNil, "surface may not be nil")
+  # handy conversion, because in Opengl the origin of texture coordinates is bottom left and not top left
+  
+  let
+    h = surface.h
+    pitch = surface.pitch
+    pixels = surface.pixels
+
+  let mem = alloc(pitch)
+  defer:
+    dealloc(mem)
+  
+  for y in 0 ..< surface.h div 2:
+    let p1 = cast[pointer](cast[uint](pixels) + uint(y * pitch))
+    let p2 = cast[pointer](cast[uint](pixels) + uint((h-y-1) * pitch))
+
+    mem.copyMem(p1, pitch)
+    p1.copyMem(p2, pitch)
+    p2.copyMem(mem, pitch)
+  
 proc screenshot*(window : sdl2.WindowPtr; basename : string) : bool {.discardable.} =
   var
     (w,h) = window.getSize
@@ -76,12 +98,15 @@ proc screenshot*(window : sdl2.WindowPtr; basename : string) : bool {.discardabl
 
   glReadPixels(0,0,w,h,GL_RGBA, GL_UNSIGNED_BYTE, data[0].addr)
 
-  for y in 0 .. < h div 2:
-    for x in 0 .. < w:
-      swap(data[y*w+x], data[(h-y-1)*w+x])
+  #for y in 0 .. < h div 2:
+  #  for x in 0 .. < w:
+  #    swap(data[y*w+x], data[(h-y-1)*w+x])
 
   let surface = createRGBSurfaceFrom(data[0].addr,w,h,32,w*4,
                                      0x0000ffu32,0x00ff00u32,0xff0000u32,0xff000000u32)
+
+  surface.flipY
+  
   if surface.isNil:
     echo "Could not create SDL_Surface from pixel data: ", sdl2.getError()
     return false
@@ -91,11 +116,11 @@ proc screenshot*(window : sdl2.WindowPtr; basename : string) : bool {.discardabl
   os.createDir "screenshots"
 
   var i = 0
-  template filename() : string = "screenshots/" & basename & "_" & intToStr(i,4) & ".bmp"
-  while os.fileExists(filename()):
+  template filename : string = "screenshots/" & basename & "_" & intToStr(i,4) & ".bmp"
+  while os.fileExists(filename):
     i += 1
 
-  if surface.saveBMP(filename()):
+  if surface.saveBMP(filename):
     echo sdl2.getError()
     return false
 
@@ -510,7 +535,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; fragmentOut
       line     = li.substr(p0+5, p1-1).parseInt
       filename = joinPath(getTempDir(), s"${basename}_${line}.vert")
 
-    writeFile(filename, vertexShaderSource)
+    #writeFile(filename, vertexShaderSource)
 
   if numVertices.isNil:
     error "numVertices needs to be assigned"
