@@ -1,7 +1,147 @@
-# opengl-sandbox
-A sandbox to test nim with opengl.
+# minimal rendering prototyper
 
-These examples are nothing spelcial from what they are actually doing, the interesting part is, when you look at the code and see how simle these things can actually be implemented, when you have the help of the macros provided in this package. To show how earch example works, I have some unix pipe like pseudocode, and then some highlights from the actual code.
+This project is a toolbox project that wants to make the unilization of the 
+GPU for rasterization and computation as easy as possible. 
+
+## motivation
+
+In computer graphics to my experience the most time consuming task to utilize 
+the GPU is to actually fiddle with the interface (OpenGL) between code that 
+runs on the CPU (mostly C++) and code that runs on the GPU (GLSL). When the 
+goal of the rendering 
+pipeline is not to have photo realistic graphics the logic that needs to be 
+executed within the shader is in many cases trivial, but getting the data on 
+the GPU, that the GPU code can actually understand it correctly, and knitting 
+together the data of the buffers with the attributes in the shader is not only 
+tedious but also very error prone and without good tools hard to debug. With 
+nothing more than the code editor and an OpenGL context to play with the 
+programmer often sits in front of a black screen with no feedback which
+of the 100 necessary steps have a wrong parameter.
+
+Unlike many other attempts, I do not think that providing a default gouraud 
+or phong shader that can be configured with several variables or options helps 
+at all to solve this problem. The code needed to implement a phong shader is 
+if you know the math trivial, it literally is a single line of code. 
+But setting up a shader (compiling linking), and connecting it with correct data is not.
+Providing default shaders where we do not need to write any GPU code, just 
+puts us back to the time when OpenGL had its fixed function pipeline, and we get 
+all it's inflexibility with it. As soon as we do not want the default rendering, 
+things become much more complicated and we try to avoid them. But I would really like 
+to encourage unconventional ways of rendering, because only when you try out the 
+unknown you can eventually find something that has never been done before. And for that
+reason I was looking for a solution that really gets rid of all the Boilerplate code.
+Writing a shader should be as easy as writing a C++11 lambda expression.
+
+## Technology (Why Nim?)
+
+I tried to do 3D OpenGL rendering in a lot of programming languages already, C++, Scala and Go. 
+All of them great languages with their benefits and drawbacks. But in none of the above languages I 
+felt able to implement what I was looking forward to implement. First of all I need a language that 
+supports an array of struct. A simple data structure that puts all its elements sequentially in memory, 
+so that I could pass data as OpenGL buffers forward and backward between GPU and CPU without transformation.
+Even though this seems trivial it already disqualifies Scala, because on the Java virtual machine 
+(Scala runs on it) this can simply not be done.
+
+When I want to be able to capture local variables into the scope of a shader, I need to map this type 
+to a representation that GLSL understands. While I can do a lot in C++ with templates, constrexpr, sizeof, offsetof
+one simple thing I probably never will be able to do is iterating a fields of a struct. Scala and Go can 
+do this, it is called reflection. 
+One more reason I do not want to develop in C++ is the experience I had with very long compilation time 
+(more than 30 minutes). I already invested many hours optimizing build times and making headers as small as possible, 
+just to see the next day that the new project member doesn't know or care and includes a lot of headers in other header files. 
+Every time I see myself thinking of how I should structure my project, so that it builds fast feels when I reflect about it like 
+a huge time waste that could otherwise go to develop the actual engine code, not the build.
+
+The overall experience to develop in Go was much nicer. No complicated CMake
+project files or sbt project files (Scala), just the engine code and it compiles. 
+But the programming language just feels too stupid to make anything as smart 
+as this project needs to have. Go doesn't even have static dispatch on functions or generics.
+[In my project](https://github.com/krux02/turnt-octo-wallhack) I felt like I 
+had to duplicate a lot of code every time I wanted to render some slightly different data. 
+
+Eventually I decided, that being able to do transformations on the AST (abstract syntax tree) of the 
+programming language would greatly help to develop this toolbox. I tried out 
+Rust, but I quickly found out that their macros are too weak [to even implement 
+println](https://github.com/rust-lang/rust/blob/master/src/libstd/macros.rs#L222), 
+and I had to look somewhere else. Eventually with Nim I finally found a language
+that suited my needs. It has AST based macros, arbitrary code execution at 
+compile time, static typing, reflection and a lot more.
+
+## Concepts
+
+### the c++11 lambda like
+
+As mentioned earlier, creating code that renders things from data stored in 
+local variables should be as easy/complicated as writing a c++11 style lambda. 
+While I cannot provide the compact syntax for c++11 lambdas here in an embedded 
+DSL (domain specific language), I am very much able to have the same functionality. A c++ lambda has three 
+bracket pairs, the capture, the arguments and the body or code block. 
+``[capture1, capture2](A arg1, B arg2){ foo(arg1); bar(arg2); }``. The captures 
+are variables that are copied into the lambda object, and then they can be 
+accessed from within the body of the lambda expression. That is what I wanted 
+to have for my shaders, too. I wanted to be able to write a shader inline in my 
+render function, and from there I wanted to be able to access all local 
+variables with their name from the actual shader code.
+
+
+    shadingDsl(GL_TRIANGLES):
+	  numVertices = mesh.numVertices
+	  
+      uniforms:
+	    lightDir
+        mvp = projection * modelview
+		tex = mesh.texture
+      attributes:
+        a_position = mesh.vertexPositionBuffer
+        a_normal   = mesh.vertexNormalBuffer
+		a_texCoord = mesh.vertexTexCoordBuffer
+      vertexMain:
+        """
+        gl_Position = mvp * a_position;
+        v_normal    = mvp * a_normal;
+		v_texCoord  = a_texCoord
+        """
+      vertexOut:
+        "out vec4 v_normal"
+		"out vec2 v_texCoord"
+      fragmentMain:
+        """
+        color = texture(tex, v_texCoord) * max(dot(ligthDir, v_normal), 0);
+        """
+
+
+The first thing to notice is the argument GL_TRIANGLES. That is the primitive type that 
+is passed through to the OpenGL draw call without modification. At the point of writing this
+it can not be inferred from anything yet. The code block after it, is the actual DSL that
+get's parsed to generate the appropriate OpenGL code.
+
+The assignment ``numVertices = mesh.numVertices`` is used from the DSL as a named argument. 
+numVertices is passed to the OpenGL draw call. 
+
+The uniforms section is the first part that is inspired by the c++11 lambda. ``lightDir`` is a 
+capture that is captured with an OpenGL uniform. for lightDir each shader gets a line at the beginning
+``uniform vec4 lightDir;``. For `mvp` the line ``uniform mat4 mvp;`` is generated. For the CPU side code
+each uniform gets a uniform location, a call to query this uniform location, and a call to set this 
+uniform to the value of the local variable. The type *vec4* is inferred from the type of ``lightDir`` and 
+*mat4* is inferred from the type of the expression ``projection * modelview``. The names for the uniforms
+in the shader code are the identifiers *lightDir* and *mvp*. The assignment syntax was added to be able to give arbitrary names to uniforms 
+but it turned out that supporting arbitrary expressions on the right side of the assignment was just trivial.
+
+The attributes section works analog to the uniforms section, it just works with per vertex attributes.
+Attributes are stored in ArrayBuffers. So in order to get an attribute ``in vec4 a_position;`` the type of 
+``mesh.vertexPositionBuffer`` needs to be ``ArrayBuffer[Vec4f]``. An *ArrayBuffer* is like an array, just that it's data is stored inside of the GPU, and for convenience reasons they can be converted to and from the *seq* type, and in iterator is supported that uses memory mapping internally to read all the data. But simple indexing into the buffer is not possible (if it would be, it shouldn't be used for performance reasons).
+
+The *vertexMain* section will be inserted into the shader between ``void main {`` and ``}``
+the strings in the *vertexOut* section get inserted to the vertex shader, and with the "out" replaced by 
+"in" inserted in the next shader stage. In this case it is the fragment shader.
+
+The fragment shader is the next part that gets a bit interesting again. As you can see I can write into color. This is a name I have chosen for the case, rendering is done to the screen. 
+But in case a framebuffer is bound, and rendering is done to textures, the names of the output variables are inferred from the targets of the currently active framebuffer. More on that in the future (or read the code).
+
+
+## Examples
+
+from here on are just some onld examples and screenshots. They are not all up to date.
 
 ![Imgur1](http://i.imgur.com/zHnLCqd.png)
 
