@@ -84,39 +84,38 @@ render function, and from there I wanted to be able to access all local
 variables with their name from the actual shader code.
 
 
-    shadingDsl(GL_TRIANGLES):
-	  numVertices = mesh.numVertices
-	  
+    shadingDsl:
+      primitiveMode = GL_TRIANGLES
+      numVertices = mesh.numVertices
+
       uniforms:
-	    lightDir
+        lightDir
         mvp = projection * modelview
-		tex = mesh.texture
+        tex = mesh.texture
       attributes:
         a_position = mesh.vertexPositionBuffer
         a_normal   = mesh.vertexNormalBuffer
-		a_texCoord = mesh.vertexTexCoordBuffer
+        a_texCoord = mesh.vertexTexCoordBuffer
       vertexMain:
         """
         gl_Position = mvp * a_position;
         v_normal    = mvp * a_normal;
-		v_texCoord  = a_texCoord
+        v_texCoord  = a_texCoord
         """
       vertexOut:
         "out vec4 v_normal"
-		"out vec2 v_texCoord"
+        "out vec2 v_texCoord"
       fragmentMain:
         """
         color = texture(tex, v_texCoord) * max(dot(ligthDir, v_normal), 0);
         """
 
-
-The first thing to notice is the argument GL_TRIANGLES. That is the primitive type that 
-is passed through to the OpenGL draw call without modification. At the point of writing this
-it can not be inferred from anything yet. The code block after it, is the actual DSL that
-get's parsed to generate the appropriate OpenGL code.
-
-The assignment ``numVertices = mesh.numVertices`` is used from the DSL as a named argument. 
-numVertices is passed to the OpenGL draw call. 
+The code block that starts with ``shadingDsl:`` is the actual DSL that
+gets parsed to generate the appropriate OpenGL code.
+The first thing to notice are the assignments to *primitiveMode* and *numVertices*. 
+Thise are  some named arguments for the dsl. These named arguments do not need to be passed to
+the DSL is cases where they can be inferred from other parameters. The primitive 
+mode and the numVertices are forwarded to the OpenGL draw call.
 
 The uniforms section is the first part that is inspired by the c++11 lambda. ``lightDir`` is a 
 capture that is captured with an OpenGL uniform. for lightDir each shader gets a line at the beginning
@@ -155,8 +154,9 @@ CubeVertices | forwardVertexShader | faceNormalGeometryShader | forwardFragmentS
 This renders a simple cube with a different colors on each side. The depth and the color is rendered into a frame buffer. The frame buffer is then used to put a post process on it that simply moves each line of the texture horizontally, simply to show that post processing is possible. Then the cube is rendered again, but this time the geometry shader transforms each face into a normal, so that you can see each face normal as a line. Interesting to mention here, is that every call of `shadingDsl` has a block to pass variables from the current context to the shader. It is comparable to the c++11 lambda expressions, with explicit closure. The difference here is that 'uniforms' expects values that actually can be passed as a uniform to a shader, and attributes expects a sequence type or a typed opengl-buffer, where the elements are visible in the fragment shader.
 
 ```Nim
-shadingDsl(GL_TRIANGLES):
-  numVertices = vertex.len.GLsizei
+shadingDsl:
+  primitiveMode = GL_TRIANGLES
+  numVertices = vertex.len
     uniforms:
       modelview = modelview_mat
       projection = projection_mat
@@ -185,19 +185,19 @@ Here you see a test with 500 moving light sources being rendered via instancing.
 
 ```Nim
 declareFramebuffer(FirstFramebuffer):
-  depth = createEmptyDepthTexture2D(windowsize)
-  color = createEmptyTexture2D(windowsize, GL_RGBA8)
-  normal = createEmptyTexture2D(windowsize, GL_RGBA16F)
+  depth = newDepthTexture2D(windowsize)
+  color = newTexture2D(windowsize, GL_RGBA8)
+  normal = newTexture2D(windowsize, GL_RGBA16F)
 ```
 
 While depth is currently an attribute every framebuffer needs, normal is a completely free identifier. It could be named anything. The effect is visible in the fragment shader code from the contex, where the framebuffer is bound. Here the fragmentshader automatically get's to know the output variable normal.
 
 ```
-fragmentMain:
-        """
-        color = texture(crateTexture, g_texcoord);
-        normal.rgb = g_normal_cs;
-        """
+  fragmentMain:
+    """
+    color = texture(crateTexture, g_texcoord);
+    normal.rgb = g_normal_cs;
+    """
 ```
 
 ![Imgur3](http://i.imgur.com/Z1OCZip.jpg)
