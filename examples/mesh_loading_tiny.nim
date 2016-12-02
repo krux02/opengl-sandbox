@@ -372,7 +372,8 @@ proc main() =
 
     if renderNormalMap:
       for i, mesh in meshes:
-        shadingDsl(GL_POINTS):
+        shadingDsl:
+          primitiveMode = GL_POINTS
           numVertices = mesh.num_vertexes
           vertexOffset = mesh.first_vertex
 
@@ -454,7 +455,8 @@ proc main() =
 
     if renderMesh:
       for i, mesh in meshes:
-        shadingDsl(GL_TRIANGLES):
+        shadingDsl:
+          primitiveMode = GL_TRIANGLES
           numVertices = mesh.num_triangles * 3
           vertexOffset = mesh.first_triangle * 3
 
@@ -519,7 +521,8 @@ proc main() =
       for i, joint in joints:
         let model_mat = outframe[i] * jointMatrices[i]
 
-        shadingDsl(GL_TRIANGLES):
+        shadingDsl:
+          primitiveMode = GL_TRIANGLES
           numVertices = triangles.len * 3
 
           uniforms:
@@ -571,7 +574,8 @@ proc main() =
 
     
     if renderBoneNames:
-      shadingDsl(GL_TRIANGLE_STRIP):
+      shadingDsl:
+          primitiveMode = GL_TRIANGLE_STRIP
           numVertices = 4
           numInstances = joints.len
 
@@ -619,7 +623,8 @@ proc main() =
 
         pos /= pos.w
 
-        shadingDsl(GL_TRIANGLE_STRIP):
+        shadingDsl:
+          primitiveMode = GL_TRIANGLE_STRIP
           numVertices = 4
 
           uniforms:

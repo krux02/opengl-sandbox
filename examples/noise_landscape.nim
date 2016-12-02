@@ -194,7 +194,8 @@ while running:
   #echo indices.handle
 
   if false:
-    shadingDsl(GL_TRIANGLE_STRIP):
+    shadingDsl:
+      primitiveMode = GL_TRIANGLE_STRIP
       numVertices = triangleStripIndicesLen
 
       uniforms:
@@ -241,7 +242,8 @@ while running:
         """
 
   elif(true):
-    shadingDsl(GL_LINES_ADJACENCY):
+    shadingDsl:
+      primitiveMode = GL_LINES_ADJACENCY
       numVertices = quadIndicesLen
 
       uniforms:

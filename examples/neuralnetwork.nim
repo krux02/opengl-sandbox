@@ -98,7 +98,7 @@ proc render() =
   #let mouseY_Norm = (mouseY.float32 / screenHeight.float32)
   #let mousePosNorm = (mouse - viewport.xy) / viewport.zw
 
-  let time = gameTimer.time
+  let time = gameTimer.time.float32
 
   proc linClamp(x, max = 1.0, moritz:float32 = 1.0):float32 =
     return max * tanh(x/moritz)
@@ -145,9 +145,8 @@ proc render() =
     
     glViewport(0,0,renderTargetSize.x, renderTargetSize.y)
 
-    shadingDsl(GL_TRIANGLES):
-      numVertices = 3
-
+    shadingDsl:
+      
       includes:
         glslCode
       uniforms:
@@ -220,7 +219,8 @@ proc render() =
 
   glViewport(0,0,windowSize.x, windowSize.y)
 
-  shadingDsl(GL_TRIANGLE_STRIP):
+  shadingDsl:
+
     uniforms:
       
       tex = framebuffer0.color

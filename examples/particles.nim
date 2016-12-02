@@ -127,7 +127,8 @@ while running:
 
   glEnable(GL_BLEND)
 
-  shadingDsl(GL_POINTS):
+  shadingDsl:
+    primitiveMode = GL_POINTS
     numVertices = numParticles
 
     uniforms:
@@ -182,7 +183,8 @@ while running:
 
   glDisable(GL_BLEND)
 
-  shadingDsl(GL_POINTS):
+  shadingDsl:
+    primitiveMode = GL_POINTS
     numVertices = numParticles
 
     uniforms:

@@ -31,7 +31,7 @@ declareFramebuffer(FirstFramebuffer):
 
 let fb1 = newFirstFramebuffer()
 
-let projMat = perspective(45.0f, float32(windowsize.x / windowsize.y), 0.1f, 1000.0f)
+let projMat : Mat4f = perspective(45.0f, float32(windowsize.x / windowsize.y), 0.1f, 1000.0f)
 
 const numLights = 500
 
@@ -62,7 +62,8 @@ var
   
 proc showNormals(mvp: Mat4f, positions: ArrayBuffer[Vec4f], normals: ArrayBuffer[Vec4f], length:float32 = 1, color:Vec4f = vec4f(1)) =
 
-  shadingDsl(GL_POINTS):
+  shadingDsl:
+    primitiveMode = GL_POINTS
     numVertices = normals.len
 
     uniforms:
@@ -100,7 +101,7 @@ proc showNormals(mvp: Mat4f, positions: ArrayBuffer[Vec4f], normals: ArrayBuffer
       
 proc render() =
   
-  let time = gameTimer.time
+  let time = gameTimer.time.float32
 
   let viewMat = camera.viewMat()
   
@@ -125,7 +126,8 @@ proc render() =
     var baseOffset = vec4f(0,0,0,0)
     baseOffset.xy = (round(camera.pos.xy / hm.size.vec2f) - vec2f(1)) * hm.size.vec2f
 
-    shadingDsl(GL_TRIANGLES):
+    shadingDsl:
+      primitiveMode = GL_TRIANGLES
       numVertices = hmindices.len
       numInstances = 4
 
@@ -214,7 +216,8 @@ proc render() =
 
   if hideDeferredShading:
 
-    shadingDsl(GL_TRIANGLES):
+    shadingDsl:
+      primitiveMode = GL_TRIANGLES
       numVertices = 3
 
       uniforms:
@@ -290,10 +293,11 @@ proc render() =
           y = sin(alpha).float32 * r
           z = hm[x,y] + 1.5f
 
-        mappedBuffer[i] = vec3f(x, y, z)
+        lightPositions[i] = vec3f(x, y, z)
     
     #### render lights ####
-    shadingDsl(GL_TRIANGLES):
+    shadingDsl:
+      primitiveMode = GL_TRIANGLES
       numVertices = sphereIndices.len
       numInstances = numLights
 
@@ -371,7 +375,8 @@ proc render() =
     glCullFace(GL_BACK)
     glDisable(GL_DEPTH_TEST)
 
-    shadingDsl(GL_POINTS):
+    shadingDsl:
+      primitiveMode = GL_POINTS
       numVertices = numLights
 
       uniforms:

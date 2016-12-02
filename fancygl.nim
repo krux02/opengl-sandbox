@@ -613,9 +613,9 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; fragmentOut
 #### Shading Dsl Outer ###########################################################
 ##################################################################################
                     
-macro shadingDsl*(mode:GLenum, statement: untyped) : untyped =
+macro shadingDsl*(statement: untyped) : untyped =
   var wrapWithDebugResult = false
-  result = newCall(bindSym"shadingDslInner", newNilLit(), newNilLit(), mode, ident"fragmentOutputs" )
+  result = newCall(bindSym"shadingDslInner", newNilLit(), newNilLit(), bindSym"GL_TRIANGLES", ident"fragmentOutputs" )
   
   # numVertices = result[2]
   # numInstances = result[3]
@@ -631,22 +631,25 @@ macro shadingDsl*(mode:GLenum, statement: untyped) : untyped =
     elif section.kind == nnkAsgn:
       section.expectLen(2)
       let ident = section[0]
+      let value = section[1]
       ident.expectKind nnkIdent
       case $ident.ident
       of "numVertices":
-        result.add( newCall(bindSym"numVertices", section[1] ) )
+        result.add( newCall(bindSym"numVertices", value ) )
       of "numInstances":
-        result.add( newCall(bindSym"numInstances", section[1] ) )
+        result.add( newCall(bindSym"numInstances", value ) )
       of "vertexOffset":
-        result.add( newCall(bindSym"vertexOffset", section[1] ) )
+        result.add( newCall(bindSym"vertexOffset", value ) )
+      of "primitiveMode":
+        result[3] = value
       of "programIdent":
         if result[1].kind == nnkNilLit:
-          result[1] = section[1]
+          result[1] = value
         else:
           error("double declaration of programIdent", section)
       of "vaoIdent":
         if result[2].kind == nnkNilLit:
-          result[2] = section[1]
+          result[2] = value
         else:
           error("double declaration of vaoIdent", section)
 

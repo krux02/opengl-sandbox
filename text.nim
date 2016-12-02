@@ -102,7 +102,8 @@ proc text(this: var TextRenderer; str: string; x,y: int): void =
   let rectPos  = vec2f(textPos-vpPos) / vec2f(vpSize) * 2.0f - vec2f(1)
   let rectSize = vec2f(textSize) / vec2f(vpSize) * 2.0f - vec2f(1)
 
-  shadingDsl(GL_TRIANGLE_STRIP):
+  shadingDsl:
+    primitiveMode = GL_TRIANGLE_STRIP
     numVertices = 4
 
     uniforms:
