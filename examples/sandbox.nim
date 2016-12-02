@@ -53,7 +53,7 @@ vec4 mymix(vec4 color, float alpha) {
 """
 
 var
-  projection_mat : Mat4x4[float32]
+  projection_mat : Mat4f
   viewport: Vec4f
 
 proc setViewportAndProjection() =
@@ -87,7 +87,7 @@ proc render() =
 
   #for i in 0..<5:
   block writeToFramebufferBlock:
-    let time = gameTimer.time
+    let time = gameTimer.time.float32
 
     var modelview_mat = I4f
     modelview_mat = modelview_mat.translate( vec3f(sin(time)*2, cos(time)*2, -7) )
