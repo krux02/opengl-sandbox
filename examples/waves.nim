@@ -1,7 +1,7 @@
 import sequtils, strutils, ../fancygl
 
-var windowsize = vec2f(1024,768)
-let (window, context) = defaultSetup(windowsize.vec2i)
+var windowsize = vec2i(1024,768)
+let (window, context) = defaultSetup(windowsize)
 
 discard setRelativeMouseMode(Bool32(true))
 var hm = newHeightMap(128,128)
@@ -22,7 +22,7 @@ heightsTexture.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR)
 heightsTexture.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 heightsTexture.setData(hm.data)
 
-var viewport = vec4f(0,0,windowsize)
+var viewport = vec4f(0,0,vec2f(windowsize))
 
   
 let projection_mat = perspective(45.0, windowsize.x / windowsize.y, 0.1, 1000.0)
@@ -54,8 +54,6 @@ proc render() =
 
   view_mat = view_mat.inverse
 
-  let lightDir_cs = (view_mat * vec3d(0.577).vec4d(0)).xyz.vec3f
-
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT)
 
   glEnable(GL_CULL_FACE)
@@ -76,7 +74,6 @@ proc render() =
       time
       crateTexture
       baseOffset
-      lightDir_cs
       instanceSize = vec2f(hm.w.float32, hm.h.float32)
       border = 0.5f * viewport.zw
       lightRadius = 64.0f

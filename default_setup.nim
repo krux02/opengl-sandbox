@@ -49,8 +49,7 @@ proc enableDefaultDebugCallback*() =
   glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB)
   glDebugMessageCallbackARB(cast[GLdebugProcArb](debugCallback), nil);
 
-
-proc defaultSetup*(windowsize: Vec2i = vec2i(-1,-1); windowTitle: string = "minimal engine"): tuple[window: WindowPtr, context: GlContextPtr] =
+proc defaultSetupInternal(windowsize: Vec2i; windowTitle: string): tuple[window: WindowPtr, context: GlContextPtr] =
   discard sdl2.init(INIT_EVERYTHING)
   discard 
   if ttf_init():
@@ -107,6 +106,10 @@ proc defaultSetup*(windowsize: Vec2i = vec2i(-1,-1); windowTitle: string = "mini
   glEnable(GL_DEPTH_TEST)
 
 
+template defaultSetup*(windowsize: Vec2i = vec2i(-1, -1), windowTitle: string = nil): tuple[window: WindowPtr, context: GlContextPtr] =  
+  var name = if windowTitle.isNil: instantiationInfo().filename else: windowTitle
+  name.removeSuffix(".nim")
+  defaultSetupInternal(windowsize, name)
 
 
 

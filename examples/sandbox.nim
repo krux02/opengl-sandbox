@@ -1,6 +1,6 @@
 # OpenGL example using SDL2
 
-import sequtils, ../fancygl
+import strutils, ../fancygl
 
 let windowsize = vec2i(640, 480)
 let (window, context) = defaultSetup(windowsize)
@@ -28,7 +28,7 @@ let
   color =  boxBuffer.view(color)
   texcoord = boxBuffer.view(texcoord)
   
-let indices = toSeq( countup[int8,int8](0, int8(high(boxvertices)))).elementArrayBuffer
+let indices = iotaSeq[int8](boxvertices.len).elementArrayBuffer
 
 declareFramebuffer(Fb1FramebufferType):
   depth = newDepthTexture2D(windowsize)

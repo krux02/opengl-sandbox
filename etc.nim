@@ -1,5 +1,10 @@
 # included from fancygl.nim
 
+proc iotaSeq*[T: SomeNumber](length: T) : seq[T] =
+  result.newSeq length.int
+  for i in 0 ..< length.int:
+    result[i] = T(i)
+ 
 macro debugResult(arg: typed) : untyped =
   for str in arg.repr.split("""\x0A"""):
     echo str
