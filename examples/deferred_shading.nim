@@ -115,7 +115,7 @@ proc render() =
   else:
     glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
 
-  bindFramebuffer(fb1):
+  blockBindFramebuffer(fb1):
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT)
 
 
@@ -266,7 +266,7 @@ proc render() =
 
   else:
 
-    fb1.glname.bindRead
+    fb1.handle.bindRead
 
     glBlitFramebuffer(
       0,0, windowSize.x.int32, windowSize.y.int32,

@@ -1,5 +1,8 @@
 # included from fancygl.nim
 
+when isMainModule:
+  import glm
+
 proc uvSphereVertices*(segments, rings: int): seq[Vec4f] =
   result.newSeq((segments+1) * rings)
   result.setLen(0)
@@ -47,7 +50,7 @@ proc uvSphereTexCoords*(segments, rings: int): seq[Vec2f] =
     for i in 0 .. < rings:
       let alpha = (i / (rings-1)).float32
 
-      result.add( vec2f(alpha,beta) )
+      result.add( vec2f(beta, alpha) )
 
 
 proc uvSphereIndices*(segments, rings: int): seq[int16] =

@@ -126,6 +126,31 @@ proc screenshot*(window : sdl2.WindowPtr; basename : string) : bool {.discardabl
 
   true
 
+proc screenshot*(window : sdl2.WindowPtr) : bool {.discardable.} =
+  window.screenshot(window.title)
+
+proc saveBMP*(texture: Texture2D; filename: string): void =
+
+  var
+    size = texture.size
+    stride = size.x * 4
+    data = newSeq[uint32](size.x * size.y)
+  
+  glGetTextureImage(texture.handle, 0, GL_RGBA, GL_UNSIGNED_BYTE, GLsizei(data.len * 4), pointer(data[0].addr))
+
+  let surface =
+    createRGBSurfaceFrom(data[0].addr, size.x, size.y, 32, stride,
+              0x0000ffu32,0x00ff00u32,0xff0000u32,0xff000000u32)
+
+  if surface.isNil:
+    echo "Could not create SDL_Surface from pixel data: ", sdl2.getError()
+    return
+
+  defer: surface.freeSurface
+
+  surface.saveBMP(filename)
+  
+
 const
   sourceHeader = """
 #version 330
@@ -705,7 +730,7 @@ macro shadingDsl*(statement: untyped) : untyped =
             identNode = capture
             
           let glslType  = newCall(bindSym"glslTypeRepr",  newCall(
-            bindSym"type", newDotExpr(identNode,!!"T")))
+            bindSym"type", newDotExpr(identNode,ident"T")))
           attributesCall.add( newCall(
             bindSym"attribute", nameNode, identNode, newLit(divisor), glslType ) )
 

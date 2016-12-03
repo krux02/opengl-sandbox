@@ -318,7 +318,7 @@ proc bufferKind*[T](buffer: UniformBuffer[T]) : GLenum {. inline .} =
 proc bindIt*[T](buffer: AnyBuffer[T]) =
   glBindBuffer(buffer.bufferKind, buffer.handle)
 
-template bindBlock*[T](buffer : AnyBuffer[T], blk:untyped) =
+template blockBind*[T](buffer : AnyBuffer[T], blk:untyped) =
   let buf = buffer
   var outer : GLint
   glGetIntegerv(buf.bindingKind, outer.addr)

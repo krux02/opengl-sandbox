@@ -9,11 +9,6 @@ proc newPrefix*(n1,n2: NimNode): NimNode {. compileTime .} =
   result.add n1
   result.add n2
 
-proc newPostfix*(n1,n2: NimNode): NimNode {. compileTime .} =
-  result = newNimNode(nnkPostfix)
-  result.add n1
-  result.add n2
-
 proc newInfix*(op, n1, n2: NimNode): NimNode {. compileTime .} =
   result = newNimNode(nnkInfix)
   result.add op
@@ -34,14 +29,10 @@ proc newBracketExpr*(a,b: NimNode): NimNode =
 proc newRangeUntil*(upper: int): NimNode {.compileTime.} =
   nnkInfix.newTree(ident"..<", newLit(0), newLit(upper))
 
-proc newNimNode2*(kind: NimNodeKind; children: varargs[NimNode]): NimNode {. compileTime .} =
-  result = newNimNode(kind)
-  for child in children:
-    result.add child
 
 proc newTypeDef(name, tpe: NimNode): NimNode {.compileTime.} =
-  result = newNimNode2(nnkTypeSection,
-    newNimNode2(nnkTypeDef,
+  result = nnkTypeSection.newTree(
+    nnkTypeDef.newTree(
       name,
       newEmptyNode(),
       tpe,
@@ -50,15 +41,12 @@ proc newTypeDef(name, tpe: NimNode): NimNode {.compileTime.} =
 
 proc newObjectTy*( name, recList: NimNode ): NimNode {.compileTime.} =
   result = newTypeDef(name,
-    newNimNode2(nnkObjectTy, newEmptyNode(), newEmptyNode(), recList)
+    nnkObjectTy.newTree(newEmptyNode(), newEmptyNode(), recList)
   )
 
-proc `!!`*(name: string): NimNode {. compileTime .} =
-  result = newIdentNode(name)
-
 proc newExpIdentDef*(name: NimIdent, tpe: NimNode): NimNode {. compileTime .} =
-  result = newNimNode2(nnkIdentDefs,
-    newPostfix( !!"*", newIdentNode(name)),
+  result = nnkIdentDefs.newTree(
+    nnkPostfix.newTree( ident"*", newIdentNode(name)),
     tpe,
     newEmptyNode()
   )
@@ -72,11 +60,7 @@ proc toConstExpr*[T](s : seq[T]): NimNode {. compileTime .} =
   for element in s:
     bracketExpr.add( element.toConstExpr )
 
-  result = newPrefix(!!"@", bracketExpr)
-
-
-proc `!!`*(name: NimIdent): NimNode {. compileTime .} =
-  result = newIdentNode(name)
+  result = newPrefix(ident"@", bracketExpr)
 
 proc addAll*(dst, src: NimNode): NimNode {.discardable.} =
   for node in src:
@@ -87,7 +71,6 @@ proc addAll*(dst: NimNode; src: openarray[NimNode]): NimNode {.discardable.} =
   for node in src:
     dst.add(node)
   dst
-
   
 proc isIdentChar(c: char): bool =
   'A' <= c and c <= 'Z' or 'a' <= c and c <= 'z' or '0' <= c and c <= '9' or c == '_'
@@ -122,10 +105,10 @@ macro s*(arg: static[string]): string =
       i = j
       while j < len(arg) and arg[j] != '}':
         if arg[j] == '{':
-          error "{ not allowed here"
+          error "{ not allowed after ${"
         j += 1
 
-      exprString = arg[i..<j]
+      exprString = arg[i ..< j]
 
       j += 1
     else:
@@ -135,16 +118,17 @@ macro s*(arg: static[string]): string =
         # does not deal with the fact that identifiers may not start or end on _,
         # also does not deal with the fact that the first char may not be a digit 
         j += 1
-      exprString = arg[i..<j]
+      exprString = arg[i ..< j]
 
     let expr = parseExpr(exprString)
     result.add quote do:
-      `str`.add($`expr`) ## a
+      add(`str`, $`expr`) ## a
       
     if j == len(arg):
       break
     
     i = j
+    
   for i in 0 ..< result.len:
     # remove unnecessary stmtList wrapping
     # of each statement 

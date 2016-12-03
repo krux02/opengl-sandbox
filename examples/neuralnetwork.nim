@@ -6,12 +6,12 @@ import ../fancygl, fenv, sequtils
 
 var (window, context) = defaultSetup()
 let windowSize = window.size
-let renderTargetSize = windowSize div 8
+let renderTargetSize = windowSize div 2
 
 glDisable(GL_DEPTH_TEST)
 
 declareFramebuffer(RenderTarget):
-  depth  = newDepthTexture2D(renderTargetSize)
+  depth  = newDepthRenderBuffer(renderTargetSize)
   color  = newTexture2D(renderTargetSize, GL_RGBA8)
 
 let framebuffer0 = newRenderTarget()
@@ -141,7 +141,7 @@ proc render() =
   firstWeightsTexture.setDataRGBA(firstWeights_d0)
   lastWeightsTexture.setDataRGBA(lastWeights_d0)
 
-  framebuffer0.bindFramebuffer:
+  blockBindFramebuffer(framebuffer0):
     
     glViewport(0,0,renderTargetSize.x, renderTargetSize.y)
 

@@ -99,6 +99,11 @@ import ../fancygl
 
 let heightmap = newHeightMap(128,128)
 
+const
+  cubemapWidth = 512'i32
+  # this is just for some test conversion
+  saveSkybox   = true
+
 let (window, context) = defaultSetup()
 
 let windowsize = window.size
@@ -107,9 +112,25 @@ let verts = arrayBuffer(heightmap.vertices)
 let triangleStripIndices = elementArrayBuffer(heightmap.indicesTriangleStrip)
 let quadIndices          = elementArrayBuffer(heightmap.indicesQuads)
 
+
+let skyTexture = loadTexture2DFromFile("CGSkies_0274_free.png")
+ 
+skyTexture.parameter(GL_TEXTURE_WRAP_S, GL_REPEAT)
+skyTexture.parameter(GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+
+let 
+  sphereVertices  = uvSphereVertices(128,32).arrayBuffer
+  sphereNormals   = uvSphereNormals(128,32).arrayBuffer
+  sphereTexCoords = uvSphereTexCoords(128,32).arrayBuffer
+  sphereIndices   = uvSphereIndices(128,32).elementArrayBuffer
+
+for vert in sphereVertices.mitems:
+  vert.w = 0
+  
 let triangleStripIndicesLen = triangleStripIndices.len
 let quadIndicesLen = quadIndices.len
-
+let sphereIndicesLen = sphereIndices.len
+  
 var running = true
 
 var projMat = perspective(45'f32, windowsize.x / windowsize.y, 0.9, 1000.0)
@@ -118,6 +139,9 @@ var gameTimer = newStopWatch(true)
 
 #glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
 #glEnable(GL_CULL_FACE)
+glEnable(GL_DEPTH_CLAMP)
+glDepthFunc(GL_LEQUAL)
+
 discard setRelativeMouseMode(Bool32(true))
 
 let layers = newTexture1D(512, GL_RGBA8)
@@ -142,6 +166,80 @@ var camera = newCamera()
 camera.moveAbolute(vec3f(heightmap.size.vec2f * 0.5f,0))
 camera.turnRelativeX(radians(45.0f))
 camera.moveRelative(vec3f(0,0,20))
+
+proc drawSky(mvp: Mat4f): void =
+  shadingDsl:
+    primitiveMode = GL_TRIANGLES
+    numVertices   = sphereIndicesLen
+
+    uniforms:
+      mvp
+      skyTexture
+
+    attributes:
+      indices = sphereIndices
+      position = sphereVertices
+      normal = sphereNormals
+      texCoord = sphereTexCoords
+
+    vertexMain:
+      """
+      gl_Position = mvp * normal;
+      v_texCoord = texCoord;
+      """
+    vertexOut:
+      "out vec2 v_texCoord"
+    fragmentMain:
+      """
+      color = texture(skyTexture, v_texCoord);
+      """
+
+when saveSkybox:
+  declareFramebuffer(SkyboxFramebuffer):
+    depth = newDepthRenderBuffer(vec2i(cubemapWidth))
+    color = newTexture2D(vec2i(cubemapWidth))
+
+  let skyboxRt = newSkyboxFramebuffer()
+
+  blockBindFramebuffer(skyboxRt):
+    let c = cubemapWidth
+
+    #glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+    glViewport(0,0, c, c)
+
+    let proj: Mat4f = frustum[float32](-1,1,-1,1,1,1000)
+    var tempCam = newCamera()
+
+    #let cubemap = newCubemapTexture()
+    #glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X, cubemap.handle, 0)
+
+    drawSky(proj * tempCam.viewMat)
+    skyboxRt.color.saveBMP("skyboxtest-1.bmp")
+
+    tempCam.turnRelativeX(radians(90.0))
+    drawSky(proj * tempCam.viewMat)
+    skyboxRt.color.saveBMP("skyboxtest-2.bmp")
+
+    tempCam.turnAbsoluteZ(radians(90.0))
+    drawSky(proj * tempCam.viewMat)
+    skyboxRt.color.saveBMP("skyboxtest-3.bmp")
+
+    tempCam.turnAbsoluteZ(radians(90.0))
+    drawSky(proj * tempCam.viewMat)
+    skyboxRt.color.saveBMP("skyboxtest-4.bmp")
+
+    tempCam.turnAbsoluteZ(radians(90.0))
+    drawSky(proj * tempCam.viewMat)
+    skyboxRt.color.saveBMP("skyboxtest-5.bmp")
+
+    tempCam.turnAbsoluteZ(radians(90.0))
+    tempCam.turnRelativeX(radians(90.0))
+    drawSky(proj * tempCam.viewMat)
+    skyboxRt.color.saveBMP("skyboxtest-6.bmp")
+
+
+glViewport(0,0,window.size.x, window.size.y)
+
 
 while running:
   defer:
@@ -191,9 +289,11 @@ while running:
 
   let mvp = projMat * camera.viewMat
 
-  #echo indices.handle
 
-  if false:
+  drawSky(mvp)
+  
+
+  when false:
     shadingDsl:
       primitiveMode = GL_TRIANGLE_STRIP
       numVertices = triangleStripIndicesLen
@@ -236,12 +336,8 @@ while running:
         float desaturation = clamp(distance / 128.0, 0, 1);
 
         color = desaturate(color, desaturation);
-
-
-        //color = vec4(1);
         """
-
-  elif(true):
+  else:
     shadingDsl:
       primitiveMode = GL_LINES_ADJACENCY
       numVertices = quadIndicesLen
@@ -310,12 +406,6 @@ while running:
 
         //color = vec4(1);
         """
-
-  else:
-    discard
-  
-  
-      
 
   glSwapWindow(window)
 
