@@ -44,7 +44,7 @@ var
   frame          = 0
   fpsFrameMarker = 0
 
-  camera = newCamera()
+  camera = newWorldNode()
   rotation = vec2f(0, 0)
   #position = vec3d(0,0, hm[0,0] + 10 )
   

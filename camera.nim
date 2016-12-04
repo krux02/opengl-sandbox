@@ -2,69 +2,69 @@ when isMainModule:
   import fancygl
 
 type
-  Camera* = object
-    dir*: Quatf
+  WorldNode* = object
     pos*: Vec4f
-
-proc newCamera*() : Camera =
+    dir*: Quatf
+    
+proc newWorldNode*() : WorldNode =
   result.dir.z = 1
   result.pos.w = 1  
   
-proc modelmat*(cam: Camera): Mat4f =
+proc modelmat*(cam: WorldNode): Mat4f =
   result = mat4(cam.dir, cam.pos)
   
-proc viewmat*(cam: Camera): Mat4f =
+proc viewmat*(cam: WorldNode): Mat4f =
   cam.modelmat.inverse
 
-proc dirVec*(cam: Camera): Vec4f =
+proc dirVec*(cam: WorldNode): Vec4f =
   # this is not optimized
   # from camera (object) coordinates I look in negative z
   cam.modelmat * vec4f(0,0,-1,0)
   
-proc moveRelative*(cam: var Camera; offset: Vec3f): void =
+proc moveRelative*(cam: var WorldNode; offset: Vec3f): void =
   cam.pos += vec4f(cam.dir.mat3 * offset, 0)
   
-proc moveAbolute*(cam: var Camera; offset: Vec3f): void =
+proc moveAbsolute*(cam: var WorldNode; offset: Vec3f): void =
   cam.pos += vec4f(offset, 0)
 
-proc turnRelative*(cam: var Camera; q: Quatf): void =
+proc turnRelative*(cam: var WorldNode; q: Quatf): void =
   cam.dir *= q
 
-proc turnAbsolute*(cam: var Camera; q: Quatf): void =
+proc turnAbsolute*(cam: var WorldNode; q: Quatf): void =
   cam.dir = q * cam.dir
   
-proc turnRelative*(cam: var Camera; axis: Vec3f; angle: float32): void =
+proc turnRelative*(cam: var WorldNode; axis: Vec3f; angle: float32): void =
   cam.turnRelative(quatf(axis, angle))
 
-proc turnAbsolute*(cam: var Camera; axis: Vec3f; angle: float32): void =
+proc turnAbsolute*(cam: var WorldNode; axis: Vec3f; angle: float32): void =
   cam.turnAbsolute(quatf(axis, angle))
   
-proc turnRelativeX*(cam: var Camera; angle: float32): void =
+proc turnRelativeX*(cam: var WorldNode; angle: float32): void =
   cam.turnRelative(quatf(vec3f(1,0,0), angle))
   
-proc turnRelativeY*(cam: var Camera; angle: float32): void =
+proc turnRelativeY*(cam: var WorldNode; angle: float32): void =
   cam.turnRelative(quatf(vec3f(0,1,0), angle))
   
-proc turnRelativeZ*(cam: var Camera; angle: float32): void =
+proc turnRelativeZ*(cam: var WorldNode; angle: float32): void =
   cam.turnRelative(quatf(vec3f(0,0,1), angle))
 
-proc turnAbsoluteX*(cam: var Camera; angle: float32): void =
+proc turnAbsoluteX*(cam: var WorldNode; angle: float32): void =
   cam.turnAbsolute(quatf(vec3f(1,0,0), angle))
   
-proc turnAbsoluteY*(cam: var Camera; angle: float32): void =
+proc turnAbsoluteY*(cam: var WorldNode; angle: float32): void =
   cam.turnAbsolute(quatf(vec3f(0,1,0), angle))
   
-proc turnAbsoluteZ*(cam: var Camera; angle: float32): void =
+proc turnAbsoluteZ*(cam: var WorldNode; angle: float32): void =
   cam.turnAbsolute(quatf(vec3f(0,0,1), angle))
 
   
-proc lookAt*(cam: var Camera; pos: Vec3f; up: Vec3f = vec3f(0,0,1)): void =
+proc lookAt*(cam: var WorldNode; pos: Vec3f; up: Vec3f = vec3f(0,0,1)): void =
   var f = normalize(cam.pos.xyz - pos)
   var s = normalize(cross(up, f))
   var u = cross(f, s)
   cam.dir = quatf(mat3(s,u,f))
 
-proc lookAtCamera*(eye, center, up: Vec3f) : Camera =
+proc lookAtCamera*(eye, center, up: Vec3f) : WorldNode =
   result.pos = vec4f(eye,1)
   result.lookAt(center,up)
   
@@ -101,7 +101,7 @@ when isMainModule:
 
   let matA = lookAtMat(eye, center, up)
   
-  var cam  = newCamera()
+  var cam  = newWorldNode()
   cam.pos.xyz = eye
   cam.lookAt(center, up)
 

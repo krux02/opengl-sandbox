@@ -216,3 +216,11 @@ Same mesh from a different perspective
 
 Again the same mesh, same program, but this time a different shader pipeline is used with a geometry shader that renders vertex normals and tangents as colored lines.
 
+# ideas for other names
+
+The name is not fix yet, these are valid naming ideas:
+
+# Render My Data
+# BlitzNim
+# expressive high performance rendering
+

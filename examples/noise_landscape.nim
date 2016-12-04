@@ -127,7 +127,8 @@ let skyTexture = loadTexture2DFromFile("panorama.jpg")
 skyTexture.parameter(GL_TEXTURE_WRAP_S, GL_REPEAT)
 skyTexture.parameter(GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
 
-let 
+let
+  sphereVertices  = uvSphereVertices(128,64).arrayBuffer
   sphereNormals   = uvSphereNormals(128,64).arrayBuffer
   sphereTexCoords = uvSphereTexCoords(128,64).arrayBuffer
   sphereIndices   = uvSphereIndices(128,64).elementArrayBuffer
@@ -177,19 +178,18 @@ proc setup(): void =
   glDepthFunc(GL_LEQUAL)
   glViewport(0,0,window.size.x, window.size.y)
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-  #glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-    
-proc drawSky(mvp: Mat4f): void =
-  #glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-  #defer:
-  #  glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+
+proc drawSky(viewMat: Mat4f): void =
+  glDisable(GL_BLEND)
+  defer:
+    glEnable(GL_BLEND)
 
   shadingDsl:
     primitiveMode = GL_TRIANGLES
     numVertices   = sphereIndicesLen
 
     uniforms:
-      mvp
+      mvp = projMat * viewMat
       skyTexture
 
     attributes:
@@ -209,15 +209,68 @@ proc drawSky(mvp: Mat4f): void =
       color = texture(skyTexture, v_texCoord);
       """
 
-proc drawScene(viewMat: Mat4f): void =
+proc drawSphere(modelViewMat: Mat4f): void =
+  shadingDsl:
+    primitiveMode = GL_TRIANGLES
+    numVertices   = sphereIndicesLen
+
+    uniforms:
+      mvp = projMat * modelViewMat
+      modelViewMat
+      skyTexture
+
+    attributes:
+      indices = sphereIndices
+      position = sphereVertices
+      normal = sphereNormals
+      texCoord = sphereTexCoords
+
+    vertexMain:
+      """
+      gl_Position = mvp * position;
+      v_normal_cs   = modelViewMat * normal;
+      v_texCoord = texCoord;
+      """
+    vertexOut:
+      "out vec2 v_texCoord"
+      "out vec4 v_normal_cs"
+    fragmentMain:
+      """
+      color = texture(skyTexture, v_texCoord) * max(dot(v_normal_cs, normalize(vec4(1,2,3,0))), 0);
+      color.a = 1;
+      """
+
+let quadVertices = arrayBuffer([vec4f(-1,-1,0,1), vec4f(1, -1, 0 ,1), vec4f(-1,1,0,1), vec4f(1,1,0,1)])
+      
+proc drawPlane(modelViewMat: Mat4f): void =
+  shadingDsl:
+    primitiveMode = GL_TRIANGLE_STRIP
+    numVertices = 4
+
+    uniforms:
+      mvp = projMat * modelViewMat
+      modelViewMat
+      skyTexture
+
+    attributes:
+      position = quadVertices
+
+    vertexMain:
+      """
+      gl_Position = mvp * position;
+      v_texCoord = position.xy * 0.5 + 0.5;
+      """
+    vertexOut:
+      "out vec2 v_texCoord"
+    fragmentMain:
+      """
+      color= vec4(v_texCoord,0,1);
+      """
+  
+      
+proc drawHeightMap(viewMat: Mat4f): void =
   let mvp = projMat * viewMat
   let viewInverted = inverse(viewMat)
-
-  if skybox:
-    glDisable(GL_BLEND)
-    drawSky(mvp)
-    glEnable(GL_BLEND)
-
 
   let offset = floor(viewInverted[3].xy)
   let camdir = -viewInverted[2].xy
@@ -316,7 +369,7 @@ proc drawScene(viewMat: Mat4f): void =
         color = texture(layers,height * 0.01 + detail * 0.003);
         color.a = 1 - (distance - float(gridTiles) * 0.5 + 10.0) / 10.0;
         """
-      
+
 when saveSkybox:
   declareFramebuffer(SkyboxFramebuffer):
     depth = newDepthRenderBuffer(vec2i(cubemapWidth))
@@ -331,33 +384,33 @@ when saveSkybox:
     glViewport(0,0, c, c)
 
     let proj: Mat4f = frustum[float32](-1,1,-1,1,1,1000)
-    var tempCam = newCamera()
+    var tempCam = newWorldNode()
 
     #let cubemap = newCubemapTexture()
     #glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X, cubemap.handle, 0)
 
-    drawSky(proj * tempCam.viewMat)
+    drawSky(tempCam.viewMat)
     skyboxRt.color.saveBMP("skyboxtest-1.bmp")
 
     tempCam.turnRelativeX(radians(90.0))
-    drawSky(proj * tempCam.viewMat)
+    drawSky(tempCam.viewMat)
     skyboxRt.color.saveBMP("skyboxtest-2.bmp")
 
     tempCam.turnAbsoluteZ(radians(90.0))
-    drawSky(proj * tempCam.viewMat)
+    drawSky(tempCam.viewMat)
     skyboxRt.color.saveBMP("skyboxtest-3.bmp")
 
     tempCam.turnAbsoluteZ(radians(90.0))
-    drawSky(proj * tempCam.viewMat)
+    drawSky(tempCam.viewMat)
     skyboxRt.color.saveBMP("skyboxtest-4.bmp")
 
     tempCam.turnAbsoluteZ(radians(90.0))
-    drawSky(proj * tempCam.viewMat)
+    drawSky(tempCam.viewMat)
     skyboxRt.color.saveBMP("skyboxtest-5.bmp")
 
     tempCam.turnAbsoluteZ(radians(90.0))
     tempCam.turnRelativeX(radians(90.0))
-    drawSky(proj * tempCam.viewMat)
+    drawSky(tempCam.viewMat)
     skyboxRt.color.saveBMP("skyboxtest-6.bmp")
 
 proc toggleWireframe() : void =
@@ -367,11 +420,55 @@ proc toggleWireframe() : void =
 
 
 var frame = 0
-var camera = newCamera()
+var camera = newWorldNode()
 
 camera.turnRelativeX(radians(45.0f))
 camera.moveRelative(vec3f(0,0,20))
 
+var object1 = newWorldNode()
+object1.moveAbsolute(vec3f(10,10,10))
+object1.turnRelativeX(rand_f32() * 10)
+object1.turnRelativeY(rand_f32() * 10)
+object1.turnRelativeZ(rand_f32() * 10)
+var object2 = newWorldNode()
+object2.moveAbsolute(vec3f(3,2,9))
+object2.turnRelativeX(rand_f32() * 10)
+object2.turnRelativeY(rand_f32() * 10)
+object2.turnRelativeZ(rand_f32() * 10)
+
+proc drawScene(viewMat: Mat4f): void =
+  drawSky(viewMat)
+  drawHeightMap(viewMat)
+  #drawSphere(viewMat * object1.modelmat)
+  #drawSphere(viewMat * object2.modelmat)
+  drawPlane(viewMat * object1.modelmat)
+  drawPlane(viewMat * object2.modelmat)
+
+proc drawPortal(viewMat: Mat4f, src,dst: WorldNode) =
+  let viewPrime = viewMat * src.modelmat * dst.viewmat
+  let objPos_cs = viewMat * src.pos
+  var a = projMat * (objPos_cs + vec4f(-1,-1,0,0))
+  var b = projMat * (objPos_cs + vec4f( 1, 1,0,0))
+  
+  a /= a.w
+  b /= b.w
+  var x = vec2i((a.xy * 0.5 + 0.5) * vec2f(window.size))
+  var y = vec2i((b.xy * 0.5 + 0.5) * vec2f(window.size))
+  x = clamp(x, vec2i(0), window.size)
+  y = clamp(y, vec2i(0), window.size) 
+  let s = y - x
+
+  echo fancygl.`$` x, fancygl.`$` y, fancygl.`$` s
+
+  if s.x > 0 and s.y > 0:
+    glEnable(GL_SCISSOR_TEST)
+    glScissor(x.x, x.y,  s.x, s.y)
+    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+    drawScene(viewPrime)
+    glDisable(GL_SCISSOR_TEST)
+
+  
+  
 setup()
 
 while running:
@@ -421,9 +518,15 @@ while running:
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-  drawScene(camera.viewMat)
+  let view = camera.viewMat
 
-  glEnable(GL_SCISSOR_TEST)
+  drawScene(view)
+  
+  drawPortal(view, object1, object2)
+  drawPortal(view, object2, object1)
+  
+  #[
+  
   
   let cameraBackup = camera
   defer:
@@ -431,11 +534,12 @@ while running:
     glDisable(GL_SCISSOR_TEST)
 
   for i in 0 .. GLint(5):
-    glScissor(256 + i * 64,256 + i * 64,256,256)
+    
     camera.moveRelative(vec3f(0,0,-3))
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
     drawScene(camera.viewMat)
-    
+  ]#
+  
   glSwapWindow(window)
 
   
