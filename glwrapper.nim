@@ -139,6 +139,15 @@ proc uniform(program: Program; location: Location; mat: Mat4d) =
 proc uniform(program: Program; location: Location, mat: Mat4f) =
   glProgramUniformMatrix4fv(program.handle, location.index, 1, false, cast[ptr GLfloat](mat.unsafeAddr))
 
+proc uniform(program: Program; location: Location, mat: Mat3f) =
+  glProgramUniformMatrix3fv(program.handle, location.index, 1, false, cast[ptr GLfloat](mat.unsafeAddr))
+
+proc uniform(program: Program; location: Location, mat: Mat2f) =
+  glProgramUniformMatrix2fv(program.handle, location.index, 1, false, cast[ptr GLfloat](mat.unsafeAddr))
+
+
+
+  
   
 proc uniform(program: Program; location: Location, value: float32) =
   glProgramUniform1f(program.handle, location.index, value)

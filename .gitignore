@@ -20,3 +20,5 @@ examples/particles_transform_feedback
 examples/cpu_noise
 examples/noise_landscape
 text
+*.bmp
+macroutils

@@ -230,17 +230,15 @@ const
     vec2f(0, 0), vec2f(1, 0), vec2f(0, 1)
   ]
 
-  
 
-  
-proc genTetraederVertices(): array[12, Vec4f] = 
+proc genTetraederVertices(): array[12, Vec4f] {.compileTime.} = 
   let verts = [ vec4f(-1,-1,-1,1), vec4f(1,1,-1,1), vec4f(1,-1,1,1), vec4f(-1,1,1,1) ]
   let vertIndices = [ 0, 3, 1,  0,2,3,  0,1,2,  1,3,2]
 
   for i, pos in result.mpairs:
     pos = verts[vertIndices[i]]
   
-proc genTetraederNormals(): array[12, Vec4f] =
+proc genTetraederNormals(): array[12, Vec4f] {.compileTime.} =
   let s = sqrt(3.0'f32)
   let normals    = [ vec4f(-s, s,-s,0), vec4f(-s,-s, s,0), vec4f( s,-s,-s,0), vec4f( s, s, s,0)]
   let normIndices = [ 0, 0, 0,  1,1,1,  2,2,2,  3,3,3]
@@ -248,14 +246,93 @@ proc genTetraederNormals(): array[12, Vec4f] =
   for i, n in result.mpairs:
     n = normals[normIndices[i]]
 
-proc getTetraederTexCoords(): array[12, Vec2f] =
+proc getTetraederTexCoords(): array[12, Vec2f] {.compileTime.} =
   let texCoords   = [ vec2f(0,0), vec2f(1,1), vec2f(1,0), vec2f(0,1) ]
   let vertIndices = [ 0, 3, 1,  0,2,3,  0,1,2,  1,3,2]
   
   for i, texCoord in result.mpairs:
     texCoord = texCoords[vertIndices[i]]
-
+    
 const
   tetraederVertices*  = genTetraederVertices()
   tetraederNormals*   = genTetraederNormals()
   tetraederTexCoords* = getTetraederTexCoords()
+
+
+proc gridVerticesXMajor*(size: Vec2i): seq[Vec4f] =
+  result = newSeqOfCap[Vec4f](size.x * size.y)
+
+  for y in 0 ..< size.y:
+    for x in 0 ..< size.x:
+      result.add vec4f(float32(x), float32(y), 0, 1)
+
+proc gridVerticesYMajor*(size: Vec2i): seq[Vec4f] =
+  result = newSeqOfCap[Vec4f](size.x * size.y)
+
+  for x in 0 ..< size.x:
+    for y in 0 ..< size.y:
+      result.add vec4f(float32(x), float32(y), 0, 1)
+
+proc gridIndicesTriangles*(size: Vec2i) : seq[int32] =
+  result = newSeqOfCap[int32](size.x * size.y * 6)
+
+  for y in 0 ..< size.y:
+    for x in 0 ..< size.x:
+      let
+        a = int32(x     + size.x * y      )
+        b = int32(x + 1 + size.x * y      )
+        c = int32(x     + size.x * (y + 1))
+        d = int32(x + 1 + size.x * (y + 1))
+
+      result.add([c,a,d,d,a,b])
+      # this would be the other diagonal
+      # result.add([a,b,c,c,b,d])
+
+proc gridIndicesTriangleStrip*(size: Vec2i): seq[int32] =
+  result.newSeq(0)
+
+  for y in 0 ..< (size.y - 1):
+    for x in 0 ..< size.x:
+      let
+        a = int32(x     + size.x *  y + size.x)
+        b = int32(x     + size.x *  y         )
+
+      if y != 0 and x == 0:
+        result.add([a,a,b])
+      elif y != size.x - 2 and x == (size.x - 1):
+        result.add([a,b,b])
+      else:
+        result.add([a,b])
+
+proc gridIndicesQuads*(size: Vec2i): seq[int32] =
+  result = newSeqOfCap[int32]((size.x-1) * (size.y-1) * 4)
+  for y in 0 ..< (size.y - 1):
+    for x in 0 ..< (size.x - 1):
+      result.add int32(x     + size.x * y         )
+      result.add int32(x + 1 + size.x * y         )
+      result.add int32(x     + size.x * y + size.x)
+      result.add int32(x + 1 + size.x * y + size.x)
+
+#[      
+proc indicesQuads*(hm: HeightMap): seq[int32] =
+  result.newSeq(0)
+  for y in 0 ..< hm.h:
+    for x in 0 ..< hm.w:
+      result.add int32(x     + (hm.w + 1) * y      )
+      result.add int32(x + 1 + (hm.w + 1) * y      )
+      result.add int32(x     + (hm.w + 1) * (y + 1))
+      result.add int32(x + 1 + (hm.w + 1) * (y + 1))
+
+
+proc texCoords*(hm: HeightMap) : seq[Vec2f] =
+  result.newSeq(hm.w * hm.h)
+  result.setLen(0)
+
+  let scale = vec2f(1.0f / hm.w.float32, 1.0f / hm.h.float32)
+
+  for y in 0 .. hm.h:
+    for x in 0 .. hm.w:
+      let pos = vec2f(x.float32 + 0.5f, y.float32 + 0.5f)
+      result.add(pos * scale)
+      
+]#

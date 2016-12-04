@@ -8,6 +8,7 @@ include etc, glm_additions, stopwatch, default_setup, shapes, samplers,
        framebuffer, glwrapper, heightmap, iqm, typeinfo, camera
 
 export opengl, glm, sdl2, basic_random, macroutils.s
+export math.arctan2
 
 # sdl additions
 

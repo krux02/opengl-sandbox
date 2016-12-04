@@ -8,14 +8,19 @@ type
 
 proc newCamera*() : Camera =
   result.dir.z = 1
-  result.pos.w = 1
-    
+  result.pos.w = 1  
+  
 proc modelmat*(cam: Camera): Mat4f =
   result = mat4(cam.dir, cam.pos)
   
 proc viewmat*(cam: Camera): Mat4f =
   cam.modelmat.inverse
 
+proc dirVec*(cam: Camera): Vec4f =
+  # this is not optimized
+  # from camera (object) coordinates I look in negative z
+  cam.modelmat * vec4f(0,0,-1,0)
+  
 proc moveRelative*(cam: var Camera; offset: Vec3f): void =
   cam.pos += vec4f(cam.dir.mat3 * offset, 0)
   

@@ -49,6 +49,10 @@ template glslTypeRepr(t: typedesc[Texture1DArray]): string = "sampler1DArray"
 
 template glslIsSampler(t: typedesc[Vec]): bool = false
 template glslIsSampler(t: typedesc[Mat]): bool = false
+template glslIsSampler(t: typedesc[Mat2]): bool = false
+template glslIsSampler(t: typedesc[Mat3]): bool = false
+template glslIsSampler(t: typedesc[Mat4]): bool = false
+  
   
 template glslIsSampler(t: typedesc[float32]): bool = false
 template glslIsSampler(t: typedesc[int8]):    bool = false

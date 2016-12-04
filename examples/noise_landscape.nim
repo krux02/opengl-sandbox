@@ -97,50 +97,54 @@ float calcHeight(vec2 pos) {
 
 import ../fancygl
 
-let heightmap = newHeightMap(128,128)
+
 
 const
   cubemapWidth = 512'i32
   # this is just for some test conversion
   saveSkybox   = true
+  # tweak this parameter to be able to see further
+  gridTiles = 64
 
 let (window, context) = defaultSetup()
 
 let windowsize = window.size
 
-let verts = arrayBuffer(heightmap.vertices)
-let triangleStripIndices = elementArrayBuffer(heightmap.indicesTriangleStrip)
-let quadIndices          = elementArrayBuffer(heightmap.indicesQuads)
+proc reverse[T](arg: seq[T]): seq[T] =
+  result = newSeq[T](arg.len)
+  for i, x in arg:
+    result[arg.high - i] = x
 
+let verts = arrayBuffer(gridVerticesXMajor(vec2i(gridTiles + 1)))
+let triangleStripIndices = elementArrayBuffer(gridIndicesTriangleStrip(vec2i(gridTiles + 1)))
+let quadIndices          = elementArrayBuffer(gridIndicesQuads(vec2i(gridTiles + 1)))
 
-let skyTexture = loadTexture2DFromFile("CGSkies_0274_free.png")
- 
+for vert in verts.mitems:
+  vert.xy -= vec2f(gridTiles div 2)
+
+let skyTexture = loadTexture2DFromFile("panorama.jpg")
+
 skyTexture.parameter(GL_TEXTURE_WRAP_S, GL_REPEAT)
 skyTexture.parameter(GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
 
 let 
-  sphereVertices  = uvSphereVertices(128,32).arrayBuffer
-  sphereNormals   = uvSphereNormals(128,32).arrayBuffer
-  sphereTexCoords = uvSphereTexCoords(128,32).arrayBuffer
-  sphereIndices   = uvSphereIndices(128,32).elementArrayBuffer
-
-for vert in sphereVertices.mitems:
-  vert.w = 0
+  sphereNormals   = uvSphereNormals(128,64).arrayBuffer
+  sphereTexCoords = uvSphereTexCoords(128,64).arrayBuffer
+  sphereIndices   = uvSphereIndices(128,64).elementArrayBuffer
   
 let triangleStripIndicesLen = triangleStripIndices.len
 let quadIndicesLen = quadIndices.len
 let sphereIndicesLen = sphereIndices.len
-  
-var running = true
+
+var
+  running = true
+  skybox  = true
 
 var projMat = perspective(45'f32, windowsize.x / windowsize.y, 0.9, 1000.0)
 
-var gameTimer = newStopWatch(true)
-
-#glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
-#glEnable(GL_CULL_FACE)
-glEnable(GL_DEPTH_CLAMP)
-glDepthFunc(GL_LEQUAL)
+var
+  gameTimer = newStopWatch(true)
+  time: float32 = 0
 
 discard setRelativeMouseMode(Bool32(true))
 
@@ -157,17 +161,29 @@ block:
   layers.setData data
   layers.generateMipmap
 
-glEnable(GL_PRIMITIVE_RESTART);
-glPrimitiveRestartIndex(cast[GLuint](-1'i32))
+proc rotMat2f(angle: float32): Mat2f =
+  let s = sin(angle)
+  let c = cos(angle)
 
-var frame = 0
-var camera = newCamera()
+  result[0,0] =  c
+  result[0,1] =  s
+  result[1,0] = -s
+  result[1,1] =  c
 
-camera.moveAbolute(vec3f(heightmap.size.vec2f * 0.5f,0))
-camera.turnRelativeX(radians(45.0f))
-camera.moveRelative(vec3f(0,0,20))
-
+proc setup(): void =
+  glEnable(GL_CULL_FACE)
+  glEnable(GL_BLEND)
+  glEnable(GL_DEPTH_CLAMP)
+  glDepthFunc(GL_LEQUAL)
+  glViewport(0,0,window.size.x, window.size.y)
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+  #glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+    
 proc drawSky(mvp: Mat4f): void =
+  #glPolygonMode( GL_FRONT_AND_BACK, GL_LINE );
+  #defer:
+  #  glPolygonMode( GL_FRONT_AND_BACK, GL_FILL );
+
   shadingDsl:
     primitiveMode = GL_TRIANGLES
     numVertices   = sphereIndicesLen
@@ -178,14 +194,13 @@ proc drawSky(mvp: Mat4f): void =
 
     attributes:
       indices = sphereIndices
-      position = sphereVertices
       normal = sphereNormals
       texCoord = sphereTexCoords
 
     vertexMain:
       """
-      gl_Position = mvp * normal;
-      v_texCoord = texCoord;
+      gl_Position = mvp * -normal;
+      v_texCoord = vec2(1) - texCoord;
       """
     vertexOut:
       "out vec2 v_texCoord"
@@ -194,6 +209,114 @@ proc drawSky(mvp: Mat4f): void =
       color = texture(skyTexture, v_texCoord);
       """
 
+proc drawScene(viewMat: Mat4f): void =
+  let mvp = projMat * viewMat
+  let viewInverted = inverse(viewMat)
+
+  if skybox:
+    glDisable(GL_BLEND)
+    drawSky(mvp)
+    glEnable(GL_BLEND)
+
+
+  let offset = floor(viewInverted[3].xy)
+  let camdir = -viewInverted[2].xy
+  let angle = round((arctan2(camdir.y, camdir.x) - radians(90f)) / radians(90f)) * radians(90f)
+  let rotMat = rotMat2f(angle)
+  
+  when true:
+    shadingDsl:
+      primitiveMode = GL_TRIANGLE_STRIP
+      numVertices = triangleStripIndicesLen
+
+      uniforms:
+        mvp
+        viewMat
+        time
+        layers
+        offset
+        rotMat
+        gridTiles
+
+      attributes:
+        indices = triangleStripIndices
+        pos = verts
+      includes:
+        glslNoise
+      vertexMain:
+        """
+        pos2d_ws = rotMat * pos.xy + offset;
+        vec4 vertexPos = vec4(  rotMat * pos.xy + offset,calcHeight(pos2d_ws),1);
+        gl_Position = mvp * vertexPos;
+        distance = length(viewMat * vertexPos);
+        """
+      vertexOut:
+        "out vec2 pos2d_ws"
+        "out float distance"
+      fragmentMain:
+        """
+        float height = calcHeight(pos2d_ws);
+        float detail = snoise(vec3(pos2d_ws * 12.3, 0));
+        color = texture(layers,height * 0.01 + detail * 0.003);
+        color.a = 1 - (distance - float(gridTiles) * 0.5 + 10.0) / 10.0;
+        """
+  else:
+    shadingDsl:
+      primitiveMode = GL_LINES_ADJACENCY
+      numVertices = quadIndicesLen
+
+      uniforms:
+        mvp
+        viewMat
+        time
+        layers
+        offset
+        rotMat
+        gridTiles
+
+      attributes:
+        indices = quadIndices
+        pos = verts
+      includes:
+        glslNoise
+      vertexMain:
+        """
+        v_pos2d_ws = rotMat * pos.xy + offset;
+        v_height = calcHeight(v_pos2d_ws);
+        vec4 vertexPos = vec4(  rotMat * pos.xy + offset,v_height,1);
+        gl_Position = mvp * vertexPos;
+        v_distance = length(viewMat * vertexPos);
+        """
+      vertexOut:
+        "out float v_height"
+        "out vec2 v_pos2d_ws"
+        "out float v_distance"
+      geometryMain:
+        "layout(triangle_strip, max_vertices=4) out"
+        """
+        int indicesB[4] = int[4](0,1,2,3);
+        int indicesA[4] = int[4](2,0,3,1);
+
+        int indices[4] = abs(v_height[0] - v_height[3]) < abs(v_height[1] - v_height[2]) ? indicesA : indicesB;
+
+        for(int i = 0; i < 4; ++i) {
+          gl_Position = gl_in[indices[i]].gl_Position;
+          pos2d_ws = v_pos2d_ws[indices[i]];
+          distance = v_distance[indices[i]];
+          EmitVertex();
+        }
+        """
+      geometryOut:
+        "out vec2 pos2d_ws"
+        "out float distance"
+      fragmentMain:
+        """
+        float height = calcHeight(pos2d_ws);
+        float detail = snoise(vec3(pos2d_ws * 12.3, 0));
+        color = texture(layers,height * 0.01 + detail * 0.003);
+        color.a = 1 - (distance - float(gridTiles) * 0.5 + 10.0) / 10.0;
+        """
+      
 when saveSkybox:
   declareFramebuffer(SkyboxFramebuffer):
     depth = newDepthRenderBuffer(vec2i(cubemapWidth))
@@ -237,9 +360,19 @@ when saveSkybox:
     drawSky(proj * tempCam.viewMat)
     skyboxRt.color.saveBMP("skyboxtest-6.bmp")
 
+proc toggleWireframe() : void =
+  var wireframe {.global.} = false
+  wireframe = not wireframe
+  glPolygonMode( GL_FRONT_AND_BACK, if wireframe: GL_LINE else: GL_FILL );
 
-glViewport(0,0,window.size.x, window.size.y)
 
+var frame = 0
+var camera = newCamera()
+
+camera.turnRelativeX(radians(45.0f))
+camera.moveRelative(vec3f(0,0,20))
+
+setup()
 
 while running:
   defer:
@@ -248,7 +381,6 @@ while running:
   # handle events
   
   var evt = defaultEvent
-
   var rotation, movement : Vec3f
 
   while pollEvent(evt):
@@ -256,11 +388,16 @@ while running:
       running = false
       break
     elif evt.kind == KeyDown:
-      if evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE:
+      case evt.key.keysym.scancode:
+      of SDL_SCANCODE_ESCAPE:
         running = false
         break
-      if evt.key.keysym.scancode == SDL_SCANCODE_F10:
-        screenshot(window, "noise_landscape")
+      of SDL_SCANCODE_F10:
+        window.screenshot
+      of SDL_SCANCODE_W:
+        toggleWireframe()
+      of SDL_SCANCODE_R:
+        skybox = not skybox
       else:
         discard
         
@@ -280,133 +417,25 @@ while running:
   camera.turnRelativeX(rotation.x)
   camera.turnAbsoluteZ(rotation.y)
 
-  let time = gameTimer.time.float32
+  time = gameTimer.time.float32
 
-  # render stuff
-      
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
+  drawScene(camera.viewMat)
 
-  let mvp = projMat * camera.viewMat
-
-
-  drawSky(mvp)
+  glEnable(GL_SCISSOR_TEST)
   
+  let cameraBackup = camera
+  defer:
+    camera = cameraBackup
+    glDisable(GL_SCISSOR_TEST)
 
-  when false:
-    shadingDsl:
-      primitiveMode = GL_TRIANGLE_STRIP
-      numVertices = triangleStripIndicesLen
-
-      uniforms:
-        mvp
-        viewMat = camera.viewMat
-        time
-        layers
-
-      attributes:
-        indices = triangleStripIndices
-        pos = verts
-      includes:
-        glslNoise
-        """
-        vec4 desaturate(vec4 color, float desaturation) {
-          vec3 grayXfer = vec3(0.3, 0.59, 0.11);
-          vec3 gray = vec3(dot(grayXfer, color.rgb));
-          return vec4(mix(color.rgb, gray, desaturation), color.a);
-        }
-        """
-      vertexMain:
-        """
-        pos2d_ws = pos.xy;
-        vec4 vertexPos = pos + vec4(0,0,calcHeight(pos2d_ws),0);
-        gl_Position = mvp * vertexPos;
-        distance = length(viewMat * vertexPos);
-        """
-      vertexOut:
-        "out vec2 pos2d_ws"
-        "out float distance"
-      fragmentMain:
-        """
-        float height = calcHeight(pos2d_ws);
-        float detail = snoise(vec3(pos2d_ws * 12.3, 0));
-
-        color = texture(layers,height * 0.01 + detail * 0.003);
-
-        float desaturation = clamp(distance / 128.0, 0, 1);
-
-        color = desaturate(color, desaturation);
-        """
-  else:
-    shadingDsl:
-      primitiveMode = GL_LINES_ADJACENCY
-      numVertices = quadIndicesLen
-
-      uniforms:
-        mvp
-        viewMat = camera.viewMat
-        time
-        layers
-
-      attributes:
-        indices = quadIndices
-        pos = verts
-      includes:
-        glslNoise
-        """
-        vec4 desaturate(vec4 color, float desaturation) {
-          vec3 grayXfer = vec3(0.3, 0.59, 0.11);
-          vec3 gray = vec3(dot(grayXfer, color.rgb));
-          return vec4(mix(color.rgb, gray, desaturation), color.a);
-        }
-        """
-      vertexMain:
-        """
-        v_pos2d_ws = pos.xy;
-        v_height = calcHeight(v_pos2d_ws);
-        vec4 vertexPos = pos + vec4(0,0,v_height,0);
-        gl_Position = mvp * vertexPos;
-        v_distance = length(viewMat * vertexPos);
-        """
-      vertexOut:
-        "out float v_height"
-        "out vec2 v_pos2d_ws"
-        "out float v_distance"
-      geometryMain:
-        "layout(triangle_strip, max_vertices=4) out"
-        """
-        int indicesB[4] = int[4](0,1,2,3);
-        int indicesA[4] = int[4](1,0,3,2);
-
-        int indices[4] = abs(v_height[0] - v_height[3]) < abs(v_height[1] - v_height[2]) ? indicesA : indicesB;
-
-        for(int i = 0; i < 4; ++i) {
-          gl_Position = gl_in[indices[i]].gl_Position;
-          pos2d_ws = v_pos2d_ws[indices[i]];
-          distance = v_distance[indices[i]];
-          EmitVertex();
-        }
-
-
-        """
-      geometryOut:
-        "out vec2 pos2d_ws"
-        "out float distance"
-      fragmentMain:
-        """
-        float height = calcHeight(pos2d_ws);
-        float detail = snoise(vec3(pos2d_ws * 12.3, 0));
-
-        color = texture(layers,height * 0.01 + detail * 0.003);
-
-        //float desaturation = clamp(distance / 128.0, 0, 1);
-
-        //color = desaturate(color, desaturation);
-
-
-        //color = vec4(1);
-        """
-
+  for i in 0 .. GLint(5):
+    glScissor(256 + i * 64,256 + i * 64,256,256)
+    camera.moveRelative(vec3f(0,0,-3))
+    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+    drawScene(camera.viewMat)
+    
   glSwapWindow(window)
 
   
