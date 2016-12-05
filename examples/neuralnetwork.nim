@@ -6,7 +6,7 @@ import ../fancygl, fenv, sequtils
 
 var (window, context) = defaultSetup()
 let windowSize = window.size
-let renderTargetSize = windowSize div 2
+let renderTargetSize = windowSize div 8
 
 glDisable(GL_DEPTH_TEST)
 
@@ -40,13 +40,6 @@ proc generateGaussianNoise(mu, sigma: float64): float64 =
   z1 = sqrt(-2.0 * ln(u1)) * sin(two_pi * u2)
 
   return z0 * sigma + mu
-
-glDisable(GL_DEPTH_TEST)
-
-var
-  mouseX, mouseY: int32
-  gameTimer = newStopWatch(true)
-  frameCounter = 0
 
 const
   layerSize = 16
@@ -89,30 +82,10 @@ let weightsTexture      = newTexture1D(weights_d0.len div 4, GL_RGBA32F)
 let firstWeightsTexture = newTexture1D(firstWeights_d0.len div 4, GL_RGBA32F)
 let lastWeightsTexture  = newTexture1D(lastWeights_d0.len div 4, GL_RGBA32F)
 
-glDisable(GL_DEPTH_TEST)
-    
 proc render() =
 
-  let mouse = vec2f(mouseX.float32, window.size.y.float32 - mouseY.float32)
-  #let mouseX_Norm = (mouseX.float32 / screenWidth.float32)
-  #let mouseY_Norm = (mouseY.float32 / screenHeight.float32)
-  #let mousePosNorm = (mouse - viewport.xy) / viewport.zw
-
-  let time = gameTimer.time.float32
-
-  proc linClamp(x, max = 1.0, moritz:float32 = 1.0):float32 =
-    return max * tanh(x/moritz)
-
-  # for _ in 0 ..< 10:
-  #   if pos < (len(weights_d0) + len(firstWeights_d0) + len(lastWeights_d0)):
-  #     if pos < firstWeights_d0.len:
-  #       firstWeights_d0[pos] = generateGaussianNoise(0, 1.0)
-  #     elif pos < firstWeights_d0.len + weights_d0.len:
-  #       weights_d0[pos - firstWeights_d0.len] = generateGaussianNoise(0, 1.0)
-  #     else:
-  #       lastWeights_d0[pos - firstWeights_d0.len - weights_d0.len] = generateGaussianNoise(0, 0.1)
-
-  #   pos = pos + 1
+  proc linClamp(x, max, moritz: float32): float32 =
+    return max * tanh(x / moritz)
 
   let stdDev:float32 = 0.0001
   for i in 0 .. high(firstWeights_d0):
@@ -131,12 +104,6 @@ proc render() =
     lastWeights_d1[i] = linClamp(lastWeights_d1[i] + lastWeights_d2[i], 0.1, 0.1) # velocity
     lastWeights_d0[i] = linClamp(lastWeights_d0[i] + lastWeights_d1[i], 0.5, 0.5) # position
 
-  # echo "--"
-  # echo weights_d3[0];
-  # echo weights_d2[0];
-  # echo weights_d1[0];
-  # echo weights_d0[0];
-
   weightsTexture.setDataRGBA(weights_d0)
   firstWeightsTexture.setDataRGBA(firstWeights_d0)
   lastWeightsTexture.setDataRGBA(lastWeights_d0)
@@ -153,7 +120,6 @@ proc render() =
         weights = weightsTexture
         firstWeights = firstWeightsTexture
         lastWeights = lastWeightsTexture
-        time
         numHiddenLayers
         layerSize
 
@@ -163,7 +129,6 @@ proc render() =
 
         vec4 inArray[layerVec4Count];
         vec4 outArray[layerVec4Count];
-
         inArray[0] = vec4(
           (texCoord.x - 0.5)*4,
           (texCoord.y - 0.5)*4,
@@ -220,9 +185,8 @@ proc render() =
   glViewport(0,0,windowSize.x, windowSize.y)
 
   shadingDsl:
-
     uniforms:
-      
+    
       tex = framebuffer0.color
 
     fragmentMain:
@@ -230,18 +194,17 @@ proc render() =
       color = texture(tex, texCoord);
       """
 
-  frameCounter += 1
   glSwapWindow(window) # Swap the front and back frame buffers (double buffering)
 
 # Main loop
 
 var
-  evt = defaultEvent
   runGame = true
   fpsTimer = newStopWatch(true)
   fpsFrameCounter = 0
 
 while runGame:
+  var evt: Event = defaultEvent
   while pollEvent(evt):
     if evt.kind == QuitEvent:
       runGame = false
@@ -250,18 +213,11 @@ while runGame:
       case evt.key.keysym.scancode
       of SDL_SCANCODE_ESCAPE:
         runGame = false
-      of SDL_SCANCODE_PAUSE:
-        gameTimer.toggle
       of SDL_SCANCODE_F10:
-        window.screenshot("sandbox")
+        window.screenshot
       else:
         discard
 
-    if evt.kind == MouseMotion:
-      mouseX = evt.motion.x
-      mouseY = evt.motion.y
-
-  
   if fpsTimer.time >= 1:
     echo "FPS: ", fpsFrameCounter
     fpsTimer.reset

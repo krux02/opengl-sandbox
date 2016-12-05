@@ -104,7 +104,7 @@ const
   # this is just for some test conversion
   saveSkybox   = true
   # tweak this parameter to be able to see further
-  gridTiles = 64
+  gridTiles = 128
 
 let (window, context) = defaultSetup()
 
@@ -180,20 +180,23 @@ proc setup(): void =
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
 proc drawSky(viewMat: Mat4f): void =
-  glDisable(GL_BLEND)
-  defer:
-    glEnable(GL_BLEND)
+  #var hadBlending : bool
+  #glGetBooleanv(GL_BLEND, hadBlending.addr)
+  #glDisable(GL_BLEND)
+  #defer:
+  #  if hadBlending:
+  #    glEnable(GL_BLEND)
 
   shadingDsl:
     primitiveMode = GL_TRIANGLES
     numVertices   = sphereIndicesLen
+    indices = sphereIndices
 
     uniforms:
       mvp = projMat * viewMat
       skyTexture
 
     attributes:
-      indices = sphereIndices
       normal = sphereNormals
       texCoord = sphereTexCoords
 
@@ -207,12 +210,14 @@ proc drawSky(viewMat: Mat4f): void =
     fragmentMain:
       """
       color = texture(skyTexture, v_texCoord);
+      color.a = 1.0;
       """
 
 proc drawSphere(modelViewMat: Mat4f): void =
   shadingDsl:
     primitiveMode = GL_TRIANGLES
     numVertices   = sphereIndicesLen
+    indices       = sphereIndices
 
     uniforms:
       mvp = projMat * modelViewMat
@@ -220,7 +225,6 @@ proc drawSphere(modelViewMat: Mat4f): void =
       skyTexture
 
     attributes:
-      indices = sphereIndices
       position = sphereVertices
       normal = sphereNormals
       texCoord = sphereTexCoords
@@ -281,6 +285,7 @@ proc drawHeightMap(viewMat: Mat4f): void =
     shadingDsl:
       primitiveMode = GL_TRIANGLE_STRIP
       numVertices = triangleStripIndicesLen
+      indices = triangleStripIndices
 
       uniforms:
         mvp
@@ -292,7 +297,6 @@ proc drawHeightMap(viewMat: Mat4f): void =
         gridTiles
 
       attributes:
-        indices = triangleStripIndices
         pos = verts
       includes:
         glslNoise
@@ -311,12 +315,13 @@ proc drawHeightMap(viewMat: Mat4f): void =
         float height = calcHeight(pos2d_ws);
         float detail = snoise(vec3(pos2d_ws * 12.3, 0));
         color = texture(layers,height * 0.01 + detail * 0.003);
-        color.a = 1 - (distance - float(gridTiles) * 0.5 + 10.0) / 10.0;
+        color.a = 1 - (distance - float(gridTiles) * 0.5 + 32) / 32.0;
         """
   else:
     shadingDsl:
       primitiveMode = GL_LINES_ADJACENCY
       numVertices = quadIndicesLen
+      indices = quadIndices
 
       uniforms:
         mvp
@@ -328,7 +333,6 @@ proc drawHeightMap(viewMat: Mat4f): void =
         gridTiles
 
       attributes:
-        indices = quadIndices
         pos = verts
       includes:
         glslNoise
@@ -367,7 +371,7 @@ proc drawHeightMap(viewMat: Mat4f): void =
         float height = calcHeight(pos2d_ws);
         float detail = snoise(vec3(pos2d_ws * 12.3, 0));
         color = texture(layers,height * 0.01 + detail * 0.003);
-        color.a = 1 - (distance - float(gridTiles) * 0.5 + 10.0) / 10.0;
+        color.a = 1 - (distance - float(gridTiles) * 0.5 + 32.0) / 32.0;
         """
 
 when saveSkybox:

@@ -228,12 +228,6 @@ proc forwardVertexShaderSource(sourceHeader: string,
 
   echo "forwardVertexShaderSource:\n", result
 
-proc makeAndBindBuffer[T](buffer: var ArrayBuffer[T], index: GLint) =
-  if 0 <= index:
-    buffer.create
-    buffer.bindIt
-    glVertexAttribPointer(index.GLuint, attribSize(T), attribType(T), attribNormalized(T), 0, nil)
-    
 proc bindAndAttribPointer[T](vao: VertexArrayObject, buffer: ArrayBuffer[T], location: Location) =
   if 0 <= location.index:
     let loc = location.index.GLuint
@@ -266,10 +260,6 @@ proc setBuffer(vao: VertexArrayObject; view: ArrayBufferView; location: Location
 proc binding(loc: Location): Binding =
   result.index = loc.index.GLuint
     
-proc makeAndBindElementBuffer[T](buffer: var ElementArraybuffer[T]) =
-  buffer.create
-  buffer.bindIt
-
 type
   RenderObject*[N: static[int]] = object
     vao*: VertexArrayObject
@@ -282,9 +272,9 @@ type
 
 proc attribute[T](name: string, value: T, divisor: GLuint, glslType: string) : int = 0
 proc attributes(args : varargs[int]) : int = 0
+proc indices(arg: ElementArrayBuffer) : int = 0
 proc shaderArg[T](name: string, value: T, glslType: string, isSampler: bool): int = 0
 proc uniforms(args: varargs[int]): int = 0
-
 
 # TODO add tag for output variables weather they are transform feedback, or not
   
@@ -357,6 +347,39 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; fragmentOut
     of "vertexOffset":
       vertexOffset = newCall(ident"GLsizei", call[1])
 
+    of "indices":
+      let value = call[1]
+
+      if hasIndices:
+        error "has already indices", call
+
+      hasIndices = true
+
+      let tpe = value.getTypeInst
+
+      if tpe[0].repr != "ElementArrayBuffer":
+        error("need ElementArrayBuffer type for indices, got: " & tpe.repr, value)
+
+      case tpe[1].typeKind
+      of ntyInt8, ntyUInt8:
+        indexType = bindSym"GL_UNSIGNED_BYTE"
+        sizeofIndexType = 1
+      of ntyInt16, ntyUInt16:
+        indexType = bindSym"GL_UNSIGNED_SHORT"
+        sizeofIndexType = 2
+      of ntyInt32, ntyUInt32:
+        indexType = bindSym"GL_UNSIGNED_INT"
+        sizeofIndexType = 4
+      of ntyInt, ntyUInt:
+        error("int type has to be explicity sized uint8 uint16 or uint32", value)
+      of ntyInt64, ntyUInt64:
+        error("64 bit indices not supported", value)
+      else:
+        error("wrong kind for indices: " & $value.getTypeImpl[1].typeKind, value)
+
+      drawBlock.addAll quote do:
+        bindIt(`vao`, `value`)
+
     of "uniforms":
       for innerCall in call[1][1].items:
         innerCall[1].expectKind nnkStrLit
@@ -373,9 +396,12 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; fragmentOut
         let baseString = s"uniform $glslType $name"
 
         let loc = getLocation(numLocations)
+        let warningLit = newLit(value.lineinfo & " Hint: unused uniform: " & name)
 
-        initUniformsBlock.add head quote do:
+        initUniformsBlock.add quote do:
           `loc`.index = glGetUniformLocation(`program`.handle, `nameLit`)
+          if `loc`.index < 0:
+            writeLine stderr, `warningLit`
 
         if isSampler:
           let bindingIndexLit = newLit(numSamplers)
@@ -408,66 +434,36 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; fragmentOut
             0
         let glslType = innerCall[4].strVal
 
-        let bufferSym = genSym(nskVar, name & "Buffer")
+        let location = getLocation(numLocations)
+        let nameLit = newLit(name)
+        #let attributeLocation = bindSym"attributeLocation"
+        #let enableAttrib      = bindSym"enableAttrib"
+        #let divisor           = bindSym"divisor"
+        #let binding           = bindSym"binding"
 
-        if name == "indices":
-          if hasIndices:
-            error "has already indices", innerCall
+        let divisorLit = newLit(divisorVal)
 
-          hasIndices = true
-
-          let tpe = value.getTypeInst
-
-          if tpe[0].repr != "ElementArrayBuffer":
-            error("need ElementArrayBuffer type for indices, got: " & tpe.repr, value)
-          
-          case tpe[1].typeKind
-          of ntyInt8, ntyUInt8:
-            indexType = bindSym"GL_UNSIGNED_BYTE"
-            sizeofIndexType = 1
-          of ntyInt16, ntyUInt16:
-            indexType = bindSym"GL_UNSIGNED_SHORT"
-            sizeofIndexType = 2
-          of ntyInt32, ntyUInt32:
-            indexType = bindSym"GL_UNSIGNED_INT"
-            sizeofIndexType = 4
-          of ntyInt, ntyUInt:
-            error("int type has to be explicity sized uint8 uint16 or uint32", value)
-          of ntyInt64, ntyUInt64:
-            error("64 bit indices not supported", value)
+        let warningLit = newLit(value.lineinfo & " Hint: unused attribute: " & name)
+        
+        bufferCreationBlock.addAll quote do:
+          `location` = attributeLocation(`program`, `nameLit`)
+          # this needs to change, when multiple
+          # attributes per buffer should be supported
+          if 0 <= `location`.index:
+            enableAttrib(`vao`, `location`)
+            divisor(`vao`, binding(`location`), `divisorLit`)
           else:
-            error("wrong kind for indices: " & $value.getTypeImpl[1].typeKind, value)
+            writeLine stderr, `warningLit`
 
-          drawBlock.addAll quote do:
-            bindIt(`vao`, `value`)
+          bindAndAttribPointer(`vao`, `value`, `location`)
 
-        else:
-          let location = getLocation(numLocations)
-          let nameLit = newLit(name)
-          #let attributeLocation = bindSym"attributeLocation"
-          #let enableAttrib      = bindSym"enableAttrib"
-          #let divisor           = bindSym"divisor"
-          #let binding           = bindSym"binding"
-          
-          let divisorLit = newLit(divisorVal)
-          
-          bufferCreationBlock.addAll quote do:
-            `location` = attributeLocation(`program`, `nameLit`)
-            # this needs to change, when multiple
-            # attributes per buffer should be supported
-            if 0 <= `location`.index:
-              enableAttrib(`vao`, `location`)
-              divisor(`vao`, binding(`location`), `divisorLit`)
+        drawBlock.addAll quote do:
+          setBuffer(`vao`, `value`, `location`)
 
-            bindAndAttribPointer(`vao`, `value`, `location`)
-
-          drawBlock.addAll quote do:
-            setBuffer(`vao`, `value`, `location`)
-
-          attribNames.add( name )
-          attribTypes.add( glslType )
-          # format("in $1 $2", value.glslAttribType, name) )
-          numLocations += 1
+        attribNames.add( name )
+        attribTypes.add( glslType )
+        # format("in $1 $2", value.glslAttribType, name) )
+        numLocations += 1
             
     of "vertexOut":
       #echo "vertexOut"
@@ -637,7 +633,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; fragmentOut
 
 ##################################################################################
 #### Shading Dsl Outer ###########################################################
-##################################################################################
+######################################l############################################
                     
 macro shadingDsl*(statement: untyped) : untyped =
   var wrapWithDebugResult = false
@@ -666,6 +662,8 @@ macro shadingDsl*(statement: untyped) : untyped =
         result.add( newCall(bindSym"numInstances", value ) )
       of "vertexOffset":
         result.add( newCall(bindSym"vertexOffset", value ) )
+      of "indices":
+        result.add( newCall(bindSym"indices", value ) )
       of "primitiveMode":
         result[3] = value
       of "programIdent":

@@ -95,13 +95,14 @@ proc render() =
     modelview_mat = modelview_mat.rotate( vec3f(0,1,0), time )
     modelview_mat = modelview_mat.rotate( vec3f(1,0,0), time )
 
-    bindFramebuffer(fb1):
+    blockBindFramebuffer(fb1):
       glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
       
       shadingDsl:
         primitiveMode = GL_TRIANGLES
         debugResult
         numVertices = vertex.len
+        indices = indices
 
         uniforms:
           modelview = modelview_mat
@@ -116,7 +117,6 @@ proc render() =
           col = color
           texcoord
           normal
-          indices
 
         includes:
           glslCode
@@ -154,7 +154,6 @@ proc render() =
     shadingDsl:
       
       uniforms:
-        mouse
         tex = fb1.color
         depth = fb1.depth
         time

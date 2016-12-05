@@ -1,0 +1,9 @@
+
+
+
+*** DONE In DSL move indices from attributes to named argument section
+*** TODO Add user code sctions for afterSetup, beforeRendere, afterRender
+*** TODO Transform Feedback
+*** TODO Tesselation
+*** DONE compile time for typeinfo
+*** DONE warn for unused shader uniforms/attributes

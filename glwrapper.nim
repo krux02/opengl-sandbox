@@ -102,7 +102,6 @@ proc take*[T](view: DataView[T], num: int) : DataView[T] =
 #### program type ####
   
 type
-  # TODO make value type
   Program* = object
     handle*: GLuint
     

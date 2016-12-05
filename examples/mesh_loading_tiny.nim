@@ -459,6 +459,7 @@ proc main() =
           primitiveMode = GL_TRIANGLES
           numVertices = mesh.num_triangles * 3
           vertexOffset = mesh.first_triangle * 3
+          indices = indices
 
           uniforms:
             modelview = mat4f(view_mat)
@@ -469,7 +470,6 @@ proc main() =
             renderNormalMap
 
           attributes:
-            indices
             a_position = meshData.position
             a_texcoord = meshData.texcoord
             a_normal_os = meshData.normal

@@ -68,6 +68,7 @@ proc render() =
     primitiveMode = GL_TRIANGLES
     numVertices = hmindices.len
     numInstances = 9
+    indices = hmIndices
 
     uniforms:
       modelview = view_mat.mat4f
@@ -81,7 +82,6 @@ proc render() =
       heightsTexture
 
     attributes:
-      indices = hmIndices
       pos_os = hmVertices
       texcoord = hmTexCoords
 
