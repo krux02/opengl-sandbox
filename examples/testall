@@ -1,5 +1,10 @@
 #!/bin/bash
 
+fails = ""
+
 for file in $(find . -type f -regex '^.*\.nim$'); do
-  nim c -r $file
+  nim c -r $file || fails = "$fails $file"
 done
+
+echo "failed tests:"
+echo $fails

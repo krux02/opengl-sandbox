@@ -1,6 +1,3 @@
-
-
-
 *** DONE In DSL move indices from attributes to named argument section
 *** TODO Add user code sctions for afterSetup, beforeRendere, afterRender
 *** TODO Transform Feedback
@@ -11,4 +8,4 @@
 *** TODO let mrfixit use the easy text renderer
 *** TODO default moveable camera
 *** TODO fallback error texture when loading texture from file
-
+*** DONE script to clear all binaries from the project

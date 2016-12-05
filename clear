@@ -1,0 +1,4 @@
+#!/bin/bash
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+rm $(find $DIR -maxdepth 1 -executable -type f | sed '/clear/d')
+rm $(find $DIR/examples/   -executable -type f | sed '/testall/d')

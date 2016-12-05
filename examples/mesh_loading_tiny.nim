@@ -507,7 +507,6 @@ proc main() =
               color.rgb = v_normal_cs.xyz;
             } else {
               color = texture(material, v_texcoord) * v_normal_cs.z;
-              color.xy = mix(fract(gl_FragCoord.xy * 0.128 * 0.128), color.xy, 0.9);
             }
             """
 

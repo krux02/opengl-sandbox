@@ -1,5 +1,9 @@
 import ../fancygl, sdl2, opengl, glm, memfiles, OpenMesh, math, hashes, tables, mersenne
 
+###############################################################################
+# WARNING thistest is incomplete and has not yet been updatad for a long time #
+###############################################################################
+                                                                
 var mt = newMersenneTwister(0)
 
 proc randomColor() : Color =

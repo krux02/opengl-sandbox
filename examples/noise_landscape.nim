@@ -97,12 +97,10 @@ float calcHeight(vec2 pos) {
 
 import ../fancygl
 
-
-
 const
-  cubemapWidth = 512'i32
+  cubemapWidth = 128'i32
   # this is just for some test conversion
-  saveSkybox   = true
+  saveSkybox   = false
   # tweak this parameter to be able to see further
   gridTiles = 128
 
@@ -461,8 +459,6 @@ proc drawPortal(viewMat: Mat4f, src,dst: WorldNode) =
   x = clamp(x, vec2i(0), window.size)
   y = clamp(y, vec2i(0), window.size) 
   let s = y - x
-
-  echo fancygl.`$` x, fancygl.`$` y, fancygl.`$` s
 
   if s.x > 0 and s.y > 0:
     glEnable(GL_SCISSOR_TEST)

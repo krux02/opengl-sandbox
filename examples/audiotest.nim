@@ -1,5 +1,9 @@
 import sdl2, sdl2/audio, ../fancygl, fftw3
 
+###############################################################################
+# WARNING thistest is incomplete and has not yet been updatad for a long time #
+###############################################################################
+
 discard sdl2.init(INIT_EVERYTHING)
 
 var wav_spec: AudioSpec

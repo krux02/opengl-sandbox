@@ -129,6 +129,7 @@ proc render() =
     shadingDsl:
       primitiveMode = GL_TRIANGLES
       numVertices = hmindices.len
+      indices = hmIndices
       numInstances = 4
 
       uniforms:
@@ -144,7 +145,6 @@ proc render() =
         flatShading
 
       attributes:
-        indices = hmIndices
         pos = hmVertices
         texcoord = hmTexCoords
         normal = hmNormals
@@ -299,6 +299,7 @@ proc render() =
     shadingDsl:
       primitiveMode = GL_TRIANGLES
       numVertices = sphereIndices.len
+      indices = sphereIndices
       numInstances = numLights
 
       uniforms:
@@ -318,7 +319,6 @@ proc render() =
         #col    = vec3f(1)
 
       attributes:
-        indices = sphereIndices
         pos = sphereVertices
         normal = sphereNormals
         #texCoord = sphereTexCoords
