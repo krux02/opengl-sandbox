@@ -1,0 +1,13 @@
+sandbox
+neuralnetwork_arne
+deferred_shading
+neuralnetwork
+mesh_loading_tiny
+waves
+openmesh
+particles
+particles_transform_feedback
+cpu_noise
+noise_landscape
+
+\*nim-compile\*

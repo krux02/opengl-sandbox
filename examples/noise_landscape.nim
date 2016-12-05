@@ -122,7 +122,7 @@ let quadIndices          = elementArrayBuffer(gridIndicesQuads(vec2i(gridTiles +
 for vert in verts.mitems:
   vert.xy -= vec2f(gridTiles div 2)
 
-let skyTexture = loadTexture2DFromFile("panorama.jpg")
+let skyTexture = loadTexture2DFromFile("resources/panorama.jpg")
 
 skyTexture.parameter(GL_TEXTURE_WRAP_S, GL_REPEAT)
 skyTexture.parameter(GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)

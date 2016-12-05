@@ -8,7 +8,7 @@ var hm = newHeightMap(128,128)
 hm.DiamondSquare(64)
 
 let
-  crateTexture   = loadTexture2DFromFile("crate.png")
+  crateTexture   = loadTexture2DFromFile("resources/crate.png")
 
   hmVertices  = arrayBuffer(hm.vertices, GL_STATIC_DRAW)
   hmNormals   = arrayBuffer(hm.normals, GL_STATIC_DRAW)

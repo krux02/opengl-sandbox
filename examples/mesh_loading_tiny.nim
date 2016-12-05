@@ -33,7 +33,7 @@ proc main() =
     echo "from example: sorry system font locations are hard coded into the program, change that to fix this problem"
     system.quit(1)
 
-  var file = memfiles.open("mrfixit.iqm")
+  var file = memfiles.open("resources/mrfixit.iqm")
   defer:
     close(file)
 
@@ -126,7 +126,7 @@ proc main() =
     echo "got iqm mesh:"
     echo "  name:           ", text(mesh.name)
     echo "  material:       ", text(mesh.material)
-    meshTextures[i] = loadTexture2DFromFile( $text(mesh.material) )
+    meshTextures[i] = loadTexture2DFromFile( "resources/" & $text(mesh.material) )
 
   echo "=========================================================================="
   
@@ -293,7 +293,7 @@ proc main() =
         of SDL_SCANCODE_4:
           renderNormalMap = not renderNormalMap
         of SDL_SCANCODE_F10:
-          window.screenshot("mrfixit")
+          window.screenshot
         else:
           discard
 
@@ -507,6 +507,7 @@ proc main() =
               color.rgb = v_normal_cs.xyz;
             } else {
               color = texture(material, v_texcoord) * v_normal_cs.z;
+              color.xy = mix(fract(gl_FragCoord.xy * 0.128 * 0.128), color.xy, 0.9);
             }
             """
 

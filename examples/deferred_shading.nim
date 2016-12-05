@@ -9,8 +9,8 @@ hm.DiamondSquare(64)
 var viewport = vec4f(0,0,windowsize.vec2f)
 
 let
-  crateTexture = loadTexture2DFromFile("crate.png")
-  starTexture = loadTexture2DFromFile("star_symmetric_gray.png")
+  crateTexture = loadTexture2DFromFile("resources/crate.png")
+  starTexture = loadTexture2DFromFile("resources/star_symmetric_gray.png")
 
   hmVertices = hm.vertices.arrayBuffer(GL_STATIC_DRAW)
   hmNormals = hm.normals.arrayBuffer(GL_STATIC_DRAW)

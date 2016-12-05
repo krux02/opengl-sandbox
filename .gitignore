@@ -4,21 +4,13 @@ screenshots/
 *.trace
 *.ndb
 *.log
+*.bmp
+
 flycheck*
 
 #binaries
 fancygl
-examples/sandbox
-examples/neuralnetwork_arne
-examples/deferred_shading
-examples/neuralnetwork
-examples/mesh_loading_tiny
-examples/waves
-examples/openmesh
-examples/particles
-examples/particles_transform_feedback
-examples/cpu_noise
-examples/noise_landscape
+shapes
 text
-*.bmp
 macroutils
+

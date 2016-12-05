@@ -7,3 +7,8 @@
 *** TODO Tesselation
 *** DONE compile time for typeinfo
 *** DONE warn for unused shader uniforms/attributes
+*** TODO finish easy text renderer
+*** TODO let mrfixit use the easy text renderer
+*** TODO default moveable camera
+*** TODO fallback error texture when loading texture from file
+
