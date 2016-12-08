@@ -98,7 +98,7 @@ float calcHeight(vec2 pos) {
 import ../fancygl
 
 const
-  cubemapWidth = 128'i32
+  cubemapWidth = 64'i32
   # this is just for some test conversion
   saveSkybox   = false
   # tweak this parameter to be able to see further
@@ -126,14 +126,20 @@ skyTexture.parameter(GL_TEXTURE_WRAP_S, GL_REPEAT)
 skyTexture.parameter(GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
 
 let
-  sphereVertices  = uvSphereVertices(128,64).arrayBuffer
-  sphereNormals   = uvSphereNormals(128,64).arrayBuffer
-  sphereTexCoords = uvSphereTexCoords(128,64).arrayBuffer
-  sphereIndices   = uvSphereIndices(128,64).elementArrayBuffer
-  
+  sphereVertices  = arrayBuffer(uvSphereVertices(128,64))
+  sphereNormals   = arrayBuffer(uvSphereNormals(128,64))
+  sphereTexCoords = arrayBuffer(uvSphereTexCoords(128,64))
+  sphereIndices   = elementArrayBuffer(uvSphereIndices(128,64))
+
+let
+  torusVertices = arrayBuffer(torusVertices(48,12, 1.0f, 0.1f))
+  torusNormals  = arrayBuffer(torusNormals(48,12))
+  torusIndices  = elementArrayBuffer(torusIndicesTriangleStrip(48,12))
+
 let triangleStripIndicesLen = triangleStripIndices.len
 let quadIndicesLen = quadIndices.len
 let sphereIndicesLen = sphereIndices.len
+let torusIndicesLen = torusIndices.len
 
 var
   running = true
@@ -178,13 +184,7 @@ proc setup(): void =
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
 proc drawSky(viewMat: Mat4f): void =
-  #var hadBlending : bool
-  #glGetBooleanv(GL_BLEND, hadBlending.addr)
-  #glDisable(GL_BLEND)
-  #defer:
-  #  if hadBlending:
-  #    glEnable(GL_BLEND)
-
+  
   shadingDsl:
     primitiveMode = GL_TRIANGLES
     numVertices   = sphereIndicesLen
@@ -241,6 +241,38 @@ proc drawSphere(modelViewMat: Mat4f): void =
       color = texture(skyTexture, v_texCoord) * max(dot(v_normal_cs, normalize(vec4(1,2,3,0))), 0);
       color.a = 1;
       """
+#[
+when false:
+  proc drawTorus(modelViewMat: Mat4f): void =
+    shadingDsl:
+      primitiveMode = GL_TRIANGLE_STRIP
+      numVertices   = torusIndicesLen
+      indices       = torusIndices
+
+      uniforms:
+        mvp = projMat * modelViewMat
+        modelViewMat
+        skyTexture
+
+      attributes:
+        position = torusVertices 
+        normal   = torusNormals  
+
+      vertexMain:
+        """
+        gl_Position = mvp * position;
+        v_normal_cs   = modelViewMat * normal;
+        v_texCoord = texCoord;
+        """
+      vertexOut:
+        "out vec2 v_texCoord"
+        "out vec4 v_normal_cs"
+      fragmentMain:
+        """
+        color = texture(skyTexture, v_texCoord) * max(dot(v_normal_cs, normalize(vec4(1,2,3,0))), 0);
+        color.a = 1;
+        """
+]#
 
 let quadVertices = arrayBuffer([vec4f(-1,-1,0,1), vec4f(1, -1, 0 ,1), vec4f(-1,1,0,1), vec4f(1,1,0,1)])
       
@@ -251,8 +283,6 @@ proc drawPlane(modelViewMat: Mat4f): void =
 
     uniforms:
       mvp = projMat * modelViewMat
-      modelViewMat
-      skyTexture
 
     attributes:
       position = quadVertices
