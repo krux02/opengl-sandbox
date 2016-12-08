@@ -100,7 +100,6 @@ proc render() =
       
       shadingDsl:
         primitiveMode = GL_TRIANGLES
-        debugResult
         numVertices = vertex.len
         indices = indices
 

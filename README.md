@@ -220,7 +220,8 @@ Again the same mesh, same program, but this time a different shader pipeline is 
 
 The name is not fix yet, these are valid naming ideas:
 
-# Render My Data
+# ThereIsNoSpoon
 # BlitzNim
+# RenderMyData
 # expressive high performance rendering
 

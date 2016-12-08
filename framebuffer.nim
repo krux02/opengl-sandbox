@@ -13,8 +13,8 @@ proc bindIt*(drb: DepthRenderbuffer): void =
   glBindRenderbuffer(GL_RENDERBUFFER, drb.handle)
 
 proc newDepthRenderBuffer*(size: Vec2i) : DepthRenderbuffer =
-  glGenRenderbuffers(1, cast[ptr GLuint](result.addr))
-  glNamedRenderbufferStorageEXT(result.handle, GL_DEPTH_COMPONENT, size.x.GLsizei, size.y.GLsizei)
+  glCreateRenderbuffers(1, cast[ptr GLuint](result.addr))
+  glNamedRenderbufferStorage(result.handle, GL_DEPTH_COMPONENT, size.x.GLsizei, size.y.GLsizei)
 
 proc bindIt*(fb: FrameBuffer): void =
   glBindFramebuffer(GL_FRAMEBUFFER, fb.handle)
@@ -26,22 +26,13 @@ proc bindRead*(fb: FrameBuffer): void =
   glBindFramebuffer(GL_READ_FRAMEBUFFER, fb.handle)
 
 proc newFrameBuffer*(): FrameBuffer =
-  when false:
-    glGenFramebuffers(1, cast[ptr GLuint](result.addr))
-  else:
-    glCreateFramebuffers(1, cast[ptr GLuint](result.addr));
+  glCreateFramebuffers(1, cast[ptr GLuint](result.addr));
 
 proc setRenderbuffer*(fb: FrameBuffer, attachment, renderbuffertarget: GLenum, renderbuffer: GLuint) =
-  when false:
-    glNamedFramebufferRenderbufferEXT(fb.GLuint, attachment, renderbuffertarget, renderbuffer)
-  else:
-    glNamedFramebufferRenderbuffer(fb.handle, attachment, renderbuffertarget, renderbuffer)
+  glNamedFramebufferRenderbuffer(fb.handle, attachment, renderbuffertarget, renderbuffer)
 
 proc setTexture*(fb: FrameBuffer, attachment: GLenum, texture: Texture2D, level: GLint = 0) =
-  when false:
-    glNamedFramebufferTextureEXT(fb.GLuint, attachment, texture.handle, level);
-  else:
-    glNamedFramebufferTexture(fb.handle, attachment, texture.handle, level);
+  glNamedFramebufferTexture(fb.handle, attachment, texture.handle, level);
 
 proc drawBuffers*(fb: FrameBuffer, args : varargs[GLenum]) =
   var tmp = newSeq[GLenum](args.len)
@@ -49,10 +40,7 @@ proc drawBuffers*(fb: FrameBuffer, args : varargs[GLenum]) =
     tmp[i] = arg
 
   if tmp.len > 0:
-    when false:
-      glFramebufferDrawBuffersEXT(fb.handle, tmp.len.GLsizei, tmp[0].addr)
-    else:
-      glNamedFramebufferDrawBuffers(fb.handle, tmp.len.GLsizei, tmp[0].addr)
+    glNamedFramebufferDrawBuffers(fb.handle, tmp.len.GLsizei, tmp[0].addr)
 
 const currentFramebuffer* = 0
 

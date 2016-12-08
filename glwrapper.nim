@@ -573,7 +573,7 @@ type
     buffer*: ArrayBuffer[S]
     offset*, stride*: int
 
-proc len*(ab: ArrayBufferView): int = ab.buffer.len
+proc len*(ab: ArrayBufferView):  int = ab.buffer.len
 proc high*(ab: ArrayBufferView): int = ab.buffer.len - 1
     
 template view*(buf: ArrayBuffer; member: untyped): untyped =
@@ -625,6 +625,7 @@ proc shaderInfoLog(shader: Shader): string =
   result = newString(length.int)
   glGetShaderInfoLog(shader.handle, length, nil, result)
 
+import nre
 proc showError(log: string, source: string): void =
   let lines = source.splitLines
   var problems = newSeq[tuple[lineNr: int, message: string]](0)
