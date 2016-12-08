@@ -313,26 +313,39 @@ proc gridIndicesQuads*(size: Vec2i): seq[int32] =
       result.add int32(x     + size.x * y + size.x)
       result.add int32(x + 1 + size.x * y + size.x)
 
-#[      
-proc indicesQuads*(hm: HeightMap): seq[int32] =
-  result.newSeq(0)
-  for y in 0 ..< hm.h:
-    for x in 0 ..< hm.w:
-      result.add int32(x     + (hm.w + 1) * y      )
-      result.add int32(x + 1 + (hm.w + 1) * y      )
-      result.add int32(x     + (hm.w + 1) * (y + 1))
-      result.add int32(x + 1 + (hm.w + 1) * (y + 1))
 
+proc torusVertices*(majorSegments,minorSegments: int; majorRadius, minorRadius: float32): seq[Vec4f] =
+  result = newSeqOfCap[Vec4f]((minorSegments+1) * (majorSegments+1))
+  let a = minorRadius
+  let b = majorRadius
+  for i in 0 .. majorSegments:
+    for j in 0 .. minorSegments:
+      let u = float32(i / majorSegments)
+      let v = float32(j / minorSegments)
+      let c = (b + a * cos(v))
+      let x = c * cos(u)
+      let y = c * sin(u)
+      let z = a * sin(v)
+      result.add vec4f(x,y,z,1)
 
-proc texCoords*(hm: HeightMap) : seq[Vec2f] =
-  result.newSeq(hm.w * hm.h)
-  result.setLen(0)
-
-  let scale = vec2f(1.0f / hm.w.float32, 1.0f / hm.h.float32)
-
-  for y in 0 .. hm.h:
-    for x in 0 .. hm.w:
-      let pos = vec2f(x.float32 + 0.5f, y.float32 + 0.5f)
-      result.add(pos * scale)
+proc torusNormals*(majorSegments,minorSegments: int): seq[Vec4f] =
+  result = newSeqOfCap[Vec4f]((minorSegments+1) * (majorSegments+1))
+  for i in 0 .. majorSegments:
+    let u = float32(i / majorSegments)
+    for j in 0 .. minorSegments:
+      let v = float32(j / minorSegments)
       
-]#
+      let x = cos(v) * cos(u)
+      let y = cos(v) * sin(u)
+      let z = sin(v)
+
+      result.add vec4f(x,y,z,0)
+
+proc torusIndicesTriangles*(majorSegments,minorSegments: int) : seq[int32]    =
+  gridIndicesTriangles(vec2i(minorSegments.int32+1, majorSegments.int32+1))
+  
+proc torusIndicesTriangleStrip*(majorSegments,minorSegments: int): seq[int32] =
+  gridIndicesTriangleStrip(vec2i(minorSegments.int32+1, majorSegments.int32+1))
+  
+proc torusIndicesQuads*(majorSegments,minorSegments: int): seq[int32]         =
+  gridIndicesQuads(vec2i(minorSegments.int32+1, majorSegments.int32+1))
