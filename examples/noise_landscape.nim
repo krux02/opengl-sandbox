@@ -113,7 +113,7 @@ proc reverse[T](arg: seq[T]): seq[T] =
   for i, x in arg:
     result[arg.high - i] = x
 
-let verts = arrayBuffer(gridVerticesXMajor(vec2i(gridTiles + 1)))
+let verts                = arrayBuffer(gridVerticesXMajor(vec2i(gridTiles + 1)))
 let triangleStripIndices = elementArrayBuffer(gridIndicesTriangleStrip(vec2i(gridTiles + 1)))
 let quadIndices          = elementArrayBuffer(gridIndicesQuads(vec2i(gridTiles + 1)))
 
@@ -132,8 +132,9 @@ let
   sphereIndices   = elementArrayBuffer(uvSphereIndices(128,64))
 
 let
-  torusVertices = arrayBuffer(torusVertices(48,12, 1.0f, 0.1f))
-  torusNormals  = arrayBuffer(torusNormals(48,12))
+  torusVertices  = arrayBuffer(torusVertices(48,12, 1.0f, 0.1f))
+  torusNormals   = arrayBuffer(torusNormals(48,12))
+  torusTexCoords = arrayBuffer(torusTexCoords(48,12))
   torusIndices  = elementArrayBuffer(torusIndicesTriangleStrip(48,12))
 
 let triangleStripIndicesLen = triangleStripIndices.len
@@ -179,6 +180,7 @@ proc setup(): void =
   glEnable(GL_CULL_FACE)
   glEnable(GL_BLEND)
   glEnable(GL_DEPTH_CLAMP)
+  glPointSize(16)
   glDepthFunc(GL_LEQUAL)
   glViewport(0,0,window.size.x, window.size.y)
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
@@ -241,38 +243,40 @@ proc drawSphere(modelViewMat: Mat4f): void =
       color = texture(skyTexture, v_texCoord) * max(dot(v_normal_cs, normalize(vec4(1,2,3,0))), 0);
       color.a = 1;
       """
-#[
-when false:
-  proc drawTorus(modelViewMat: Mat4f): void =
-    shadingDsl:
-      primitiveMode = GL_TRIANGLE_STRIP
-      numVertices   = torusIndicesLen
-      indices       = torusIndices
 
-      uniforms:
-        mvp = projMat * modelViewMat
-        modelViewMat
-        skyTexture
+var frame = 0
 
-      attributes:
-        position = torusVertices 
-        normal   = torusNormals  
+proc drawTorus(modelViewMat: Mat4f): void =
+  shadingDsl:
+    primitiveMode = GL_TRIANGLE_STRIP
+    numVertices   = torusIndicesLen
+    indices       = torusIndices
 
-      vertexMain:
-        """
-        gl_Position = mvp * position;
-        v_normal_cs   = modelViewMat * normal;
-        v_texCoord = texCoord;
-        """
-      vertexOut:
-        "out vec2 v_texCoord"
-        "out vec4 v_normal_cs"
-      fragmentMain:
-        """
-        color = texture(skyTexture, v_texCoord) * max(dot(v_normal_cs, normalize(vec4(1,2,3,0))), 0);
-        color.a = 1;
-        """
-]#
+    uniforms:
+      mvp = projMat * modelViewMat
+      modelViewMat
+      skyTexture
+
+    attributes:
+      position = torusVertices 
+      normal   = torusNormals
+      texCoord = torusTexCoords
+
+    vertexMain:
+      """
+      gl_Position = mvp * position;
+      v_normal_cs   = modelViewMat * normal;
+      v_texCoord = texCoord;
+      """
+    vertexOut:
+      "out vec2 v_texCoord"
+      "out vec4 v_normal_cs"
+    fragmentMain:
+      """
+      color.rg = v_texCoord;
+      color.ba= vec2(1);
+      """
+
 
 let quadVertices = arrayBuffer([vec4f(-1,-1,0,1), vec4f(1, -1, 0 ,1), vec4f(-1,1,0,1), vec4f(1,1,0,1)])
       
@@ -448,10 +452,17 @@ when saveSkybox:
 proc toggleWireframe() : void =
   var wireframe {.global.} = false
   wireframe = not wireframe
-  glPolygonMode( GL_FRONT_AND_BACK, if wireframe: GL_LINE else: GL_FILL );
+  if wireframe:
+    glPolygonMode( GL_FRONT_AND_BACK, GL_LINE)
+    glDisable(GL_BLEND)
+    glDisable(GL_CULL_FACE)
+  else:
+    glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
+    glEnable(GL_BLEND)
+    glEnable(GL_CULL_FACE)
 
 
-var frame = 0
+
 var camera = newWorldNode()
 
 camera.turnRelativeX(radians(45.0f))
@@ -473,8 +484,8 @@ proc drawScene(viewMat: Mat4f): void =
   drawHeightMap(viewMat)
   #drawSphere(viewMat * object1.modelmat)
   #drawSphere(viewMat * object2.modelmat)
-  drawPlane(viewMat * object1.modelmat)
-  drawPlane(viewMat * object2.modelmat)
+  drawTorus(viewMat * object1.modelmat)
+  drawTorus(viewMat * object2.modelmat)
 
 proc drawPortal(viewMat: Mat4f, src,dst: WorldNode) =
   let viewPrime = viewMat * src.modelmat * dst.viewmat

@@ -276,8 +276,8 @@ proc gridVerticesYMajor*(size: Vec2i): seq[Vec4f] =
 proc gridIndicesTriangles*(size: Vec2i) : seq[int32] =
   result = newSeqOfCap[int32](size.x * size.y * 6)
 
-  for y in 0 ..< size.y:
-    for x in 0 ..< size.x:
+  for y in 0 ..< (size.y - 1):
+    for x in 0 ..< (size.x - 1):
       let
         a = int32(x     + size.x * y      )
         b = int32(x + 1 + size.x * y      )
@@ -294,12 +294,12 @@ proc gridIndicesTriangleStrip*(size: Vec2i): seq[int32] =
   for y in 0 ..< (size.y - 1):
     for x in 0 ..< size.x:
       let
-        a = int32(x     + size.x *  y + size.x)
-        b = int32(x     + size.x *  y         )
+        a = int32(x     + size.x * (y + 1) )
+        b = int32(x     + size.x *  y      )
 
       if y != 0 and x == 0:
         result.add([a,a,b])
-      elif y != size.x - 2 and x == (size.x - 1):
+      elif y != size.y - 2 and x == (size.x - 1):
         result.add([a,b,b])
       else:
         result.add([a,b])
@@ -313,15 +313,14 @@ proc gridIndicesQuads*(size: Vec2i): seq[int32] =
       result.add int32(x     + size.x * y + size.x)
       result.add int32(x + 1 + size.x * y + size.x)
 
-
 proc torusVertices*(majorSegments,minorSegments: int; majorRadius, minorRadius: float32): seq[Vec4f] =
   result = newSeqOfCap[Vec4f]((minorSegments+1) * (majorSegments+1))
   let a = minorRadius
   let b = majorRadius
   for i in 0 .. majorSegments:
+    let u = float32(i / majorSegments) * 2 * Pi
     for j in 0 .. minorSegments:
-      let u = float32(i / majorSegments)
-      let v = float32(j / minorSegments)
+      let v = Pi - float32(j / minorSegments) * 2 * Pi
       let c = (b + a * cos(v))
       let x = c * cos(u)
       let y = c * sin(u)
@@ -331,7 +330,7 @@ proc torusVertices*(majorSegments,minorSegments: int; majorRadius, minorRadius: 
 proc torusNormals*(majorSegments,minorSegments: int): seq[Vec4f] =
   result = newSeqOfCap[Vec4f]((minorSegments+1) * (majorSegments+1))
   for i in 0 .. majorSegments:
-    let u = float32(i / majorSegments)
+    let u = Pi - float32(i / majorSegments) * 2 * Pi
     for j in 0 .. minorSegments:
       let v = float32(j / minorSegments)
       
@@ -340,6 +339,14 @@ proc torusNormals*(majorSegments,minorSegments: int): seq[Vec4f] =
       let z = sin(v)
 
       result.add vec4f(x,y,z,0)
+
+proc torusTexCoords*(majorSegments,minorSegments: int): seq[Vec2f] =
+  result = newSeqOfCap[Vec2f]((minorSegments+1) * (majorSegments+1))
+  for i in 0 .. majorSegments:
+    for j in 0 .. minorSegments:
+      let u = float32(i / majorSegments)
+      let v = float32(j / minorSegments)
+      result.add vec2f(u,v)
 
 proc torusIndicesTriangles*(majorSegments,minorSegments: int) : seq[int32]    =
   gridIndicesTriangles(vec2i(minorSegments.int32+1, majorSegments.int32+1))

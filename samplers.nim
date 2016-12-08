@@ -331,11 +331,23 @@ proc subImage*( texture : TextureRectangle; data : var seq[Mat4f] ) =
     glTextureSubImage2D(texture.handle, 0, 0, 0, 4, data.len.GLsizei, GL_RGBA, cGL_FLOAT, data[0].addr.pointer )
 
 
+proc createErrorSurface*(message: string = nil): sdl2.SurfacePtr =
+  result = createRGBSurface(0, 512, 512, 32, 0,0,0,0)
+  if result.isNil:
+    echo "SDL_CreateRGBSurface() failed: ", getError()
+    quit(QUIT_FAILURE)
+
+  let pixels = cast[ptr array[512*512,uint32]](result.pixels)
+  for i in 0 ..< 512*512:
+    pixels[i] = rand_u32() or 0xff000000'u32
+
 proc loadTexture2DFromFile*(filename: string): Texture2D =
-  let surface = image.load(filename)
+  var surface = image.load(filename)
   if surface.isNil:
-    echo "can't load texture ", filename, ": ", sdl2.getError()
-    return Texture2D(handle:0)
+    let message = s"can't load texture $filename: ${sdl2.getError()}"
+    echo message
+    surface = createErrorSurface(message)
+    
 
   defer: freeSurface(surface)
   texture2D(surface)
