@@ -1,11 +1,42 @@
-*** DONE In DSL move indices from attributes to named argument section
-*** TODO Add user code sctions for afterSetup, beforeRendere, afterRender
-*** TODO Transform Feedback
-*** TODO Tesselation
-*** DONE compile time for typeinfo
-*** DONE warn for unused shader uniforms/attributes
-*** TODO finish easy text renderer
-*** TODO let mrfixit use the easy text renderer
-*** TODO default moveable camera
-*** TODO fallback error texture when loading texture from file
-*** DONE script to clear all binaries from the project
+
+#+SEQ_TODO: NEXT(n) TODO(t) | DONE(d)
+
+* DSL
+
+** TODO Add user code sctions for afterSetup, beforeRendere, afterRender
+** TODO transform Feedback
+** TODO unifom buffer
+** TODO tesselation shader stages
+** TODO shader module system
+** TODO nim to glsl compiler
+** TODO infer primitive mode from buffer
+** DONE In DSL move indices from attributes to named argument section
+** DONE warn for unused shader uniforms/attributes
+
+
+* library
+
+** TODO finish easy text renderer
+** TODO add primitive shapes
+*** DONE torus
+*** DONE circle (important for portal)
+*** TODO cone
+*** TODO icosphere
+** TODO default moveable camera
+** TODO fallback error texture when loading texture from file
+** TODO add support for OpenMesh
+** TODO add support for (3D) (perlin) noise
+** TODO add general pupose linear algebra package (eg BLAS, Eigen, etc)
+** DONE compile time for typeinfo
+
+* examples
+
+** TODO let mrfixit use the easy text renderer
+** TODO forward vertex shader when only geometry shader is available
+** TODO fix portal rendering in example
+** TODO cubical marching squares example
+
+* other
+
+** DONE script to clear all binaries from the project
+   
