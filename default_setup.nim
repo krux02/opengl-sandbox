@@ -60,6 +60,7 @@ proc defaultSetupInternal(windowsize: Vec2i; windowTitle: string): tuple[window:
   doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3)
   doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_FLAGS        , SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG or SDL_GL_CONTEXT_DEBUG_FLAG)
   doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_PROFILE_MASK , SDL_GL_CONTEXT_PROFILE_CORE)
+  doAssert 0 == glSetAttribute(SDL_GL_STENCIL_SIZE         , 8)
 
   if getNumVideoDisplays() < 1:
     write stderr, "no monitor detected, need at least one, but got: ", getNumVideoDisplays()

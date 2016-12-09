@@ -56,7 +56,6 @@ proc turnAbsoluteY*(cam: var WorldNode; angle: float32): void =
   
 proc turnAbsoluteZ*(cam: var WorldNode; angle: float32): void =
   cam.turnAbsolute(quatf(vec3f(0,0,1), angle))
-
   
 proc lookAt*(cam: var WorldNode; pos: Vec3f; up: Vec3f = vec3f(0,0,1)): void =
   var f = normalize(cam.pos.xyz - pos)

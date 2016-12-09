@@ -96,6 +96,7 @@ float calcHeight(vec2 pos) {
 
 
 import ../fancygl
+import algorithm
 
 const
   cubemapWidth = 64'i32
@@ -107,15 +108,11 @@ const
 let (window, context) = defaultSetup()
 
 let windowsize = window.size
-
-proc reverse[T](arg: seq[T]): seq[T] =
-  result = newSeq[T](arg.len)
-  for i, x in arg:
-    result[arg.high - i] = x
-
+  
 let verts                = arrayBuffer(gridVerticesXMajor(vec2i(gridTiles + 1)))
 let triangleStripIndices = elementArrayBuffer(gridIndicesTriangleStrip(vec2i(gridTiles + 1)))
 let quadIndices          = elementArrayBuffer(gridIndicesQuads(vec2i(gridTiles + 1)))
+let circleVertices       = arrayBuffer(circleVertices(48))
 
 for vert in verts.mitems:
   vert.xy -= vec2f(gridTiles div 2)
@@ -213,40 +210,35 @@ proc drawSky(viewMat: Mat4f): void =
       color.a = 1.0;
       """
 
-proc drawSphere(modelViewMat: Mat4f): void =
+proc drawPortalWindow(modelViewMat: Mat4f): void =
   shadingDsl:
-    primitiveMode = GL_TRIANGLES
-    numVertices   = sphereIndicesLen
-    indices       = sphereIndices
+    primitiveMode = GL_TRIANGLE_FAN
+    numVertices   = 50
 
     uniforms:
-      mvp = projMat * modelViewMat
+      mvp          = projMat * modelViewMat
       modelViewMat
-      skyTexture
 
     attributes:
-      position = sphereVertices
-      normal = sphereNormals
-      texCoord = sphereTexCoords
+      position = circleVertices
 
     vertexMain:
       """
       gl_Position = mvp * position;
-      v_normal_cs   = modelViewMat * normal;
-      v_texCoord = texCoord;
+      v_texCoord  = position.xy * 0.5 + 0.5;
       """
     vertexOut:
       "out vec2 v_texCoord"
-      "out vec4 v_normal_cs"
     fragmentMain:
       """
-      color = texture(skyTexture, v_texCoord) * max(dot(v_normal_cs, normalize(vec4(1,2,3,0))), 0);
-      color.a = 1;
+      //color.rg = v_texCoord;
+      //color.zw = vec2(0,1);
+      color = vec4(0,0,0,1);
       """
 
 var frame = 0
 
-proc drawTorus(modelViewMat: Mat4f): void =
+proc drawTorus(modelViewMat: Mat4f, clipPlane_ws: Vec4f): void =
   shadingDsl:
     primitiveMode = GL_TRIANGLE_STRIP
     numVertices   = torusIndicesLen
@@ -302,9 +294,8 @@ proc drawPlane(modelViewMat: Mat4f): void =
       """
       color= vec4(v_texCoord,0,1);
       """
-  
       
-proc drawHeightMap(viewMat: Mat4f): void =
+proc drawHeightMap(viewMat: Mat4f, clipPlane_ws: Vec4f): void =
   let mvp = projMat * viewMat
   let viewInverted = inverse(viewMat)
 
@@ -313,98 +304,45 @@ proc drawHeightMap(viewMat: Mat4f): void =
   let angle = round((arctan2(camdir.y, camdir.x) - radians(90f)) / radians(90f)) * radians(90f)
   let rotMat = rotMat2f(angle)
   
-  when true:
-    shadingDsl:
-      primitiveMode = GL_TRIANGLE_STRIP
-      numVertices = triangleStripIndicesLen
-      indices = triangleStripIndices
+  shadingDsl:
+    primitiveMode = GL_TRIANGLE_STRIP
+    numVertices = triangleStripIndicesLen
+    indices = triangleStripIndices
 
-      uniforms:
-        mvp
-        viewMat
-        time
-        layers
-        offset
-        rotMat
-        gridTiles
+    uniforms:
+      mvp
+      viewMat
+      time
+      layers
+      offset
+      rotMat
+      gridTiles
+      clipPlane_ws
 
-      attributes:
-        pos = verts
-      includes:
-        glslNoise
-      vertexMain:
-        """
-        pos2d_ws = rotMat * pos.xy + offset;
-        vec4 vertexPos = vec4(  rotMat * pos.xy + offset,calcHeight(pos2d_ws),1);
-        gl_Position = mvp * vertexPos;
-        distance = length(viewMat * vertexPos);
-        """
-      vertexOut:
-        "out vec2 pos2d_ws"
-        "out float distance"
-      fragmentMain:
-        """
-        float height = calcHeight(pos2d_ws);
-        float detail = snoise(vec3(pos2d_ws * 12.3, 0));
-        color = texture(layers,height * 0.01 + detail * 0.003);
-        color.a = 1 - (distance - float(gridTiles) * 0.5 + 32) / 32.0;
-        """
-  else:
-    shadingDsl:
-      primitiveMode = GL_LINES_ADJACENCY
-      numVertices = quadIndicesLen
-      indices = quadIndices
+    attributes:
+      pos = verts
+    includes:
+      glslNoise
+    vertexMain:
+      """
+      pos2d_ws = rotMat * pos.xy + offset;
+      vec4 vertexPos = vec4(  rotMat * pos.xy + offset,calcHeight(pos2d_ws),1);
 
-      uniforms:
-        mvp
-        viewMat
-        time
-        layers
-        offset
-        rotMat
-        gridTiles
-
-      attributes:
-        pos = verts
-      includes:
-        glslNoise
-      vertexMain:
-        """
-        v_pos2d_ws = rotMat * pos.xy + offset;
-        v_height = calcHeight(v_pos2d_ws);
-        vec4 vertexPos = vec4(  rotMat * pos.xy + offset,v_height,1);
-        gl_Position = mvp * vertexPos;
-        v_distance = length(viewMat * vertexPos);
-        """
-      vertexOut:
-        "out float v_height"
-        "out vec2 v_pos2d_ws"
-        "out float v_distance"
-      geometryMain:
-        "layout(triangle_strip, max_vertices=4) out"
-        """
-        int indicesB[4] = int[4](0,1,2,3);
-        int indicesA[4] = int[4](2,0,3,1);
-
-        int indices[4] = abs(v_height[0] - v_height[3]) < abs(v_height[1] - v_height[2]) ? indicesA : indicesB;
-
-        for(int i = 0; i < 4; ++i) {
-          gl_Position = gl_in[indices[i]].gl_Position;
-          pos2d_ws = v_pos2d_ws[indices[i]];
-          distance = v_distance[indices[i]];
-          EmitVertex();
-        }
-        """
-      geometryOut:
-        "out vec2 pos2d_ws"
-        "out float distance"
-      fragmentMain:
-        """
-        float height = calcHeight(pos2d_ws);
-        float detail = snoise(vec3(pos2d_ws * 12.3, 0));
-        color = texture(layers,height * 0.01 + detail * 0.003);
-        color.a = 1 - (distance - float(gridTiles) * 0.5 + 32.0) / 32.0;
-        """
+      gl_ClipDistance[0] = dot(clipPlane_ws, vertexPos);
+      
+      gl_Position = mvp * vertexPos;
+      distance = length(viewMat * vertexPos);
+      """
+    vertexOut:
+      "out vec2 pos2d_ws"
+      "out float distance"
+    fragmentMain:
+      """
+      float height = calcHeight(pos2d_ws);
+      float detail = snoise(vec3(pos2d_ws * 12.3, 0));
+      color = texture(layers,height * 0.01 + detail * 0.003);
+      color.a = 1 - (distance - float(gridTiles) * 0.5 + 32) / 32.0;
+      """
 
 when saveSkybox:
   declareFramebuffer(SkyboxFramebuffer):
@@ -461,33 +399,89 @@ proc toggleWireframe() : void =
     glEnable(GL_BLEND)
     glEnable(GL_CULL_FACE)
 
+type
+  Portal = object
+    node : WorldNode
+    target: ptr Portal
 
+proc clipPlane(this: WorldNode): Vec4f =
+  result = this.modelmat[2]
+  result.w = -dot(result, this.pos)
+    
+proc connect(p0,p1: var Portal): void =
+  p0.target = p1.addr
+  p1.target = p0.addr
 
+proc tunnelTest*(this: Portal; a,b : Vec4f): bool =
+  ## tests whether the line between ``a`` and ``b`` connects through the portal
+  ## ``a`` and ``b`` are both in world space coordinates and their w component is expected to be 1
+
+  let viewmat = this.node.viewmat
+
+  # everything is transformed into the coordinate system of the Portal
+  let posA_os = viewmat * a
+  let posB_os = viewmat * b
+ 
+  let z1 = posA_os.z
+  let z2 = posB_os.z
+
+  # test if we intersect the xy plane
+  if (z1 < 0 and 0 <= z2) or (z2 < 0 and 0 <= z1):     
+    # z is always 0 after this transformation, so it is left out
+    # the result is the intersection from the xy plane and the line between a and b in object space
+    let pos0_os = (posA_os.xy * z2 - posB_os.xy * z1) / (z2 - z1)
+    # test if we are further away than 1 from the origin:
+    return dot(pos0_os, pos0_os) <= 1
+
+proc transformNode*(this: Portal; node: WorldNode): WorldNode =
+  let mat = this.target.node.modelmat * this.node.viewmat * node.modelmat
+  result.pos = mat[3]
+  result.dir = quat(mat)
+
+    
 var camera = newWorldNode()
 
 camera.turnRelativeX(radians(45.0f))
 camera.moveRelative(vec3f(0,0,20))
 
-var object1 = newWorldNode()
-object1.moveAbsolute(vec3f(10,10,10))
-object1.turnRelativeX(rand_f32() * 10)
-object1.turnRelativeY(rand_f32() * 10)
-object1.turnRelativeZ(rand_f32() * 10)
-var object2 = newWorldNode()
-object2.moveAbsolute(vec3f(3,2,9))
-object2.turnRelativeX(rand_f32() * 10)
-object2.turnRelativeY(rand_f32() * 10)
-object2.turnRelativeZ(rand_f32() * 10)
 
-proc drawScene(viewMat: Mat4f): void =
+var portals: array[2, Portal]
+
+portals[0].node = newWorldNode()
+portals[0].node.moveAbsolute(vec3f(10,10,10))
+portals[0].node.turnRelativeX(rand_f32() * 10)
+portals[0].node.turnRelativeY(rand_f32() * 10)
+portals[0].node.turnRelativeZ(rand_f32() * 10)
+
+portals[1].node = newWorldNode()
+portals[1].node.moveAbsolute(vec3f(3,2,9))
+portals[1].node.turnRelativeX(rand_f32() * 10)
+portals[1].node.turnRelativeY(rand_f32() * 10)
+portals[1].node.turnRelativeZ(rand_f32() * 10)
+
+connect(portals[0],portals[1])
+
+proc drawScene(viewMat: Mat4f, clipPlane_ws: Vec4f): void =
   drawSky(viewMat)
-  drawHeightMap(viewMat)
-  #drawSphere(viewMat * object1.modelmat)
-  #drawSphere(viewMat * object2.modelmat)
-  drawTorus(viewMat * object1.modelmat)
-  drawTorus(viewMat * object2.modelmat)
+  drawHeightMap(viewMat, clipPlane_ws)
+
+  for portal in portals:
+    drawTorus(viewMat * portal.node.modelmat, clipPlane_ws)
+    drawTorus(viewMat * portal.node.modelmat, clipPlane_ws)
 
 proc drawPortal(viewMat: Mat4f, src,dst: WorldNode) =
+
+  glStencilMask(system.high(uint32))
+  glEnable(GL_STENCIL_TEST)
+  glDisable(GL_CULL_FACE)
+  
+  glStencilFunc(GL_ALWAYS, 1, 1)
+  glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE)
+  
+  drawPortalWindow(viewMat * src.modelmat)
+  
+  glEnable(GL_CULL_FACE)
+  
   let viewPrime = viewMat * src.modelmat * dst.viewmat
   let objPos_cs = viewMat * src.pos
   var a = projMat * (objPos_cs + vec4f(-1,-1,0,0))
@@ -501,14 +495,24 @@ proc drawPortal(viewMat: Mat4f, src,dst: WorldNode) =
   y = clamp(y, vec2i(0), window.size) 
   let s = y - x
 
+  
   if s.x > 0 and s.y > 0:
+    glEnable(GL_STENCIL_TEST)
+    glStencilFunc(GL_EQUAL, 1, 1)
+    glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP)
+
     glEnable(GL_SCISSOR_TEST)
     glScissor(x.x, x.y,  s.x, s.y)
-    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
-    drawScene(viewPrime)
-    glDisable(GL_SCISSOR_TEST)
 
+    glEnable(GL_CLIP_PLANE0)
+    glClear(GL_DEPTH_BUFFER_BIT)
+    drawScene(viewPrime, dst.clipPlane)
+    glDisable(GL_CLIP_PLANE0)
+    
+    glDisable(GL_SCISSOR_TEST)
+    glDisable(GL_STENCIL_TEST)
   
+  glDisable(GL_STENCIL_TEST)
   
 setup()
 
@@ -551,38 +555,35 @@ while running:
   movement.z = (state[SDL_SCANCODE_D.int].float - state[SDL_SCANCODE_E.int].float) * 0.4
   movement.x = (state[SDL_SCANCODE_F.int].float - state[SDL_SCANCODE_S.int].float) * 0.4
 
+  let oldCamera = camera
+
   camera.moveRelative(movement)
   camera.turnRelativeX(rotation.x)
   camera.turnAbsoluteZ(rotation.y)
 
+  camera.dir = normalize(camera.dir)
+
+  for i, portal in portals:
+    if portal.tunnelTest(oldCamera.pos, camera.pos):
+      camera = portal.transformNode(camera)        
+
   time = gameTimer.time.float32
 
-  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT)
 
   let view = camera.viewMat
+  let camdir_ws = camera.modelmat[2]
 
-  drawScene(view)
-  
-  drawPortal(view, object1, object2)
-  drawPortal(view, object2, object1)
-  
-  #[
-  
-  
-  let cameraBackup = camera
-  defer:
-    camera = cameraBackup
-    glDisable(GL_SCISSOR_TEST)
+  drawScene(view, portals[0].node.clipPlane)
 
-  for i in 0 .. GLint(5):
+  if dot(portals[0].node.pos, camdir_ws) < dot(portals[1].node.pos, camdir_ws):
+    drawPortal(view, portals[0].node, portals[0].target.node)
+    drawPortal(view, portals[1].node, portals[1].target.node)
+  else:
+    drawPortal(view, portals[1].node, portals[1].target.node)
+    drawPortal(view, portals[0].node, portals[0].target.node)
     
-    camera.moveRelative(vec3f(0,0,-3))
-    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
-    drawScene(camera.viewMat)
-  ]#
-  
   glSwapWindow(window)
-
   
 
   

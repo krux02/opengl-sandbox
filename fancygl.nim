@@ -607,7 +607,8 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; fragmentOut
     var `vao` {.global.}: VertexArrayObject
     var `program` {.global.}: Program
     var `locations` {.global.}: array[`numLocationsLit`, Location]
-    #var `renderObject` {.global.}: RenderObject[`numLocationsLit`]
+
+    glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, 10, "shadingDsl");
 
     if `program`.isNil:
       `program` = `linkShaderBlock`
@@ -628,6 +629,8 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; fragmentOut
 
     glBindVertexArray(0)
     glUseProgram(0);
+
+    glPopDebugGroup();
 
                     
 

@@ -330,9 +330,9 @@ proc torusVertices*(majorSegments,minorSegments: int; majorRadius, minorRadius: 
 proc torusNormals*(majorSegments,minorSegments: int): seq[Vec4f] =
   result = newSeqOfCap[Vec4f]((minorSegments+1) * (majorSegments+1))
   for i in 0 .. majorSegments:
-    let u = Pi - float32(i / majorSegments) * 2 * Pi
+    let u = float32(i / majorSegments) * 2 * Pi
     for j in 0 .. minorSegments:
-      let v = float32(j / minorSegments)
+      let v = Pi - float32(j / minorSegments) * 2 * Pi
       
       let x = cos(v) * cos(u)
       let y = cos(v) * sin(u)
@@ -356,3 +356,13 @@ proc torusIndicesTriangleStrip*(majorSegments,minorSegments: int): seq[int32] =
   
 proc torusIndicesQuads*(majorSegments,minorSegments: int): seq[int32]         =
   gridIndicesQuads(vec2i(minorSegments.int32+1, majorSegments.int32+1))
+
+proc circleVertices*(segments: int): seq[Vec4f] =
+  result = newSeqOfCap[Vec4f](segments + 2)
+  result.add vec4f(0,0,0,1)
+
+  for i in 0 .. segments:
+    let u = float32(i / segments) * 2 * Pi
+    result.add vec4f(cos(u), sin(u), 0, 1)
+
+  
