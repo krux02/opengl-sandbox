@@ -9,5 +9,6 @@ particles
 particles_transform_feedback
 cpu_noise
 noise_landscape
+retro_tiling
 
 \*nim-compile\*
