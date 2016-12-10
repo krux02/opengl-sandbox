@@ -202,7 +202,14 @@ proc setData*(texture: Texture2D; data: seq[Vec4u8], level: int = 0): void =
     l = level.GLint
   glTextureSubImage2D(texture.handle, l, 0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, data[0].unsafeAddr)
 
-    
+proc setData*(texture: Texture2D; data: seq[uint8]; level: int = 0): void =
+  let
+    s = texture.size
+    w = s.x.GLint
+    h = s.y.GLint
+    l = level.GLint
+  glTextureSubImage2D(texture.handle, l, 0, 0, w, h, GL_RED, GL_UNSIGNED_BYTE, data[0].unsafeAddr)
+
 proc newTexture2DArray*(size: Vec2i; depth: int; levels: int; internalFormat: GLenum = GL_RGBA8): Texture2DArray =
   glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, result.handle.addr)
   glTextureStorage3D(result.handle, levels.GLint, internalFormat, size.x.GLsizei, size.y.GLsizei, depth.GLsizei)
@@ -223,9 +230,9 @@ proc subImage*(this: Texture2DArray; surface: sdl2.SurfacePtr; pos: Vec2i = vec2
   defer: freeSurface(surface2)
 
   let (a,b) = this.size
-  echo glm.`$` a, " ", b
+  #echo glm.`$` a, " ", b
 
-  echo(this.handle, " ", level.GLint, " ", pos.x.GLint, pos.y.GLint, layer.GLint, " ", surface2.w.GLsizei, " ", surface2.h.GLsizei, " ", 1)
+  #echo(this.handle, " ", level.GLint, " ", pos.x.GLint, pos.y.GLint, layer.GLint, " ", surface2.w.GLsizei, " ", surface2.h.GLsizei, " ", 1)
   glTextureSubImage3D(this.handle, level.GLint, pos.x.GLint, pos.y.GLint, layer.GLint, surface2.w.GLsizei, surface2.h.GLsizei, 1, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
   
 proc `[]=`*(tex: Texture2DArray; i: int; surface: sdl2.SurfacePtr): void =

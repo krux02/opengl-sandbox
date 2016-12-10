@@ -56,6 +56,7 @@ proc defaultSetupInternal(windowsize: Vec2i; windowTitle: string): tuple[window:
     write stderr, getError()
 
 
+    
   doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3)
   doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3)
   doAssert 0 == glSetAttribute(SDL_GL_CONTEXT_FLAGS        , SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG or SDL_GL_CONTEXT_DEBUG_FLAG)
@@ -86,8 +87,14 @@ proc defaultSetupInternal(windowsize: Vec2i; windowTitle: string): tuple[window:
     echo sdl2.getError()
     system.quit(1)
 
+  
   #Initialize OpenGL
   loadExtensions()
+
+  glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, 12, "defaultSetup");
+  defer:
+    glPopDebugGroup()
+  
 
   echo "extensions loaded"
   enableDefaultDebugCallback()

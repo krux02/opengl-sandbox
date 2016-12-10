@@ -3,7 +3,7 @@
 
 * DSL
 
-** TODO Add user code sctions for afterSetup, beforeRendere, afterRender
+** DONE Add user code sctions for afterSetup, beforeRender, afterRender
 ** TODO transform Feedback
 ** TODO unifom buffer
 ** TODO tesselation shader stages
@@ -12,7 +12,7 @@
 ** TODO infer primitive mode from buffer
 ** DONE In DSL move indices from attributes to named argument section
 ** DONE warn for unused shader uniforms/attributes
-
+** TODO test defaultsetup with window and context as global
 
 * library
 
@@ -23,11 +23,12 @@
 *** TODO cone
 *** TODO icosphere
 ** TODO default moveable camera
-** TODO fallback error texture when loading texture from file
+** DONE fallback error texture when loading texture from file
 ** TODO add support for OpenMesh
 ** TODO add support for (3D) (perlin) noise
 ** TODO add general pupose linear algebra package (eg BLAS, Eigen, etc)
 ** DONE compile time for typeinfo
+** TODO generic texture/sampler setData
 
 * examples
 

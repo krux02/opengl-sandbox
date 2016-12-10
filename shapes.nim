@@ -365,4 +365,57 @@ proc circleVertices*(segments: int): seq[Vec4f] =
     let u = float32(i / segments) * 2 * Pi
     result.add vec4f(cos(u), sin(u), 0, 1)
 
+
+proc icosphereVertices*(): seq[Vec4f] =
+  result = newSeqOfCap[Vec4f](12)
+
+  let t = (1.0f + sqrt(5.0f)) / 2.0f;
+
+  result.add vec4f(-1,  t,  0, 1)
+  result.add vec4f( 1,  t,  0, 1)
+  result.add vec4f(-1, -t,  0, 1)
+  result.add vec4f( 1, -t,  0, 1)
+
+  result.add vec4f( 0, -1,  t, 1)
+  result.add vec4f( 0,  1,  t, 1)
+  result.add vec4f( 0, -1, -t, 1)
+  result.add vec4f( 0,  1, -t, 1)
+
+  result.add vec4f( t,  0, -1, 1)
+  result.add vec4f( t,  0,  1, 1)
+  result.add vec4f(-t,  0, -1, 1)
+  result.add vec4f(-t,  0,  1, 1)
+
+proc icosphereIndicesTriangles*(): seq[int32] =
+  result = newSeqOfCap[int32](20 * 3)
+
+  # 5 faces around point 0
+  result.add([0'i32, 11, 5])
+  result.add([0'i32, 5, 1])
+  result.add([0'i32, 1, 7])
+  result.add([0'i32, 7, 10])
+  result.add([0'i32, 10, 11])
+
+  # 5 adjacent faces
+  result.add([1'i32, 5, 9])
+  result.add([5'i32, 11, 4])
+  result.add([11'i32, 10, 2])
+  result.add([10'i32, 7, 6])
+  result.add([7'i32, 1, 8])
+
+  # 5 faces around point 3
+  result.add([3'i32, 9, 4])
+  result.add([3'i32, 4, 2])
+  result.add([3'i32, 2, 6])
+  result.add([3'i32, 6, 8])
+  result.add([3'i32, 8, 9])
+
+  # 5 adjacent faces
+  result.add([4'i32, 9, 5])
+  result.add([2'i32, 4, 11])
+  result.add([6'i32, 2, 10])
+  result.add([8'i32, 6, 7])
+  result.add([9'i32, 8, 1])
+
+
   

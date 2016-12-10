@@ -294,7 +294,7 @@ proc vertexOffset(offset: int) : int = 0
 #### Shading Dsl Inner ###########################################################
 ##################################################################################
   
-macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; fragmentOutputs: static[openArray[string]]; statement: varargs[int] ) : untyped =
+macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup, beforeRender, afterRender: untyped; fragmentOutputs: static[openArray[string]]; statement: varargs[int] ) : untyped =
   # initialize with number of global textures, as soon as that is supported
   var numSamplers = 0
 
@@ -608,7 +608,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; fragmentOut
     var `program` {.global.}: Program
     var `locations` {.global.}: array[`numLocationsLit`, Location]
 
-    glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, 10, "shadingDsl");
+    glPushDebugGroup(GL_DEBUG_SOURCE_THIRD_PARTY, 1, 10, "shadingDsl");
 
     if `program`.isNil:
       `program` = `linkShaderBlock`
@@ -620,12 +620,21 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; fragmentOut
 
       `bufferCreationBlock`
 
+      `afterSetup`
+
+      `afterRender`
+
       glBindBuffer(GL_ARRAY_BUFFER, 0)
 
     glUseProgram(`program`.handle)
+    
     glBindVertexArray(`vao`.handle)
-
+    
+    `beforeRender`
+    
     `drawBlock`
+
+    `afterRender`
 
     glBindVertexArray(0)
     glUseProgram(0);
@@ -640,7 +649,10 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; fragmentOut
                     
 macro shadingDsl*(statement: untyped) : untyped =
   var wrapWithDebugResult = false
-  result = newCall(bindSym"shadingDslInner", newNilLit(), newNilLit(), bindSym"GL_TRIANGLES", ident"fragmentOutputs" )
+  
+  result = newCall(bindSym"shadingDslInner", newNilLit(), newNilLit(), bindSym"GL_TRIANGLES", newStmtList(), newStmtList(), newStmtList(), ident"fragmentOutputs", )
+
+  
   
   # numVertices = result[2]
   # numInstances = result[3]
@@ -669,6 +681,12 @@ macro shadingDsl*(statement: untyped) : untyped =
         result.add( newCall(bindSym"indices", value ) )
       of "primitiveMode":
         result[3] = value
+      of "afterSetup":
+        result[4] = value
+      of "beforeRender":
+        result[5] = value
+      of "afterRender":
+        result[6] = value
       of "programIdent":
         if result[1].kind == nnkNilLit:
           result[1] = value
