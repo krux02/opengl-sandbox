@@ -30,3 +30,13 @@ proc back*[T](data: openarray[T]): T = data[high(data)]
 
 proc head*[T](data: seq[T]): T = data[0]
 proc head*[T](data: openarray[T]): T = data[0]
+
+macro namedEcho*(x: typed, xs: varargs[typed]): untyped =
+  let lit = newLit(x.repr & "=")
+  let sepLit = newLit(" ")
+  result = newCall(ident"echo", lit, x)
+
+  for x in xs:
+    let lit = newLit(x.repr & "=")
+    result.add sepLit, lit, x
+

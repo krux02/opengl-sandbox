@@ -38,15 +38,6 @@ template glslTypeRepr(t: typedesc[int64]):   string = "int"
 template glslTypeRepr(t: typedesc[uint32]):  string = "uint"
 template glslTypeRepr(t: typedesc[bool]):    string = "bool"
 
-template glslTypeRepr(t: typedesc[Texture1D]): string = "sampler1D"
-template glslTypeRepr(t: typedesc[Texture2D]): string = "sampler2D"
-template glslTypeRepr(t: typedesc[Texture3D]): string = "sampler3D"
-
-template glslTypeRepr(t: typedesc[TextureRectangle]): string = "sampler2DRect"
-
-template glslTypeRepr(t: typedesc[Texture2DArray]): string = "sampler2DArray"
-template glslTypeRepr(t: typedesc[Texture1DArray]): string = "sampler1DArray"
-
 template glslIsSampler(t: typedesc[Vec]): bool = false
 template glslIsSampler(t: typedesc[Mat]): bool = false
 template glslIsSampler(t: typedesc[Mat2]): bool = false
@@ -60,60 +51,22 @@ template glslIsSampler(t: typedesc[int16]):   bool = false
 template glslIsSampler(t: typedesc[int32]):   bool = false
 template glslIsSampler(t: typedesc[int64]):   bool = false
 template glslIsSampler(t: typedesc[bool]):    bool = false
-  
-template glslIsSampler(t: typedesc[Texture1D]): bool = true
-template glslIsSampler(t: typedesc[Texture2D]): bool = true
-template glslIsSampler(t: typedesc[Texture3D]): bool = true
-template glslIsSampler(t: typedesc[TextureRectangle]): bool = true
-template glslIsSampler(t: typedesc[Texture2DArray]): bool = true
-template glslIsSampler(t: typedesc[Texture2DArrayShadow]): bool = true
+
+template attribSize(t: typedesc[SomeNumber]) : GLint        = 1  
+template attribNormalized(t: typedesc[SomeNumber]): bool = false
+
+template attribType(t: typedesc[int8]) : GLenum       = cGL_BYTE
+template attribType(t: typedesc[int16]) : GLenum      = cGL_SHORT
+template attribType(t: typedesc[int32]) : GLenum      = cGL_INT
+template attribType(t: typedesc[float32]) : GLenum    = cGL_FLOAT
+template attribType(t: typedesc[float64]) : GLenum    = cGL_DOUBLE
+template attribType(t: typedesc[uint8]) : GLenum      = GL_UNSIGNED_BYTE
+template attribType(t: typedesc[uint16]) : GLenum     = GL_UNSIGNED_SHOR
+template attribType(t: typedesc[uint32]) : GLenum     = GL_UNSIGNED_INT
 
 template attribSize[N,T](t: typedesc[Vec[N,T]]): GLint      = GLint(N)
+template attribType[N,T](t: typedesc[Vec[N,T]]): GLenum    = T.attribType
 template attribNormalized[N,T](t: typedesc[Vec[N,T]]): bool = false
-
-template attribType[N](t: typedesc[Vec[N,int8]]): GLenum    = cGL_BYTE
-template attribType[N](t: typedesc[Vec[N,uint8]]): GLenum   = GL_UNSIGNED_BYTE
-template attribType[N](t: typedesc[Vec[N,int16]]): GLenum    = cGL_SHORT
-template attribType[N](t: typedesc[Vec[N,uint16]]): GLenum   = GL_UNSIGNED_SHORT
-template attribType[N](t: typedesc[Vec[N,int32]]): GLenum    = cGL_INT
-template attribType[N](t: typedesc[Vec[N,uint32]]): GLenum   = GL_UNSIGNED_INT
-template attribType[N](t: typedesc[Vec[N,float32]]): GLenum  = cGL_FLOAT
-template attribType[N](t: typedesc[Vec[N,float64]]): GLenum  = cGL_DOUBLE
-
-template attribSize(t: typedesc[float64]) : GLint     = 1
-template attribType(t: typedesc[float64]) : GLenum    = cGL_DOUBLE
-template attribNormalized(t: typedesc[float64]): bool = false
-  
-template attribSize(t: typedesc[float32]) : GLint     = 1
-template attribType(t: typedesc[float32]) : GLenum    = cGL_FLOAT
-template attribNormalized(t: typedesc[float32]): bool = false
-
-template attribSize(t: typedesc[int32]) : GLint       = 1
-template attribType(t: typedesc[int32]) : GLenum      = cGL_INT
-template attribNormalized(t: typedesc[int32]): bool   = false
-
-template attribSize(t: typedesc[int16]) : GLint       = 1
-template attribType(t: typedesc[int16]) : GLenum      = cGL_SHORT
-template attribNormalized(t: typedesc[int16]): bool   = false
-
-template attribSize(t: typedesc[int8]) : GLint        = 1
-template attribType(t: typedesc[int8]) : GLenum       = cGL_BYTE
-template attribNormalized(t: typedesc[int8]): bool    = false
-
-template attribSize(t: typedesc[uint32]) : GLint      = 1
-template attribType(t: typedesc[uint32]) : GLenum     = GL_UNSIGNED_INT
-template attribNormalized(t: typedesc[int32]): bool   = false
-
-template attribSize(t: typedesc[uint16]) : GLint      = 1
-template attribType(t: typedesc[uint16]) : GLenum     = GL_UNSIGNED_SHORT
-template attribNormalized(t: typedesc[int16]): bool   = false
-
-template attribSize(t: typedesc[uint8]) : GLint       = 1
-template attribType(t: typedesc[uint8]) : GLenum      = GL_UNSIGEND_BYTE
-template attribNormalized(t: typedesc[uint8]): bool   = false
-
-
-  
 
 template attribSize(t : typedesc[Color]): GLint = 4
 template attribType(t:  typedesc[Color]) : GLenum = GL_UNSIGNED_BYTE
