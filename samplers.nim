@@ -14,6 +14,17 @@ macro createTextureMacro(name, target: untyped): untyped =
       `name`(handle: id)
 ]#
 
+proc createErrorSurface*(message: string = nil): sdl2.SurfacePtr =
+  result = createRGBSurface(0, 512, 512, 32, 0,0,0,0)
+  if result.isNil:
+    echo "SDL_CreateRGBSurface() failed: ", getError()
+    quit(QUIT_FAILURE)
+
+  let pixels = cast[ptr array[512*512,uint32]](result.pixels)
+  for i in 0 ..< 512*512:
+    pixels[i] = rand_u32() or 0xff000000'u32
+
+
 const typeConst = [GL_RED, GL_RG, GL_RGB, GL_RGBA]
 
 template textureTypeTemplate(name, nilName, target:untyped, shadername:string): untyped =
@@ -135,22 +146,6 @@ proc loadSurfaceFromFile*(filename: string): SurfacePtr =
   defer: freeSurface(surface)
   result = surface.convertSurfaceFormat(SDL_PIXELFORMAT_RGBA8888, 0)
 
-proc loadTextureRectangleFromFile*(filename: string): TextureRectangle =
-  let surface = loadSurfaceFromFile(filename)
-  defer: freeSurface(surface)
-  glGenTextures(1, cast[ptr GLuint](result.addr))
-  when false:
-    glTextureImage2DEXT(result.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_RGBA.GLint, surface.w, surface.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface.pixels)
-  else:
-    let levels = min(surface.w, surface.h).float32.log2.floor.GLint
-    glTextureStorage2D(result.handle, levels, GL_RGBA, surface.w, surface.h)
-    glTextureSubImage2D(result.handle, 0, 0, 0, surface.w, surface.h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface.pixels)
-    glGenerateTextureMipmap(result.handle)
-
-  result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-  result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-
-
 proc subImage*(this: Texture2D; surface: sdl2.SurfacePtr; pos: Vec2i = vec2i(0); level: int = 0): void =
   let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
   defer: freeSurface(surface2)
@@ -159,7 +154,7 @@ proc subImage*(this: Texture2D; surface: sdl2.SurfacePtr; pos: Vec2i = vec2i(0);
 
   
 proc texture2D*(surface: sdl2.SurfacePtr): Texture2D =
-  glCreateTextures(GL_TEXTURE_2D, 1, cast[ptr GLuint](result.addr))
+  glCreateTextures(GL_TEXTURE_2D, 1, result.handle.addr)
   let levels = min(surface.w, surface.h).float32.log2.floor.GLint
   glTextureStorage2D(result.handle, levels, GL_RGBA8, surface.w, surface.h)
   result.subImage(surface)
@@ -254,14 +249,20 @@ proc textureRectangle*(surface: sdl2.SurfacePtr): TextureRectangle =
   let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
   defer: freeSurface(surface2)
 
-  when false:
-    glGenTextures(1, cast[ptr GLuint](result.addr))
-    glTextureImage2DEXT(result.GLuint, GL_TEXTURE_RECTANGLE, 0, GL_RGBA.GLint, surface2.w, surface2.h, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
-  else:
-    glCreateTextures(GL_TEXTURE_RECTANGLE, 1, cast[ptr GLuint](result.addr))
-    glTextureStorage2D(result.handle, 1, GL_RGBA8, surface2.w, surface2.h)
-    glTextureSubImage2D(result.handle, 0, 0, 0, surface2.w, surface2.h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
+  glCreateTextures(GL_TEXTURE_RECTANGLE, 1, cast[ptr GLuint](result.addr))
+  glTextureStorage2D(result.handle, 1, GL_RGBA8, surface2.w, surface2.h)
+  glTextureSubImage2D(result.handle, 0, 0, 0, surface2.w, surface2.h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
+
+proc loadTextureRectangleFromFile*(filename: string): TextureRectangle =
+  var surface = image.load(filename)
+  if surface.isNil:
+    let message = s"can't load texture $filename: ${sdl2.getError()}"
+    echo message
+    surface = createErrorSurface(message)
     
+  defer: freeSurface(surface)
+  textureRectangle(surface)  
+  
 proc newTexture1D*(size: int, internalFormat: GLenum = GL_RGBA8): Texture1D =
   when false:
     discard
@@ -325,16 +326,6 @@ proc setPixel*[T](texture: TextureRectangle; pos: Vec2i; pixel: T) =
 
 #proc readPixel*[T](texture: TextureRectangle; pos: Vec2i): T =
 #  glGetTextureSubImage(texture.handle, 0, pos.x, pos.y, 0, 1, 1, 1, typeConst[T.attribSize-1], T.attribType, result.addr)
-  
-proc createErrorSurface*(message: string = nil): sdl2.SurfacePtr =
-  result = createRGBSurface(0, 512, 512, 32, 0,0,0,0)
-  if result.isNil:
-    echo "SDL_CreateRGBSurface() failed: ", getError()
-    quit(QUIT_FAILURE)
-
-  let pixels = cast[ptr array[512*512,uint32]](result.pixels)
-  for i in 0 ..< 512*512:
-    pixels[i] = rand_u32() or 0xff000000'u32
 
 proc loadTexture2DFromFile*(filename: string): Texture2D =
   var surface = image.load(filename)
@@ -347,16 +338,28 @@ proc loadTexture2DFromFile*(filename: string): Texture2D =
   defer: freeSurface(surface)
   texture2D(surface)
   
-proc saveToBmpFile*(tex: Texture2D, filename: string): void =
+proc saveToBmpFile*(tex: Texture2D | TextureRectangle; filename: string): void =
   let s = tex.size
   var surface = createRGBSurface(0, s.x.int32, s.y.int32, 32, 0xff000000.uint32, 0x00ff0000, 0x0000ff00, 0x000000ff)  # no alpha, rest default
-  when false:
-    glGetTextureImageEXT(tex.handle, GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface.pixels)
-  else:
-    let bufferSize = GLsizei(s.x * s.y * 4)
-    glGetTextureImage(tex.handle, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, bufferSize, surface.pixels)
+  let bufferSize = GLsizei(s.x * s.y * 4)
+  glGetTextureImage(tex.handle, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, bufferSize, surface.pixels)
   surface.saveBMP(filename)
 
+proc saveToGrayscaleBmpFile*(tex: Texture2D | TextureRectangle; filename: string): void =
+  var colors: array[256,Color]
+  for i, color in colors.mpairs:
+    color.r = uint8(i)
+    color.g = uint8(i)
+    color.b = uint8(i)
+
+  let s = tex.size
+  var surface = createRGBSurface(0, s.x.int32, s.y.int32, 8, 0, 0, 0, 0)
+  setPaletteColors(surface.format.palette, colors[0].addr, 0, 256);
+  
+  let bufferSize = GLsizei(s.x * s.y)
+  glGetTextureImage(tex.handle, 0, GL_RED, GL_UNSIGNED_BYTE, bufferSize, surface.pixels)
+  surface.saveBMP(filename)
+  
 when false:
   # ARB_direct_state_access textures have immutable size :/
   proc resize*(tex: Texture2D, size: Vec2i) =
@@ -370,7 +373,7 @@ when false:
     glTextureImage2DEXT(tex.handle, GL_TEXTURE_RECTANGLE, 0, internalFormat, size.x.GLsizei, size.y.GLsizei, 0, internalFormat.GLenum, cGL_UNSIGNED_BYTE, nil)
 
 proc newTexture2D*(size: Vec2i, internalFormat: GLenum = GL_RGB8; levels: int = -1) : Texture2D =
-  glCreateTextures(GL_TEXTURE_2D, 1, cast[ptr GLuint](result.addr))
+  glCreateTextures(GL_TEXTURE_2D, 1, result.handle.addr)
   let levelsArg = if levels < 0: min(size.x, size.y).float32.log2.floor.GLint else: levels.GLint
   glTextureStorage2D(
     result.handle, levelsArg,

@@ -4,7 +4,7 @@ import ../fancygl, sdl2/image
 
 let (window, context) = defaultSetup()
 
-proc `$`(v: Vec): string =
+proc `$`(v: Vec | Mat): string =
   fancygl.`$`(v)
 
 proc setup(): void =
@@ -12,7 +12,7 @@ proc setup(): void =
   #glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
   glProvokingVertex(GL_FIRST_VERTEX_CONVENTION)
 
-proc loadTilemapFromFile*(filename: string; tilesize: Vec2i): Texture2DArray =
+proc loadTilePaletteFromFile*(filename: string; tilesize: Vec2i; levels: int): Texture2DArray =
   glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, -1, "loadTilemapFromFile");
   defer:
     glPopDebugGroup()
@@ -36,7 +36,7 @@ proc loadTilemapFromFile*(filename: string; tilesize: Vec2i): Texture2DArray =
   let rows = (surface.h div tilesize.y)
   let cols = (surface.w div tilesize.x)
   
-  result = newTexture2DArray(tilesize, rows * cols)
+  result = newTexture2DArray(tilesize, rows * cols, levels = levels)
 
   var i = 0
   for y in 0 ..< rows:
@@ -49,34 +49,56 @@ proc loadTilemapFromFile*(filename: string; tilesize: Vec2i): Texture2DArray =
 
 const tilewidth = 16
 const mapwidth  = 1024
-const scaling   = 4
+const scaling   = 1
+const dragThreshold = 4
+const mapFilename = "map.bmp"
 
-let tilemap = loadTilemapFromFile("resources/tiles.gif", vec2i(tilewidth))
-tilemap.parameter(GL_TEXTURE_MIN_FILTER, GL_NEAREST)
-tilemap.parameter(GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+let tilePalette = loadTilePaletteFromFile("resources/tiles.gif", vec2i(tilewidth), levels = 1)
+tilePalette.parameter(GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+tilePalette.parameter(GL_TEXTURE_MAG_FILTER, GL_NEAREST)
 
-let map = newTextureRectangle(vec2i(mapwidth), internalFormat = GL_R8)
 # TODO make GL_R8UI work
+
+proc noiseTextureRectangle(size: Vec2i): TextureRectangle =
+  var randomTiles = newSeq[uint8](mapwidth * mapwidth)
+  for tile in randomTiles.mitems:
+    tile = rand_u8()
+
+  result = newTextureRectangle(size, internalFormat = GL_R8)
+  result.setData(randomTiles)
+
+proc loadMapFromFile(): TextureRectangle =
+  var surface = image.load(mapFilename)
+  assert( not surface.isNil, s"can't load texture $mapFilename: ${fancygl.getError()}" )
+  defer: freeSurface(surface)
+
+  assert surface.format.BitsPerPixel == 8
+  glCreateTextures(GL_TEXTURE_RECTANGLE, 1, result.handle.addr)
+  glTextureStorage2D(result.handle, 1, GL_R8, surface.w, surface.h)
+  glTextureSubImage2D(result.handle, 0, 0, 0, surface.w, surface.h, GL_RED, GL_UNSIGNED_BYTE, surface.pixels)
 
 let tileSelectionMap = newTextureRectangle(vec2i(16), internalFormat = GL_R8)
 
 block:
-  var randomTiles = newSeq[uint8](mapwidth * mapwidth)
-  for tile in randomTiles.mitems:
-    tile = rand_u8()
-    
-  map.setData(randomTiles)
-
   var selectionTiles = newSeq[uint8](16 * 16)
+  
   for i, tile in selectionTiles.mpairs:
     let x = i mod 16
     let y = 15 - i div 16
     tile = uint8(x + y * 16)
 
   tileSelectionMap.setData(selectionTiles)
-    
-                           
-var cameraPos = vec2f(0) # vec2f(mapwidth) * 0.5
+
+#let map = noiseTextureRectangle(vec2i(mapwidth))
+let map = loadMapFromFile()
+
+proc saveMap(): void {.noconv.} =
+  map.saveToGrayscaleBmpFile(mapFilename)
+
+addQuitProc( saveMap )
+
+
+var cameraPos = vec2f(mapwidth) * 0.5
 let windowsize = window.size
 
 proc pixelToWorldSpace(cameraPos: Vec2f; pos: Vec2i): Vec2f =
@@ -115,7 +137,7 @@ proc drawTiles(highlightPos: Vec2i; map: TextureRectangle; cameraPos: Vec2f): vo
       scale
       cameraPos
       map
-      tilemap
+      tilePalette
       highlightPos
 
     attributes:
@@ -140,7 +162,7 @@ proc drawTiles(highlightPos: Vec2i; map: TextureRectangle; cameraPos: Vec2f): vo
       "flat out int highlight"
     fragmentMain:
       """
-      color = texture(tilemap, vec3(v_texCoord, tileId));
+      color = texture(tilePalette, vec3(v_texCoord, tileId));
       if( color.rgb == vec3(1,0,1) )
         discard;
       if(highlight != 0) {
@@ -178,18 +200,20 @@ proc drawCrosshair(): void =
 var running = true
 var frame = 0
 #var gameTimer = newStopWatch(true)
-var mouseDrag = false
-var mouseDown = false
+var mouseLeftDrag = false
+var mouseRightDrag = false
+var mouseLeftDown, mouseRightDown = false
+var dragLeftStartPos: Vec2i
+var dragRightStartPos: Vec2i
 
 setup()
 
-
 var tileLeft : uint8 = 128
 var tileRight : uint8 = 0
-
 var tileSelection : bool = false
 
 proc mouseClicked(evt: MouseButtonEventPtr): void =
+  echo "mouseClicked"
   if tileSelection:
     let mousePos = pixelToWorldSpace(vec2f(8), vec2i(evt.x, evt.y))
     let gridPos = vec2i(mousePos.floor)
@@ -201,8 +225,8 @@ proc mouseClicked(evt: MouseButtonEventPtr): void =
       tileRight = pixel
     else:
       return
-    
-    
+
+    tileSelection = false
   else:
     let mousePos = pixelToWorldSpace(cameraPos, vec2i(evt.x, evt.y))
     let gridPos = vec2i(mousePos.floor)
@@ -221,11 +245,23 @@ proc mouseClicked(evt: MouseButtonEventPtr): void =
     map.setPixel(gridPos, pixel)
 
 proc mouseDragged(evt: MouseMotionEventPtr): void =
-  var movement : Vec2f
-  movement.x =  evt.xrel / (tilewidth * scaling)
-  movement.y = -evt.yrel / (tilewidth * scaling)
-  cameraPos -= movement
+  if tileSelection:
+    return
 
+  if mouseLeftDown:
+    let mousePos = pixelToWorldSpace(cameraPos, vec2i(evt.x, evt.y))
+    let gridPos = vec2i(mousePos.floor)
+
+    if fancygl.any( gridPos .< vec2i(0) ) or fancygl.any(gridPos .>= vec2i(mapwidth)):
+      return
+      
+    map.setPixel(gridPos, tileLeft)
+
+  if mouseRightDown:
+    var movement : Vec2f
+    movement.x =  evt.xrel / (tilewidth * scaling)
+    movement.y = -evt.yrel / (tilewidth * scaling)
+    cameraPos -= movement
   
 while running:
   defer:
@@ -251,17 +287,44 @@ while running:
         discard
         
     elif evt.kind == MouseButtonDown:
-      mouseDown = true
+      if evt.button.button == ButtonLeft:
+        mouseLeftDown = true
+        dragLeftStartPos = vec2i(evt.button.x, evt.button.y)
+      elif evt.button.button == ButtonRight:
+        mouseRightDown = true
+        dragRightStartPos = vec2i(evt.button.x, evt.button.y)
         
     elif evt.kind == MouseButtonUp:
-      if not mouseDrag:
-        mouseClicked(evt.button)
-      mouseDown = false
-      mouseDrag = false
+
+      if evt.button.button == ButtonLeft:
+        if not mouseLeftDrag:
+          mouseClicked(evt.button)
+          
+        mouseLeftDrag = false
+        mouseLeftDown = false
         
-    elif evt.kind == MouseMotion and mouseDown:
-      mouseDrag = true
-      mouseDragged(evt.motion)
+      if evt.button.button == ButtonRight:
+        if not mouseRightDown:
+          mouseClicked(evt.button)
+          
+        mouseRightDrag = false
+        mouseRightDown = false
+        
+    elif evt.kind == MouseMotion:
+      let mousePos = vec2i(evt.motion.x, evt.motion.y)
+      
+      if mouseLeftDown:  
+        let dist = abs(dragLeftStartPos - mousePos);
+        if dist.x + dist.y > dragThreshold:
+          mouseLeftDrag = true
+          mouseDragged(evt.motion)
+
+      if mouseRightDown:  
+        let dist = abs(dragRightStartPos - mousePos);
+        if dist.x + dist.y > dragThreshold:
+          mouseRightDrag = true
+          mouseDragged(evt.motion)
+
     else:
       discard
 
