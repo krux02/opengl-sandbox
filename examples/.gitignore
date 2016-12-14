@@ -10,5 +10,6 @@ particles_transform_feedback
 cpu_noise
 noise_landscape
 retro_tiling
+hello_triangle
 
 \*nim-compile\*
