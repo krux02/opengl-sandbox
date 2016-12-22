@@ -4,7 +4,11 @@
 * DSL [3/10]
 
 ** DONE Add user code sctions for afterSetup, beforeRender, afterRender
-** TODO transform Feedback
+** TODO transform feedback
+*** TODO allow non-interleaved transform feedback attributes
+*** TODO transform feedback type that contains attributes at compile time
+*** TODO shadingDSl with transform feedback as source for the attributes, calls glDrawTransformfeedback(Instanced)
+*** TODO easy transformation of buffers/views to transform feedback objects
 ** TODO unifom buffer
 ** TODO tesselation shader stages
 ** TODO shader module system
@@ -15,7 +19,7 @@
 ** TODO test defaultsetup with window and context as global
 
 * library [2/9]
-
+  
 ** TODO finish easy text renderer
 ** TODO add primitive shapes
 *** DONE torus

@@ -5,7 +5,7 @@ let windowsize = vec2f(window.size)
 
 const
   numParticles   = 2000
-  maxParticleAge = 16.0'f64
+  maxParticleAge = 16.0'f32
 
 type
   ParticleData = object
@@ -13,7 +13,7 @@ type
     vel: Vec2f
     col: Vec3f
     rot: float32
-    birthday: float64
+    birthday: float32
 
 var cpuParticleData = newSeq[ParticleData](numParticles)
 
@@ -23,7 +23,7 @@ for particle in cpuParticleData.mitems():
   particle.rot = randNormal().float32 + 2
   particle.vel.x = randNormal().float32 * 32
   particle.vel.y = randNormal().float32 * 32
-  particle.birthday = - rand_f64() * maxParticleAge
+  particle.birthday = - rand_f32() * maxParticleAge
 
 var particleData           = cpuParticleData.arrayBuffer(GL_STREAM_DRAW)
 var particleTarget         = cpuParticleData.arrayBuffer(GL_STREAM_DRAW)
@@ -58,9 +58,12 @@ glBlendFunc(GL_SRC_ALPHA, GL_ONE)
 var mouseX, mouseY: int32
 var pmouseX, pmouseY: int32
 
+var transformFeedback: TransformFeedback = newTransformFeedback()
+
+
 while running:
   let frameTime = frameTimer.reset
-  let time = gameTimer.time
+  let time = gameTimer.time.float32
 
   pmouseX = mouseX
   pmouseY = mouseY
@@ -70,6 +73,7 @@ while running:
   let dirx = float32(cos(time * 5))
   let diry = float32(sin(time * 5))
 
+  #[
   for particle in cpuParticleData.mitems:
     
     particle.pos += particle.vel * frameTime.float32
@@ -89,13 +93,14 @@ while running:
       particle.pos   = mix(vec2f(pmouseX.float32, pmouseY.float32), vec2f(mouseX.float32, mouseY.float32), rand_f32())
 
   particleData.setData(cpuParticleData)
-
-  #glBeginTransformFeedback(GL_POINTS)
+  ]#
   
-  shadingDsl(GL_POINTS):
+  transformFeedback.bufferBase(0, particleTarget)
+  
+  shadingDsl:
     debugResult
+    primitiveMode = GL_POINTS
     numVertices = numParticles
-
     programIdent = tfProgram
     vaoIdent = tfVao
 
@@ -116,6 +121,16 @@ while running:
       a_vel = velView
       a_birthday = birthdayView
 
+    afterSetup:
+      #tfProgram.transformFeedbackVaryings(["v_pos", "v_col", "v_rot", "v_vel", "v_birthday"], GL_INTERLEAVED_ATTRIBS)
+      discard
+    
+    beforeRender:
+
+      glEnable(GL_RASTERIZER_DISCARD);
+      glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, transformFeedback.handle)
+      glBeginTransformFeedback(GL_POINTS)
+
     vertexMain:
       """
       v_pos = a_pos + a_vel * frameTime;
@@ -135,6 +150,9 @@ while running:
         v_birthday = a_birthday;
         v_vel = a_vel;
       }
+
+      v_col = a_col;
+      v_rot = a_rot;
       """
 
     vertexOut:
@@ -144,13 +162,11 @@ while running:
       v_vel = velTargetView
       v_birthday = birthdayTargetView
 
-    fragmentMain:
-      """
-      color = vec4(1);
-      """
+    afterRender:
 
-  
-  #glEndTransformFeedback()
+      glEndTransformFeedback()
+      glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, 0)
+      glDisable(GL_RASTERIZER_DISCARD);
 
   var evt = defaultEvent
   while evt.pollEvent:
@@ -172,7 +188,8 @@ while running:
 
   glEnable(GL_BLEND)
 
-  shadingDsl(GL_POINTS):
+  shadingDsl:
+    primitiveMode = GL_POINTS
     numVertices = numParticles
 
     uniforms:
@@ -227,7 +244,8 @@ while running:
 
   glDisable(GL_BLEND)
 
-  shadingDsl(GL_POINTS):
+  shadingDsl:
+    primitiveMode = GL_POINTS
     numVertices = numParticles
 
     uniforms:

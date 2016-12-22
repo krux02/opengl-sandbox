@@ -40,3 +40,5 @@ macro namedEcho*(x: typed, xs: varargs[typed]): untyped =
     let lit = newLit(x.repr & "=")
     result.add sepLit, lit, x
 
+
+

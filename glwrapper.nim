@@ -126,6 +126,9 @@ proc isNil*(shader: Shader): bool =
 proc isValid*(location: Location): bool =
   location.index >= 0
 
+proc newProgram() : Program  =
+  result.handle = glCreateProgram()
+  
 #### Uniform ####
 
 proc cptr(mat: Mat): ptr Mat.T = cast[ptr Mat.T](mat.unsafeAddr)
@@ -604,10 +607,10 @@ when isMainModule:
 #### shader
 
 proc shaderSource(shader: Shader, source: string) =
-  var source_array: array[1, string] = [source]
-  var c_source_array = allocCStringArray(source_array)
-  defer: deallocCStringArray(c_source_array)
-  glShaderSource(shader.handle, 1, c_source_array, nil)
+  var source_array: array[1, cstring] = [cstring(source)]
+  #var c_source_array = allocCStringArray(source_array)
+  #defer: deallocCStringArray(c_source_array)
+  glShaderSource(shader.handle, 1, cast[cstringArray](source_array.addr), nil)
 
 proc compileStatus(shader: Shader): bool =
   var status: GLint
@@ -656,7 +659,7 @@ proc showError(log: string, source: string): void =
   stdout.styledWriteLine(fgGreen, "==== end Shader Problems =========================================")
   
 
-proc programInfoLog(program: Program): string =
+proc infoLog(program: Program): string =
   var length: GLint = 0
   glGetProgramiv(program.handle, GL_INFO_LOG_LENGTH, length.addr);
   result = newString(length.int)
@@ -670,6 +673,16 @@ proc compileShader*(shaderType: GLenum, source: string): Shader =
   if not result.compileStatus:
     showError(result.shaderInfoLog, source)
 
+proc attachAndDeleteShader*(program: Program; shader: Shader): void =
+  glAttachShader(program.handle, shader.handle)
+  glDeleteShader(shader.handle)
+
+proc linkOrDelete*(program: Program): void =
+  glLinkProgram(program.handle)
+  if not program.linkStatus:
+    echo "Log: ", program.infoLog
+    glDeleteProgram(program.handle)
+  
 proc linkShader*(shaders: varargs[Shader]): Program =
   result.handle = glCreateProgram()
 
@@ -679,7 +692,7 @@ proc linkShader*(shaders: varargs[Shader]): Program =
   glLinkProgram(result.handle)
 
   if not result.linkStatus:
-    echo "Log: ", result.programInfoLog
+    echo "Log: ", result.infoLog
     glDeleteProgram(result.handle)
     result.handle = 0
 
@@ -692,6 +705,14 @@ proc uniformLocation(program: Program, name: string) : Location =
 proc attributeLocation(program: Program, name: string) : Location =
   result.index = glGetAttribLocation(program.handle, name)
 
+proc transformFeedbackVaryings*(program: Program; varyings: openarray[string]; bufferMode: GLenum): void =
+  const N = 128
+  var arr : array[N, cstring]
+  assert(varyings.len <= N, "too many transform feedback varyings")
+  for i in 0 ..< varyings.len:
+    arr[i] = varyings[i]
+  glTransformFeedbackVaryings(program.handle, GLsizei(varyings.len), cast[cstringArray](arr.addr), bufferMode)
+  
 proc readPixel*(x,y: int) : Color =
   let 
     w = 1.GLsizei
@@ -723,13 +744,17 @@ proc newTransformFeedback*() : TransformFeedback =
 
 proc delete*(tf: TransformFeedback): void =
   glDeleteTransformFeedbacks(GLsizei(1), tf.handle.unsafeAddr)
-    
-template blockBind*(tf: TransformFeedback; blk: untyped): untyped =
-  block:
-    glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, tf.handle);
-    defer:
-      glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, 0);
-    blk
 
 
-    
+proc bufferBase*(tf: TransformFeedback; index: int; buffer: ArrayBuffer): void =
+  glTransformFeedbackBufferBase(tf.handle, GLuint(index), buffer.handle)
+
+proc bufferRange*(tf: TransformFeedback; index: int; buffer: ArrayBuffer; offset: ptr int32; size: int): void =
+  glTransformFeedbackBufferRange(tf.handle, GLuint(index), buffer.handle, offset, GLsizeiptr(size))
+                  
+proc draw*(tf: TransformFeedback; primitiveMode: GLenum): void =
+  glDrawTransformFeedback(primitiveMode, tf.handle)
+
+proc bindIt*(tf: TransformFeedback): void =
+  glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, tf.handle)
+  

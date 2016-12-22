@@ -65,7 +65,8 @@ proc noiseTextureRectangle(size: Vec2i): TextureRectangle =
     tile = rand_u8()
 
   result = newTextureRectangle(size, internalFormat = GL_R8)
-  result.setData(randomTiles)
+  #result.setData(randomTiles)
+  glTextureSubImage2D(texture = 3, level = 0, xoffset = 0, yoffset = 0, width = 1024, height = 1024, format = GL_RED, type = GL_UNSIGNED_BYTE, pixels = randomTiles[0].addr)
 
 proc loadMapFromFile(): TextureRectangle =
   var surface = image.load(mapFilename)
@@ -89,13 +90,13 @@ block:
 
   tileSelectionMap.setData(selectionTiles)
 
-#let map = noiseTextureRectangle(vec2i(mapwidth))
-let map = loadMapFromFile()
+let map = noiseTextureRectangle(vec2i(mapwidth))
+#let map = loadMapFromFile()
 
 proc saveMap(): void {.noconv.} =
   map.saveToGrayscaleBmpFile(mapFilename)
 
-addQuitProc( saveMap )
+#addQuitProc( saveMap )
 
 
 var cameraPos = vec2f(mapwidth) * 0.5
