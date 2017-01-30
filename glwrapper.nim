@@ -277,24 +277,15 @@ proc bindIt*(vao: VertexArrayObject; indices: ElementArrayBuffer): void =
     
 proc newArrayBuffer*[T](length: int, usage: GLenum = GL_STATIC_DRAW): ArrayBuffer[T] =
   result.new
-  when false:
-    glNamedBufferDataEXT(result.handle, length * GLsizeiptr(sizeof(T)), nil, usage)
-  else:
-    glNamedBufferData(result.handle, length * GLsizeiptr(sizeof(T)), nil, usage)
+  glNamedBufferData(result.handle, length * GLsizeiptr(sizeof(T)), nil, usage)
 
 proc newElementArrayBuffer*[T](length: int, usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
   result.new
-  when false:
-    glNamedBufferDataEXT(result.handle, length * GLsizeiptr(sizeof(T)), nil, usage)
-  else:
-    glNamedBufferData(result.handle, length * GLsizeiptr(sizeof(T)), nil, usage)
+  glNamedBufferData(result.handle, length * GLsizeiptr(sizeof(T)), nil, usage)
   
 proc newUniformBuffer*[T](usage: GLenum = GL_STATIC_DRAW): UniformBuffer[T] =
   result.new
-  when false:
-    glNamedBufferDataEXT(result.handle, GLsizeiptr(sizeof(T)), nil, usage)
-  else:
-    glNamedBufferData(result.handle, GLsizeiptr(sizeof(T)), nil, usage)
+  glNamedBufferData(result.handle, GLsizeiptr(sizeof(T)), nil, usage)
 
 proc glGetInteger(name: GLenum): GLint =
   glGetIntegerv(name, result.addr)
@@ -339,24 +330,15 @@ template blockBind*[T](buffer : AnyBuffer[T], blk:untyped) =
   
 proc bufferData*[T](buffer: SeqLikeBuffer[T], data: openarray[T], usage: GLenum) =
   if buffer.handle.int > 0:
-    when false:
-      glNamedBufferDataEXT(buffer.handle, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
-    else:
-      glNamedBufferData(buffer.handle, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
+    glNamedBufferData(buffer.handle, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
 
 proc bufferData*[T](buffer: SeqLikeBuffer[T], dataview: DataView[T], usage: GLenum) =
   if buffer.handle.int > 0:
-    when false:
-      glNamedBufferDataEXT( buffer.handle, GLsizeiptr(dataview.len * sizeof(T)), dataview.data, usage)
-    else:
-      glNamedBufferData( buffer.handle, GLsizeiptr(dataview.len * sizeof(T)), dataview.data, usage)
+    glNamedBufferData( buffer.handle, GLsizeiptr(dataview.len * sizeof(T)), dataview.data, usage)
       
 proc bufferData*[T](buffer: UniformBuffer[T], data: T, usage: GLenum) =
   if buffer.handle.int > 0:
-    when false:
-      glNamedBufferDataEXT(buffer.handle, GLsizeiptr(sizeof(T)), unsafeAddr(data), usage)
-    else:
-      glNamedBufferData(buffer.handle, GLsizeiptr(sizeof(T)), unsafeAddr(data), usage)
+    glNamedBufferData(buffer.handle, GLsizeiptr(sizeof(T)), unsafeAddr(data), usage)
       
 proc setData*[T](buffer: SeqLikeBuffer[T], data: openarray[T]) =
   if buffer.handle.int > 0:
