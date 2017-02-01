@@ -216,12 +216,38 @@ Same mesh from a different perspective
 
 Again the same mesh, same program, but this time a different shader pipeline is used with a geometry shader that renders vertex normals and tangents as colored lines.
 
+# requirements (important for owners of computers from Apple)
+
+All examples are written to require OpenGL 3.3 core profile, and the following extensions:
+
+ * GL_ARB_direct_state_access
+ 
+Direct state access is a feature that got introduced into core opengl
+version 4.5, mostly to eliminate a lot of state binding, and allow
+opengl objects to behave much more like objects known from object
+oriented languages.  This feature does not require any special kind of
+hardware, therefore ARB_direct_state_access was created, that allows
+to use this 4.5 feature in 2.0 context. The only thing required is a
+modern GPU driver. As I recently learned, requirering a decent driver
+excludes support for Mac OS. As far as I know Apple restricts its
+customers to only use their driver that they bundle with their system
+updates, and then they just don't provide OpengGL updates. Please
+correct me, if I am wrong but as far as I know the highest Version of
+OpenGL usable on Mac OS is 4.1.
+
+I will not try to put some dirty hacks into this project to make it
+work on Mac OS, it would greatly reduce the readability of the
+code, and then it might happen that at the same time I am done, Apple
+just releases a driver and all the work was for nothing. What you can
+do, is you try to find a hack that lets you allow to install a newer
+driver into your operating system, or you can find a way to hack
+another operating on your machine that allows you to use modern
+drivers. Sorry for the inconvenience.
+
 # ideas for other names
 
 The name is not fix yet, these are valid naming ideas:
 
-# ThereIsNoSpoon
-# BlitzNim
-# RenderMyData
-# expressive high performance rendering
+ * BlitzNim
+ * RenderMyData
 
