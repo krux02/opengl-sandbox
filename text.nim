@@ -1,4 +1,4 @@
-import fancygl, sdl2/ttf
+import sdl2/ttf, glm
 
 type
   TextRenderer = object
@@ -22,10 +22,10 @@ proc init(self: ptr TextRenderer): void =
     if not self.font.isNil:
       break
     self.font = ttf.openFont(path, self.textHeight.cint)
-    echo getError()
+    echo sdl2.getError()
 
   if self.font.isNil:
-    stderr.writeLine "could not load font: ", fancygl.getError()
+    stderr.writeLine "could not load font: ", sdl2.getError()
     stderr.writeLine "sorry system font locations are hard coded into the program, change that to fix this problem"
     system.quit(QUIT_FAILURE)
 

@@ -18,7 +18,7 @@
 ** TODO test defaultsetup with window and context as global
 ** TODO nim to glsl compiler
 
-* library [3/9]
+* library [4/9]
   
 ** DONE finish easy text renderer
 ** TODO add primitive shapes
@@ -26,7 +26,7 @@
 *** DONE circle (important for portal)
 *** TODO cone
 *** TODO icosphere
-** TODO default moveable camera
+** DONE default moveable camera
 ** DONE fallback error texture when loading texture from file
 ** TODO add support for OpenMesh
 ** TODO add support for (3D) (perlin) noise

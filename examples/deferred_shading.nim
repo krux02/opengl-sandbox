@@ -1,12 +1,13 @@
 import sequtils, strutils, ../fancygl
 
-var windowsize = vec2i(640,480)
-let (window, context) = defaultSetup(windowsize)
+#var windowsize = vec2i(640,480)
+let (window, context) = defaultSetup()
 
 var hm = newHeightMap(128,64)
 hm.DiamondSquare(64)
 
-var viewport = vec4f(0,0,windowsize.vec2f)
+let windowsize = window.size
+var viewport = vec4f(0,0,window.size.vec2f)
 
 let
   crateTexture = loadTexture2DFromFile("resources/crate.png")
@@ -34,7 +35,7 @@ let fb1 = newFirstFramebuffer()
 let projMat : Mat4f = perspective(45.0f, float32(windowsize.x / windowsize.y), 0.1f, 1000.0f)
 
 const numLights = 500
-
+    
 var
   runGame = true
   mousePos = vec2f(0)
@@ -45,14 +46,16 @@ var
   fpsFrameMarker = 0
 
   camera = newWorldNode()
-  rotation = vec2f(0, 0)
-  #position = vec3d(0,0, hm[0,0] + 10 )
+  cameraControls : CameraControls
   
   lightPositions = newArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW)
   lightColors = newArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW)
 
-camera.pos.z = hm[0,0] + 10
-  
+camera.pos.z   = hm[0,0] + 10
+cameraControls.speed = 0.4'f32
+
+addEventWatch(cameraControlEventWatch, cast[pointer](cameraControls.addr))
+ 
 for color in lightColors.mitems:
   color = vec3f(rand_f32(), rand_f32(), rand_f32())
 
@@ -502,29 +505,16 @@ proc mainLoopFunc(): void =
         toggle = not toggle
         discard setRelativeMouseMode(Bool32(toggle))
         
-
     if evt.kind == MouseMotion:
       mousePos.x = evt.motion.x.float32
       mousePos.y = 960 - evt.motion.y.float32
-      rotation.xy -= evt.motion.rel.yx.vec2f / 128.0
-      rotation.x = clamp(rotation.x , 0, PI)
 
-  var movement = vec3f(0,0,0)
-  var state = getKeyboardState()
-  
-  movement.z = (state[SDL_SCANCODE_D.int].float - state[SDL_SCANCODE_E.int].float) * 0.4
-  movement.x = (state[SDL_SCANCODE_F.int].float - state[SDL_SCANCODE_S.int].float) * 0.4
-
-  camera.moveRelative(movement)
-
-  camera.dir = quatf(0,0,0,1)
-  camera.turnRelativeX(rotation.x)
-  camera.turnAbsoluteZ(rotation.y)
-  
   if fpsTimer.time >= 1:
     echo "FPS: ", frame - fpsFrameMarker
     fpsFrameMarker = frame
     fpsTimer.reset
+
+  update(camera, cameraControls)
 
   render()
   frame += 1
