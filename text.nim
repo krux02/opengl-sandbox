@@ -1,12 +1,5 @@
 import fancygl, sdl2/ttf
 
-template orElse[T](a,b: ptr T): ptr T =
-  let aval = a
-  if not aval.isNil:
-    aval
-  else:
-    b
-
 type
   TextRenderer = object
     textHeight : int
@@ -20,31 +13,31 @@ type
 
 const fontPaths = ["/usr/share/fonts/truetype/inconsolata/Inconsolata.otf", "/usr/share/fonts/TTF/Inconsolata-Regular.ttf"]
   
-proc newTextRenderer(): TextRenderer =
-  result.textHeight = 14
+proc init(self: ptr TextRenderer): void =
+  self.textHeight = 14
   for path in fontPaths:
-    if not result.font.isNil:
+    if not self.font.isNil:
       break
-    result.font = ttf.openFont(path, result.textHeight.cint)
+    self.font = ttf.openFont(path, self.textHeight.cint)
 
-  if result.font.isNil:
-    echo "could not load font: ", fancygl.getError()
-    echo "sorry system font locations are hard coded into the program, change that to fix this problem"
+  if self.font.isNil:
+    stderr.writeLine "could not load font: ", fancygl.getError()
+    stderr.writeLine "sorry system font locations are hard coded into the program, change that to fix this problem"
     system.quit(QUIT_FAILURE)
 
-  result.fg = (255.uint8, 255.uint8, 255.uint8, 255.uint8)
-  result.bg = (0.uint8, 0.uint8, 0.uint8, 255.uint8)
+  self.fg = (255.uint8, 255.uint8, 255.uint8, 255.uint8)
+  self.bg = (0.uint8, 0.uint8, 0.uint8, 255.uint8)
 
-  result.texCoordBuffer = arrayBuffer(@[vec2f(0,0), vec2f(1,0), vec2f(0,1), vec2f(1,1)], GL_STATIC_DRAW)
+  self.texCoordBuffer = arrayBuffer([vec2f(0,0), vec2f(1,0), vec2f(0,-1), vec2f(1,-1)], GL_STATIC_DRAW)
 
-  result.textureWidth = 256
-  result.texture = newTexture2D(vec2i(result.textureWidth.int32, result.textHeight.int32))
+  self.textureWidth = 256
+  self.texture = newTexture2D(size = vec2i(self.textureWidth.int32, self.textHeight.int32 + 2), internalFormat = GL_R8, levels = 1)
 
 proc textRenderer(): var TextRenderer =
   var this {.global.}: ptr TextRenderer = nil
   if this.isNil:
     this = cast[ptr TextRenderer](alloc(sizeof(TextRenderer)))
-    this[] = newTextRenderer()
+    this.init()
   this[]
 
 proc textureArray(this: TextRenderer; strings: openarray[string]): Texture2DArray =
@@ -67,70 +60,70 @@ proc textureArray(this: TextRenderer; strings: openarray[string]): Texture2DArra
     
 proc textureArray*(strings: openarray[string]): Texture2DArray =
   textureArray(textRenderer(), strings)
-    
-proc text(this: var TextRenderer; str: string; x,y: int): void =
 
-  
-  if this.texture.handle == 0:
-    this.texture = newTexture2D(vec2i(this.textureWidth.int32, this.textHeight.int32))
-
+proc text(this: var TextRenderer; str: string; pixelPos: Vec2i): void =
   # TODO add print statement to render text at screen
 
   let surface = this.font.renderTextShaded(str, this.fg, this.bg)
   defer: freeSurface(surface)
 
-  surface.flipY
+  #surface.flipY
+  surface.saveBmp("text.bmp")
 
   if surface.w > this.textureWidth:
-    delete this.texture
-
     while surface.w > this.textureWidth:
       this.textureWidth *= 2
-    
-    this.texture = newTexture2D(vec2i(this.textureWidth.int32, this.textHeight.int32))
 
-  this.texture.subImage(surface)
+    delete this.texture
+    this.texture = newTexture2D(vec2i(this.textureWidth.int32, this.textHeight.int32 + 2))
+
+  assert this.texture.size.y == surface.size.y
+
+  this.texture.subImageGrayscale(surface)
 
   var viewport : Vec4i
   glGetIntegerv(GL_VIEWPORT, viewport[0].addr)
   
   let vpPos = viewport.xy
   let vpSize = viewport.zw
-  let textPos = vec2i(x.int32, y.int32)
   let textSize = surface.size
-  
-  let rectPos  = vec2f(textPos-vpPos) / vec2f(vpSize) * 2.0f - vec2f(1)
-  let rectSize = vec2f(textSize) / vec2f(vpSize) * 2.0f - vec2f(1)
 
-  shadingDsl:
-    primitiveMode = GL_TRIANGLE_STRIP
-    numVertices = 4
+  let rectPixelPos = vec2i(pixelPos.x, vpSize.y - pixelPos.y)
+  let rectPos  = vec2f(rectPixelPos-vpPos) / vec2f(vpSize) * 2.0f - vec2f(1)
+  let rectSize = vec2f(textSize) / vec2f(vpSize) * 2.0f
 
-    uniforms:
-      rectPixelPos = textPos
-      rectPos
-      rectSize
-      tex = this.texture
-    attributes:
-      a_texcoord = this.texCoordBuffer
+  when true:
+    shadingDsl:
+      primitiveMode = GL_TRIANGLE_STRIP
+      numVertices = 4
 
-    vertexMain:
-      """
-      gl_Position.xy = rectPos + a_texcoord * rectSize;
-      gl_Position.zw = vec2(0,1);
-      v_texcoord = a_texcoord * rectSize;
-      """
+      uniforms:
+        rectPixelPos
+        rectPixelSize = textSize
+        rectPos
+        rectSize
+        tex = this.texture
+      attributes:
+        a_texcoord = this.texCoordBuffer
 
-    vertexOut:
-      "out vec2 v_texcoord"
+      vertexMain:
+        """
+        gl_Position.xy = rectPos + a_texcoord * rectSize;
+        gl_Position.zw = vec2(-1,1);
+        v_texcoord = a_texcoord;
+        """
 
-    fragmentMain:
-      """
-      vec2 texcoord = ivec2(gl_FragCoord.xy) - rectPixelPos;
-      color = texture(tex, v_texcoord);
-      //color.xy = v_texcoord;
-      """
+      vertexOut:
+        "out vec2 v_texcoord"
 
-
-proc text*(this: var TextRenderer; str: string; pos: Vec2i): void =
-  text(this, str, pos.x.int, pos.y.int)
+      fragmentMain:
+        """
+        ivec2 texcoord;
+        texcoord.x = int(gl_FragCoord.x) - rectPixelPos.x;
+        texcoord.y = rectPixelPos.y - int(gl_FragCoord.y);
+        color = texelFetch(tex, texcoord, 0).rrrr;
+        """
+      
+proc renderText*(str: string, pos: Vec2i): void =
+  var renderer = textRenderer()
+  renderer.text(str, pos)

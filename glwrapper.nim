@@ -126,15 +126,8 @@ proc isNil*(shader: Shader): bool =
 proc isValid*(location: Location): bool =
   location.index >= 0
 
-proc newProgram() : Program  =
-  result.handle = glCreateProgram()
-  
 #### Uniform ####
 
-proc cptr(mat: Mat): ptr Mat.T = cast[ptr Mat.T](mat.unsafeAddr)
-proc cptr(vec: Vec): ptr Vec.T = cast[ptr Vec.T](vec.unsafeAddr)
-  
-  
 proc uniform(program: Program; location: Location; mat: Mat4d) =
   glProgramUniformMatrix4dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
 
@@ -556,7 +549,8 @@ proc uniformBuffer*[T](data : T, usage: GLenum = GL_STATIC_DRAW): UniformBuffer[
 type
   ArrayBufferView*[S,T] = object
     buffer*: ArrayBuffer[S]
-    offset*, stride*: int
+    offset*: int
+    stride*: int
 
 proc len*(ab: ArrayBufferView):  int = ab.buffer.len
 proc high*(ab: ArrayBufferView): int = ab.buffer.len - 1
@@ -617,15 +611,15 @@ proc showError(log: string, source: string): void =
   # matches on intel driver
   for match in log.findIter(re"(\d+)\((\d+)\): ([^:]*): (.*)"):
     let lineNr = match.captures[0].parseInt
-    let notTheColumn = match.captures[1].parseInt
-    let kind: string = match.captures[2]
+    #let notTheColumn = match.captures[1].parseInt
+    #let kind: string = match.captures[2]
     let message: string = match.captures[3]
     problems.add( (lineNr, message) )
   # matches on nvidia driver
   for match in log.findIter(re"(\d+)\((\d+)\) : ([^:]*): (.*)"):
     let lineNr = match.captures[1].parseInt
-    let notTheColumn = match.captures[0].parseInt
-    let kind: string = match.captures[2]
+    #let notTheColumn = match.captures[0].parseInt
+    #let kind: string = match.captures[2]
     let message: string = match.captures[3]
     problems.add( (lineNr, message) )
   stdout.styledWriteLine(fgGreen, "==== start Shader Problems =======================================")

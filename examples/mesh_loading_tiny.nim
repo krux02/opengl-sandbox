@@ -17,12 +17,12 @@ proc main() =
     echo "could not initialize AntTweakBar: ", TwGetLastError()
   defer: discard TwTerminate()
 
-  let quadTexCoords = @[
+  let quadTexCoords = arrayBuffer([
     vec2f(0,0),
     vec2f(0,1),
     vec2f(1,0),
     vec2f(1,1)
-  ].arrayBuffer
+  ])
 
   let textHeight = 16
   var font = ttf.openFont("/usr/share/fonts/truetype/inconsolata/Inconsolata.otf", textHeight.cint)
@@ -102,7 +102,7 @@ proc main() =
       jointMatrices[i] = joint.matrix * jointMatrices[i]
 
   var outframe         = newSeq[Mat4f](joints.len)
-  var outframe_texture = textureRectangle( vec2i(4, joints.len.int32), GL_RGBA32F )
+  var outframe_texture = newTextureRectangle( vec2i(4, joints.len.int32), GL_RGBA32F )
   
   echo "=========================================================================="
   

@@ -72,18 +72,19 @@ setViewportAndProjection() # Set up initial viewport and projection
 var
   mouseX, mouseY: int32
   gameTimer    = newStopWatch(true)
+  fps          = 0
   frameCounter = 0
 
-const
-  constVec = vec4f(1,2,3,4)
+glClearColor(0.4,0.1,0.2,1.0)
+glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
+
   
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
 
-  let mouse = vec2f(mouseX.float32, float32(windowsize.y - mouseY))
-  #let mouseX_Norm = (mouseX.float32 / screenWidth.float32)
-  #let mouseY_Norm = (mouseY.float32 / screenHeight.float32)
-  let mousePosNorm = (mouse - viewport.xy) / viewport.zw
+  let mousePos  = vec2i(mouseX,mouseY)
+  let mousePosf = vec2f(mousePos)
+  let mousePosNorm = (mousePosf - viewport.xy) / viewport.zw
 
   #for i in 0..<5:
   block writeToFramebufferBlock:
@@ -109,7 +110,6 @@ proc render() =
           time
           mousePosNorm
           crateTexture
-          constVec
 
         attributes:
           pos = vertex
@@ -178,7 +178,6 @@ proc render() =
         projection = projection_mat
       attributes:
         pos = vertex
-        normal
 
       vertexMain:
         """
@@ -211,6 +210,10 @@ proc render() =
         """
         color = g_color;
         """
+
+  glEnable(GL_BLEND)
+  renderText("FPS: $1" % [$fps], vec2i(11) )
+  glDisable(GL_BLEND)
   
   frameCounter += 1
   glSwapWindow(window) # Swap the front and back frame buffers (double buffering)
@@ -243,15 +246,12 @@ while runGame:
       else:
         discard
 
-
-    if evt.kind == MouseMotion:
-      mouseX = evt.motion.x
-      mouseY = evt.motion.y
-      
   if fpsTimer.time >= 1:
-    echo "FPS: ", fpsFrameCounter
+    fps = fpsFrameCounter
     fpsFrameCounter = 0
     fpsTimer.reset
+
+  discard getMouseState(mouseX.addr, mouseY.addr)
 
   render()
   fpsframeCounter += 1

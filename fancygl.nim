@@ -235,7 +235,7 @@ proc bindAndAttribPointer[T](vao: VertexArrayObject, buffer: ArrayBuffer[T], loc
     glVertexArrayAttribFormat(vao.handle, loc, attribSize(T), attribType(T), attribNormalized(T), #[ relative offset ?! ]# 0);
     glVertexArrayAttribBinding(vao.handle, loc, loc)
 
-proc bindAndAttribPointer(vao: VertexArrayObject; view: ArrayBufferView; location: Location): void =
+proc bindAndAttribPointer[S,T](vao: VertexArrayObject; view: ArrayBufferView[S,T]; location: Location): void =
   if 0 <= location.index:
     let loc = location.index.GLuint
     glVertexArrayVertexBuffer(vao.handle, loc, view.buffer.handle, GLsizei(view.offset), GLsizei(view.stride))
@@ -858,3 +858,9 @@ macro shadingDsl*(statement: untyped) : untyped =
         
   if wrapWithDebugResult:
     result = newCall( bindSym"debugResult", result )
+
+
+
+import text
+
+export text

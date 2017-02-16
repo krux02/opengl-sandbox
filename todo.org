@@ -12,15 +12,15 @@
 ** TODO unifom buffer
 ** TODO tesselation shader stages
 ** TODO shader module system
-** TODO nim to glsl compiler
 ** TODO infer primitive mode from buffer
 ** DONE In DSL move indices from attributes to named argument section
 ** DONE warn for unused shader uniforms/attributes
 ** TODO test defaultsetup with window and context as global
+** TODO nim to glsl compiler
 
-* library [2/9]
+* library [3/9]
   
-** TODO finish easy text renderer
+** DONE finish easy text renderer
 ** TODO add primitive shapes
 *** DONE torus
 *** DONE circle (important for portal)

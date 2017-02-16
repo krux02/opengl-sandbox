@@ -245,9 +245,10 @@ proc drawTorus(modelViewMat: Mat4f, clipPlane_ws: Vec4f): void =
     indices       = torusIndices
 
     uniforms:
-      mvp = projMat * modelViewMat
+      projMat
       modelViewMat
       skyTexture
+      invProj = projMat.inverse
 
     attributes:
       position = torusVertices 
@@ -256,17 +257,20 @@ proc drawTorus(modelViewMat: Mat4f, clipPlane_ws: Vec4f): void =
 
     vertexMain:
       """
-      gl_Position = mvp * position;
+      v_pos_cs = modelViewMat * position;
+      gl_Position = projMat * v_pos_cs;
       v_normal_cs   = modelViewMat * normal;
       v_texCoord = texCoord;
       """
     vertexOut:
       "out vec2 v_texCoord"
       "out vec4 v_normal_cs"
+      "out vec4 v_pos_cs"
     fragmentMain:
       """
-      color.rg = v_texCoord;
-      color.ba= vec2(1);
+      color = v_normal_cs;
+      color.rgb = reflect(normalize(v_pos_cs.xyz), v_normal_cs.xyz);
+      color.a = 1;
       """
 
 

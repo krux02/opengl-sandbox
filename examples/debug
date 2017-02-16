@@ -1,4 +1,0 @@
-#!/bin/bash
-nim c $1
-apitrace trace -o program.trace $1
-qapitrace program.trace
