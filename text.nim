@@ -15,10 +15,14 @@ const fontPaths = ["/usr/share/fonts/truetype/inconsolata/Inconsolata.otf", "/us
   
 proc init(self: ptr TextRenderer): void =
   self.textHeight = 14
+  echo cast[uint64](self.font)
+
+  
   for path in fontPaths:
     if not self.font.isNil:
       break
     self.font = ttf.openFont(path, self.textHeight.cint)
+    echo getError()
 
   if self.font.isNil:
     stderr.writeLine "could not load font: ", fancygl.getError()
@@ -36,20 +40,25 @@ proc init(self: ptr TextRenderer): void =
 proc textRenderer(): var TextRenderer =
   var this {.global.}: ptr TextRenderer = nil
   if this.isNil:
-    this = cast[ptr TextRenderer](alloc(sizeof(TextRenderer)))
+    this = cast[ptr TextRenderer](alloc0(sizeof(TextRenderer)))
     this.init()
   this[]
 
 proc textureArray(this: TextRenderer; strings: openarray[string]): Texture2DArray =
   var maxWidth = 0
-  var surfaces = newSeqOfCap[SurfacePtr](strings.len)
+  var surfaces = newSeq[SurfacePtr](strings.len)
 
-  for str in strings:
-
-    surfaces.add this.font.renderTextShaded(str, this.fg, this.bg)
-    if not surfaces.back.isNil:
-      surfaces.back.flipY
-      maxWidth = max(maxWidth, surfaces.back.w)
+  for i, str in strings:
+    if str.len > 0:
+      echo "str: ->|", str, "|<-"
+      echo "bg:  ->|", this.bg, "|<-"
+      echo "fg:  ->|", this.fg, "|<-"
+      echo "font:->|", this.font != nil, "|<-"
+      let surf = renderTextShaded(this.font, str, this.fg, this.bg)
+      assert surf != nil
+      surf.flipY
+      maxWidth = max(maxWidth, surf.w)
+      surfaces[i] = surf
 
   result = newTexture2DArray(vec2i(maxWidth.int32, this.textHeight.int32 + 2), strings.len, 1)
     
@@ -92,37 +101,36 @@ proc text(this: var TextRenderer; str: string; pixelPos: Vec2i): void =
   let rectPos  = vec2f(rectPixelPos-vpPos) / vec2f(vpSize) * 2.0f - vec2f(1)
   let rectSize = vec2f(textSize) / vec2f(vpSize) * 2.0f
 
-  when true:
-    shadingDsl:
-      primitiveMode = GL_TRIANGLE_STRIP
-      numVertices = 4
+  shadingDsl:
+    primitiveMode = GL_TRIANGLE_STRIP
+    numVertices = 4
 
-      uniforms:
-        rectPixelPos
-        rectPixelSize = textSize
-        rectPos
-        rectSize
-        tex = this.texture
-      attributes:
-        a_texcoord = this.texCoordBuffer
+    uniforms:
+      rectPixelPos
+      rectPixelSize = textSize
+      rectPos
+      rectSize
+      tex = this.texture
+    attributes:
+      a_texcoord = this.texCoordBuffer
 
-      vertexMain:
-        """
-        gl_Position.xy = rectPos + a_texcoord * rectSize;
-        gl_Position.zw = vec2(-1,1);
-        v_texcoord = a_texcoord;
-        """
+    vertexMain:
+      """
+      gl_Position.xy = rectPos + a_texcoord * rectSize;
+      gl_Position.zw = vec2(-1,1);
+      v_texcoord = a_texcoord;
+      """
 
-      vertexOut:
-        "out vec2 v_texcoord"
+    vertexOut:
+      "out vec2 v_texcoord"
 
-      fragmentMain:
-        """
-        ivec2 texcoord;
-        texcoord.x = int(gl_FragCoord.x) - rectPixelPos.x;
-        texcoord.y = rectPixelPos.y - int(gl_FragCoord.y);
-        color = texelFetch(tex, texcoord, 0).rrrr;
-        """
+    fragmentMain:
+      """
+      ivec2 texcoord;
+      texcoord.x = int(gl_FragCoord.x) - rectPixelPos.x;
+      texcoord.y = rectPixelPos.y - int(gl_FragCoord.y);
+      color = texelFetch(tex, texcoord, 0).rrrr;
+      """
       
 proc renderText*(str: string, pos: Vec2i): void =
   var renderer = textRenderer()
