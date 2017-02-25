@@ -1,4 +1,4 @@
-import sdl2/ttf, glm
+import fancygl, opengl, sdl2, sdl2/ttf
 
 type
   TextRenderer = object
@@ -12,12 +12,12 @@ type
     texture: Texture2D
 
 const fontPaths = ["/usr/share/fonts/truetype/inconsolata/Inconsolata.otf", "/usr/share/fonts/TTF/Inconsolata-Regular.ttf"]
-  
+
 proc init(self: ptr TextRenderer): void =
   self.textHeight = 14
   echo cast[uint64](self.font)
 
-  
+
   for path in fontPaths:
     if not self.font.isNil:
       break
@@ -61,12 +61,12 @@ proc textureArray(this: TextRenderer; strings: openarray[string]): Texture2DArra
       surfaces[i] = surf
 
   result = newTexture2DArray(vec2i(maxWidth.int32, this.textHeight.int32 + 2), strings.len, 1)
-    
+
   for i, surf in surfaces:
     if not surf.isNil:
       result.subImage(surf, layer = i)
       freeSurface surf
-    
+
 proc textureArray*(strings: openarray[string]): Texture2DArray =
   textureArray(textRenderer(), strings)
 
@@ -92,7 +92,7 @@ proc text(this: var TextRenderer; str: string; pixelPos: Vec2i): void =
 
   var viewport : Vec4i
   glGetIntegerv(GL_VIEWPORT, viewport[0].addr)
-  
+
   let vpPos = viewport.xy
   let vpSize = viewport.zw
   let textSize = surface.size
@@ -131,7 +131,7 @@ proc text(this: var TextRenderer; str: string; pixelPos: Vec2i): void =
       texcoord.y = rectPixelPos.y - int(gl_FragCoord.y);
       color = texelFetch(tex, texcoord, 0).rrrr;
       """
-      
+
 proc renderText*(str: string, pos: Vec2i): void =
   var renderer = textRenderer()
   renderer.text(str, pos)

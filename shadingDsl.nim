@@ -93,26 +93,26 @@ proc setBuffer[T](vao: VertexArrayObject; buffer: ArrayBuffer[T]; location: Loca
   if 0 <= location.index:
     let loc = location.index.GLuint
     glVertexArrayVertexBuffer(vao.handle, loc, buffer.handle, 0, GLsizei(sizeof(T)))
-    
+
 proc setBuffer(vao: VertexArrayObject; view: ArrayBufferView; location: Location): void =
   if 0 <= location.index:
     let loc = location.index.GLuint
     glVertexArrayVertexBuffer(vao.handle, loc, view.buffer.handle, GLsizei(view.offset), GLsizei(view.stride))
-    
-    
+
+
 #ArrayBufferView*[S,T] = object
 #    buffer*: ArrayBuffer[S]
 #    offset*, stride*: int
 
 proc binding(loc: Location): Binding =
   result.index = loc.index.GLuint
-    
+
 type
   RenderObject*[N: static[int]] = object
     vao*: VertexArrayObject
     program*: Program
     locations*: array[N, Location]
-                  
+
 ##################################################################################
 #### Shading Dsl #################################################################
 ##################################################################################
@@ -124,7 +124,7 @@ proc shaderArg[T](name: string, value: T, glslType: string, isSampler: bool): in
 proc uniforms(args: varargs[int]): int = 0
 
 # TODO add tag for output variables weather they are transform feedback, or not
-  
+
 proc vertexOut(args: varargs[string]): int = 0
 proc geometryOut(args: varargs[string]): int = 0
 proc fragmentOut(args: varargs[string]): int = 0
@@ -141,7 +141,7 @@ proc vertexOffset(offset: int) : int = 0
 ##################################################################################
 #### Shading Dsl Inner ###########################################################
 ##################################################################################
-  
+
 macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup, beforeRender, afterRender: untyped; fragmentOutputs: static[openArray[string]]; statement: varargs[int] ) : untyped =
   # initialize with number of global textures, as soon as that is supported
   var numSamplers = 0
@@ -179,7 +179,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
   #let renderObject = ident"renderObject"
   #let vao     = newDotExpr(renderObject, ident"vao")
   #let program = newDotExpr(renderObject, ident"program")
-  
+
 
   proc getlocation(i: int) : NimNode =
     newBracketExpr(locations, newLit(i))
@@ -256,10 +256,10 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
           let bindingIndexLit = newLit(numSamplers)
           initUniformsBlock.add head quote do:
             glUniform1i(`loc`.index, `bindingIndexLit`)
-            
+
           bindTexturesCall[2].add head quote do:
             `value`.handle
-            
+
           numSamplers += 1
         else:
           drawBlock.add head quote do:
@@ -293,7 +293,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
         let divisorLit = newLit(divisorVal)
 
         let warningLit = newLit(value.lineinfo & " Hint: unused attribute: " & name)
-        
+
         bufferCreationBlock.addAll quote do:
           `location` = attributeLocation(`program`, `nameLit`)
           # this needs to change, when multiple
@@ -313,7 +313,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
         attribTypes.add( glslType )
         # format("in $1 $2", value.glslAttribType, name) )
         numLocations += 1
-            
+
     of "vertexOut":
       #echo "vertexOut"
 
@@ -361,7 +361,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
   if bindTexturesCall[2].len > 0: #actually got any uniform textures
     drawBlock.add bindTexturesCall
-      
+
   if vertexOffset.isNil:
     vertexOffset = newLit(0)
 
@@ -404,7 +404,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
       # p2 = li.find(')',p1)
       basename = li.substr(0, p0-1)
       line     = li.substr(p0+5, p1-1).parseInt
-      filename = joinPath(getTempDir(), s"${basename}_${line}.vert")
+      #filename = joinPath(getTempDir(), s"${basename}_${line}.vert")
 
     #writeFile(filename, vertexShaderSource)
 
@@ -412,10 +412,10 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
     error "numVertices needs to be assigned"
 
   let vsSrcLit = newLit vertexShaderSource
-  
+
   var compileShaderBlock = quote do:
     `program`.attachAndDeleteShader(compileShader(GL_VERTEX_SHADER, `vsSrcLit`))
-      
+
   if not geometryMain.isNil:
     var geometryHeader = sourceHeader
     geometryHeader &= "\n"
@@ -444,7 +444,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
     compileShaderBlock.addAll quote do:
       `program`.transformFeedbackVaryings(`namesLit`, GL_INTERLEAVED_ATTRIBS)
-    
+
   if hasIndices:
     var indicesPtr = newTree( nnkCast, bindSym"pointer", newInfix(bindSym"*", vertexOffset, newLit(sizeofIndexType)))
     if numInstances.isNil:
@@ -458,7 +458,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
       drawBlock.add newCall( bindSym"glDrawArraysInstanced", mode, vertexOffset, numVertices, numInstances )
 
   let numLocationsLit = newLit(numLocations)
-                            
+
   result = quote do:
     var `vao` {.global.}: VertexArrayObject
     var `program` {.global.}: Program
@@ -472,7 +472,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
       `compileShaderBlock`
 
       `program`.linkOrDelete
-      
+
       glUseProgram(`program`.handle)
 
       `initUniformsBlock`
@@ -484,11 +484,11 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
       `afterSetup`
 
     glUseProgram(`program`.handle)
-    
+
     glBindVertexArray(`vao`.handle)
-    
+
     `beforeRender`
-    
+
     `drawBlock`
 
     `afterRender`
@@ -498,19 +498,19 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
     glPopDebugGroup();
 
-                    
+
 
 ##################################################################################
 #### Shading Dsl Outer ###########################################################
 ######################################l############################################
-                    
+
 macro shadingDsl*(statement: untyped) : untyped =
   var wrapWithDebugResult = false
-  
+
   result = newCall(bindSym"shadingDslInner", newNilLit(), newNilLit(), bindSym"GL_TRIANGLES", newStmtList(), newStmtList(), newStmtList(), ident"fragmentOutputs", )
 
-  
-  
+
+
   # numVertices = result[2]
   # numInstances = result[3]
 
@@ -581,7 +581,7 @@ macro shadingDsl*(statement: untyped) : untyped =
           elif capture.kind == nnkIdent:
             identNode = capture
             nameNode  = newLit($capture)
-            
+
           let isSampler = newCall(bindSym"glslIsSampler", newCall(bindSym"type", identNode))
           let glslType  = newCall(bindSym"glslTypeRepr",  newCall(bindSym"type", identNode))
           uniformsCall.add( newCall(
@@ -591,12 +591,12 @@ macro shadingDsl*(statement: untyped) : untyped =
 
       of "attributes":
         let attributesCall = newCall(bindSym"attributes")
-        
+
         proc handleCapture(attributesCall, capture: NimNode, divisor: int) =
           capture.expectKind({nnkAsgn, nnkIdent})
 
           var nameNode, identNode: NimNode
-          
+
           if capture.kind == nnkAsgn:
             capture.expectLen 2
             capture[0].expectKind nnkIdent
@@ -605,7 +605,7 @@ macro shadingDsl*(statement: untyped) : untyped =
           elif capture.kind == nnkIdent:
             nameNode  = newLit($capture)
             identNode = capture
-            
+
           let glslType  = newCall(bindSym"glslTypeRepr",  newCall(
             bindSym"type", newDotExpr(identNode,ident"T")))
           attributesCall.add( newCall(
@@ -645,17 +645,17 @@ macro shadingDsl*(statement: untyped) : untyped =
             let name = section[0].repr
             let nameLit = newLit(name)
             let identNode = section[1]
-            
+
             outCall.add head quote do:
               "out " & glslTypeRepr(type(`identNode`.T)) & " " & `nameLit`
 
             transformFeedbackVaryingNamesCall.add nameLit
-          
+
           of nnkIdent:
             let name = section.repr
             let nameLit = newLit(name)
             let identNode = section
-            
+
             outCall.add head quote do:
               "out " & glslTypeRepr(type(`identNode`.T)) & " " & `nameLit`
 
@@ -689,7 +689,7 @@ macro shadingDsl*(statement: untyped) : untyped =
         stmtList.expectLen(1)
         stmtList[0].expectKind({ nnkTripleStrLit, nnkStrLit })
         result.add( newCall(bindSym"fragmentMain", stmtList[0]) )
-        
+
 
       of "includes":
         let includesCall = newCall(bindSym"includes")
@@ -702,6 +702,6 @@ macro shadingDsl*(statement: untyped) : untyped =
         result.add(includesCall)
       else:
         error("unknown section", ident)
-        
+
   if wrapWithDebugResult:
     result = newCall( bindSym"debugResult", result )
