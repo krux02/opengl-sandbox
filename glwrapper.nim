@@ -1,4 +1,5 @@
 # included from fancygl.nim
+
 when isMainModule:
   import glm, opengl, macros
 
@@ -18,8 +19,8 @@ type
     size: int
 
 proc isNil[T](view: DataView[T] | ReadView[T] | WriteView[T]): bool =
-  view.data.isNil    
-  
+  view.data.isNil
+
 proc dataView*[T](data: pointer, size: int) : DataView[T] =
   DataView[T](data: cast[ptr UncheckedArray[T]](data), size: size)
 
@@ -93,21 +94,21 @@ iterator mpairs*[T](wv: WriteView[T]): tuple[key: int, val: var T] {.inline.} =
   while i < wv.size:
     yield (i, p[i])
     inc(i)
-        
-    
+
+
 proc take*[T](view: DataView[T], num: int) : DataView[T] =
   result.data = view.data
   result.size = max(min(num, view.size), 0)
 
 #### program type ####
-  
+
 type
   Program* = object
     handle*: GLuint
-    
+
   Shader*  = object
     handle*: GLuint
-    
+
   Location* = object
     ## Location for a uniform or attribute from a shader program.
     ## Can be -1 for uniforms/attributes that are optimized out
@@ -116,7 +117,7 @@ type
   Binding* = object
     ## index of a buffer attached to a vertex array objact
     index*: GLuint
-    
+
 proc isNil*(program: Program): bool =
   program.handle == 0
 
@@ -140,10 +141,6 @@ proc uniform(program: Program; location: Location, mat: Mat3f) =
 proc uniform(program: Program; location: Location, mat: Mat2f) =
   glProgramUniformMatrix2fv(program.handle, location.index, 1, false, cast[ptr GLfloat](mat.unsafeAddr))
 
-
-
-  
-  
 proc uniform(program: Program; location: Location, value: float32) =
   glProgramUniform1f(program.handle, location.index, value)
 
@@ -156,7 +153,7 @@ proc uniform(program: Program; location: Location, value: int32) =
 proc uniform(program: Program; location: Location, value: bool) =
   glProgramUniform1i(program.handle, location.index, value.GLint)
 
-  
+
 proc uniform(program: Program; location: Location, value: Vec2f) =
   glProgramUniform2f(program.handle, location.index, value[0], value[1])
 
@@ -166,7 +163,7 @@ proc uniform(program: Program; location: Location, value: Vec3f) =
 proc uniform(program: Program; location: Location, value: Vec4f) =
   glProgramUniform4f(program.handle, location.index, value[0], value[1], value[2], value[3])
 
-  
+
 proc uniform(program: Program; location: Location, value: Vec2d) =
   glProgramUniform2d(program.handle, location.index, value[0], value[1])
 
@@ -186,7 +183,7 @@ proc uniform(program: Program; location: Location, value: Vec3i) =
 proc uniform(program: Program; location: Location, value: Vec4i) =
   glProgramUniform4i(program.handle, location.index, value[0], value[1], value[2], value[3])
 
-  
+
 proc uniform(program: Program; location: Location, value: Vec2b) =
   glProgramUniform2i(program.handle, location.index, value[0].GLint, value[1].GLint)
 
@@ -196,8 +193,8 @@ proc uniform(program: Program; location: Location, value: Vec3b) =
 proc uniform(program: Program; location: Location, value: Vec4b) =
   glProgramUniform4i(program.handle, location.index, value[0].GLint, value[1].GLint, value[2].GLint, value[3].GLint)
 
-  
-  
+
+
 #### Vertex Array Object ####
 
 type VertexArrayObject* = object
@@ -208,7 +205,7 @@ proc newVertexArrayObject*() : VertexArrayObject =
 
 proc bindIt*(vao: VertexArrayObject): void =
   glBindVertexArray(vao.handle)
-  
+
 proc delete*(vao: VertexArrayObject) =
   glDeleteVertexArrays(1, vao.handle.unsafeAddr)
 
@@ -217,7 +214,7 @@ proc divisor(vao: VertexArrayObject; binding: Binding; divisor: GLuint) : void =
     glVertexArrayVertexBindingDivisorEXT(vao.handle, location.index, divisor)
   else:
     glVertexArrayBindingDivisor(vao.handle, binding.index, divisor)
-    
+
 proc enableAttrib(vao: VertexArrayObject, location: Location) : void =
   if location.index >= 0:
     when false:
@@ -232,7 +229,9 @@ template blockBind*(vao: VertexArrayObject, blk: untyped) : untyped =
   blk
   nil_vao.bindIt
 
-#### Array Buffers ####
+################################################################################
+################################ Array  Buffers ################################
+################################################################################
 
 type
   ArrayBuffer*[T]        = object
@@ -267,30 +266,45 @@ proc new*[T](arrayBuffer: var UniformBuffer[T] ) : void =
 
 proc bindIt*(vao: VertexArrayObject; indices: ElementArrayBuffer): void =
   glVertexArrayElementBuffer(vao.handle, indices.handle)
-    
-proc newArrayBuffer*[T](length: int, usage: GLenum = GL_STATIC_DRAW): ArrayBuffer[T] =
+
+proc newArrayBuffer*[T](length: int, usage: GLenum = GL_STATIC_DRAW, label: string = nil): ArrayBuffer[T] =
   result.new
   glNamedBufferData(result.handle, length * GLsizeiptr(sizeof(T)), nil, usage)
+  if not label.isNil:
+    result.label = label
 
 proc newElementArrayBuffer*[T](length: int, usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
   result.new
   glNamedBufferData(result.handle, length * GLsizeiptr(sizeof(T)), nil, usage)
-  
+
 proc newUniformBuffer*[T](usage: GLenum = GL_STATIC_DRAW): UniformBuffer[T] =
   result.new
   glNamedBufferData(result.handle, GLsizeiptr(sizeof(T)), nil, usage)
 
 proc glGetInteger(name: GLenum): GLint =
   glGetIntegerv(name, result.addr)
-    
-proc currentArrayBuffer*[T](): ArrayBuffer[T] =
+
+proc currentArrayBuffer*[T](): ArrayBuffer[T] {. deprecated .} =
   result.handle = GLuint(glGetInteger(GL_ARRAY_BUFFER_BINDING))
 
-proc currentElementArrayBuffer*[T](): ElementArrayBuffer[T] =
+proc currentElementArrayBuffer*[T](): ElementArrayBuffer[T] {. deprecated .} =
   result.handle = GLuint(glGetInteger(GL_ELEMENT_ARRAY_BUFFER_BINDING))
 
-proc currentUniformBuffer*[T](): UniformBuffer[T] =
+proc currentUniformBuffer*[T](): UniformBuffer[T] {. deprecated .} =
   result.handle = GLuint(glGetInteger(GL_UNIFORM_BUFFER_BINDING))
+
+proc label*(arg: AnyBuffer): string =
+  const bufsize = 255
+  result = newString(bufsize)
+  var length: GLsizei
+  glGetObjectLabel(GL_BUFFER, arg.handle, bufsize, length.addr, result[0].addr)
+  result.setLen(length)
+
+proc `label=`*(arg: AnyBuffer; label: string): void =
+    ## does nothing when label is nil (allows nil checks on other places)
+    if not isNil label:
+      debugecho "setting object label ", arg.handle, ": ", label
+      glObjectLabel(GL_BUFFER, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
 
 proc bindingKind*[T](buffer: ArrayBuffer[T]) : GLenum {. inline .} =
   GL_ARRAY_BUFFER_BINDING
@@ -320,7 +334,7 @@ template blockBind*[T](buffer : AnyBuffer[T], blk:untyped) =
   buf.bindIt
   blk
   glBindBuffer(buf.bufferKind, GLuint(outer))
-  
+
 proc bufferData*[T](buffer: SeqLikeBuffer[T], data: openarray[T], usage: GLenum) =
   if buffer.handle.int > 0:
     glNamedBufferData(buffer.handle, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
@@ -328,18 +342,18 @@ proc bufferData*[T](buffer: SeqLikeBuffer[T], data: openarray[T], usage: GLenum)
 proc bufferData*[T](buffer: SeqLikeBuffer[T], dataview: DataView[T], usage: GLenum) =
   if buffer.handle.int > 0:
     glNamedBufferData( buffer.handle, GLsizeiptr(dataview.len * sizeof(T)), dataview.data, usage)
-      
+
 proc bufferData*[T](buffer: UniformBuffer[T], data: T, usage: GLenum) =
   if buffer.handle.int > 0:
     glNamedBufferData(buffer.handle, GLsizeiptr(sizeof(T)), unsafeAddr(data), usage)
-      
+
 proc setData*[T](buffer: SeqLikeBuffer[T], data: openarray[T]) =
   if buffer.handle.int > 0:
     glNamedBufferSubData(buffer.handle, 0, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]))
 
 proc setData*[T](buffer: UniformBuffer[T], data: T) =
   if buffer.handle.int > 0:
-    glNamedBufferSubData(buffer.handle, 0, GLsizeiptr(sizeof(T)), unsafeAddr(data))      
+    glNamedBufferSubData(buffer.handle, 0, GLsizeiptr(sizeof(T)), unsafeAddr(data))
 
 
 proc len*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]) : int =
@@ -380,7 +394,7 @@ proc mapped*[T](buffer: ArrayBuffer[T]) : bool =
     glGetNamedBufferParameterivEXT(buffer.handle, GL_BUFFER_MAPPED, tmp.addr)
   else:
     glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_MAPPED, tmp.addr)
-    
+
   return tmp != GL_FALSE
 
 proc mapLength*[T](buffer: ArrayBuffer[T]) : int =
@@ -406,7 +420,7 @@ proc byteSize*[T](buffer: ArrayBuffer[T]) : int =
   else:
     glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_SIZE, tmp.addr)
   return int(tmp)
-  
+
 proc storageFlags*[T](buffer: ArrayBuffer[T]) : GLenum =
   var tmp: GLint
   when false:
@@ -522,29 +536,36 @@ macro mapReadWriteBlock*(buffer: ArrayBuffer, blck: untyped) : untyped =
         discard `buffer`.unmap
       `blck`
 
-proc arrayBuffer*[T](data : openarray[T], usage: GLenum = GL_STATIC_DRAW): ArrayBuffer[T] =
+proc arrayBuffer*[T](data : openarray[T], usage: GLenum = GL_STATIC_DRAW, label: string = nil): ArrayBuffer[T] =
   result.new
   result.bufferData(data, usage)
+  result.label = label
 
-proc arrayBuffer*[T](data : DataView[T], usage: GLenum = GL_STATIC_DRAW): ArrayBuffer[T] =
+proc arrayBuffer*[T](data : DataView[T], usage: GLenum = GL_STATIC_DRAW, label: string = nil): ArrayBuffer[T] =
   if not data.isNil:
     result.new
     result.bufferData(data, usage)
+    result.label = label
 
-proc elementArrayBuffer*[T](data : openarray[T], usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
+proc elementArrayBuffer*[T](data : openarray[T]; usage: GLenum = GL_STATIC_DRAW; label: string = nil): ElementArrayBuffer[T] =
   result.new
   result.bufferData(data, usage)
+  result.label = label
 
-proc elementArrayBuffer*[T](data : DataView[T], usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
+proc elementArrayBuffer*[T](data : DataView[T], usage: GLenum = GL_STATIC_DRAW, label: string = nil): ElementArrayBuffer[T] =
   if not data.isNil:
     result.new
     result.bufferData(data, usage)
+    result.label = label
 
-proc uniformBuffer*[T](data : T, usage: GLenum = GL_STATIC_DRAW): UniformBuffer[T] =
+proc uniformBuffer*[T](data : T, usage: GLenum = GL_STATIC_DRAW, label: string = nil): UniformBuffer[T] =
   result.new
   result.bufferData(data, usage)
+  result.label = label
 
-#### ArrayBufferView
+################################################################################
+################################ ArrayBufferView ###############################
+################################################################################
 
 type
   ArrayBufferView*[S,T] = object
@@ -554,7 +575,7 @@ type
 
 proc len*(ab: ArrayBufferView):  int = ab.buffer.len
 proc high*(ab: ArrayBufferView): int = ab.buffer.len - 1
-    
+
 template view*(buf: ArrayBuffer; member: untyped): untyped =
   var dummyVal : buf.T
   var res : ArrayBufferView[buf.T, dummyVal.member.type]
@@ -572,14 +593,14 @@ proc splitView*(buf: ArrayBuffer[Mat4f]): array[4, ArrayBufferView[Mat4f, Vec4f]
 when isMainModule:
   type TestType = object
     a,b,c,d: float32
-    
+
   var testArrayBuffer = ArrayBuffer[TestType](handle : 7)
 
   assert testArrayBuffer.view(a) == ArrayBufferView[TestType,int](buffer: ArrayBuffer[TestType](handle: 7), offset: 0, stride: 16)
   assert testArrayBuffer.view(b) == ArrayBufferView[TestType,int](buffer: ArrayBuffer[TestType](handle: 7), offset: 4, stride: 16)
   assert testArrayBuffer.view(c) == ArrayBufferView[TestType,int](buffer: ArrayBuffer[TestType](handle: 7), offset: 8, stride: 16)
   assert testArrayBuffer.view(d) == ArrayBufferView[TestType,int](buffer: ArrayBuffer[TestType](handle: 7), offset:12, stride: 16)
-  
+
 #### shader
 
 proc shaderSource(shader: Shader, source: string) =
@@ -633,7 +654,7 @@ proc showError(log: string, source: string): void =
   stdout.styledWriteLine(fgRed, log)
   stdout.styledWriteLine(fgGreen, "------------------------------------------------------------------")
   stdout.styledWriteLine(fgGreen, "==== end Shader Problems =========================================")
-  
+
 
 proc infoLog(program: Program): string =
   var length: GLint = 0
@@ -658,7 +679,7 @@ proc linkOrDelete*(program: Program): void =
   if not program.linkStatus:
     echo "Log: ", program.infoLog
     glDeleteProgram(program.handle)
-  
+
 proc linkShader*(shaders: varargs[Shader]): Program =
   result.handle = glCreateProgram()
 
@@ -688,9 +709,9 @@ proc transformFeedbackVaryings*(program: Program; varyings: openarray[string]; b
   for i in 0 ..< varyings.len:
     arr[i] = varyings[i]
   glTransformFeedbackVaryings(program.handle, GLsizei(varyings.len), cast[cstringArray](arr.addr), bufferMode)
-  
+
 proc readPixel*(x,y: int) : Color =
-  let 
+  let
     w = 1.GLsizei
     h = 1.GLsizei
     f = GL_RGBA
@@ -710,11 +731,11 @@ template transformFeedbackBlock(primitiveMode: GLenum; blk: untyped): untyped =
     defer:
       glEndTransformFeedback()
     blk
-    
+
 type
   TransformFeedback* = object
     handle*: GLuint
-          
+
 proc newTransformFeedback*() : TransformFeedback =
   glCreateTransformFeedbacks(GLsizei(1), result.handle.addr)
 
@@ -727,10 +748,9 @@ proc bufferBase*(tf: TransformFeedback; index: int; buffer: ArrayBuffer): void =
 
 proc bufferRange*(tf: TransformFeedback; index: int; buffer: ArrayBuffer; offset: ptr int32; size: int): void =
   glTransformFeedbackBufferRange(tf.handle, GLuint(index), buffer.handle, offset, GLsizeiptr(size))
-                  
+
 proc draw*(tf: TransformFeedback; primitiveMode: GLenum): void =
   glDrawTransformFeedback(primitiveMode, tf.handle)
 
 proc bindIt*(tf: TransformFeedback): void =
   glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, tf.handle)
-  

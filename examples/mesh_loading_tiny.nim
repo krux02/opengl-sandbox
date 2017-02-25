@@ -6,11 +6,11 @@ proc `$`(v: Vec): string = glm.`$`(v)
 
 proc main() =
   echo "Hello World from main"
-  
+
   let (window, context) = defaultSetup(WindowSize)
-  
+
   defer: sdl2.quit()
-  
+
   discard ttfinit()
 
   if TwInit(TW_OPENGL_CORE, nil) == 0:
@@ -22,7 +22,7 @@ proc main() =
     vec2f(0,1),
     vec2f(1,0),
     vec2f(1,1)
-  ])
+  ], label = "quadTexCoords")
 
   let textHeight = 16
   var font = ttf.openFont("/usr/share/fonts/truetype/inconsolata/Inconsolata.otf", textHeight.cint)
@@ -39,15 +39,17 @@ proc main() =
 
   let header = cast[ptr iqmheader](file.mem)
   echo "version:   ", header.version
-  
+
   let texts = header.getTexts
 
   let textTextures = textureArray(texts.mapIt($it))
   let (textSize, _) = textTextures.size
 
-  let textPositions = newArrayBuffer[Vec4f](texts.len)
-  let textPixelPositions = newArrayBuffer[Vec2i](texts.len)
-  #var textWidths    = newArrayBuffer[Vec4f](texts.len)
+  let textPositions =
+    newArrayBuffer[Vec4f](texts.len, GL_DYNAMIC_DRAW, "textPositions")
+
+  let textPixelPositions =
+    newArrayBuffer[Vec2i](texts.len, GL_DYNAMIC_DRAW, "textPixelPositions")
 
   #[
   block:
@@ -60,13 +62,13 @@ proc main() =
         defer: freeSurface(surface)
 
         surface.flipY
-    
+
         textTextures[i] = surface.textureRectangle
         textWidths[i] = surface.w
-    
+
       else:
         textWidths[i] = -1
-    
+
       i += 1
   ]#
 
@@ -91,7 +93,8 @@ proc main() =
     while jointName != texts[j]:
       j += 1
     jointNameIndices[i] = float32(j)
-  let jointNameIndicesBuffer = jointNameIndices.arrayBuffer
+  let jointNameIndicesBuffer =
+    arrayBuffer(jointNameIndices, label ="jointNameIndices")
 
   var jointMatrices = newSeq[Mat4f](joints.len)
   for i in 0 .. < joints.len:
@@ -103,15 +106,15 @@ proc main() =
 
   var outframe         = newSeq[Mat4f](joints.len)
   var outframe_texture = newTextureRectangle( vec2i(4, joints.len.int32), GL_RGBA32F )
-  
+
   echo "=========================================================================="
-  
+
   echo "triangles: ", triangles.len
   for tri in triangles.take(4):
     echo tri.vertex[0], ", ", tri.vertex[1], ", ", tri.vertex[2]
-    
+
   echo "=========================================================================="
- 
+
   echo "adjacencies: ", adjacencies.len
   for adj in adjacencies.take(4):
     echo adj.triangle[0], ", ", adj.triangle[1], ", ", adj.triangle[2]
@@ -129,7 +132,7 @@ proc main() =
     meshTextures[i] = loadTexture2DFromFile( "resources/" & $text(mesh.material) )
 
   echo "=========================================================================="
-  
+
 
   echo "joints: ", joints.len
   for joint in joints.take(3):
@@ -140,7 +143,7 @@ proc main() =
     echo "scale:     ", joint.scale
 
   echo "=========================================================================="
-  
+
   echo "poses: ", poses.len
   for pose in poses.take(3):
     echo "parent:        ", pose.parent
@@ -192,7 +195,7 @@ proc main() =
         frames[i][j] = m * inversebaseframe[j.int]
 
   let
-    boxColors   = fancygl.boxColors.arrayBuffer
+    boxColors   = arraybuffer(fancygl.boxColors)
 
     boneVerticesArray = [
       vec3f(0,0,0), vec3f(+0.1f, 0.1f, +0.1f), vec3f(+0.1f, 0.1f, -0.1f),
@@ -205,7 +208,7 @@ proc main() =
       vec3f(0,1,0), vec3f(-0.1f, 0.1f, +0.1f), vec3f(-0.1f, 0.1f, -0.1f),
       vec3f(0,1,0), vec3f(+0.1f, 0.1f, +0.1f), vec3f(-0.1f, 0.1f, +0.1f)
     ]
-    boneVertices = boneVerticesArray.arrayBuffer
+    boneVertices = arrayBuffer(boneVerticesArray, label = "boneVerticesArray")
     boneNormals = (block:
       var normals = newSeq[Vec3f](boneVerticesArray.len)
       for i in countup(0, boneVerticesArray.len-1, 3):
@@ -219,7 +222,7 @@ proc main() =
         normals[i + 1] = normal
         normals[i + 2] = normal
 
-      normals.arrayBuffer
+      arrayBuffer(normals, label = "normals")
     )
 
   var
@@ -248,7 +251,7 @@ proc main() =
   discard TwWindowSize(WindowSize.x, WindowSize.y)
 
   var obj_quat : Quatf
-  
+
   var scale: float32 = 1
 
   var bar = TwNewBar("TwBar")
@@ -273,7 +276,7 @@ proc main() =
       let handled = TwEventSDL(cast[pointer](evt.addr), 2.cuchar, 0.cuchar) != 0
       if handled:
         continue
-      
+
 
       if evt.kind == QuitEvent:
         runGame = false
@@ -328,18 +331,18 @@ proc main() =
     ##################
 
     projection_mat = frustum(-hor * scale, hor * scale, -ver * scale, ver * scale, 1, 100)
-    
+
     var view_mat = I4d
-    
+
     view_mat = view_mat.translate( vec3d(0, -1.5f, -17) + vec3d(0, offset.y, offset.x) )
     view_mat = view_mat.translate( vec3d(0, 0, 3) )
-    
+
     view_mat = view_mat.rotate( vec3d(1,0,0), rotation.y-0.5f )
     view_mat = view_mat.rotate( vec3d(0,0,1), rotation.x )
     view_mat = view_mat * obj_quat.mat4(vec4f(0,0,0,1)).mat4d
-    
+
     view_mat = view_mat.translate( vec3d(0, 0, -3) )
-    
+
     ################
     #### render ####
     ################
@@ -564,7 +567,7 @@ proc main() =
     let normalizedRectSize = vec2f(textSize) / vec2f(WindowSize) * 2.0f
 
     textPositions.mapWriteBlock:
-      textPixelPositions.mapWriteBlock:        
+      textPixelPositions.mapWriteBlock:
         for i, _ in joints:
           let model_mat = outframe[i].mat4d * jointMatrices[i].mat4d
           var pos = projection_mat * view_mat * model_mat[3]
@@ -572,7 +575,7 @@ proc main() =
           textPositions[i] = vec4f(pos)
           textPixelPositions[i] = vec2i(vec2f(pos.xy + 1) * 0.5f * vec2f(WindowSize))
 
-    
+
     if renderBoneNames:
       shadingDsl:
           primitiveMode = GL_TRIANGLE_STRIP
@@ -587,7 +590,7 @@ proc main() =
 
           attributes:
             a_texcoord = quadTexCoords
-            
+
             instanceData:
               a_position = textPositions
               a_textIndex = jointNameIndicesBuffer
@@ -646,7 +649,7 @@ proc main() =
 
           vertexOut:
             "flat out ivec2 rectPosPixels"
-            
+
 
           fragmentMain:
             """
@@ -656,15 +659,9 @@ proc main() =
 
       ]#
 
-      
+
 
     discard TwDraw()
     window.glSwapWindow()
 
 main()
-
-
-
-
-
-
