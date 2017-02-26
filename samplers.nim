@@ -15,6 +15,7 @@ macro createTextureMacro(name, target: untyped): untyped =
 ]#
 
 proc createErrorSurface*(message: string = nil): sdl2.SurfacePtr =
+  # TODO message is still unsued
   result = createRGBSurface(0, 512, 512, 32, 0,0,0,0)
   if result.isNil:
     echo "SDL_CreateRGBSurface() failed: ", getError()
@@ -27,57 +28,21 @@ proc createErrorSurface*(message: string = nil): sdl2.SurfacePtr =
 
 const typeConst = [GL_RED, GL_RG, GL_RGB, GL_RGBA]
 
-template textureTypeTemplate(name, nilName, target:untyped, shadername:string): untyped =
+template textureTypeTemplate(name: untyped, target: GLenum, shadername:string): untyped =
   type
     name* = object
       handle*: GLuint
-  #const nilName* = name(0)
+
   proc `$`*(texture: name): string =
     $texture.handle
 
-  #createTextureMacro(name, target)
-
-  proc isValid*(texture: name): bool =
-    texture.handle.int > 0 and glIsTexture(texture.handle)
-
-  proc bindToActiveUnit*(texture: name): void =
-    glBindTexture(target, texture.handle)
-
-  proc bindToUnit*(texture: name, unit: int): void =
-    glBindTextureUnit(unit.GLuint, texture.handle)
-
-  proc parameter*(texture: name, pname: GLenum, param: GLint): void =
-    when false:
-      glTextureParameteriEXT(texture.handle, target, pname, param)
-    else:
-      glTextureParameteri(texture.handle, pname, param)
-
-  proc generateMipmap*(texture: name): void =
-    when false:
-      glGenerateTextureMipmapEXT(texture.handle, target)
-    else:
-      glGenerateTextureMipmap(texture.handle)
-
-  proc delete*(texture: name): void =
-    var id = texture.handle
-    glDeleteTextures(1, id.addr)
 
 proc unbindTextures(first,count: int): void =
-  when true:
-    glBindTextures(first.GLuint, count.GLsizei, nil)
-  else:
-    for textureUnit in first ..< first + count:
-      glBindTextureUnit(GLuint(textureUnit), 0);
+  glBindTextures(first.GLuint, count.GLsizei, nil)
 
 proc bindTextures(first: int; handles: openarray[GLuint]): void =
-  when true:
-    glBindTextures(first.GLuint, handles.len.GLsizei, handles[0].unsafeaddr)
-  else:
-    for i in 0 ..< handles.len:
-      let textureUnit = GLuint(first + i)
-      let texture: GLuint = handles[i]
-      glBindTextureUnit(textureUnit, texture)
-    
+  glBindTextures(first.GLuint, handles.len.GLsizei, handles[0].unsafeaddr)
+
 proc geometryNumVerts(mode: GLenum): int =
   case mode
   of GL_POINTS: 1
@@ -109,37 +74,76 @@ proc geometryPrimitiveLayout(mode: GLenum): string =
   else:
     ""
 
-textureTypeTemplate(Texture1D,                 nil_Texture1D,
+textureTypeTemplate(Texture1D,
     GL_TEXTURE_1D, "sampler1D")
-textureTypeTemplate(Texture2D,                 nil_Texture2D,
+textureTypeTemplate(Texture2D,
     GL_TEXTURE_2D, "sampler2D")
-textureTypeTemplate(Texture3D,                 nil_Texture3D,
+textureTypeTemplate(Texture3D,
     GL_TEXTURE_3D, "sampler3D")
-textureTypeTemplate(Texture1DArray,             nil_Texture1DArray,
+textureTypeTemplate(Texture1DArray,
     GL_Texture_1D_ARRAY, "sampler1DArray")
-textureTypeTemplate(Texture2DArray,            nil_Texture2DArray,
+textureTypeTemplate(Texture2DArray,
     GL_TEXTURE_2D_ARRAY, "sampler2DArray")
-textureTypeTemplate(TextureRectangle,          nil_TextureRectangle,
+textureTypeTemplate(TextureRectangle,
     GL_TEXTURE_RECTANGLE, "sampler2DRect")
-textureTypeTemplate(TextureCubeMap,            nil_TextureCubeMap,
+textureTypeTemplate(TextureCubeMap,
     GL_TEXTURE_CUBE_MAP, "samplerCube")
-textureTypeTemplate(TextureCubeMapArray,       nil_TextureCubeMapArray,
+textureTypeTemplate(TextureCubeMapArray,
     GL_TEXTURE_CUBE_MAP_ARRAY , "samplerCubeArray")
-textureTypeTemplate(TextureBuffer,             nil_TextureBuffer,
+textureTypeTemplate(TextureBuffer,
     GL_TEXTURE_BUFFER, "samplerBuffer")
-textureTypeTemplate(Texture2DMultisample,      nil_Texture2DMultisample,
+textureTypeTemplate(Texture2DMultisample,
     GL_TEXTURE_2D_MULTISAMPLE, "sampler2DMS")
-textureTypeTemplate(Texture2DMultisampleArray, nil_Texture2DMultisampleArray,
+textureTypeTemplate(Texture2DMultisampleArray,
     GL_TEXTURE_2D_MULTISAMPLE_ARRAY, "sampler2DMSArray")
 
 
-textureTypeTemplate(Texture1DShadow,        nil_Texture1DShadow,        GL_TEXTURE_1D,             "sampler1DShadow​")
-textureTypeTemplate(Texture2DShadow,        nil_Texture2DShadow,        GL_TEXTURE_2D,             "sampler2DShadow​")
-textureTypeTemplate(TextureCubeShadow,      nil_TextureCubeShadow,      GL_TEXTURE_CUBE_MAP,       "samplerCubeShadow​")
-textureTypeTemplate(Texture2DRectShadow,    nil_Texture2DRectShadow,    GL_TEXTURE_RECTANGLE,      "sampler2DRectShadow​")
-textureTypeTemplate(Texture1DArrayShadow,   nil_Texture1DArrayShadow,   GL_TEXTURE_1D_ARRAY,       "sampler1DArrayShadow​")
-textureTypeTemplate(Texture2DArrayShadow,   nil_Texture2DArrayShadow,   GL_TEXTURE_2D_ARRAY,       "sampler2DArrayShadow​")
-textureTypeTemplate(TextureCubeArrayShadow, nil_TextureCubeArrayShadow, GL_TEXTURE_CUBE_MAP_ARRAY, "samplerCubeArrayShadow​")
+textureTypeTemplate(Texture1DShadow,        GL_TEXTURE_1D,             "sampler1DShadow​")
+textureTypeTemplate(Texture2DShadow,        GL_TEXTURE_2D,             "sampler2DShadow​")
+textureTypeTemplate(TextureCubeShadow,      GL_TEXTURE_CUBE_MAP,       "samplerCubeShadow​")
+textureTypeTemplate(Texture2DRectShadow,    GL_TEXTURE_RECTANGLE,      "sampler2DRectShadow​")
+textureTypeTemplate(Texture1DArrayShadow,   GL_TEXTURE_1D_ARRAY,       "sampler1DArrayShadow​")
+textureTypeTemplate(Texture2DArrayShadow,   GL_TEXTURE_2D_ARRAY,       "sampler2DArrayShadow​")
+textureTypeTemplate(TextureCubeArrayShadow, GL_TEXTURE_CUBE_MAP_ARRAY, "samplerCubeArrayShadow​")
+
+
+type
+  AnyTexture =
+    Texture1D | Texture2D | Texture3D |
+    Texture1DArray | Texture2DArray |
+    TextureRectangle | TextureCubeMap | TextureCubeMapArray |
+    TextureBuffer | Texture2DMultisample | Texture2DMultisampleArray |
+    Texture1DShadow | Texture2DShadow | TextureCubeShadow |
+    Texture2DRectShadow | Texture1DArrayShadow | Texture2DArrayShadow |
+    TextureCubeArrayShadow
+
+proc isValid*(texture: AnyTexture): bool =
+  texture.handle.int > 0 and glIsTexture(texture.handle)
+
+proc bindToUnit*(texture: AnyTexture, unit: int): void =
+  glBindTextureUnit(unit.GLuint, texture.handle)
+
+proc parameter*(texture: AnyTexture, pname: GLenum, param: GLint): void =
+  glTextureParameteri(texture.handle, pname, param)
+
+proc generateMipmap*(texture: AnyTexture): void =
+  glGenerateTextureMipmap(texture.handle)
+
+proc delete*(texture: AnyTexture): void =
+  var id = texture.handle
+  glDeleteTextures(1, id.addr)
+
+proc label*(arg: AnyTexture): string =
+  const bufsize = 255
+  result = newString(bufsize)
+  var length: GLsizei
+  glGetObjectLabel(GL_TEXTURE, arg.handle, bufsize, length.addr, result[0].addr)
+  result.setLen(length)
+
+proc `label=`*(arg: AnyTexture; label: string): void =
+    ## does nothing when label is nil
+    if not isNil label:
+      glObjectLabel(GL_TEXTURE, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
 
 proc loadSurfaceFromFile*(filename: string): SurfacePtr =
   let surface = image.load(filename)
@@ -156,7 +160,7 @@ proc size*(tex: Texture2D): Vec2i =
     glGetTextureLevelParameteriv(tex.handle, 0, GL_TEXTURE_HEIGHT, h.addr)
   result = vec2i(w, h)
 
-  
+
 proc subImage*(this: Texture2D; surface: sdl2.SurfacePtr; pos: Vec2i = vec2i(0); level: int = 0): void =
   case surface.format.format
   of SDL_PIXELFORMAT_RGBA8888:
@@ -172,7 +176,7 @@ proc subImage*(this: Texture2D; surface: sdl2.SurfacePtr; pos: Vec2i = vec2i(0);
 proc subImageGrayscale*(this: Texture2D; surface: sdl2.SurfacePtr; pos: Vec2i = vec2i(0); level: int = 0): void =
   assert(surface.format.format == SDL_PIXELFORMAT_INDEX8, $getPixelFormatName(surface.format.format))
   glTextureSubImage2D(this.handle, level.GLint, pos.x, pos.y, surface.w, surface.h, GL_RED, GL_UNSIGNED_BYTE, surface.pixels)
-    
+
 proc texture2D*(surface: sdl2.SurfacePtr): Texture2D =
   glCreateTextures(GL_TEXTURE_2D, 1, result.handle.addr)
   let levels = min(surface.w, surface.h).float32.log2.floor.GLint
@@ -183,7 +187,7 @@ proc texture2D*(surface: sdl2.SurfacePtr): Texture2D =
   result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
   result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
   result.generateMipmap
-  
+
 proc texture2D*(size: Vec2i, internalFormat: GLenum = GL_RGBA8): Texture2D =
   when false:
     discard
@@ -191,16 +195,16 @@ proc texture2D*(size: Vec2i, internalFormat: GLenum = GL_RGBA8): Texture2D =
     glCreateTextures(GL_TEXTURE_2D, 1, result.handle.addr)
     let levels = GLint(floor(log2(float32(min(size.x, size.y)))))
     glTextureStorage2D(result.handle, levels, internalFormat, size.x.GLsizei, size.y.GLsizei)
-    
+
 proc setData*[T](texture: Texture2D, data: seq[T]; level: int = 0) =
   let
     s = texture.size
     w = s.x.GLint
     h = s.y.GLint
     lev = level.GLint
-    
+
   glTextureSubImage2D(texture.handle, lev, 0, 0, w, h, typeConst[T.attribSize-1], T.attribType, data[0].unsafeAddr)
-  
+
 proc newTexture2DArray*(size: Vec2i; depth: int; levels: int; internalFormat: GLenum = GL_RGBA8): Texture2DArray =
   glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, result.handle.addr)
   glTextureStorage3D(result.handle, levels.GLint, internalFormat, size.x.GLsizei, size.y.GLsizei, depth.GLsizei)
@@ -215,7 +219,7 @@ proc size*(tex: Texture2DArray): tuple[size : Vec2i, depth: int] =
   glGetTextureLevelParameteriv(tex.handle, 0, GL_TEXTURE_HEIGHT, h.addr)
   glGetTextureLevelParameteriv(tex.handle, 0, GL_TEXTURE_DEPTH, d.addr)
   result = (size: vec2i(w,h), depth: int(d))
-  
+
 proc subImage*(this: Texture2DArray; surface: sdl2.SurfacePtr; pos: Vec2i = vec2i(0); layer: int; level: int = 0): void =
   let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
   defer: freeSurface(surface2)
@@ -225,7 +229,7 @@ proc subImage*(this: Texture2DArray; surface: sdl2.SurfacePtr; pos: Vec2i = vec2
 
   #echo(this.handle, " ", level.GLint, " ", pos.x.GLint, pos.y.GLint, layer.GLint, " ", surface2.w.GLsizei, " ", surface2.h.GLsizei, " ", 1)
   glTextureSubImage3D(this.handle, level.GLint, pos.x.GLint, pos.y.GLint, layer.GLint, surface2.w.GLsizei, surface2.h.GLsizei, 1, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
-  
+
 proc `[]=`*(tex: Texture2DArray; i: int; surface: sdl2.SurfacePtr): void =
   let (size, _) = tex.size # ignore depth
   assert size.x == surface.w
@@ -240,7 +244,7 @@ proc `[]=`*(tex: Texture2DArray; i: int; surface: sdl2.SurfacePtr): void =
     depth   = GLsizei(1)
     format  = GL_RGBA
     typ = GL_UNSIGNED_INT_8_8_8_8
-    
+
   glTextureSubImage3D(tex.handle, level, xoffset, yoffset, zoffset, width, height, depth, format, typ, surface.pixels)
 
 proc texture2DArray*(surfaces: openarray[sdl2.SurfacePtr]; internalFormat: GLenum = GL_RGBA8): Texture2DArray =
@@ -254,7 +258,7 @@ proc texture2DArray*(surfaces: openarray[sdl2.SurfacePtr]; internalFormat: GLenu
     result[i] = surf
 
   glGenerateTextureMipmap(result.handle)
-  
+
 proc textureRectangle*(surface: sdl2.SurfacePtr): TextureRectangle =
   let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
   defer: freeSurface(surface2)
@@ -269,10 +273,11 @@ proc loadTextureRectangleFromFile*(filename: string): TextureRectangle =
     let message = s"can't load texture $filename: ${sdl2.getError()}"
     echo message
     surface = createErrorSurface(message)
-    
+
   defer: freeSurface(surface)
-  textureRectangle(surface)  
-  
+  result = textureRectangle(surface)
+  result.label = filename
+
 proc newTexture1D*(size: int, internalFormat: GLenum = GL_RGBA8): Texture1D =
   when false:
     discard
@@ -328,7 +333,7 @@ proc setData*[T](texture: TextureRectangle; data: seq[T]) =
     s = texture.size
     w = s.x.GLint
     h = s.y.GLint
-    
+
   glTextureSubImage2D(texture.handle, 0, 0, 0, w, h, typeConst[T.attribSize-1], T.attribType, data[0].unsafeAddr)
 
 proc setPixel*[T](texture: TextureRectangle; pos: Vec2i; pixel: T) =
@@ -343,11 +348,12 @@ proc loadTexture2DFromFile*(filename: string): Texture2D =
     let message = s"can't load texture $filename: ${sdl2.getError()}"
     echo message
     surface = createErrorSurface(message)
-    
+
 
   defer: freeSurface(surface)
-  texture2D(surface)
-  
+  result = texture2D(surface)
+  result.label = filename
+
 proc saveToBmpFile*(tex: Texture2D | TextureRectangle; filename: string): void =
   let s = tex.size
   var surface = createRGBSurface(0, s.x.int32, s.y.int32, 32, 0xff000000.uint32, 0x00ff0000, 0x0000ff00, 0x000000ff)  # no alpha, rest default
@@ -365,11 +371,11 @@ proc saveToGrayscaleBmpFile*(tex: Texture2D | TextureRectangle; filename: string
   let s = tex.size
   var surface = createRGBSurface(0, s.x.int32, s.y.int32, 8, 0, 0, 0, 0)
   setPaletteColors(surface.format.palette, colors[0].addr, 0, 256);
-  
+
   let bufferSize = GLsizei(s.x * s.y)
   glGetTextureImage(tex.handle, 0, GL_RED, GL_UNSIGNED_BYTE, bufferSize, surface.pixels)
   surface.saveBMP(filename)
-  
+
 when false:
   # ARB_direct_state_access textures have immutable size :/
   proc resize*(tex: Texture2D, size: Vec2i) =
@@ -390,7 +396,7 @@ proc newTexture2D*(size: Vec2i, internalFormat: GLenum = GL_RGBA8; levels: int =
     internalFormat,
     size.x.GLsizei, size.y.GLsizei
   )
-  
+
   # glTextureSubImage2D(tex.GLuint, 0, 0, 0, size.x.GLsizei, size.y.GLsizei, internalFormat,cGL_UNSIGNED_BYTE, nil)
   # result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
   # result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR)

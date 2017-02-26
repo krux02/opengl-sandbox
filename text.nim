@@ -15,8 +15,6 @@ const fontPaths = ["/usr/share/fonts/truetype/inconsolata/Inconsolata.otf", "/us
 
 proc init(self: ptr TextRenderer): void =
   self.textHeight = 14
-  echo cast[uint64](self.font)
-
 
   for path in fontPaths:
     if not self.font.isNil:
@@ -50,10 +48,6 @@ proc textureArray(this: TextRenderer; strings: openarray[string]): Texture2DArra
 
   for i, str in strings:
     if str.len > 0:
-      echo "str: ->|", str, "|<-"
-      echo "bg:  ->|", this.bg, "|<-"
-      echo "fg:  ->|", this.fg, "|<-"
-      echo "font:->|", this.font != nil, "|<-"
       let surf = renderTextShaded(this.font, str, this.fg, this.bg)
       assert surf != nil
       surf.flipY

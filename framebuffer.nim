@@ -9,12 +9,37 @@ type
   FrameBuffer* = object
     handle*: GLuint
 
+proc label*(arg: DepthRenderBuffer): string =
+  const bufsize = 255
+  result = newString(bufsize)
+  var length: GLsizei
+  glGetObjectLabel(GL_RENDERBUFFER, arg.handle, bufsize, length.addr, result[0].addr)
+  result.setLen(length)
+
+proc `label=`*(arg: DepthRenderBuffer; label: string): void =
+    ## does nothing when label is nil (allows nil checks on other places)
+    if not isNil label:
+      glObjectLabel(GL_FRAMEBUFFER, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
+
+proc label*(arg: FrameBuffer): string =
+  const bufsize = 255
+  result = newString(bufsize)
+  var length: GLsizei
+  glGetObjectLabel(GL_FRAMEBUFFER, arg.handle, bufsize, length.addr, result[0].addr)
+  result.setLen(length)
+
+proc `label=`*(arg: FrameBuffer; label: string): void =
+    ## does nothing when label is nil (allows nil checks on other places)
+    if not isNil label:
+      glObjectLabel(GL_RENDERBUFFER, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
+
 proc bindIt*(drb: DepthRenderbuffer): void =
   glBindRenderbuffer(GL_RENDERBUFFER, drb.handle)
 
-proc newDepthRenderBuffer*(size: Vec2i) : DepthRenderbuffer =
+proc newDepthRenderBuffer*(size: Vec2i, label: string = nil) : DepthRenderbuffer =
   glCreateRenderbuffers(1, cast[ptr GLuint](result.addr))
   glNamedRenderbufferStorage(result.handle, GL_DEPTH_COMPONENT, size.x.GLsizei, size.y.GLsizei)
+  result.label = label
 
 proc bindIt*(fb: FrameBuffer): void =
   glBindFramebuffer(GL_FRAMEBUFFER, fb.handle)
@@ -66,7 +91,7 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
         continue
       else:
         error("unknow identifier: " & asgn.repr & " did you mean debugResult?", asgn)
-    
+
     asgn.expectKind nnkAsgn
 
     let lhs = asgn[0]
@@ -95,7 +120,7 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
         depth*: `depthType`
 
   for fragOut in fragmentOutputs:
-    
+
     result.back[0][2][2].add newExpIdentDef(!fragOut, bindSym"Texture2D")
 
   let fragmentOutputsSeqNode = fragmentOutputs.toConstExpr
@@ -112,7 +137,7 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
   branchStmtList.add quote do:
     `resultIdent`.handle = newFrameBuffer()
     `resultIdent`.depth  = `depthCreateExpr`
-    
+
   #branchStmtList.add(newAssignment(newDotExpr(ident"result", ident"handle"),
   #  newCall(bindSym"newFrameBuffer")
   #))
@@ -141,10 +166,10 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
       branchStmtList.add quote do:
         `resultIdent`.`nameIdent` = `rhs`
         setTexture( `resultIdent`.handle, `attachmentLit`, `resultIdent`.`nameIdent`, 0)
-        
+
       drawBuffersCall.add head quote do:
         GLenum(`attachmentLit`)
-        
+
       i += 1
 
   branchStmtList.add( drawBuffersCall )
@@ -161,7 +186,7 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
     for fragOut in fragmentOutputs:
       resizeStmtList.add( newCall(bindSym"resize",
                                   newDotExpr(ident"fb", ident(fragOut)), ident"newsize") )
-    
+
     result.add quote do:
       proc resize(newsize: Vec2i): void =
         `resizeStmtList`

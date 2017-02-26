@@ -193,15 +193,50 @@ proc uniform(program: Program; location: Location, value: Vec3b) =
 proc uniform(program: Program; location: Location, value: Vec4b) =
   glProgramUniform4i(program.handle, location.index, value[0].GLint, value[1].GLint, value[2].GLint, value[3].GLint)
 
+proc label*(arg: Program): string =
+  const bufsize = 255
+  result = newString(bufsize)
+  var length: GLsizei
+  glGetObjectLabel(GL_PROGRAM, arg.handle, bufsize, length.addr, result[0].addr)
+  result.setLen(length)
 
+proc `label=`*(arg: Program; label: string): void =
+    ## does nothing when label is nil (allows nil checks on other places)
+    if not isNil label:
+      glObjectLabel(GL_PROGRAM, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
+
+proc label*(arg: Shader): string =
+  const bufsize = 255
+  result = newString(bufsize)
+  var length: GLsizei
+  glGetObjectLabel(GL_SHADER, arg.handle, bufsize, length.addr, result[0].addr)
+  result.setLen(length)
+
+proc `label=`*(arg: Shader; label: string): void =
+    ## does nothing when label is nil (allows nil checks on other places)
+    if not isNil label:
+      glObjectLabel(GL_SHADER, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
 
 #### Vertex Array Object ####
 
 type VertexArrayObject* = object
     handle*: GLuint
 
-proc newVertexArrayObject*() : VertexArrayObject =
-  glCreateVertexArrays(1, cast[ptr GLuint](result.addr))
+proc label*(arg: VertexArrayObject): string =
+  const bufsize = 255
+  result = newString(bufsize)
+  var length: GLsizei
+  glGetObjectLabel(GL_PROGRAM, arg.handle, bufsize, length.addr, result[0].addr)
+  result.setLen(length)
+
+proc `label=`*(arg: VertexArrayObject; label: string): void =
+    ## does nothing when label is nil (allows nil checks on other places)
+    if not isNil label:
+      glObjectLabel(GL_PROGRAM, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
+
+proc newVertexArrayObject*(label: string = nil) : VertexArrayObject =
+  glCreateVertexArrays(1, result.handle.addr)
+  result.label = label
 
 proc bindIt*(vao: VertexArrayObject): void =
   glBindVertexArray(vao.handle)
@@ -210,19 +245,11 @@ proc delete*(vao: VertexArrayObject) =
   glDeleteVertexArrays(1, vao.handle.unsafeAddr)
 
 proc divisor(vao: VertexArrayObject; binding: Binding; divisor: GLuint) : void =
-  when false:
-    glVertexArrayVertexBindingDivisorEXT(vao.handle, location.index, divisor)
-  else:
-    glVertexArrayBindingDivisor(vao.handle, binding.index, divisor)
+  glVertexArrayBindingDivisor(vao.handle, binding.index, divisor)
 
 proc enableAttrib(vao: VertexArrayObject, location: Location) : void =
   if location.index >= 0:
-    when false:
-      glEnableVertexArrayAttribEXT(vao.handle, location.index)
-    else:
-      glEnableVertexArrayAttrib(vao.handle, location.index.GLuint)
-
-#proc divisor(vao: VertexArrayObject, index: GLuint) : GLuint =
+    glEnableVertexArrayAttrib(vao.handle, location.index.GLuint)
 
 template blockBind*(vao: VertexArrayObject, blk: untyped) : untyped =
   vao.bindIt
@@ -303,7 +330,6 @@ proc label*(arg: AnyBuffer): string =
 proc `label=`*(arg: AnyBuffer; label: string): void =
     ## does nothing when label is nil (allows nil checks on other places)
     if not isNil label:
-      debugecho "setting object label ", arg.handle, ": ", label
       glObjectLabel(GL_BUFFER, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
 
 proc bindingKind*[T](buffer: ArrayBuffer[T]) : GLenum {. inline .} =
@@ -625,35 +651,49 @@ proc shaderInfoLog(shader: Shader): string =
   result = newString(length.int)
   glGetShaderInfoLog(shader.handle, length, nil, result)
 
-import nre
-proc showError(log: string, source: string): void =
-  let lines = source.splitLines
-  var problems = newSeq[tuple[lineNr: int, message: string]](0)
-  # matches on intel driver
-  for match in log.findIter(re"(\d+)\((\d+)\): ([^:]*): (.*)"):
-    let lineNr = match.captures[0].parseInt
-    #let notTheColumn = match.captures[1].parseInt
-    #let kind: string = match.captures[2]
-    let message: string = match.captures[3]
-    problems.add( (lineNr, message) )
-  # matches on nvidia driver
-  for match in log.findIter(re"(\d+)\((\d+)\) : ([^:]*): (.*)"):
-    let lineNr = match.captures[1].parseInt
-    #let notTheColumn = match.captures[0].parseInt
-    #let kind: string = match.captures[2]
-    let message: string = match.captures[3]
-    problems.add( (lineNr, message) )
-  stdout.styledWriteLine(fgGreen, "==== start Shader Problems =======================================")
-  for i, line in lines:
-    let lineNr = i + 1
-    stdout.styledWriteLine(fgYellow, intToStr(lineNr, 4), " ", resetStyle, line)
-    for problem in problems:
-      if problem.lineNr == lineNr:
-        stdout.styledWriteLine("     ", fgRed, problem.message)
-  stdout.styledWriteLine(fgGreen, "------------------------------------------------------------------")
-  stdout.styledWriteLine(fgRed, log)
-  stdout.styledWriteLine(fgGreen, "------------------------------------------------------------------")
-  stdout.styledWriteLine(fgGreen, "==== end Shader Problems =========================================")
+
+# not needing nre might solve problems and speed up copilation
+const parseErrors = not defined(noregexp)
+
+when parseErrors:
+  import nre
+  proc showError(log: string, source: string): void =
+    let lines = source.splitLines
+    var problems = newSeq[tuple[lineNr: int, message: string]](0)
+    # matches on intel driver
+    for match in log.findIter(re"(\d+)\((\d+)\): ([^:]*): (.*)"):
+      let lineNr = match.captures[0].parseInt
+      #let notTheColumn = match.captures[1].parseInt
+      #let kind: string = match.captures[2]
+      let message: string = match.captures[3]
+      problems.add( (lineNr, message) )
+    # matches on nvidia driver
+    for match in log.findIter(re"(\d+)\((\d+)\) : ([^:]*): (.*)"):
+      let lineNr = match.captures[1].parseInt
+      #let notTheColumn = match.captures[0].parseInt
+      #let kind: string = match.captures[2]
+      let message: string = match.captures[3]
+      problems.add( (lineNr, message) )
+    stdout.styledWriteLine(fgGreen, "==== start Shader Problems =======================================")
+    for i, line in lines:
+      let lineNr = i + 1
+      stdout.styledWriteLine(fgYellow, intToStr(lineNr, 4), " ", resetStyle, line)
+      for problem in problems:
+        if problem.lineNr == lineNr:
+          stdout.styledWriteLine("     ", fgRed, problem.message)
+    stdout.styledWriteLine(fgGreen, "------------------------------------------------------------------")
+    stdout.styledWriteLine(fgRed, log)
+    stdout.styledWriteLine(fgGreen, "==== end Shader Problems =========================================")
+else:
+  proc showError(log: string; source: string): void =
+    stdout.styledWriteLine(fgGreen, "==== start Shader Problems =======================================")
+    let lines = source.splitLines
+    for i, line in lines:
+      let lineNr = i + 1
+      stdout.styledWriteLine(fgYellow, intToStr(lineNr, 4), " ", resetStyle, line)
+    stdout.styledWriteLine(fgGreen, "------------------------------------------------------------------")
+    stdout.styledWriteLine(fgRed, log)
+    stdout.styledWriteLine(fgGreen, "==== end Shader Problems =========================================")
 
 
 proc infoLog(program: Program): string =
@@ -736,8 +776,22 @@ type
   TransformFeedback* = object
     handle*: GLuint
 
-proc newTransformFeedback*() : TransformFeedback =
+
+proc label*(arg: TransformFeedback): string =
+  const bufsize = 255
+  result = newString(bufsize)
+  var length: GLsizei
+  glGetObjectLabel(GL_TRANSFORM_FEEDBACK, arg.handle, bufsize, length.addr, result[0].addr)
+  result.setLen(length)
+
+proc `label=`*(arg: TransformFeedback; label: string): void =
+    ## does nothing when label is nil (allows nil checks on other places)
+    if not isNil label:
+      glObjectLabel(GL_TRANSFORM_FEEDBACK, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
+
+proc newTransformFeedback*(label: string = nil) : TransformFeedback =
   glCreateTransformFeedbacks(GLsizei(1), result.handle.addr)
+  result.label = label
 
 proc delete*(tf: TransformFeedback): void =
   glDeleteTransformFeedbacks(GLsizei(1), tf.handle.unsafeAddr)
