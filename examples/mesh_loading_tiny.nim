@@ -10,7 +10,6 @@ proc main() =
   let (window, context) = defaultSetup(WindowSize)
 
   defer: sdl2.quit()
-
   discard ttfinit()
 
   if TwInit(TW_OPENGL_CORE, nil) == 0:
@@ -29,9 +28,8 @@ proc main() =
   if font.isNil:
     font = ttf.openFont("/usr/share/fonts/TTF/Inconsolata-Regular.ttf", textHeight.cint)
   if font.isNil:
-    echo "from example: could not load font: ", sdl2.getError()
-    echo "from example: sorry system font locations are hard coded into the program, change that to fix this problem"
-    system.quit(1)
+    panic "from example: could not load font: ", sdl2.getError(),
+        "\nfrom example: sorry system font locations are hard coded into the program, change that to fix this problem"
 
   var file = memfiles.open("resources/mrfixit.iqm")
   defer:

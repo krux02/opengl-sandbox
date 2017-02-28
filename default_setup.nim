@@ -82,8 +82,7 @@ proc defaultSetupInternal(windowsize: Vec2i; windowTitle: string): tuple[window:
   doAssert 0 == glSetAttribute(SDL_GL_STENCIL_SIZE         , 8)
 
   if getNumVideoDisplays() < 1:
-    write stderr, "no monitor detected, need at least one, but got: ", getNumVideoDisplays()
-    quit(QuitFailure)
+    panic "no monitor detected, need at least one, but got: ", getNumVideoDisplays()
 
   let flags =
     if windowsize.x < 0:
@@ -97,14 +96,11 @@ proc defaultSetupInternal(windowsize: Vec2i; windowTitle: string): tuple[window:
   result.window = createWindow(windowTitle, posx, posy, windowsize.x, windowsize.y, flags)
 
   if result.window.isNil:
-    echo sdl2.getError()
-    system.quit(1)
+    panic sdl2.getError()
 
   result.context = result.window.glCreateContext()
   if result.context.isNil:
-    echo sdl2.getError()
-    system.quit(1)
-
+    panic sdl2.getError()
 
   #Initialize OpenGL
   loadExtensions()

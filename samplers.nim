@@ -18,8 +18,7 @@ proc createErrorSurface*(message: string = nil): sdl2.SurfacePtr =
   # TODO message is still unsued
   result = createRGBSurface(0, 512, 512, 32, 0,0,0,0)
   if result.isNil:
-    echo "SDL_CreateRGBSurface() failed: ", getError()
-    quit(QUIT_FAILURE)
+    panic "SDL_CreateRGBSurface() failed: ", getError()
 
   let pixels = cast[ptr array[512*512,uint32]](result.pixels)
   for i in 0 ..< 512*512:
@@ -275,8 +274,12 @@ proc loadTextureRectangleFromFile*(filename: string): TextureRectangle =
     surface = createErrorSurface(message)
 
   defer: freeSurface(surface)
+<<<<<<< HEAD
   result = textureRectangle(surface)
   result.label = filename
+=======
+  textureRectangle(surface)
+>>>>>>> added panic
 
 proc newTexture1D*(size: int, internalFormat: GLenum = GL_RGBA8): Texture1D =
   when false:
@@ -351,8 +354,12 @@ proc loadTexture2DFromFile*(filename: string): Texture2D =
 
 
   defer: freeSurface(surface)
+<<<<<<< HEAD
   result = texture2D(surface)
   result.label = filename
+=======
+  texture2D(surface)
+>>>>>>> added panic
 
 proc saveToBmpFile*(tex: Texture2D | TextureRectangle; filename: string): void =
   let s = tex.size

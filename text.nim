@@ -23,9 +23,8 @@ proc init(self: ptr TextRenderer): void =
     echo sdl2.getError()
 
   if self.font.isNil:
-    stderr.writeLine "could not load font: ", sdl2.getError()
-    stderr.writeLine "sorry system font locations are hard coded into the program, change that to fix this problem"
-    system.quit(QUIT_FAILURE)
+    panic "could not load font: ", sdl2.getError(),
+        "\nsorry system font locations are hard coded into the program, change that to fix this problem"
 
   self.fg = (255.uint8, 255.uint8, 255.uint8, 255.uint8)
   self.bg = (0.uint8, 0.uint8, 0.uint8, 255.uint8)
