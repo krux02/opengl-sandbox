@@ -179,18 +179,6 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
     proc `constructorIdent`(): `typename` =
       `branchStmtList`
 
-  when false:
-    let resizeStmtList = newStmtList()
-    resizeStmtList.add( newCall(bindSym"resize",
-                                newDotExpr(ident"fb", ident"depth"), ident"newsize") )
-    for fragOut in fragmentOutputs:
-      resizeStmtList.add( newCall(bindSym"resize",
-                                  newDotExpr(ident"fb", ident(fragOut)), ident"newsize") )
-
-    result.add quote do:
-      proc resize(newsize: Vec2i): void =
-        `resizeStmtList`
-
   if wrapWithDebugResult:
     result = newCall( bindSym"debugResult", result )
 

@@ -273,23 +273,13 @@ type AnyBuffer[T] = ArrayBuffer[T] | ElementArrayBuffer[T] | UniformBuffer[T]
 
 
 proc new*[T](arrayBuffer: var ArrayBuffer[T] ) : void =
-  when false:
-    glGenBuffers(1, arrayBuffer.handle.addr)
-  else:
-    glCreateBuffers(1, arrayBuffer.handle.addr)
+  glCreateBuffers(1, arrayBuffer.handle.addr)
 
 proc new*[T](arrayBuffer: var ElementArrayBuffer[T] ) : void =
-  when false:
-    glGenBuffers(1, arrayBuffer.handle.addr)
-  else:
-    glCreatebuffers(1, arrayBuffer.handle.addr)
+  glCreatebuffers(1, arrayBuffer.handle.addr)
 
 proc new*[T](arrayBuffer: var UniformBuffer[T] ) : void =
-  when false:
-    glGenBuffers(1, arrayBuffer.handle.addr)
-  else:
-    glCreateBuffers(1, arrayBuffer.handle.addr)
-
+  glCreateBuffers(1, arrayBuffer.handle.addr)
 
 proc bindIt*(vao: VertexArrayObject; indices: ElementArrayBuffer): void =
   glVertexArrayElementBuffer(vao.handle, indices.handle)
@@ -384,83 +374,53 @@ proc setData*[T](buffer: UniformBuffer[T], data: T) =
 
 proc len*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]) : int =
   var size: GLint
-  when false:
-    glGetNamedBufferParameterivEXT(buffer.handle, GL_BUFFER_SIZE, size.addr)
-  else:
-    glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_SIZE, size.addr)
+  glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_SIZE, size.addr)
   return size.int div sizeof(T).int
 
 proc access*[T](buffer: ArrayBuffer[T]) : GLenum =
   var tmp: GLint
-  when false:
-    glGetNamedBufferParameterivEXT(buffer.handle, GL_BUFFER_ACCESS, tmp.addr)
-  else:
-    glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_ACCESS, tmp.addr)
+  glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_ACCESS, tmp.addr)
   return tmp.GLenum
 
 proc accessFlags*[T](buffer: ArrayBuffer[T]) : GLenum =
   var tmp: GLint
-  when false:
-    glGetNamedBufferParameterivEXT(buffer.handle, GL_BUFFER_ACCESS_FLAGS, tmp.addr)
-  else:
-    glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_ACCESS_FLAGS, tmp.addr)
+  glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_ACCESS_FLAGS, tmp.addr)
   return tmp.GLenum
 
 proc immutableStorage*[T](buffer: ArrayBuffer[T]) : bool =
   var tmp: GLint
-  when false:
-    glGetNamedBufferParameterivEXT(buffer.handle, GL_BUFFER_IMMUTABLE_STORAGE, tmp.addr)
-  else:
-    glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_IMMUTABLE_STORAGE, tmp.addr)
+  glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_IMMUTABLE_STORAGE, tmp.addr)
   return tmp != GL_FALSE
 
 proc mapped*[T](buffer: ArrayBuffer[T]) : bool =
   var tmp: GLint
-  when false:
-    glGetNamedBufferParameterivEXT(buffer.handle, GL_BUFFER_MAPPED, tmp.addr)
-  else:
-    glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_MAPPED, tmp.addr)
+  glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_MAPPED, tmp.addr)
 
   return tmp != GL_FALSE
 
 proc mapLength*[T](buffer: ArrayBuffer[T]) : int =
   var tmp: pointer
-  when false:
-    glGetNamedBufferPointervEXT(buffer.handle, GL_BUFFER_MAP_LENGTH, tmp.addr)
-  else:
-    glGetNamedBufferPointerv(buffer.handle, GL_BUFFER_MAP_LENGTH, tmp.addr)
+  glGetNamedBufferPointerv(buffer.handle, GL_BUFFER_MAP_LENGTH, tmp.addr)
   return int(tmp)
 
 proc mapOffset*[T](buffer: ArrayBuffer[T]) : int =
   var tmp: pointer
-  when false:
-    glGetNamedBufferPointervEXT(buffer.handle, GL_BUFFER_MAP_LENGTH, tmp.addr)
-  else:
-    glGetNamedBufferPointerv(buffer.handle, GL_BUFFER_MAP_LENGTH, tmp.addr)
+  glGetNamedBufferPointerv(buffer.handle, GL_BUFFER_MAP_LENGTH, tmp.addr)
   return int(tmp)
 
 proc byteSize*[T](buffer: ArrayBuffer[T]) : int =
   var tmp: GLint
-  when false:
-    glGetNamedBufferParameterivEXT(buffer.handle, GL_BUFFER_SIZE, tmp.addr)
-  else:
-    glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_SIZE, tmp.addr)
+  glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_SIZE, tmp.addr)
   return int(tmp)
 
 proc storageFlags*[T](buffer: ArrayBuffer[T]) : GLenum =
   var tmp: GLint
-  when false:
-    glGetNamedBufferParameterivEXT(buffer.handle, GL_BUFFER_STORAGE_FLAGS, tmp.addr)
-  else:
-    glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_STORAGE_FLAGS, tmp.addr)
+  glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_STORAGE_FLAGS, tmp.addr)
   return tmp.GLenum
 
 proc usage*[T](buffer: ArrayBuffer[T]) : GLenum =
   var tmp: GLint
-  when false:
-    glGetNamedBufferParameterivEXT(buffer.handle, GL_BUFFER_USAGE, tmp.addr)
-  else:
-    glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_USAGE, tmp.addr)
+  glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_USAGE, tmp.addr)
   return tmp.GLenum
 
 iterator items*[T](buffer: SeqLikeBuffer[T]) : T =
@@ -506,30 +466,18 @@ iterator wpairs*[T](buffer: SeqLikeBuffer[T]) : tuple[key: int, val: var T] =
     yield (i, item)
 
 proc unmap*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): bool =
-  when false:
-    glUnmapNamedBufferEXT(buffer.handle) != GL_FALSE.GLboolean
-  else:
-    glUnmapNamedBuffer(buffer.handle) != GL_FALSE.GLboolean
+  glUnmapNamedBuffer(buffer.handle) != GL_FALSE.GLboolean
 
 proc mapRead*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): ReadView[T] =
-  when false:
-    result.data = cast[ptr UncheckedArray[T]](glMapNamedBufferEXT(buffer.handle, GL_READ_ONLY))
-  else:
-    result.data = cast[ptr UncheckedArray[T]](glMapNamedBuffer(buffer.handle, GL_READ_ONLY))
+  result.data = cast[ptr UncheckedArray[T]](glMapNamedBuffer(buffer.handle, GL_READ_ONLY))
   result.size = buffer.len
 
 proc mapWrite*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): WriteView[T] =
-  when false:
-    result.data = cast[ptr UncheckedArray[T]](glMapNamedBufferEXT(buffer.handle, GL_WRITE_ONLY))
-  else:
-    result.data = cast[ptr UncheckedArray[T]](glMapNamedBuffer(buffer.handle, GL_WRITE_ONLY))
+  result.data = cast[ptr UncheckedArray[T]](glMapNamedBuffer(buffer.handle, GL_WRITE_ONLY))
   result.size = buffer.len
 
 proc mapReadWrite*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]): DataView[T] =
-  when false:
-    result.data = cast[ptr UncheckedArray[T]](glMapNamedBufferEXT(buffer.handle, GL_READ_WRITE))
-  else:
-    result.data = cast[ptr UncheckedArray[T]](glMapNamedBuffer(buffer.handle, GL_READ_WRITE))
+  result.data = cast[ptr UncheckedArray[T]](glMapNamedBuffer(buffer.handle, GL_READ_WRITE))
   result.size = buffer.len
 
 macro mapReadBlock*(buffer: ArrayBuffer, blck: untyped) : untyped =
