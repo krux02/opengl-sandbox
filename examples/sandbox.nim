@@ -27,7 +27,7 @@ let
   normal = boxBuffer.view(normal)
   color =  boxBuffer.view(color)
   texcoord = boxBuffer.view(texcoord)
-  
+
 let indices = iotaSeq[int8](boxvertices.len).elementArrayBuffer
 
 declareFramebuffer(Fb1FramebufferType):
@@ -53,38 +53,22 @@ vec4 mymix(vec4 color, float alpha) {
 """
 
 var
-  projection_mat : Mat4f
-  viewport: Vec4f
-
-proc setViewportAndProjection() =
-  viewport.x = 0
-  viewport.y = 0
-  viewport.z = windowsize.x.float32
-  viewport.w = windowsize.y.float32
-  # Set the viewport to cover the new window
-  glViewport(viewport.x.GLint, viewport.y.GLint, windowsize.x.GLint, windowsize.y.GLint)
-  projection_mat = perspective(45'f32, windowsize.x / windowsize.y, 0.1, 100.0)
-  # TODO this is not fixed
-  # fb1.resize(windowsize.xy)
-
-setViewportAndProjection() # Set up initial viewport and projection
-  
-var
+  projection_mat : Mat4f = perspective(45'f32, windowsize.x / windowsize.y, 0.1, 100.0)
   mouseX, mouseY: int32
   gameTimer    = newStopWatch(true)
   fps          = 0
   frameCounter = 0
 
+glViewport(0, 0, windowsize.x, windowsize.y)
 glClearColor(0.4,0.1,0.2,1.0)
 glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
 
-  
 proc render() =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
 
   let mousePos  = vec2i(mouseX,mouseY)
   let mousePosf = vec2f(mousePos)
-  let mousePosNorm = (mousePosf - viewport.xy) / viewport.zw
+  let mousePosNorm = mousePosf / vec2f(windowsize)
 
   #for i in 0..<5:
   block writeToFramebufferBlock:
@@ -98,7 +82,7 @@ proc render() =
 
     blockBindFramebuffer(fb1):
       glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
-      
+
       shadingDsl:
         primitiveMode = GL_TRIANGLES
         numVertices = vertex.len
@@ -149,20 +133,20 @@ proc render() =
 
     fb1.color.generateMipmap
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
-    
+
     shadingDsl:
-      
+
       uniforms:
         tex = fb1.color
         depth = fb1.depth
         time
-        viewport
+        windowsize = vec2f(windowsize)
         texSize = fb1.color.size.vec2f
 
       fragmentMain:
         """
         vec2 offset = vec2(sin(time * 5 + gl_FragCoord.y / 8) * 0.01, 0);
-        vec2 texcoord = (texCoord * viewport.zw ) / texSize;
+        vec2 texcoord = (texCoord * windowsize ) / texSize;
         vec4 t_col = texture(tex, texcoord + offset);
         gl_FragDepth = texture(depth, texcoord + offset).x;
         color = t_col;
@@ -214,7 +198,7 @@ proc render() =
   glEnable(GL_BLEND)
   renderText("FPS: $1" % [$fps], vec2i(11) )
   glDisable(GL_BLEND)
-  
+
   frameCounter += 1
   glSwapWindow(window) # Swap the front and back frame buffers (double buffering)
 
@@ -230,11 +214,6 @@ while runGame:
     if evt.kind == QuitEvent:
       runGame = false
       break
-    #if evt.kind == WindowEvent:
-    #  #if evt.window.event == WindowEvent_Resized:
-    #  #  windowsize.x = evt.window.data1.float32
-    #  #  windowsize.y = evt.window.data2.float32
-    #  #  etViewportAndProjection()
     if evt.kind == KeyDown:
       case evt.key.keysym.scancode
       of SDL_SCANCODE_ESCAPE:
