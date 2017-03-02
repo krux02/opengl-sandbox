@@ -11,7 +11,7 @@
 *** TODO easy transformation of buffers/views to transform feedback objects
 ** TODO unifom buffer
 ** TODO tesselation shader stages
-** TODO shader module system
+** TODO modular shader system
 ** TODO infer primitive mode from buffer
 ** DONE In DSL move indices from attributes to named argument section
 ** DONE warn for unused shader uniforms/attributes
@@ -19,13 +19,13 @@
 ** TODO nim to glsl compiler
 
 * library [4/9]
-  
+
 ** DONE finish easy text renderer
 ** TODO add primitive shapes
 *** DONE torus
 *** DONE circle (important for portal)
 *** TODO cone
-*** TODO icosphere
+*** DONE icosphere
 ** DONE default moveable camera
 ** DONE fallback error texture when loading texture from file
 ** TODO add support for OpenMesh
@@ -40,9 +40,8 @@
 ** TODO forward vertex shader when only geometry shader is available
 ** TODO fix portal rendering in example
 ** TODO cubical marching squares example
-   
+
 * other [1/2]
 
 ** DONE script to clear all binaries from the project
 ** TODO code reloading
-   
