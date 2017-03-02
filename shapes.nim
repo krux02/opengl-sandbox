@@ -136,22 +136,11 @@ proc cylinderIndices*(segments: int): seq[int16] =
 
     result.add([i1,i3,i2,i2,i3,i4])
 
-  let
-    i1 = int16( (segments+1) * 2 - 2 )
-    i2 = int16( (segments+1) * 2 - 1 )
-    i3 = int16( 0 )
-    i4 = int16( 1 )
-
-  result.add([i1,i3,i2,i2,i3,i4])
-
-
   var base = int16(2 * (segments+1))
 
   for i in 0 ..< int16(segments):
     let ii = i.int16
     result.add( [ base , base + ii + 2, base + ii + 1 ] )
-
-  result.add( [ base , base + 1, base + segments.int16 ] )
 
   base = int16(3 * (segments+1) + 1)
 
@@ -159,8 +148,86 @@ proc cylinderIndices*(segments: int): seq[int16] =
     let ii = i.int16
     result.add( [ base, base + ii + 1, base + ii + 2 ] )
 
-  result.add( [ base , base + segments.int16, base + 1 ] )
+### cone ###
 
+proc coneVertices*(segments: int): seq[Vec4f] =
+  result.newSeq((segments+1) * 4 + 2)
+
+  result[2 * (segments+1)] = vec4f(0,0,-1,1)
+  result[3 * (segments+1) + 1] = vec4f(0,0, 1,1)
+
+  for j in 0 .. segments:
+    let
+      beta = (j / segments) * 2 * PI
+      x = cos(beta).float32
+      y = sin(beta).float32
+      top =    vec4f(0, 0,  1, 1)
+      bottom = vec4f(x, y, -1, 1)
+
+    result[2*j+0] = bottom
+    result[2*j+1] = top
+    result[2*(segments+1) + 1 + j] = bottom
+    result[3*(segments+1) + 2 + j] = top
+
+proc coneNormals*(segments: int): seq[Vec4f] =
+  result.newSeq((segments+1) * 4 + 2)
+
+  result[2 * (segments+1)] = vec4f(0,0,-1, 0)
+  result[3 * (segments+1) + 1] = vec4f(0,0, 1, 0)
+
+  let n = vec2f(2).normalize
+
+  for j in 0 .. segments:
+    let
+      beta = (j / segments) * 2 * PI
+      x = cos(beta).float32
+      y = sin(beta).float32
+
+    result[2*j+0] = vec4f( vec2(x, y) * n.x, n.y, 0)
+    result[2*j+1] = vec4f( vec2(x, y) * n.x, n.y, 0)
+    result[2*(segments+1) + 1 + j] = vec4f(0,0,-1, 0)
+    result[3*(segments+1) + 2 + j] = vec4f(0,0, 1, 0)
+
+proc coneTexCoords*(segments: int): seq[Vec2f] =
+  result.newSeq((segments+1) * 4 + 2)
+
+  result[2 * (segments+1)] = vec2f(0.5f)
+  result[3 * (segments+1) + 1] = vec2f(0.5f)
+
+  for j in 0 .. segments:
+    let
+      u = (j / segments).float32
+      beta = (j / segments) * 2 * PI
+      x = cos(beta).float32 * 0.5f + 0.5f
+      y = sin(beta).float32 * 0.5f + 0.5f
+
+    result[2*j+0] = vec2f(u, 0)
+    result[2*j+1] = vec2f(u, 1)
+    result[2*(segments+1) + 1 + j] = vec2f(x,y)
+    result[3*(segments+1) + 2 + j] = vec2f(x,y)
+
+proc coneIndices*(segments: int): seq[int16] =
+  result.newSeq(0)
+
+  for i in 0 ..< segments:
+    let
+      i1 = int16( i * 2 + 0 )
+      i2 = int16( i * 2 + 1 )
+      i3 = int16( i * 2 + 2 )
+
+    result.add([i1,i3,i2])
+
+  var base = int16(2 * (segments+1))
+
+  for i in 0 ..< int16(segments):
+    let ii = i.int16
+    result.add( [ base , base + ii + 2, base + ii + 1 ] )
+
+  base = int16(3 * (segments+1) + 1)
+
+  for i in 0 ..< segments:
+    let ii = i.int16
+    result.add( [ base, base + ii + 1, base + ii + 2 ] )
 
 ### box ###
 
@@ -213,31 +280,31 @@ const
   boxTexCoords* = [
     vec2f(1, 0), vec2f(0, 0), vec2f(0, 1),
     vec2f(1, 1), vec2f(1, 0), vec2f(0, 1),
-    
+
     vec2f(1, 1), vec2f(0, 1), vec2f(0, 0),
     vec2f(1, 0), vec2f(1, 1), vec2f(0, 0),
-    
+
     vec2f(1, 1), vec2f(0, 1), vec2f(0, 0),
     vec2f(1, 0), vec2f(1, 1), vec2f(0, 0),
-    
+
     vec2f(1, 0), vec2f(0, 0), vec2f(0, 1),
     vec2f(1, 1), vec2f(1, 0), vec2f(0, 1),
-    
+
     vec2f(1, 1), vec2f(1, 0), vec2f(0, 0),
     vec2f(0, 1), vec2f(1, 1), vec2f(0, 0),
-    
+
     vec2f(1, 0), vec2f(1, 1), vec2f(0, 1),
     vec2f(0, 0), vec2f(1, 0), vec2f(0, 1)
   ]
 
 
-proc genTetraederVertices(): array[12, Vec4f] {.compileTime.} = 
+proc genTetraederVertices(): array[12, Vec4f] {.compileTime.} =
   let verts = [ vec4f(-1,-1,-1,1), vec4f(1,1,-1,1), vec4f(1,-1,1,1), vec4f(-1,1,1,1) ]
   let vertIndices = [ 0, 3, 1,  0,2,3,  0,1,2,  1,3,2]
 
   for i, pos in result.mpairs:
     pos = verts[vertIndices[i]]
-  
+
 proc genTetraederNormals(): array[12, Vec4f] {.compileTime.} =
   let s = sqrt(3.0'f32)
   let normals    = [ vec4f(-s, s,-s,0), vec4f(-s,-s, s,0), vec4f( s,-s,-s,0), vec4f( s, s, s,0)]
@@ -249,10 +316,10 @@ proc genTetraederNormals(): array[12, Vec4f] {.compileTime.} =
 proc getTetraederTexCoords(): array[12, Vec2f] {.compileTime.} =
   let texCoords   = [ vec2f(0,0), vec2f(1,1), vec2f(1,0), vec2f(0,1) ]
   let vertIndices = [ 0, 3, 1,  0,2,3,  0,1,2,  1,3,2]
-  
+
   for i, texCoord in result.mpairs:
     texCoord = texCoords[vertIndices[i]]
-    
+
 const
   tetraederVertices*  = genTetraederVertices()
   tetraederNormals*   = genTetraederNormals()
@@ -333,7 +400,7 @@ proc torusNormals*(majorSegments,minorSegments: int): seq[Vec4f] =
     let u = float32(i / majorSegments) * 2 * Pi
     for j in 0 .. minorSegments:
       let v = Pi - float32(j / minorSegments) * 2 * Pi
-      
+
       let x = cos(v) * cos(u)
       let y = cos(v) * sin(u)
       let z = sin(v)
@@ -350,10 +417,10 @@ proc torusTexCoords*(majorSegments,minorSegments: int): seq[Vec2f] =
 
 proc torusIndicesTriangles*(majorSegments,minorSegments: int) : seq[int32]    =
   gridIndicesTriangles(vec2i(minorSegments.int32+1, majorSegments.int32+1))
-  
+
 proc torusIndicesTriangleStrip*(majorSegments,minorSegments: int): seq[int32] =
   gridIndicesTriangleStrip(vec2i(minorSegments.int32+1, majorSegments.int32+1))
-  
+
 proc torusIndicesQuads*(majorSegments,minorSegments: int): seq[int32]         =
   gridIndicesQuads(vec2i(minorSegments.int32+1, majorSegments.int32+1))
 
@@ -366,56 +433,52 @@ proc circleVertices*(segments: int): seq[Vec4f] =
     result.add vec4f(cos(u), sin(u), 0, 1)
 
 
-proc icosphereVertices*(): seq[Vec4f] =
-  result = newSeqOfCap[Vec4f](12)
+const
+  xxx = (1.0f + sqrt(5.0f)) / 2.0f
 
-  let t = (1.0f + sqrt(5.0f)) / 2.0f;
+  icosphereVertices*: array[12, Vec4f] = [
+    vec4f(-1,  xxx,  0, 1),
+    vec4f( 1,  xxx,  0, 1),
+    vec4f(-1, -xxx,  0, 1),
+    vec4f( 1, -xxx,  0, 1),
 
-  result.add vec4f(-1,  t,  0, 1)
-  result.add vec4f( 1,  t,  0, 1)
-  result.add vec4f(-1, -t,  0, 1)
-  result.add vec4f( 1, -t,  0, 1)
+    vec4f( 0, -1,  xxx, 1),
+    vec4f( 0,  1,  xxx, 1),
+    vec4f( 0, -1, -xxx, 1),
+    vec4f( 0,  1, -xxx, 1),
 
-  result.add vec4f( 0, -1,  t, 1)
-  result.add vec4f( 0,  1,  t, 1)
-  result.add vec4f( 0, -1, -t, 1)
-  result.add vec4f( 0,  1, -t, 1)
+    vec4f( xxx,  0, -1, 1),
+    vec4f( xxx,  0,  1, 1),
+    vec4f(-xxx,  0, -1, 1),
+    vec4f(-xxx,  0,  1, 1)
+  ]
 
-  result.add vec4f( t,  0, -1, 1)
-  result.add vec4f( t,  0,  1, 1)
-  result.add vec4f(-t,  0, -1, 1)
-  result.add vec4f(-t,  0,  1, 1)
-
-proc icosphereIndicesTriangles*(): seq[int32] =
-  result = newSeqOfCap[int32](20 * 3)
-
+  icosphereIndicesTriangles*: array[20 * 3, int32] = [
   # 5 faces around point 0
-  result.add([0'i32, 11, 5])
-  result.add([0'i32, 5, 1])
-  result.add([0'i32, 1, 7])
-  result.add([0'i32, 7, 10])
-  result.add([0'i32, 10, 11])
+    0'i32, 11, 5,
+    0'i32, 5, 1,
+    0'i32, 1, 7,
+    0'i32, 7, 10,
+    0'i32, 10, 11,
 
   # 5 adjacent faces
-  result.add([1'i32, 5, 9])
-  result.add([5'i32, 11, 4])
-  result.add([11'i32, 10, 2])
-  result.add([10'i32, 7, 6])
-  result.add([7'i32, 1, 8])
+    1'i32, 5, 9,
+    5'i32, 11, 4,
+    11'i32, 10, 2,
+    10'i32, 7, 6,
+    7'i32, 1, 8,
 
   # 5 faces around point 3
-  result.add([3'i32, 9, 4])
-  result.add([3'i32, 4, 2])
-  result.add([3'i32, 2, 6])
-  result.add([3'i32, 6, 8])
-  result.add([3'i32, 8, 9])
+    3'i32, 9, 4,
+    3'i32, 4, 2,
+    3'i32, 2, 6,
+    3'i32, 6, 8,
+    3'i32, 8, 9,
 
   # 5 adjacent faces
-  result.add([4'i32, 9, 5])
-  result.add([2'i32, 4, 11])
-  result.add([6'i32, 2, 10])
-  result.add([8'i32, 6, 7])
-  result.add([9'i32, 8, 1])
-
-
-  
+    4'i32, 9, 5,
+    2'i32, 4, 11,
+    6'i32, 2, 10,
+    8'i32, 6, 7,
+    9'i32, 8, 1
+  ]

@@ -15,16 +15,15 @@
 ** TODO infer primitive mode from buffer
 ** DONE In DSL move indices from attributes to named argument section
 ** DONE warn for unused shader uniforms/attributes
-** TODO test defaultsetup with window and context as global
 ** TODO nim to glsl compiler
 
-* library [4/9]
+* library [5/9]
 
 ** DONE finish easy text renderer
-** TODO add primitive shapes
+** DONE add primitive shapes
 *** DONE torus
 *** DONE circle (important for portal)
-*** TODO cone
+*** DONE cone
 *** DONE icosphere
 ** DONE default moveable camera
 ** DONE fallback error texture when loading texture from file
