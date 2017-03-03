@@ -1,4 +1,4 @@
-import fancygl, opengl, sdl2, sdl2/ttf
+# import fancygl, opengl, sdl2, sdl2/ttf
 
 type
   TextRenderer = object
