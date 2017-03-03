@@ -35,11 +35,11 @@ let fb1 = newFirstFramebuffer()
 let projMat : Mat4f = perspective(45.0f, float32(windowsize.x / windowsize.y), 0.1f, 1000.0f)
 
 const numLights = 500
-    
+
 var
   runGame = true
   mousePos = vec2f(0)
-  
+
   gameTimer  = newStopWatch(true)
   fpsTimer   = newStopWatch(true)
   frame          = 0
@@ -47,7 +47,7 @@ var
 
   camera = newWorldNode()
   cameraControls : CameraControls
-  
+
   lightPositions = newArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW)
   lightColors = newArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW)
 
@@ -55,14 +55,14 @@ camera.pos.z   = hm[0,0] + 10
 cameraControls.speed = 0.4'f32
 
 addEventWatch(cameraControlEventWatch, cast[pointer](cameraControls.addr))
- 
+
 for color in lightColors.mitems:
   color = vec3f(rand_f32(), rand_f32(), rand_f32())
 
 var
   effectOrigin = camera.pos.xy
   effectTimer  = newStopWatch(true, 100)
-  
+
 proc showNormals(mvp: Mat4f, positions: ArrayBuffer[Vec4f], normals: ArrayBuffer[Vec4f], length:float32 = 1, color:Vec4f = vec4f(1)) =
 
   shadingDsl:
@@ -101,13 +101,13 @@ proc showNormals(mvp: Mat4f, positions: ArrayBuffer[Vec4f], normals: ArrayBuffer
       """
       color = normalColor;
       """
-      
+
 proc render() =
-  
+
   let time = gameTimer.time.float32
 
   let viewMat = camera.viewMat()
-  
+
   let lightDir_cs = view_mat * vec4f(vec3f(0.577f),0)
 
   # Clear color and depth buffers
@@ -211,6 +211,7 @@ proc render() =
 
   glPolygonMode( GL_FRONT_AND_BACK, GL_FILL )
 
+
   var
     mvp = projMat * viewMat
     inverse_mvp = mvp
@@ -297,7 +298,7 @@ proc render() =
           z = hm[x,y] + 1.5f
 
         lightPositions[i] = vec3f(x, y, z)
-    
+
     #### render lights ####
     shadingDsl:
       primitiveMode = GL_TRIANGLES
@@ -461,7 +462,7 @@ proc render() =
 
 
 proc mainLoopFunc(): void =
-  
+
   var evt: Event  = defaultEvent
   while pollEvent(evt):
     if evt.kind == QuitEvent:
@@ -480,7 +481,7 @@ proc mainLoopFunc(): void =
 
       of SDL_SCANCODE_PAUSE:
         gameTimer.toggle
-        
+
       of SDL_SCANCODE_1:
         hideDeferredShading = not hideDeferredShading
 
@@ -498,13 +499,13 @@ proc mainLoopFunc(): void =
 
       else:
         discard
-        
+
     if evt.kind == MouseButtonDown:
       var toggle {. global .} = false
       if evt.button.button == 3:
         toggle = not toggle
         discard setRelativeMouseMode(Bool32(toggle))
-        
+
     if evt.kind == MouseMotion:
       mousePos.x = evt.motion.x.float32
       mousePos.y = 960 - evt.motion.y.float32

@@ -1,8 +1,5 @@
 # included from fancygl.nim
 
-when isMainModule:
-  import glm, opengl, macros
-
 type
   UncheckedArray {.unchecked.} [t] = array[0,t]
 

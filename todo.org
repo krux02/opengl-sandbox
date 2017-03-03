@@ -4,6 +4,7 @@
 * DSL [3/10]
 
 ** DONE Add user code sctions for afterSetup, beforeRender, afterRender
+** TODO Document user code sections for afterSetup, beforeRender, afterRender
 ** TODO transform feedback
 *** TODO allow non-interleaved transform feedback attributes
 *** TODO transform feedback type that contains attributes at compile time

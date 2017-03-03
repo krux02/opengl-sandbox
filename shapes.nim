@@ -1,8 +1,5 @@
 # included from fancygl.nim
 
-when isMainModule:
-  import glm
-
 proc uvSphereVertices*(segments, rings: int): seq[Vec4f] =
   result.newSeq((segments+1) * rings)
   result.setLen(0)

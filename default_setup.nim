@@ -1,5 +1,4 @@
-when isMainModule:
-  import sdl2, sdl2/ttf, opengl, glm
+# included from fancygl.nim
 
 proc debugCallback(source: GLenum, `type`: GLenum, id: GLuint, severity: GLenum, length: GLsizei, message: cstring, userParam: pointer): void {. cdecl .} =
   if severity == GL_DEBUG_SEVERITY_NOTIFICATION:

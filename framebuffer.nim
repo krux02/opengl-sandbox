@@ -1,8 +1,5 @@
 # included from fancygl.nim
 
-when isMainModule:
-  import glm, opengl, macros
-
 type
   DepthRenderbuffer* = object
     handle*: GLuint
