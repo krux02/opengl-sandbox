@@ -38,6 +38,15 @@ let coneNormals = arrayBuffer(coneNormals(numSegments))
 let coneTexCoords = arrayBuffer(coneTexCoords(numSegments))
 let coneIndices = elementArrayBuffer(coneIndices(numSegments))
 
+#var planeVertices = arrayBuffer(infinitePlaneVertices(vec4f(1,2,3,0)))
+#let planeMat      = infinitePlaneMat(vec4f(1,2,3,0))
+var planeVertices = arrayBuffer([
+  vec4f(0,0,0,1), vec4f( 10,   0,0,1), vec4f(   0, 10,0,1),
+  vec4f(0,0,0,1), vec4f(   0, 10,0,1), vec4f(-10,   0,0,1),
+  vec4f(0,0,0,1), vec4f(-10,   0,0,1), vec4f(   0,-10,0,1),
+  vec4f(0,0,0,1), vec4f(   0,-10,0,1), vec4f( 10,   0,0,1)
+])
+
 # prevent opengl call per frame
 let verticesLen = vertices.len
 
@@ -121,6 +130,46 @@ while runGame:
         discard;
       color.rg = v_texCoord;
       color.b = v_normal.z;
+      """
+
+  let invProj = inverse(projection_mat)# * inverse(diag(vec4f(vec2f(windowsize.xy), 1,1)))
+
+  shadingDsl:
+    primitiveMode = GL_TRIANGLES
+    numVertices = planeVertices.len
+
+    uniforms:
+      proj = projection_mat
+      modelView = camera.viewMat * shape.modelmat
+      u_normal = vec4f(1,2,3,0)
+      invProj    = inverse(projection_mat);
+      windowSize = vec2f(window.size)
+
+    attributes:
+      a_vertex   = planeVertices
+      a_normal   = coneNormals
+      a_texCoord = coneTexCoords
+
+    vertexMain:
+      """
+      gl_Position = proj * modelView * a_vertex;
+      v_normal = modelView * a_normal;
+      v_texCoord = a_texCoord;
+      """
+    vertexOut:
+      "out vec4 v_normal"
+      "out vec2 v_texCoord"
+
+    fragmentMain:
+      """
+      color = vec4(1,0,1,0);
+      vec4 tmp = gl_FragCoord;
+      vec4 ndc_pos = vec4( ( vec3(gl_FragCoord.xy / windowSize, gl_FragDepth) ) * 2 - 1, 1 );
+      vec4 viewPos = invProj * ndc_pos;
+      viewPos /= viewPos.w;
+
+      color.rgb = fract(viewPos.xyz * 10);
+      color.a = 1;
       """
 
   glSwapWindow(window)

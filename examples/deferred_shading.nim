@@ -238,12 +238,12 @@ proc render() =
         """
         vec2 texcoord = (texCoord * viewport.zw ) / texSize;
         gl_FragDepth = texture(depth, texcoord).x;
-        vec4 worldpos = inverse_mvp * vec4( (gl_FragCoord.xy / viewport.zw) * 2 - vec2(1), gl_FragDepth * 2 - 1, 1 );
+        vec4 fragCoord = gl_FragCoord / gl_FragCoord.w;
+        vec4 ndc_pos = vec4( ( vec3(gl_FragCoord.xy / viewport.zw, gl_FragDepth) ) * 2 - 1, 1 );
+        vec4 worldpos = inverse_mvp * ndc_pos;
         worldpos /= worldpos.w;
 
-        //int tile = int(gl_FragCoord.x) / 64 % 2  + 2 * (int(gl_FragCoord.y) / 64 % 2);
         int tile = int(gl_FragCoord.x < border.x) + int(gl_FragCoord.y < border.y) * 2;
-
 
         if( gl_FragDepth != 1 ) {
           switch(tile) {

@@ -17,14 +17,20 @@ template glslTypeRepr(t: typedesc[Vec4b]): string = "bvec4"
 template glslTypeRepr(t: typedesc[Vec3b]): string = "bvec3"
 template glslTypeRepr(t: typedesc[Vec2b]): string = "bvec2"
 
+template glslPrefix(t: typedesc[float32]): string = ""
+template glslPrefix(t: typedesc[int32]): string = "i"
+template glslPrefix(t: typedesc[float64]): string = "d"
+template glslPrefix(t: typedesc[bool]): string = "b"
+
+template glslTypeRepr[M,N,T](t: typedesc[Mat[M,N,T]]): string =
+  glslPrefix(t.T) & "mat" & $M & "x" & $N
 
 # TODO this is wrong but needs fix in mesh_loading_tiny
 template glslTypeRepr(t: typedesc[Vec4[uint8]]):   string = "vec4"
 
-
-template glslTypeRepr(t: typedesc[Mat4x4[float32]]): string = "mat4"
-template glslTypeRepr(t: typedesc[Mat3x3[float32]]): string = "mat3"
-template glslTypeRepr(t: typedesc[Mat2x2[float32]]): string = "mat2"
+template glslTypeRepr(t: typedesc[Mat4f]): string = "mat4"
+template glslTypeRepr(t: typedesc[Mat3f]): string = "mat3"
+template glslTypeRepr(t: typedesc[Mat2f]): string = "mat2"
 
 template glslTypeRepr(t: typedesc[float32]): string = "float"
 template glslTypeRepr(t: typedesc[float64]): string = "double"

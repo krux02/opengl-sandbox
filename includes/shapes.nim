@@ -479,3 +479,27 @@ const
     8'i32, 6, 7,
     9'i32, 8, 1
   ]
+
+proc infinitePlaneVertices*(planeEquation: Vec4f): array[4 * 3, Vec4f] =
+  ## returs vertices of an ifinitely sized plane.
+  ## planeEquation is a vetor so that dot(X, planeEquation) == 0 ∀ X ∈ plane
+  ## this uses, that points with a w as 0 represent points infititely far away in the direction of xyz.
+  ## untested
+
+  let pl = planeEquation
+  # we just need a point on the plane
+  let center = vec4(pl.xyz * (-pl.w / dot(pl.xyz, pl.xyz)), 1)
+  let dir1 = vec4(cross(pl.xyz, vec3f(1,0,0)), 0)
+  let dir2 = vec4(cross(pl.xyz, dir1.xyz), 0)
+
+  [center,  dir1,  dir2,
+   center,  dir2, -dir1,
+   center, -dir1, -dir2,
+   center, -dir2,  dir1]
+
+proc infinitePlaneMat*(planeEquation: Vec4f): Mat2x4f =
+  let pl = planeEquation
+  # we just need a point on the plane
+  let center = vec4(pl.xyz * (-pl.w / dot(pl.xyz, pl.xyz)), 1)
+  result[0] = vec4(cross(pl.xyz, vec3f(1,0,0)), 0)
+  result[1] = vec4(cross(pl.xyz, result[0].xyz), 0)
