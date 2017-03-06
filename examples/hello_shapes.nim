@@ -50,7 +50,7 @@ block init:
 
   cylinderMesh.vertices  = arrayBuffer(cylinderVertices(numSegments))
   cylinderMesh.normals   = arrayBuffer(cylinderNormals(numSegments))
-  cylinderMesh.colors = arrayBuffer(cylinderTexCoords(numSegments).map(texCoord2Color))
+  cylinderMesh.colors    = arrayBuffer(cylinderTexCoords(numSegments).map(texCoord2Color))
   cylinderMesh.indices   = elementArrayBuffer(cylinderIndices(numSegments))
 
   let isNumVerts = icosphereIndicesTriangles.len
@@ -81,7 +81,6 @@ block init:
   icosphereMesh.normals  = arrayBuffer(unrolledNormals)
   icosphereMesh.indices  = elementArrayBuffer(iotaSeq[int16](unrolledVertices.len.int16))
 
-
   sphereMesh.vertices = arrayBuffer(uvSphereVertices(numSegments, numSegments div 2))
   sphereMesh.colors   = arrayBuffer(uvSphereTexCoords(numSegments, numSegments div 2).map(texCoord2Color))
   sphereMesh.normals  = arrayBuffer(uvSphereNormals(numSegments, numSegments div 2))
@@ -100,7 +99,7 @@ block init:
   torusMesh.vertices = arrayBuffer(torusVertices(numSegments, numSegments div 2, 1, 0.5))
   torusMesh.colors   = arrayBuffer(torusTexCoords(numSegments, numSegments div 2).map(texCoord2Color))
   torusMesh.normals  = arrayBuffer(torusNormals(numSegments, numSegments div 2))
-  torusMesh.indices  = elementArrayBuffer(torusIndicesTriangles(numSegments, numSegments div 2))
+  torusMesh.indices  = elementArrayBuffer(torusIndicesTriangles(numSegments, numSegments div 2).map(proc(x: int32): int16 = int16(x)))
 
   glDisable(GL_DEPTH_CLAMP)
 
@@ -120,13 +119,43 @@ var runGame: bool = true
 
 var frame = 0
 
+
+var noiseArray: array[21, float32]
+
+for x in noiseArray.mitems:
+  x = (rand_f32()*2-1) * 0.01f;
+
 while runGame:
   frame += 1
 
   # just some meaningless numbers to make the shapes rotate
-  coneNode.turnAbsoluteZ(0.005)
-  coneNode.turnRelativeX(0.0075)
-  coneNode.turnRelativeY(0.00125)
+  coneNode.turnRelativeZ(noiseArray[0])
+  coneNode.turnRelativeX(noiseArray[1])
+  coneNode.turnRelativeY(noiseArray[2])
+
+  cylinderNode.turnRelativeX(noiseArray[3])
+  cylinderNode.turnRelativeY(noiseArray[4])
+  cylinderNode.turnRelativeZ(noiseArray[5])
+
+  icosphereNode.turnRelativeX(noiseArray[6])
+  icosphereNode.turnRelativeY(noiseArray[7])
+  icosphereNode.turnRelativeZ(noiseArray[8])
+
+  sphereNode.turnRelativeX(noiseArray[9])
+  sphereNode.turnRelativeY(noiseArray[10])
+  sphereNode.turnRelativeZ(noiseArray[11])
+
+  boxNode.turnRelativeX(noiseArray[12])
+  boxNode.turnRelativeY(noiseArray[13])
+  boxNode.turnRelativeZ(noiseArray[14])
+
+  tetraederNode.turnRelativeX(noiseArray[15])
+  tetraederNode.turnRelativeY(noiseArray[16])
+  tetraederNode.turnRelativeZ(noiseArray[17])
+
+  torusNode.turnRelativeX(noiseArray[18])
+  torusNode.turnRelativeY(noiseArray[19])
+  torusNode.turnRelativeZ(noiseArray[20])
 
   # the plane on the ground is rotating the camera is still.
   # I really provides the illusion the camera would rotate
@@ -147,34 +176,7 @@ while runGame:
   #proc renderShape(node: WorldNode, vertices, normals, texcoords: ArrayBuffe[Vec4f])
 
   for i, node in [coneNode, cylinderNode, icosphereNode, sphereNode, boxNode, tetraederNode, torusNode]:
-    let mesh = [coneMesh, cylinderMesh, icosphereMesh, sphereMesh, boxMesh, tetraederMesh, torusMesh][i]
-
-    shadingDsl:
-
-      primitiveMode = GL_TRIANGLES
-      numVertices   = icosphereVerticesLen
-
-      uniforms:
-        proj = projection_mat
-        modelView = camera.viewMat * node.modelMat
-        magic
-
-      attributes:
-        a_vertex = icosphereMesh.vertices
-        a_color  = icosphereMesh.colors
-      vertexMain:
-        """
-        gl_Position = proj * modelView * a_vertex;
-        v_color = a_color;
-        """
-      vertexOut:
-        "out vec4 v_color"
-      fragmentMain:
-        """
-        if(int(gl_FragCoord.x + gl_FragCoord.y) % 2 == magic)
-          discard;
-        color = v_color;
-        """
+    let mesh   = [coneMesh, cylinderMesh, icosphereMesh, sphereMesh, boxMesh, tetraederMesh, torusMesh][i]
 
     shadingDsl:
       primitiveMode = GL_TRIANGLES
@@ -204,17 +206,16 @@ while runGame:
 
       fragmentMain:
         """
-        if(int(gl_FragCoord.x + gl_FragCoord.y) % 2 != magic)
-          discard;
+        // cheap fake lighting from camera direction
         color = v_Color * v_normal.z;
-        //color.b = v_normal.z;
         """
 
   let modelViewProj = projection_mat * camera.viewMat * planeNode.modelMat
 
   # shapes with infinitely far away points, can't interpolate alon the vertices,
-  # therefore the texturecoordinates need to be recontructed from the
-  # object coordinate stsyem
+  # therefore so varyings don't work.
+  # The matrix transformation of can be inverted in the fragment shader, so that that in this case
+  # object space coordinates can be recontructed.
 
   shadingDsl:
     primitiveMode = GL_TRIANGLES
