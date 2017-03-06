@@ -119,23 +119,27 @@ proc screenshot*(window : sdl2.WindowPtr; basename : string) : bool {.discardabl
 proc screenshot*(window : sdl2.WindowPtr) : bool {.discardable.} =
   window.screenshot(window.title)
 
-proc saveBMP*(texture: Texture2D; filename: string): void =
-
+proc newSurface(texture: Texture2D): SurfacePtr =
   var
     size = texture.size
     stride = size.x * 4
     data = newSeq[uint32](size.x * size.y)
-  
+
   glGetTextureImage(texture.handle, 0, GL_RGBA, GL_UNSIGNED_BYTE, GLsizei(data.len * 4), pointer(data[0].addr))
 
-  let surface =
+  result =
     createRGBSurfaceFrom(data[0].addr, size.x, size.y, 32, stride,
               0x0000ffu32,0x00ff00u32,0xff0000u32,0xff000000u32)
 
-  if surface.isNil:
-    echo "Could not create SDL_Surface from pixel data: ", sdl2.getError()
-    return
+  if result.isNil:
+    panic("Could not create SDL_Surface from pixel data: ", sdl2.getError())
 
+proc saveBMP*(texture: Texture2D; filename: string): void =
+  let surface = newSurface(texture)
   defer: surface.freeSurface
-
   surface.saveBMP(filename)
+
+proc savePNG*(texture: Texture2D; filename: string): void =
+  let surface = newSurface(texture)
+  defer: surface.freeSurface
+  discard surface.savePNG(filename)

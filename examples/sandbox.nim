@@ -221,7 +221,7 @@ while runGame:
       of SDL_SCANCODE_PAUSE:
         gameTimer.toggle
       of SDL_SCANCODE_F10:
-        window.screenshot("sandbox")
+        window.screenshot
       else:
         discard
 

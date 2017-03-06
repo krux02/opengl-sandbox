@@ -13,28 +13,28 @@ type
     indices: ElementArrayBuffer[int16]
 
 var coneNode = newWorldNode()
-coneNode.pos.xyz = vec3f(-2, 2,1)
+coneNode.pos.xyz = vec3f(-3, 3,1)
 
 var cylinderNode = newWorldNode()
-cylinderNode.pos.xyz = vec3f(2,-2,1)
+cylinderNode.pos.xyz = vec3f(3,-3,1)
 
 var icosphereNode = newWorldNode()
-icosphereNode.pos.xyz = vec3f(-2,-2,1)
+icosphereNode.pos.xyz = vec3f(-3,-3,1)
 
 var sphereNode = newWorldNode()
-sphereNode.pos.xyz = vec3f(2,2,1)
+sphereNode.pos.xyz = vec3f(3,3,1)
 
 var boxNode = newWorldNode()
 boxNode.pos.xyz = vec3f(0,0,1)
 
 var tetraederNode = newWorldNode()
-tetraederNode.pos.xyz = vec3f(0,-4,1)
+tetraederNode.pos.xyz = vec3f(0,-6,1)
 
 var torusNode = newWorldNode()
-torusNode.pos.xyz = vec3f(-4,0,1)
+torusNode.pos.xyz = vec3f(-6,0,1)
 
 var camera = newWorldNode()
-camera.pos.xyz = vec3f(0,7,4)
+camera.pos.xyz = vec3f(0,9,4)
 camera.lookAt(vec3f(0,0,1))
 
 const numSegments = 32
@@ -166,8 +166,17 @@ while runGame:
     if evt.kind == QuitEvent:
       runGame = false
       break
-    if evt.kind == KeyDown and evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE:
-      runGame = false
+    if evt.kind == KeyDown:
+      case evt.key.keysym.scancode
+      of SDL_SCANCODE_ESCAPE:
+        runGame = false
+        break
+
+      of SDL_SCANCODE_F10:
+        window.screenshot
+
+      else:
+        discard
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 

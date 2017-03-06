@@ -116,7 +116,7 @@ while running:
         running = false
         break
       of SDL_SCANCODE_F10:
-        screenshot(window, "particles")
+        window.screenshot
       of SDL_SCANCODE_PAUSE:
         gameTimer.toggle
 

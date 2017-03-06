@@ -495,7 +495,7 @@ proc mainLoopFunc(): void =
         wireframe = not wireframe
 
       of SDL_SCANCODE_F10:
-        screenshot(window, "defered_shading")
+        window.screenshot
 
       else:
         discard
