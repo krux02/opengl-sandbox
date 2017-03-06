@@ -321,7 +321,12 @@ const
   tetraederVertices*  = genTetraederVertices()
   tetraederNormals*   = genTetraederNormals()
   tetraederTexCoords* = getTetraederTexCoords()
-
+  tetraederColors*    = [
+    vec4f(0.0, 1.0, 0.0, 1), vec4f(0.0, 1.0, 0.0, 1), vec4f(0.0, 1.0, 0.0, 1),
+    vec4f(1.0, 0.5, 0.0, 1), vec4f(1.0, 0.5, 0.0, 1), vec4f(1.0, 0.5, 0.0, 1),
+    vec4f(1.0, 0.0, 0.0, 1), vec4f(1.0, 0.0, 0.0, 1), vec4f(1.0, 0.0, 0.0, 1),
+    vec4f(1.0, 1.0, 0.0, 1), vec4f(1.0, 1.0, 0.0, 1), vec4f(1.0, 1.0, 0.0, 1),
+  ]
 
 proc gridVerticesXMajor*(size: Vec2i): seq[Vec4f] =
   result = newSeqOfCap[Vec4f](size.x * size.y)

@@ -59,7 +59,11 @@ proc lookAt*(cam: var WorldNode; pos: Vec3f; up: Vec3f = vec3f(0,0,1)): void =
   var f = normalize(cam.pos.xyz - pos)
   var s = normalize(cross(up, f))
   var u = cross(f, s)
-  cam.dir = quatf(mat3(s,u,f))
+  let m = mat3(s,u,f)
+  cam.dir = quatf(m)
+
+proc lookAt*(cam: var WorldNode; target: WorldNode; up: Vec3f = vec3f(0,0,1)): void =
+  cam.lookAt(target.pos.xyz, up)
 
 proc lookAtCamera*(eye, center, up: Vec3f) : WorldNode =
   result.pos = vec4f(eye,1)

@@ -26,27 +26,27 @@ template textureTypeTemplate(name: untyped, target: GLenum, shadername:string): 
     $texture.handle
 
 
-proc unbindTextures(first,count: int): void =
+proc unbindTextures*(first,count: int): void =
   glBindTextures(first.GLuint, count.GLsizei, nil)
 
-proc bindTextures(first: int; handles: openarray[GLuint]): void =
+proc bindTextures*(first: int; handles: openarray[GLuint]): void =
   glBindTextures(first.GLuint, handles.len.GLsizei, handles[0].unsafeaddr)
 
 proc geometryNumVerts(mode: GLenum): int =
   case mode
-  of GL_POINTS: 1
-  of GL_LINE_STRIP: 2
-  of GL_LINE_LOOP: 2
-  of GL_LINES: 2
-  of GL_LINE_STRIP_ADJACENCY: 4
-  of GL_LINES_ADJACENCY: 4
-  of GL_TRIANGLE_STRIP: 3
-  of GL_TRIANGLE_FAN: 3
-  of GL_TRIANGLES: 3
+  of GL_POINTS:                   1
+  of GL_LINE_STRIP:               2
+  of GL_LINE_LOOP:                2
+  of GL_LINES:                    2
+  of GL_LINE_STRIP_ADJACENCY:     4
+  of GL_LINES_ADJACENCY:          4
+  of GL_TRIANGLE_STRIP:           3
+  of GL_TRIANGLE_FAN:             3
+  of GL_TRIANGLES:                3
   of GL_TRIANGLE_STRIP_ADJACENCY: 6
-  of GL_TRIANGLES_ADJACENCY: 6
-  of GL_PATCHES: -1
-  else: -1128
+  of GL_TRIANGLES_ADJACENCY:      6
+  of GL_PATCHES: -                1
+  else: -                         1128
 
 proc geometryPrimitiveLayout(mode: GLenum): string =
   case mode
