@@ -11,7 +11,7 @@ type ParticleRenderData = object
   pos: Vec2f
   col: Vec3f
   rot: float32
-  
+
 
 var cpuParticleRenderData = newSeq[ParticleRenderData](numParticles)
 
@@ -21,7 +21,7 @@ for particle in cpuParticleRenderData.mitems():
   particle.rot = randNormal().float32 + 2
 
 var particleRenderData = cpuParticleRenderData.arrayBuffer(GL_STREAM_DRAW)
-  
+
 let
   posView = particleRenderData.view(pos)
   colView = particleRenderData.view(col)
@@ -54,7 +54,7 @@ proc vel(this: ParticleRef): var Vec2f =
   this.simulationData.vel
 proc birthday(this: ParticleRef): var float64 =
   this.simulationData.birthday
-  
+
 var running = true
 var gameTimer = newStopWatch(true)
 var frameTimer = newStopWatch(true)
@@ -86,7 +86,7 @@ while running:
 
   for i in 0 ..< numParticles:
     let particle = ParticleRef(simulationData: particleSimulationData[i].addr, renderData: cpuParticleRenderData[i].addr)
-    
+
     particle.pos += particle.vel * frameTime.float32
 
     let flipX = 1'f32 - float32(windowsize.x < particle.pos.x or particle.pos.x < 0) * 2
@@ -96,8 +96,8 @@ while running:
 
     particle.vel.x = particle.vel.x * flipX
     particle.vel.y = particle.vel.y * flipY
-      
-    if particle.birthday + maxParticleAge < time:    
+
+    if particle.birthday + maxParticleAge < time:
       particle.birthday() = time
       particle.vel.x = 128 * dirx + randNormal() * 16
       particle.vel.y = 128 * diry + randNormal() * 16
@@ -242,7 +242,3 @@ while running:
       """
 
   glSwapWindow(window)
-
-    
-    
-

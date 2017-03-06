@@ -35,28 +35,28 @@ let
   velView      = particleData.view(vel)
   birthdayView = particleData.view(birthday)
 
-  posTargetView = particleTarget.view(pos)
-  colTargetView = particleTarget.view(col)
-  rotTargetView = particleTarget.view(rot)
-  velTargetView = particleTarget.view(vel)
+  posTargetView      = particleTarget.view(pos)
+  colTargetView      = particleTarget.view(col)
+  rotTargetView      = particleTarget.view(rot)
+  velTargetView      = particleTarget.view(vel)
   birthdayTargetView = particleTarget.view(birthday)
 
-var running = true
-var gameTimer = newStopWatch(true)
+var running    = true
+var gameTimer  = newStopWatch(true)
 var frameTimer = newStopWatch(true)
 
 var mvp : Mat4f
 
 mvp[0][0] = 2 / windowsize.x
 mvp[1][1] = 2 / windowsize.y
-mvp[3] = vec4f(-1, -1, 0, 1)
+mvp[3]    = vec4f(-1, -1, 0, 1)
 
 glDisable(GL_DEPTH_TEST)
 glEnable(GL_BLEND)
 glBlendFunc(GL_SRC_ALPHA, GL_ONE)
 
-var mouseX, mouseY: int32
-var pmouseX, pmouseY: int32
+var mouseX  , mouseY  : int32
+var pmouseX , pmouseY : int32
 
 var transformFeedback: TransformFeedback = newTransformFeedback()
 
@@ -75,7 +75,7 @@ while running:
 
   #[
   for particle in cpuParticleData.mitems:
-    
+
     particle.pos += particle.vel * frameTime.float32
 
     let flipX = 1'f32 - float32(windowsize.x < particle.pos.x or particle.pos.x < 0) * 2
@@ -85,8 +85,8 @@ while running:
 
     particle.vel.x = particle.vel.x * flipX
     particle.vel.y = particle.vel.y * flipY
-      
-    if particle.birthday + maxParticleAge < time:    
+
+    if particle.birthday + maxParticleAge < time:
       particle.birthday = time
       particle.vel.x = 128 * dirx + randNormal() * 16
       particle.vel.y = 128 * diry + randNormal() * 16
@@ -94,24 +94,24 @@ while running:
 
   particleData.setData(cpuParticleData)
   ]#
-  
+
   transformFeedback.bufferBase(0, particleTarget)
-  
+
   shadingDsl:
     debugResult
     primitiveMode = GL_POINTS
-    numVertices = numParticles
-    programIdent = tfProgram
-    vaoIdent = tfVao
+    numVertices   = numParticles
+    programIdent  = tfProgram
+    vaoIdent      = tfVao
 
     uniforms:
-      mouse = vec2f(mouseX.float32,mouseY.float32)
-      pmouse = vec2f(pmouseX.float32,pmouseY.float32)
-      frameTime = frameTime.float32
+      mouse      = vec2f(mouseX.float32,mouseY.float32)
+      pmouse     = vec2f(pmouseX.float32,pmouseY.float32)
+      frameTime  = frameTime.float32
       windowsize = windowsize
       time
       maxParticleAge
-      dir = vec2f(dirx,diry)
+      dir        = vec2f(dirx,diry)
 
     attributes:
       a_pos = posView
@@ -124,7 +124,7 @@ while running:
     afterSetup:
       #tfProgram.transformFeedbackVaryings(["v_pos", "v_col", "v_rot", "v_vel", "v_birthday"], GL_INTERLEAVED_ATTRIBS)
       discard
-    
+
     beforeRender:
 
       glEnable(GL_RASTERIZER_DISCARD);
@@ -156,10 +156,10 @@ while running:
       """
 
     vertexOut:
-      v_pos = posTargetView
-      v_col = colTargetView
-      v_rot = rotTargetView
-      v_vel = velTargetView
+      v_pos      = posTargetView
+      v_col      = colTargetView
+      v_rot      = rotTargetView
+      v_vel      = velTargetView
       v_birthday = birthdayTargetView
 
     afterRender:
@@ -190,23 +190,23 @@ while running:
 
   shadingDsl:
     primitiveMode = GL_POINTS
-    numVertices = numParticles
+    numVertices   = numParticles
 
     uniforms:
-      time = float32(time+100)
+      time         = float32(time+100)
       mvp
       particleSize = vec2f(16,4)
 
     attributes:
-      a_pos = posView
+      a_pos   = posView
       a_color = colView
-      a_rot  = rotView
+      a_rot   = rotView
 
     vertexMain:
       """
-      v_pos = a_pos;
+      v_pos   = a_pos;
       v_color = vec4(a_color,0.25);
-      v_rot = a_rot;
+      v_rot   = a_rot;
       """
     vertexOut:
       "out vec4 v_color"
@@ -216,12 +216,12 @@ while running:
     geometryMain:
       "layout(triangle_strip, max_vertices=4) out"
       """
-      g_color = v_color[0];
+      g_color     = v_color[0];
 
-      float s = sin(time * v_rot[0]);
-      float c = cos(time * v_rot[0]);
+      float s     = sin(time * v_rot[0]);
+      float c     = cos(time * v_rot[0]);
 
-      mat2 r = mat2(vec2(c,s),vec2(-s,c));
+      mat2 r      = mat2(vec2(c,s),vec2(-s,c));
 
       gl_Position = mvp * vec4(v_pos[0] + r * (particleSize * vec2(-1,-1)), 0, 1);
       EmitVertex();
@@ -239,7 +239,7 @@ while running:
       "out vec4 g_color"
     fragmentMain:
       """
-      color = g_color;
+      color       = g_color;
       """
 
   glDisable(GL_BLEND)
@@ -303,7 +303,3 @@ while running:
       """
 
   glSwapWindow(window)
-
-    
-    
-

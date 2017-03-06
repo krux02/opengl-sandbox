@@ -24,7 +24,7 @@ heightsTexture.setData(hm.data)
 
 var viewport = vec4f(0,0,vec2f(windowsize))
 
-  
+
 let projection_mat = perspective(45.0, windowsize.x / windowsize.y, 0.1, 1000.0)
 
 var
@@ -34,9 +34,9 @@ var
   movement = vec3d(0,0,0)
   rotation = vec2d(PI/2,0)
   position = vec3d(0,0, hm[0,0] + 10 )
-  
+
   runGame         = true
-  
+
   gameTimer       = newStopWatch(true)
   fpsTimer        = newStopWatch(true)
   fpsFrameCounter = 0
@@ -95,7 +95,7 @@ proc render() =
         //float h2 = texelFetch(heightsTexture, ivec2(mod(p2, instanceSize)), 0).r;
         float h1 = textureLod(heightsTexture, p1 / instanceSize, 0).r;
         float h2 = textureLod(heightsTexture, p2 / instanceSize, 0).r;
-        
+
         return h1 + h2;
       }
       """
@@ -129,7 +129,7 @@ proc render() =
     #[
     geometryMain:
       "layout(line_strip, max_vertices=8) out"
-      
+
       """
       vec4 center = v_pos_cs[0] + v_pos_cs[1] + v_pos_cs[2];
 
@@ -175,7 +175,7 @@ proc render() =
       gl_Position = projection * (center + normal);
       EmitVertex();
       EndPrimitive();
-      
+
       """
     geometryOut:
       "out vec2 g_texcoord"
@@ -195,7 +195,7 @@ proc render() =
       //color = vec4(fract(v_pos_ws), 1);
       //color = texture(crateTexture, v_texcoord);
       //color = v_normal_cs.z * texture(crateTexture, v_texcoord);
-          
+
       """
 
   #end shadingDsl
@@ -218,19 +218,19 @@ proc mainLoopFunc(): void =
 
       of SDL_SCANCODE_PAUSE:
         gameTimer.toggle
-        
+
       of SDL_SCANCODE_F10:
-        screenshot(window, "defered_shading")
+        window.screenshot
 
       else:
         discard
-        
+
     if evt.kind == MouseButtonDown:
       var toggle {. global .} = true
       if evt.button.button == 3:
         toggle = not toggle
         discard setRelativeMouseMode(Bool32(toggle))
-        
+
 
     if evt.kind == MouseMotion:
       mousePos.x = evt.motion.x.float32

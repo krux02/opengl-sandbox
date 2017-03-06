@@ -16,7 +16,7 @@ proc position*(window: WindowPtr): Vec2i =
 
 proc `position=`*(window: WindowPtr; pos: Vec2i): void =
   setPosition(window, pos.x, pos.y)
-  
+
 
 proc title*(window: WindowPtr): string =
   result = $getTitle(window)
@@ -63,7 +63,7 @@ proc pos*(evt: MouseWheelEventPtr): Vec2i =
 proc flipY*(surface: SurfacePtr): void =
   assert(not surface.isNil, "surface may not be nil")
   # handy conversion, because in Opengl the origin of texture coordinates is bottom left and not top left
-  
+
   let
     h = surface.h
     pitch = surface.pitch
@@ -72,7 +72,7 @@ proc flipY*(surface: SurfacePtr): void =
   let mem = alloc(pitch)
   defer:
     dealloc(mem)
-  
+
   for y in 0 ..< surface.h div 2:
     let p1 = cast[pointer](cast[uint](pixels) + uint(y * pitch))
     let p2 = cast[pointer](cast[uint](pixels) + uint((h-y-1) * pitch))
@@ -80,7 +80,7 @@ proc flipY*(surface: SurfacePtr): void =
     mem.copyMem(p1, pitch)
     p1.copyMem(p2, pitch)
     p2.copyMem(mem, pitch)
-  
+
 proc screenshot*(window : sdl2.WindowPtr; basename : string) : bool {.discardable.} =
   var
     (w,h) = window.getSize
@@ -96,7 +96,7 @@ proc screenshot*(window : sdl2.WindowPtr; basename : string) : bool {.discardabl
                                      0x0000ffu32,0x00ff00u32,0xff0000u32,0xff000000u32)
 
   surface.flipY
-  
+
   if surface.isNil:
     echo "Could not create SDL_Surface from pixel data: ", sdl2.getError()
     return false
