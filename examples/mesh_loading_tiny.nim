@@ -1,4 +1,4 @@
-import memfiles, glm, ../fancygl, sdl2, sdl2/ttf , opengl, strutils, sequtils, math, AntTweakBar, ../text
+import memfiles, glm, ../fancygl, sdl2, sdl2/ttf , opengl, strutils, sequtils, math, AntTweakBar
 
 const WindowSize = vec2i(1024, 768)
 

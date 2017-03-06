@@ -13,6 +13,7 @@
 ** TODO unifom buffer
 ** TODO tesselation shader stages
 ** TODO modular shader system
+** TODO forward vertex shader when only geometry shader is available
 ** TODO infer primitive mode from buffer
 ** DONE In DSL move indices from attributes to named argument section
 ** DONE warn for unused shader uniforms/attributes
@@ -37,8 +38,9 @@
 * examples [0/4]
 
 ** TODO let mrfixit use the easy text renderer
-** TODO forward vertex shader when only geometry shader is available
+*** TODO fix bug that text is rendered too wide with uninitialized memory
 ** TODO fix portal rendering in example
+*** TODO changes on the quaternion probably introduced a bug in the portal rendering, they don't work anymore
 ** TODO cubical marching squares example
 
 * other [1/2]
