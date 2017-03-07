@@ -130,60 +130,60 @@ proc isValid*(location: Location): bool =
 
 # float32
 
-proc uniform(program: Program; location: Location, mat: Mat4f) =
+proc uniform*(program: Program; location: Location, mat: Mat4f) =
   glProgramUniformMatrix4fv(program.handle, location.index, 1, false, cast[ptr float32](mat.unsafeAddr))
 
-proc uniform(program: Program; location: Location, mat: Mat3f) =
+proc uniform*(program: Program; location: Location, mat: Mat3f) =
   glProgramUniformMatrix3fv(program.handle, location.index, 1, false, cast[ptr float32](mat.unsafeAddr))
 
-proc uniform(program: Program; location: Location, mat: Mat2f) =
+proc uniform*(program: Program; location: Location, mat: Mat2f) =
   glProgramUniformMatrix2fv(program.handle, location.index, 1, false, cast[ptr float32](mat.unsafeAddr))
 
-proc uniform(program: Program; location: Location, mat: Mat2x3f) =
+proc uniform*(program: Program; location: Location, mat: Mat2x3f) =
   glProgramUniformMatrix2x3fv(program.handle, location.index, 1, false, cast[ptr float32](mat.unsafeAddr))
 
-proc uniform(program: Program; location: Location, mat: Mat3x2f) =
+proc uniform*(program: Program; location: Location, mat: Mat3x2f) =
   glProgramUniformMatrix3x2fv(program.handle, location.index, 1, false, cast[ptr float32](mat.unsafeAddr))
 
-proc uniform(program: Program; location: Location, mat: Mat2x4f) =
+proc uniform*(program: Program; location: Location, mat: Mat2x4f) =
   glProgramUniformMatrix2x4fv(program.handle, location.index, 1, false, cast[ptr float32](mat.unsafeAddr))
 
-proc uniform(program: Program; location: Location, mat: Mat4x2f) =
+proc uniform*(program: Program; location: Location, mat: Mat4x2f) =
   glProgramUniformMatrix4x2fv(program.handle, location.index, 1, false, cast[ptr float32](mat.unsafeAddr))
 
-proc uniform(program: Program; location: Location, mat: Mat3x4f) =
+proc uniform*(program: Program; location: Location, mat: Mat3x4f) =
   glProgramUniformMatrix3x4fv(program.handle, location.index, 1, false, cast[ptr float32](mat.unsafeAddr))
 
-proc uniform(program: Program; location: Location, mat: Mat4x3f) =
+proc uniform*(program: Program; location: Location, mat: Mat4x3f) =
   glProgramUniformMatrix4x3fv(program.handle, location.index, 1, false, cast[ptr float32](mat.unsafeAddr))
 
 # float64
 
-proc uniform(program: Program; location: Location; mat: Mat4d) =
+proc uniform*(program: Program; location: Location; mat: Mat4d) =
   glProgramUniformMatrix4dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
 
-proc uniform(program: Program; location: Location, mat: Mat3d) =
+proc uniform*(program: Program; location: Location, mat: Mat3d) =
   glProgramUniformMatrix3dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
 
-proc uniform(program: Program; location: Location, mat: Mat2d) =
+proc uniform*(program: Program; location: Location, mat: Mat2d) =
   glProgramUniformMatrix2dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
 
-proc uniform(program: Program; location: Location, mat: Mat2x3d) =
+proc uniform*(program: Program; location: Location, mat: Mat2x3d) =
   glProgramUniformMatrix2x3dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
 
-proc uniform(program: Program; location: Location, mat: Mat3x2d) =
+proc uniform*(program: Program; location: Location, mat: Mat3x2d) =
   glProgramUniformMatrix3x2dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
 
-proc uniform(program: Program; location: Location, mat: Mat2x4d) =
+proc uniform*(program: Program; location: Location, mat: Mat2x4d) =
   glProgramUniformMatrix2x4dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
 
-proc uniform(program: Program; location: Location, mat: Mat4x2d) =
+proc uniform*(program: Program; location: Location, mat: Mat4x2d) =
   glProgramUniformMatrix4x2dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
 
-proc uniform(program: Program; location: Location, mat: Mat3x4d) =
+proc uniform*(program: Program; location: Location, mat: Mat3x4d) =
   glProgramUniformMatrix3x4dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
 
-proc uniform(program: Program; location: Location, mat: Mat4x3d) =
+proc uniform*(program: Program; location: Location, mat: Mat4x3d) =
   glProgramUniformMatrix4x3dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
 
 
@@ -250,67 +250,67 @@ proc uniform(program: Program; location: Location, mat: Mat4x3i) =
 
 # Vector types
 
-proc uniform(program: Program; location: Location, value: Vec2f) =
+proc uniform*(program: Program; location: Location, value: Vec2f) =
   glProgramUniform2f(program.handle, location.index, value[0], value[1])
 
-proc uniform(program: Program; location: Location, value: Vec3f) =
+proc uniform*(program: Program; location: Location, value: Vec3f) =
   glProgramUniform3f(program.handle, location.index, value[0], value[1], value[2])
 
-proc uniform(program: Program; location: Location, value: Vec4f) =
+proc uniform*(program: Program; location: Location, value: Vec4f) =
   glProgramUniform4f(program.handle, location.index, value[0], value[1], value[2], value[3])
 
 
-proc uniform(program: Program; location: Location, value: Vec2d) =
+proc uniform*(program: Program; location: Location, value: Vec2d) =
   glProgramUniform2d(program.handle, location.index, value[0], value[1])
 
-proc uniform(program: Program; location: Location, value: Vec3d) =
+proc uniform*(program: Program; location: Location, value: Vec3d) =
   glProgramUniform3d(program.handle, location.index, value[0], value[1], value[2])
 
-proc uniform(program: Program; location: Location, value: Vec4d) =
+proc uniform*(program: Program; location: Location, value: Vec4d) =
   glProgramUniform4d(program.handle, location.index, value[0], value[1], value[2], value[3])
 
 
-proc uniform(program: Program; location: Location, value: Vec2i) =
+proc uniform*(program: Program; location: Location, value: Vec2i) =
   glProgramUniform2i(program.handle, location.index, value[0], value[1])
 
-proc uniform(program: Program; location: Location, value: Vec3i) =
+proc uniform*(program: Program; location: Location, value: Vec3i) =
   glProgramUniform3i(program.handle, location.index, value[0], value[1], value[2])
 
-proc uniform(program: Program; location: Location, value: Vec4i) =
+proc uniform*(program: Program; location: Location, value: Vec4i) =
   glProgramUniform4i(program.handle, location.index, value[0], value[1], value[2], value[3])
 
 
-proc uniform(program: Program; location: Location, value: Vec2ui) =
+proc uniform*(program: Program; location: Location, value: Vec2ui) =
   glProgramUniform2ui(program.handle, location.index, value[0], value[1])
 
-proc uniform(program: Program; location: Location, value: Vec3ui) =
+proc uniform*(program: Program; location: Location, value: Vec3ui) =
   glProgramUniform3ui(program.handle, location.index, value[0], value[1], value[2])
 
-proc uniform(program: Program; location: Location, value: Vec4ui) =
+proc uniform*(program: Program; location: Location, value: Vec4ui) =
   glProgramUniform4ui(program.handle, location.index, value[0], value[1], value[2], value[3])
 
 
-proc uniform(program: Program; location: Location, value: Vec2b) =
+proc uniform*(program: Program; location: Location, value: Vec2b) =
   glProgramUniform2i(program.handle, location.index, value[0].GLint, value[1].GLint)
 
-proc uniform(program: Program; location: Location, value: Vec3b) =
+proc uniform*(program: Program; location: Location, value: Vec3b) =
   glProgramUniform3i(program.handle, location.index, value[0].GLint, value[1].GLint, value[2].GLint)
 
-proc uniform(program: Program; location: Location, value: Vec4b) =
+proc uniform*(program: Program; location: Location, value: Vec4b) =
   glProgramUniform4i(program.handle, location.index, value[0].GLint, value[1].GLint, value[2].GLint, value[3].GLint)
 
 # scalar types
 
-proc uniform(program: Program; location: Location, value: float32) =
+proc uniform*(program: Program; location: Location, value: float32) =
   glProgramUniform1f(program.handle, location.index, value)
 
-proc uniform(program: Program; location: Location, value: float64) =
+proc uniform*(program: Program; location: Location, value: float64) =
   glProgramUniform1d(program.handle, location.index, value)
 
-proc uniform(program: Program; location: Location, value: int32) =
+proc uniform*(program: Program; location: Location, value: int32) =
   glProgramUniform1i(program.handle, location.index, value)
 
-proc uniform(program: Program; location: Location, value: bool) =
+proc uniform*(program: Program; location: Location, value: bool) =
   glProgramUniform1i(program.handle, location.index, value.GLint)
 
 proc label*(arg: Program): string =
@@ -364,10 +364,10 @@ proc bindIt*(vao: VertexArrayObject): void =
 proc delete*(vao: VertexArrayObject) =
   glDeleteVertexArrays(1, vao.handle.unsafeAddr)
 
-proc divisor(vao: VertexArrayObject; binding: Binding; divisor: GLuint) : void =
+proc divisor*(vao: VertexArrayObject; binding: Binding; divisor: GLuint) : void =
   glVertexArrayBindingDivisor(vao.handle, binding.index, divisor)
 
-proc enableAttrib(vao: VertexArrayObject, location: Location) : void =
+proc enableAttrib*(vao: VertexArrayObject, location: Location) : void =
   if location.index >= 0:
     glEnableVertexArrayAttrib(vao.handle, location.index.GLuint)
 
@@ -841,9 +841,8 @@ template transformFeedbackBlock(primitiveMode: GLenum; blk: untyped): untyped =
     blk
 
 type
-  TransformFeedback* = object
+  TransformFeedback*[T] = object
     handle*: GLuint
-
 
 proc label*(arg: TransformFeedback): string =
   const bufsize = 255
@@ -857,9 +856,48 @@ proc `label=`*(arg: TransformFeedback; label: string): void =
     if not isNil label:
       glObjectLabel(GL_TRANSFORM_FEEDBACK, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
 
-proc newTransformFeedback*(label: string = nil) : TransformFeedback =
+macro typeName(t: typedesc): untyped =
+  newLit($t.getTypeImpl[1])
+
+template offsetof*(typ, field: untyped): int = (var dummy: typ; cast[system.int](addr(dummy.field)) - cast[system.int](addr(dummy)))
+
+macro varyingNames*(self: TransformFeedback): untyped =
+  ## returns array of string literals
+  result = nnkBracket.newTree
+  let typeImpl = self.getTypeInst[1].getTypeImpl
+  typeImpl.expectKind(nnkObjectTy)
+  for identDef in typeImpl[2]:
+    for i in 0 ..< identDef.len-2:
+      let sym = identDef[i]
+      result.add newLit($sym)
+
+macro varyingOffsets*(self: TransformFeedback): untyped =
+  ## returns array of int literals
+  result = nnkBracket.newTree
+
+  let tpe = self.getTypeInst[1]
+  echo tpe.treeRepr
+  let typeImpl = tpe.getTypeImpl
+  typeImpl.expectKind(nnkObjectTy)
+  for identDef in typeImpl[2]:
+    for i in 0 ..< identDef.len-2:
+      let sym = identDef[i]
+      result.add getAst(offsetOf(tpe,sym))
+
+template stride*[T](self: TransformFeedback[T]): int =
+  sizeof(T)
+
+#proc newTransformFeedback*(label: string = nil) : TransformFeedback =
+#  glCreateTransformFeedbacks(GLsizei(1), result.handle.addr)
+#  result.label = label
+
+proc newTransformFeedback*[T]() : TransformFeedback[T] =
   glCreateTransformFeedbacks(GLsizei(1), result.handle.addr)
-  result.label = label
+  result.label = typeName(T)
+  echo "label: ", result.label
+  echo @(result.varyingNames)
+  echo @(result.varyingOffsets)
+  echo result.stride
 
 proc delete*(tf: TransformFeedback): void =
   glDeleteTransformFeedbacks(GLsizei(1), tf.handle.unsafeAddr)

@@ -75,26 +75,26 @@ proc forwardVertexShaderSource(sourceHeader: string,
 
   echo "forwardVertexShaderSource:\n", result
 
-proc bindAndAttribPointer[T](vao: VertexArrayObject, buffer: ArrayBuffer[T], location: Location) =
+proc bindAndAttribPointer*[T](vao: VertexArrayObject, buffer: ArrayBuffer[T], location: Location) =
   if 0 <= location.index:
     let loc = location.index.GLuint
     glVertexArrayVertexBuffer(vao.handle, loc, buffer.handle, 0, GLsizei(sizeof(T)))
     glVertexArrayAttribFormat(vao.handle, loc, attribSize(T), attribType(T), attribNormalized(T), #[ relative offset ?! ]# 0);
     glVertexArrayAttribBinding(vao.handle, loc, loc)
 
-proc bindAndAttribPointer[S,T](vao: VertexArrayObject; view: ArrayBufferView[S,T]; location: Location): void =
+proc bindAndAttribPointer*[S,T](vao: VertexArrayObject; view: ArrayBufferView[S,T]; location: Location): void =
   if 0 <= location.index:
     let loc = location.index.GLuint
     glVertexArrayVertexBuffer(vao.handle, loc, view.buffer.handle, GLsizei(view.offset), GLsizei(view.stride))
     glVertexArrayAttribFormat(vao.handle, loc, attribSize(view.T), attribType(view.T), attribNormalized(view.T), #[ relative offset ?! ]# 0);
     glVertexArrayAttribBinding(vao.handle, loc, loc)
 
-proc setBuffer[T](vao: VertexArrayObject; buffer: ArrayBuffer[T]; location: Location): void =
+proc setBuffer*[T](vao: VertexArrayObject; buffer: ArrayBuffer[T]; location: Location): void =
   if 0 <= location.index:
     let loc = location.index.GLuint
     glVertexArrayVertexBuffer(vao.handle, loc, buffer.handle, 0, GLsizei(sizeof(T)))
 
-proc setBuffer(vao: VertexArrayObject; view: ArrayBufferView; location: Location): void =
+proc setBuffer*(vao: VertexArrayObject; view: ArrayBufferView; location: Location): void =
   if 0 <= location.index:
     let loc = location.index.GLuint
     glVertexArrayVertexBuffer(vao.handle, loc, view.buffer.handle, GLsizei(view.offset), GLsizei(view.stride))
@@ -104,7 +104,7 @@ proc setBuffer(vao: VertexArrayObject; view: ArrayBufferView; location: Location
 #    buffer*: ArrayBuffer[S]
 #    offset*, stride*: int
 
-proc binding(loc: Location): Binding =
+proc binding*(loc: Location): Binding =
   result.index = loc.index.GLuint
 
 type
@@ -504,6 +504,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 #### Shading Dsl Outer ###########################################################
 ######################################l############################################
 
+
 macro shadingDsl*(statement: untyped) : untyped =
   var wrapWithDebugResult = false
 
@@ -653,13 +654,14 @@ macro shadingDsl*(statement: untyped) : untyped =
 
           of nnkIdent:
             let name = section.repr
-            let nameLit = newLit(name)
-            let identNode = section
+            if name != "transformFeedback":
+              error("foobar")
+            #let nameLit = newLit(name)
+            #let identNode = section
 
-            outCall.add head quote do:
-              "out " & glslTypeRepr(type(`identNode`.T)) & " " & `nameLit`
-
-            transformFeedbackVaryingNamesCall.add nameLit
+            #outCall.add head quote do:
+            #  "out " & glslTypeRepr(type(`identNode`.T)) & " " & `nameLit`
+            #transformFeedbackVaryingNamesCall.add nameLit
 
           of nnkStrLit:
             outCall.add section

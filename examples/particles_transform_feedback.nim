@@ -1,6 +1,8 @@
 import ../fancygl
 
-let (window, context) = defaultSetup()
+## WARNING THIS CODE DOES NOT WORK ##
+
+let (window, _) = defaultSetup()
 let windowsize = vec2f(window.size)
 
 const
@@ -58,8 +60,12 @@ glBlendFunc(GL_SRC_ALPHA, GL_ONE)
 var mouseX  , mouseY  : int32
 var pmouseX , pmouseY : int32
 
-var transformFeedback: TransformFeedback = newTransformFeedback()
+echo offsetOf(ParticleData, pos)
 
+var transformFeedback = newTransformFeedback[ParticleData]()
+
+echo transformFeedback
+echo transformFeedback.label
 
 while running:
   let frameTime = frameTimer.reset
@@ -117,12 +123,11 @@ while running:
       a_pos = posView
       a_col = colView
       a_rot = rotView
-
       a_vel = velView
       a_birthday = birthdayView
 
     afterSetup:
-      #tfProgram.transformFeedbackVaryings(["v_pos", "v_col", "v_rot", "v_vel", "v_birthday"], GL_INTERLEAVED_ATTRIBS)
+      tfProgram.transformFeedbackVaryings(["v_pos", "v_col", "v_rot", "v_vel", "v_birthday"], GL_INTERLEAVED_ATTRIBS)
       discard
 
     beforeRender:
@@ -133,26 +138,29 @@ while running:
 
     vertexMain:
       """
-      v_pos = a_pos + a_vel * frameTime;
+      //v_pos = a_pos + a_vel * frameTime;
 
       //bool flipX = 1.0 - float(windowsize.x < v_pos.x or v_pos.x < 0) * 2.0;
       //bool flipY = 1.0 - float(windowsize.y < v_pos.y or v_pos.y < 0) * 2.0;
-      vec2 flip = vec2(1) - vec2( notEqual(lessThan(windowsize, v_pos),lessThan(v_pos, vec2(0)))) * 2.0 ;
+      //vec2 flip = vec2(1) - vec2( notEqual(lessThan(windowsize, v_pos), lessThan(v_pos, vec2(0)))) * 2.0 ;
 
-      v_pos = clamp(v_pos, vec2(0), windowsize);
-      v_vel = a_vel * flip;
+      //v_pos = clamp(a_pos, vec2(0), windowsize);
+      //v_vel = a_vel * flip;
 
-      if(a_birthday + maxParticleAge < time) {
-        v_birthday = time;
-        v_vel = 128 * dir;
-        v_pos = mix( pmouse, mouse, 0.5 );
-      } else {
-        v_birthday = a_birthday;
-        v_vel = a_vel;
-      }
+      //if(a_birthday + maxParticleAge > time) {
+      //  v_birthday = time;
+      //  v_vel = 128 * dir;
+      //  v_pos = mix( pmouse, mouse, 0.5 );
+      //} else {
+      //  v_birthday = a_birthday;
+      //  v_vel = a_vel;
+      //}
 
+      v_birthday = a_birthday;
+      v_pos = a_pos;
       v_col = a_col;
       v_rot = a_rot;
+      v_vel = a_vel;
       """
 
     vertexOut:
@@ -161,6 +169,7 @@ while running:
       v_rot      = rotTargetView
       v_vel      = velTargetView
       v_birthday = birthdayTargetView
+      transformFeedback
 
     afterRender:
 
@@ -189,6 +198,7 @@ while running:
   glEnable(GL_BLEND)
 
   shadingDsl:
+    debugResult
     primitiveMode = GL_POINTS
     numVertices   = numParticles
 
@@ -254,9 +264,9 @@ while running:
       particleSize = vec2f(16,4)
 
     attributes:
-      a_pos = posView
-      a_color = colView
-      a_rot  = rotView
+      a_pos = posTargetView
+      a_color = colTargetView
+      a_rot  = rotTargetView
 
     vertexMain:
       """
@@ -293,7 +303,6 @@ while running:
 
       gl_Position = mvp * vec4(v_pos[0] + r * (particleSize * vec2(-1,-1)), 0, 1);
       EmitVertex();
-
       """
     geometryOut:
       "out vec4 g_color"
