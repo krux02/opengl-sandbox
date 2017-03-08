@@ -887,10 +887,6 @@ macro varyingOffsets*(self: TransformFeedback): untyped =
 template stride*[T](self: TransformFeedback[T]): int =
   sizeof(T)
 
-#proc newTransformFeedback*(label: string = nil) : TransformFeedback =
-#  glCreateTransformFeedbacks(GLsizei(1), result.handle.addr)
-#  result.label = label
-
 proc newTransformFeedback*[T]() : TransformFeedback[T] =
   glCreateTransformFeedbacks(GLsizei(1), result.handle.addr)
   result.label = typeName(T)
@@ -898,6 +894,29 @@ proc newTransformFeedback*[T]() : TransformFeedback[T] =
   echo @(result.varyingNames)
   echo @(result.varyingOffsets)
   echo result.stride
+
+#[
+macro transformFeedbackOutSection(self: TransformFeedback): string =
+  var res = newLit("""
+#extension GL_ARB_enhanced_layouts : enable
+layout(xfb_buffer = 0, xfb_stride = 36) out bananas {
+""")
+
+  let tpe = self.getTypeInst[1]
+  let typeImpl = tpe.getTypeImpl
+  typeImpl.expectKind(nnkObjectTy)
+  for identDef in typeImpl[2]:
+    for i in 0 ..< identDef.len-2:
+      let sym = identDef[i]
+      let symName = newLit($sym)
+
+      # glslTypeRepr
+      res = head quote do:
+        `res` & "layout(xfb_offset = " & $offsetOf(`tpe`, `sym`) & ") vec4 " & `symName` & ";"
+
+  let name = self.repr
+  result = res
+]#
 
 proc delete*(tf: TransformFeedback): void =
   glDeleteTransformFeedbacks(GLsizei(1), tf.handle.unsafeAddr)

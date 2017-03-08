@@ -156,11 +156,11 @@ while running:
       //  v_vel = a_vel;
       //}
 
-      v_birthday = a_birthday;
-      v_pos = a_pos;
-      v_col = a_col;
-      v_rot = a_rot;
-      v_vel = a_vel;
+      birthday = a_birthday;
+      pos = a_pos;
+      col = a_col;
+      rot = a_rot;
+      vel = a_vel;
       """
 
     vertexOut:

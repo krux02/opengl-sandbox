@@ -502,7 +502,19 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
 ##################################################################################
 #### Shading Dsl Outer ###########################################################
-######################################l############################################
+##################################################################################
+
+
+macro transformFeedbackOutSection(self: TransformFeedback): string =
+  result = newLit("""
+#extension GL_ARB_enhanced_layouts : enable
+layout(xfb_buffer = 0, xfb_stride = 36) out bananas {
+  layout(xfb_offset = 0)  vec2 pos;
+  layout(xfb_offset = 8)  vec2 vel;
+  layout(xfb_offset = 16) vec3 col;
+  layout(xfb_offset = 28) float rot;
+  layout(xfb_offset = 32) float birthday;
+}""")
 
 
 macro shadingDsl*(statement: untyped) : untyped =
@@ -656,8 +668,13 @@ macro shadingDsl*(statement: untyped) : untyped =
             let name = section.repr
             if name != "transformFeedback":
               error("foobar")
-            #let nameLit = newLit(name)
-            #let identNode = section
+
+            let nameLit = newLit(name)
+            let identNode = section
+
+            outCall.add head quote do:
+              transformFeedbackOutSection(`identNode`)
+
 
             #outCall.add head quote do:
             #  "out " & glslTypeRepr(type(`identNode`.T)) & " " & `nameLit`
