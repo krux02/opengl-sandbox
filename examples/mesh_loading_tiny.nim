@@ -5,8 +5,6 @@ const WindowSize = vec2i(1024, 768)
 proc `$`(v: Vec): string = glm.`$`(v)
 
 proc main() =
-  echo "Hello World from main"
-
   let (window, context) = defaultSetup(WindowSize)
 
   defer: sdl2.quit()

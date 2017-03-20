@@ -28,7 +28,7 @@ proc label*(arg: FrameBuffer): string =
 proc `label=`*(arg: FrameBuffer; label: string): void =
     ## does nothing when label is nil (allows nil checks on other places)
     if not isNil label:
-      glObjectLabel(GL_RENDERBUFFER, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
+      glObjectLabel(GL_FRAMEBUFFER, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
 
 proc bindIt*(drb: DepthRenderbuffer): void =
   glBindRenderbuffer(GL_RENDERBUFFER, drb.handle)
@@ -118,7 +118,7 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
 
   for fragOut in fragmentOutputs:
 
-    result.back[0][2][2].add newExpIdentDef(!fragOut, bindSym"Texture2D")
+    result[^1][0][2][2].add newExpIdentDef(!fragOut, bindSym"Texture2D")
 
   let fragmentOutputsSeqNode = fragmentOutputs.toConstExpr
   result.add quote do:
@@ -170,14 +170,15 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
       i += 1
 
   branchStmtList.add( drawBuffersCall )
-
+  let labelLit = newLit($typename)
   let constructorIdent = ident("new" & $typename)
   result.add quote do:
-    proc `constructorIdent`(): `typename` =
+    proc `constructorIdent`(label: string = `labelLit`): `typename` =
       `branchStmtList`
+      `resultIdent`.handle.label = label
 
   if wrapWithDebugResult:
-    result = newCall( bindSym"debugResult", result )
+    result = newCall(bindSym"debugResult", result)
 
 template blockBindFramebuffer*(name, blok: untyped): untyped =
   var drawfb, readfb: GLint
