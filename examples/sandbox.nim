@@ -74,7 +74,7 @@ proc render() =
   block writeToFramebufferBlock:
     let time = gameTimer.time.float32
 
-    var modelview_mat = I4f
+    var modelview_mat = mat4f()
     modelview_mat = modelview_mat.translate( vec3f(sin(time)*2, cos(time)*2, -7) )
     modelview_mat = modelview_mat.rotate( vec3f(0,0,1), time )
     modelview_mat = modelview_mat.rotate( vec3f(0,1,0), time )

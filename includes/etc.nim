@@ -4,7 +4,7 @@ proc iotaSeq*[T: SomeNumber](length: T) : seq[T] =
   result.newSeq length.int
   for i in 0 ..< length.int:
     result[i] = T(i)
- 
+
 macro debugResult(arg: typed) : untyped =
   for str in arg.repr.split("""\x0A"""):
     echo str
@@ -41,4 +41,10 @@ macro namedEcho*(x: typed, xs: varargs[typed]): untyped =
     result.add sepLit, lit, x
 
 
+type JointPose* = object
+  translate* : Vec3f
+  rotate*    : Quatf
+  scale*     : Vec3f
 
+proc matrix*(jp : JointPose) : Mat4f =
+  poseMatrix(jp.translate, jp.rotate, jp.scale)

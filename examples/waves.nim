@@ -43,7 +43,7 @@ var
 
 proc render() =
   let time = gameTimer.time.float32
-  var view_mat = I4d
+  var view_mat = mat4d()
 
   view_mat = view_mat.translate( position )
   view_mat = view_mat.rotate( vec3d(0,0,1), rotation.y )

@@ -328,7 +328,7 @@ proc main() =
 
     projection_mat = frustum(-hor * scale, hor * scale, -ver * scale, ver * scale, 1, 100)
 
-    var view_mat = I4d
+    var view_mat = mat4d()
 
     view_mat = view_mat.translate( vec3d(0, -1.5f, -17) + vec3d(0, offset.y, offset.x) )
     view_mat = view_mat.translate( vec3d(0, 0, 3) )

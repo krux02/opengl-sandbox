@@ -3,7 +3,7 @@ import ../fancygl, sdl2, opengl, glm, memfiles, OpenMesh, math, hashes, tables, 
 ###############################################################################
 # WARNING thistest is incomplete and has not yet been updatad for a long time #
 ###############################################################################
-                                                                
+
 var mt = newMersenneTwister(0)
 
 proc randomColor() : Color =
@@ -11,31 +11,31 @@ proc randomColor() : Color =
   result.g = mt.getNum.uint8
   result.b = mt.getNum.uint8
   result.a = 255.uint8
-  
+
 proc xyz(v: var Vec4f): var Vec3f =
   return cast[ptr Vec3f](v.addr)[]
 
 proc xyz(v: var Vec3f): var Vec3f =
   return cast[ptr Vec3f](v.addr)[]
-  
+
 proc `+=`(lhs: var Vec4f; rhs: Vec4f) =
   lhs = lhs + rhs
 
 proc `+=`(lhs: var Vec3f; rhs: Vec3f) =
-  lhs = lhs + rhs  
+  lhs = lhs + rhs
 
 proc `-`(v: Vec4f): Vec4f =
   v * -1
-  
+
 proc `-`(v: Vec3f): Vec3f =
   v * -1
-  
+
 proc `*`(scalar: float32; v: Vec4f): Vec4f =
   v * scalar
 
 proc `*`(scalar: float32; v: Vec3f): Vec3f =
   v * scalar
-  
+
 proc norm(v: Vec4f): auto = sqrt(dot(v,v))
 proc norm(v: Vec3f): auto = sqrt(dot(v,v))
 
@@ -47,7 +47,7 @@ proc `==`(v1, v2: Vec3f): bool =
     if v1[i] != v2[i]:
       return false
   true
-  
+
 createMeshType(MyMeshType):
   type
     VertexData = object
@@ -87,7 +87,7 @@ proc addEdge(mesh: var MyMeshType): MyMeshType_EdgeRef =
         prev_halfedge_handle: HalfedgeHandle(-1))
     edge: Edge = [halfedge,halfedge]
   mesh.edges.add edge
-  
+
   var tmp1: int32
   mesh.edgeProperties.someValue.add tmp1
   var tmp2: Vec2f
@@ -95,10 +95,10 @@ proc addEdge(mesh: var MyMeshType): MyMeshType_EdgeRef =
   mesh.halfedgeProperties.texCoord.add tmp2
   result.mesh = mesh.addr
   result.handle = EdgeHandle(mesh.edges.high)
-  
+
 proc addFace(mesh: var MyMeshType): MyMeshType_FaceRef =
   let face = Face(halfedge_handle: HalfedgeHandle(-1))
-  
+
   mesh.faces.add face
   var tmp1: Color
   mesh.faceProperties.color.add tmp1
@@ -120,7 +120,7 @@ proc updateRenderBuffers(mymesh: var MyMeshType,
   renderNormalBuffer:   var ArrayBuffer[Vec3f],
   renderTexCoordBuffer: var ArrayBuffer[Vec2f],
   renderColorBuffer:    var ArrayBuffer[Color]): void =
-  
+
   # renderPositionBuffer = createArrayBuffer[Vec3f](mymesh.faces.len * 3, GL_STATIC_DRAW)
   # renderNormalBuffer   = createArrayBuffer[Vec3f](mymesh.faces.len * 3, GL_STATIC_DRAW)
   # renderTexCoordBuffer = createArrayBuffer[Vec2f](mymesh.faces.len * 3, GL_STATIC_DRAW)
@@ -135,7 +135,7 @@ proc updateRenderBuffers(mymesh: var MyMeshType,
   for face in mymesh.faceRefs:
     for halfedge in face.circulateInHalfedges:
       let vertex = halfedge.goToVertex
-      
+
       renderPositionSeq.add vertex.propPoint
       renderNormalSeq.add   vertex.propNormal
       renderTexCoordSeq.add halfedge.propTexCoord
@@ -148,7 +148,7 @@ proc updateRenderBuffers(mymesh: var MyMeshType,
 
   #for point in mymesh.vertexProperties.point:
   #  echo point
-    
+
   #for a_position in renderPositionSeq:
     #echo a_position
     #echo mat4f(projection) * vec4f(a_position, 1);
@@ -161,8 +161,8 @@ proc updateRenderBuffers(mymesh: var MyMeshType,
 ################################################################################
 #################################### Main ######################################
 ################################################################################
-  
-  
+
+
 const
   WindowSize = vec2i(1024, 768)
   Near = 0.1
@@ -170,7 +170,7 @@ const
   halfHeight = Near
   halfWidth  = Near * (WindowSize.x / WindowSize.y)
   projection = frustum(-halfWidth, halfWidth, -halfHeight, halfHeight, Near, Far)
-  
+
 proc main() =
   let (window, context) = defaultSetup(vec2f(WindowSize))
 
@@ -180,7 +180,7 @@ proc main() =
 
   let header = cast[ptr iqmheader](file.mem)
   echo "version:   ", header.version
-  
+
   #let texts = header.getTexts
   #var textTextures = newSeq[TextureRectangle](texts.len)
   #var textWidths = newSeq[cint](texts.len)
@@ -193,7 +193,7 @@ proc main() =
   #let indices = header.getIndices
   #let adjacencies = header.getAdjacencies
   let meshes = header.getMeshes
-  
+
   #let numVertices = header.num_vertexes.int
 
   #mymesh.vertexProperties.texcoord.newSeq(numVertices)
@@ -209,13 +209,13 @@ proc main() =
     #mymesh.vertexProperties.tangent[i]       = meshData.tangent[i]
     #mymesh.vertexProperties.blendindexes[i]  = meshData.blendindexes[i]
     #mymesh.vertexProperties.blendweights[i]  = meshData.blendweights[i]
-  
+
   var meshTextures = newSeq[Texture2D](meshes.len)
   for i, mesh in meshes:
     meshTextures[i] = loadTexture2DFromFile( $text(mesh.material) )
 
   echo "=========================================================================="
-  
+
   ################################################################################
   ############################ transform file to mesh ############################
   ################################################################################
@@ -224,10 +224,10 @@ proc main() =
   mymesh.new
 
   # halfedges at the same edge need to be stored together
-  
+
   var vertexPairs = initTable[tuple[v1,v2:int], HalfedgeHandle]()
   var vertexTable = initTable[Vec3f, VertexHandle]()
-  
+
   proc lazyHalfedge(vertex1,vertex2: MyMeshType_VertexRef): MyMeshType_HalfedgeRef =
     #lookup in order
     let v1  = vertex1.handle.int
@@ -244,7 +244,7 @@ proc main() =
         edge = mymesh.addEdge
         halfedge0 = edge.goHalfedge
         halfedge1 = edge.goHalfedge.goOpp
-      
+
       result = halfedge0
       # insert in inverse order
       vertexPairs[(v1: v2, v2: v1)] = halfedge1.handle
@@ -262,7 +262,7 @@ proc main() =
   for triIndex, tri in triangles:
     let
       faceHandle = FaceHandle(triIndex)
-            
+
       pos0 = meshData.position[tri.vertex[0]]
       pos1 = meshData.position[tri.vertex[1]]
       pos2 = meshData.position[tri.vertex[2]]
@@ -287,13 +287,13 @@ proc main() =
              vertex_handle: v1.handle,
              next_halfedge_handle: halfedge1.handle,
              prev_halfedge_handle: halfedge2.handle)
-      
+
     halfedge1.connectivity() = Halfedge(
              face_handle:   faceHandle,
              vertex_handle: v2.handle,
              next_halfedge_handle: halfedge2.handle,
              prev_halfedge_handle: halfedge0.handle)
-      
+
     halfedge2.connectivity() = Halfedge(
              face_handle:   faceHandle,
              vertex_handle: v0.handle,
@@ -307,10 +307,10 @@ proc main() =
     #echo halfedgeHandle0, " ", mymesh.get(halfedgeHandle0)
     #echo halfedgeHandle1, " ", mymesh.get(halfedgeHandle1)
     #echo halfedgeHandle2, " ", mymesh.get(halfedgeHandle2)
-    
+
   for face in mymesh.faceRefs:
     face.propColor() = randomColor()
-    
+
 
   echo "numVertices: ", mymesh.vertices.len
   echo "numEdges:    ", mymesh.edges.len
@@ -349,20 +349,20 @@ proc main() =
   let
     startPerfCount = getPerformanceCounter()
     invPerfFreq = 1.0 / float64(getPerformanceFrequency())
-    
-  var 
+
+  var
     rotation = vec2f(0)
     offset = vec2f(0)
     dragMode : int
-  
+
   var runGame = true
-  
+
   while runGame:
     let time = invPerfFreq * float64(getPerformanceCounter() - startPerfCount)
 
     #######################
     #### handle events ####
-    #######################  
+    #######################
 
     var evt : sdl2.Event
     while pollEvent(evt):
@@ -386,7 +386,7 @@ proc main() =
             dragMode = dragMode and (not 0x2)
           if evt.button.button == ButtonMiddle:
             dragMode = dragMode and (not 0x4)
-    
+
       if evt.kind == MouseMotion:
         mousePos.x = evt.motion.x
         mousePos.y = WindowSize.y - evt.motion.y
@@ -395,7 +395,7 @@ proc main() =
           rotation = rotation + motion / 100
         if dragMode == 0x2:
           offset = offset + motion / 100
-          
+
       if evt.kind == MouseButtonDown:
         let color : Color = readPixel(mousePos.x.int, mousePos.y.int)
 
@@ -408,7 +408,7 @@ proc main() =
               face.propState() = 2
               break searchFace
           echo "could not find color: ", color
-    
+
     for face in mymesh.faceRefs:
       if face.propState == 0:
         block b:
@@ -422,31 +422,31 @@ proc main() =
       if face.propState == 2:
         face.propStateNext() = 1
         face.propColor() = randomColor()
-      
+
     swap(mymesh.faceProperties.state, mymesh.faceProperties.stateNext)
-    
+
     updateRenderBuffers(mymesh, renderPositionBuffer,renderNormalBuffer, renderTexCoordBuffer, renderColorBuffer)
-    
+
     #####################
     #### render mesh ####
     #####################
 
-    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)          
+    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-    
-    var view_mat = I4d
-    
+
+    var view_mat = vec4d()
+
     view_mat = view_mat.translate( vec3d(0, -1.5f, -17) + vec3d(0, offset.y, offset.x) )
     view_mat = view_mat.translate( vec3d(0, 0, 3) )
     view_mat = view_mat.rotate( vec3d(1,0,0), rotation.y-0.5f )
     view_mat = view_mat.rotate( vec3d(0,0,1), rotation.x )
-    
+
     view_mat = view_mat.translate( vec3d(0, 0, -3) )
 
     shadingDsl(GL_TRIANGLES):
       debugResult
       numVertices = mymesh.faces.len * 3
-    
+
       uniforms:
         modelview = view_mat.mat4f
         projection = projection.mat4f
@@ -480,6 +480,6 @@ proc main() =
         //}
 
         """
-          
+
     window.glSwapWindow()
 main()
