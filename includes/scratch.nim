@@ -96,13 +96,10 @@ macro memberTypeNames[T](t: typedesc[T]): string =
 
 # echo memberTypeNames(ParticleData)
 
-
 dumpTree:
-            getAst(type(MyData))
+  getAst(type(MyData))
 
 macro glslOutSection[T](self: TransformFeedback[T]): string =
-
-
   let typeSym = self.getTypeInst[1]
   typeSym.expectKind nnkSym
 
@@ -136,7 +133,10 @@ var
   tf2 : TransformFeedback[ParticleData]
 
 let section1 = glslOutSection(tf1)
+echo section1
+
 let section2 = glslOutSection(tf2)
+echo section2
 
 #echo glslTypeRepr(ParticleData.memberType(col))
 #import strutils

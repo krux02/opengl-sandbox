@@ -7,7 +7,7 @@ proc parseArg[T](arg: string): tuple[couldParse: bool, value: T] =
     let processedChars = parseutils.parseInt(arg, result.value)
     if processedChars == arg.len:
       result.couldParse = true
-  
+
 macro parseArgument(argsIdent: untyped; argIdent: untyped; typ: typed; argId: static[int]): untyped =
   let idLit      = newLit(argId)
   let typeStrLit = newLit(typ.repr)
@@ -16,11 +16,11 @@ macro parseArgument(argsIdent: untyped; argIdent: untyped; typ: typed; argId: st
     if not parseOk:
       stderr.writeLine("argument ", `idLit`, " (", `argsIdent`[`idLit`], ") cannot be parsed as type ", `typeStrLit`)
       return
-  
+
 type CommandProc = proc(args: openarray[string]): void
-  
+
 var registeredCommands = newSeq[tuple[name: string, callback: CommandProc]]()
-  
+
 proc registerCommand(name: string; callback: CommandProc): void =
   registeredCommands.add((name: name, callback: callback))
 
@@ -41,8 +41,8 @@ proc stripPrefix(arg, prefix: string): string =
     result = arg.substr(prefix.len, arg.len - 1)
   else:
     result = arg
-  
-    
+
+
 macro genCommandFacade(arg: typed): untyped =
   let impl = arg.symbol.getImpl
   let name = impl[0].repr
@@ -50,21 +50,21 @@ macro genCommandFacade(arg: typed): untyped =
   var paramTypes    = newSeq[NimNode](0)
   let params = impl[3]
   let argsIdent = genSym(nskParam, "args")
-  
+
   for i in 1 ..< params.len:
     let identDefs = params[i]
     for j in 0 ..< identDefs.len - 2:
       paramTypes.add identDefs[identDefs.len - 2]
 
   let parseArgumentCalls = newStmtList()
-  
+
   let commandCall = newCall(arg)
   for i, paramType in paramTypes:
     let paramIdent = genSym(nskLet, "arg" & $(i+1))
     parseArgumentCalls.add newCall(bindSym"parseArgument", argsIdent, paramIdent, paramType, newLit(i+1))
     commandCall.add paramIdent
-    
-      
+
+
   let numParamsLit = newLit(paramTypes.len)
   let facadeSym = genSym(nskProc, name & "_facade")
   result = quote do:
@@ -79,7 +79,7 @@ macro genCommandFacade(arg: typed): untyped =
 
     registerCommand(`commandNameLit`, `facadeSym`)
 
-  echo result.repr  
+  echo result.repr
 
 
 
@@ -92,7 +92,7 @@ macro interpreterProcs(arg: untyped): untyped =
 
   echo arg.treeRepr
 
-interpreterProcs:  
+interpreterProcs:
   proc command_add(arg1: int, arg2: int): void =
     let res = arg1 + arg2
     echo arg1, " + ", arg2, " = ", res
@@ -112,7 +112,7 @@ block main:
   # else:
   #   echo "got no password, quitting now"
   #   break main
-  
+
   while readLineFromStdin("> ", line):
     #echo "got line: ", line
 
@@ -121,6 +121,3 @@ block main:
       let command = arguments[0]
       if command.len > 0:
         callCommand(command, arguments)
-      
-
-  
