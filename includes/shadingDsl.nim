@@ -1,7 +1,7 @@
-
 const
   sourceHeader = """
 #version 330
+#extension GL_ARB_enhanced_layouts : enable
 #define M_PI 3.1415926535897932384626433832795
 """
 
@@ -507,7 +507,6 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
 macro transformFeedbackOutSection(self: TransformFeedback): string =
   result = newLit("""
-#extension GL_ARB_enhanced_layouts : enable
 layout(xfb_buffer = 0, xfb_stride = 36) out bananas {
   layout(xfb_offset = 0)  vec2 pos;
   layout(xfb_offset = 8)  vec2 vel;

@@ -79,6 +79,8 @@ while running:
   let dirx = float32(cos(time * 5))
   let diry = float32(sin(time * 5))
 
+  glClear(GL_COLOR_BUFFER_BIT)
+
   #[
   for particle in cpuParticleData.mitems:
 
@@ -104,7 +106,7 @@ while running:
   transformFeedback.bufferBase(0, particleTarget)
 
   shadingDsl:
-    #debugResult
+    debugResult
     primitiveMode = GL_POINTS
     numVertices   = numParticles
     programIdent  = tfProgram
@@ -193,7 +195,6 @@ while running:
       else:
         discard
 
-  glClear(GL_COLOR_BUFFER_BIT)
 
   glEnable(GL_BLEND)
 
