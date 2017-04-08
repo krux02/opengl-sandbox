@@ -37,7 +37,7 @@ proc init(self: ptr TextRenderer): void =
 proc textRenderer(): var TextRenderer =
   var this {.global.}: ptr TextRenderer = nil
   if this.isNil:
-    this = create(TextRenderer)
+    this = cast[ptr TextRenderer](alloc0(sizeof(TextRenderer)))
     this.init()
   this[]
 

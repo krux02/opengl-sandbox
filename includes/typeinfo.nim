@@ -71,6 +71,10 @@ template attribSize[N,T](t: typedesc[Vec[N,T]]): GLint      = GLint(N)
 template attribType[N,T](t: typedesc[Vec[N,T]]): GLenum    = T.attribType
 template attribNormalized[N,T](t: typedesc[Vec[N,T]]): bool = false
 
+# I hope at some point this will be implemented in the compiler, and i do not need to replicate it here:
+
+# todo insert alignof here
+
 template attribSize(t : typedesc[Color]): GLint = 4
 template attribType(t:  typedesc[Color]) : GLenum = GL_UNSIGNED_BYTE
 template attribNormalized(t: typedesc[Color]) : GLboolean = true
