@@ -129,31 +129,50 @@ variables with their name from the actual shader code.
         """
 
 The code block that starts with ``shadingDsl:`` is the actual DSL that
-gets parsed to generate the appropriate OpenGL code.
-The first thing to notice are the assignments to *primitiveMode* and *numVertices*.
-Thise are  some named arguments for the dsl. These named arguments do not need to be passed to
-the DSL is cases where they can be inferred from other parameters. The primitive
-mode and the numVertices are forwarded to the OpenGL draw call.
+gets parsed to generate the appropriate OpenGL code.  The first thing
+to notice are the assignments to *primitiveMode* and *numVertices*.
+Thise are some named arguments for the dsl. These named arguments do
+not need to be passed to the DSL is cases where they can be inferred
+from other parameters. The primitive mode and the numVertices are
+forwarded to the OpenGL draw call.
 
-The uniforms section is the first part that is inspired by the c++11 lambda. ``lightDir`` is a
-capture that is captured with an OpenGL uniform. for lightDir each shader gets a line at the beginning
-``uniform vec4 lightDir;``. For `mvp` the line ``uniform mat4 mvp;`` is generated. For the CPU side code
-each uniform gets a uniform location, a call to query this uniform location, and a call to set this
-uniform to the value of the local variable. The type *vec4* is inferred from the type of ``lightDir`` and
-*mat4* is inferred from the type of the expression ``projection * modelview``. The names for the uniforms
-in the shader code are the identifiers *lightDir* and *mvp*. The assignment syntax was added to be able to give arbitrary names to uniforms
-but it turned out that supporting arbitrary expressions on the right side of the assignment was just trivial.
+The uniforms section is the first part that is inspired by the c++11
+lambda. ``lightDir`` is a capture that is captured with an OpenGL
+uniform. for lightDir each shader gets a line at the beginning
+``uniform vec4 lightDir;``. For `mvp` the line ``uniform mat4 mvp;``
+is generated. For the CPU side code each uniform gets a uniform
+location, a call to query this uniform location, and a call to set
+this uniform to the value of the local variable. The type *vec4* is
+inferred from the type of ``lightDir`` and *mat4* is inferred from the
+type of the expression ``projection * modelview``. The names for the
+uniforms in the shader code are the identifiers *lightDir* and
+*mvp*. The assignment syntax was added to be able to give arbitrary
+names to uniforms but it turned out that supporting arbitrary
+expressions on the right side of the assignment was just trivial.
 
-The attributes section works analog to the uniforms section, it just works with per vertex attributes.
-Attributes are stored in ArrayBuffers. So in order to get an attribute ``in vec4 a_position;`` the type of
-``mesh.vertexPositionBuffer`` needs to be ``ArrayBuffer[Vec4f]``. An *ArrayBuffer* is like an array, just that it's data is stored inside of the GPU, and for convenience reasons they can be converted to and from the *seq* type, and in iterator is supported that uses memory mapping internally to read all the data. But simple indexing into the buffer is not possible (if it would be, it shouldn't be used for performance reasons).
+The attributes section works analog to the uniforms section, it just
+works with per vertex attributes.  Attributes are stored in
+ArrayBuffers. So in order to get an attribute ``in vec4 a_position;``
+the type of ``mesh.vertexPositionBuffer`` needs to be
+``ArrayBuffer[Vec4f]``. An *ArrayBuffer* is like an array, just that
+it's data is stored inside of the GPU, and for convenience reasons
+they can be converted to and from the *seq* type, and in iterator is
+supported that uses memory mapping internally to read all the
+data. But simple indexing into the buffer is not possible (if it would
+be, it shouldn't be used for performance reasons).
 
-The *vertexMain* section will be inserted into the shader between ``void main {`` and ``}``
-the strings in the *vertexOut* section get inserted to the vertex shader, and with the "out" replaced by
-"in" inserted in the next shader stage. In this case it is the fragment shader.
+The *vertexMain* section will be inserted into the shader between
+``void main {`` and ``}`` the strings in the *vertexOut* section get
+inserted to the vertex shader, and with the "out" replaced by "in"
+inserted in the next shader stage. In this case it is the fragment
+shader.
 
-The fragment shader is the next part that gets a bit interesting again. As you can see I can write into color. This is a name I have chosen for the case, rendering is done to the screen.
-But in case a framebuffer is bound, and rendering is done to textures, the names of the output variables are inferred from the targets of the currently active framebuffer. More on that in the future (or read the code).
+The fragment shader is the next part that gets a bit interesting
+again. As you can see I can write into color. This is a name I have
+chosen for the case, rendering is done to the screen.  But in case a
+framebuffer is bound, and rendering is done to textures, the names of
+the output variables are inferred from the targets of the currently
+active framebuffer. More on that in the future (or read the code).
 
 
 ## Examples
@@ -169,7 +188,19 @@ from here on are just some onld examples and screenshots. They are not all up to
 CubeVertices | forwardVertexShader | faceNormalGeometryShader | forwardFragmentShader >> screen
 ```
 
-This renders a simple cube with a different colors on each side. The depth and the color is rendered into a frame buffer. The frame buffer is then used to put a post process on it that simply moves each line of the texture horizontally, simply to show that post processing is possible. Then the cube is rendered again, but this time the geometry shader transforms each face into a normal, so that you can see each face normal as a line. Interesting to mention here, is that every call of `shadingDsl` has a block to pass variables from the current context to the shader. It is comparable to the c++11 lambda expressions, with explicit closure. The difference here is that 'uniforms' expects values that actually can be passed as a uniform to a shader, and attributes expects a sequence type or a typed opengl-buffer, where the elements are visible in the fragment shader.
+This renders a simple cube with a different colors on each side. The
+depth and the color is rendered into a frame buffer. The frame buffer
+is then used to put a post process on it that simply moves each line
+of the texture horizontally, simply to show that post processing is
+possible. Then the cube is rendered again, but this time the geometry
+shader transforms each face into a normal, so that you can see each
+face normal as a line. Interesting to mention here, is that every call
+of `shadingDsl` has a block to pass variables from the current context
+to the shader. It is comparable to the c++11 lambda expressions, with
+explicit closure. The difference here is that 'uniforms' expects
+values that actually can be passed as a uniform to a shader, and
+attributes expects a sequence type or a typed opengl-buffer, where the
+elements are visible in the fragment shader.
 
 ```Nim
 shadingDsl:
@@ -199,7 +230,11 @@ update lightPositions
 < lightPositions | vertexShader | fragmentShader > screen
 ```
 
-Here you see a test with 500 moving light sources being rendered via instancing. The process is called deferred shading. So first only the scene without lighting is rendered, and then in a second step the effect of each light source is rendered and added into the final image. Interesting to note here is in the framebuffer code:
+Here you see a test with 500 moving light sources being rendered via
+instancing. The process is called deferred shading. So first only the
+scene without lighting is rendered, and then in a second step the
+effect of each light source is rendered and added into the final
+image. Interesting to note here is in the framebuffer code:
 
 ```Nim
 declareFramebuffer(FirstFramebuffer):
@@ -208,7 +243,11 @@ declareFramebuffer(FirstFramebuffer):
   normal = newTexture2D(windowsize, GL_RGBA16F)
 ```
 
-While depth is currently an attribute every framebuffer needs, normal is a completely free identifier. It could be named anything. The effect is visible in the fragment shader code from the contex, where the framebuffer is bound. Here the fragmentshader automatically get's to know the output variable normal.
+While depth is currently an attribute every framebuffer needs, normal
+is a completely free identifier. It could be named anything. The
+effect is visible in the fragment shader code from the contex, where
+the framebuffer is bound. Here the fragmentshader automatically get's
+to know the output variable normal.
 
 ```
   fragmentMain:
@@ -220,11 +259,16 @@ While depth is currently an attribute every framebuffer needs, normal is a compl
 
 ![Imgur3](http://i.imgur.com/Z1OCZip.jpg)
 
-The light sources from a closer perspective. The light source texture is rendered again via instancing. The texture itself is alpha centauri captured from the hubble space telescope, in case you care.
+The light sources from a closer perspective. The light source texture
+is rendered again via instancing. The texture itself is alpha centauri
+captured from the hubble space telescope, in case you care.
 
 ![Imgur4](http://i.imgur.com/ZoEAQEe.png)
 
-This is a simple bone animation loaded from an iqm file. Iqm files have horrible documentation, but it is a nice binary format for 3D models with bone animations. On each bone also the name from the iqm file is rendered.
+This is a simple bone animation loaded from an iqm file. Iqm files
+have horrible documentation, but it is a nice binary format for 3D
+models with bone animations. On each bone also the name from the iqm
+file is rendered.
 
 ![Imgur5](http://i.imgur.com/YENpsbQ.png)
 
@@ -232,21 +276,23 @@ Same mesh from a different perspective
 
 ![Imgur6](http://i.imgur.com/70TDgF0.png)
 
-Again the same mesh, same program, but this time a different shader pipeline is used with a geometry shader that renders vertex normals and tangents as colored lines.
+Again the same mesh, same program, but this time a different shader
+pipeline is used with a geometry shader that renders vertex normals
+and tangents as colored lines.
 
 # supported compiler switches
 
 #### -d:noregexp
 
-When for some reason the module `nre` does not work
-(`pcre` not found) this switch disables it. Regular
-expressions are used to parse shader compiler errors.
-Without them the compiler error message is still
+When for some reason the module `nre` does not work (`pcre` not found)
+this switch disables it. Regular expressions are used to parse shader
+compiler errors.  Without them the compiler error message is still
 printed, but properly parsed messages are nicer.
 
 # requirements (important for owners of computers from Apple)
 
-All examples are written to require OpenGL 3.3 core profile, and the following extensions:
+All examples are written to require OpenGL 3.3 core profile, and the
+following extensions:
 
  * ``GL_ARB_direct_state_access``
 
@@ -266,10 +312,10 @@ then a lot of problems have been resolved and extensions have been
 released, to make the live of developers easier.
 
 I will not try to put some dirty hacks into this project to make it
-work on Mac OS, it would greatly reduce the readability of the
-code, and then it might happen that at the same time I am done, Apple
-just releases a driver and all the work was for nothing. What you can
-do, is you try to find a hack that lets you allow to install a newer
+work on Mac OS, it would greatly reduce the readability of the code,
+and then it might happen that at the same time I am done, Apple just
+releases a driver and all the work was for nothing. What you can do,
+is you try to find a hack that lets you allow to install a newer
 driver into your operating system, or you can find a way to hack
 another operating on your machine that allows you to use modern
 drivers. Sorry for the inconvenience.
