@@ -35,7 +35,7 @@ torusNode.pos.xyz = vec3f(-6,0,1)
 
 var camera = newWorldNode()
 camera.pos.xyz = vec3f(0,9,4)
-camera.lookAt(vec3f(0,0,1))
+camera.lookAt(vec3f(0.1,0.2,1))
 
 const numSegments = 32
 

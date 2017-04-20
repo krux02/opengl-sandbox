@@ -502,9 +502,10 @@ proc infinitePlaneVertices*(planeEquation: Vec4f): array[4 * 3, Vec4f] =
    center, -dir1, -dir2,
    center, -dir2,  dir1]
 
-proc infinitePlaneMat*(planeEquation: Vec4f): Mat2x4f =
-  let pl = planeEquation
-  # we just need a point on the plane
-  let center = vec4(pl.xyz * (-pl.w / dot(pl.xyz, pl.xyz)), 1)
-  result[0] = vec4(cross(pl.xyz, vec3f(1,0,0)), 0)
-  result[1] = vec4(cross(pl.xyz, result[0].xyz), 0)
+when defined(Mat2x4f):
+  proc infinitePlaneMat*(planeEquation: Vec4f): Mat2x4f =
+    let pl = planeEquation
+    # we just need a point on the plane
+    let center = vec4(pl.xyz * (-pl.w / dot(pl.xyz, pl.xyz)), 1)
+    result[0] = vec4(cross(pl.xyz, vec3f(1,0,0)), 0)
+    result[1] = vec4(cross(pl.xyz, result[0].xyz), 0)
