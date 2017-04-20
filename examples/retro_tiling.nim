@@ -1,6 +1,4 @@
-
 import ../fancygl, sdl2/image
-
 
 let (window, context) = defaultSetup()
 
@@ -22,7 +20,7 @@ proc loadTilePaletteFromFile*(filename: string; tilesize: Vec2i; levels: int): T
     echo message
     surface = createErrorSurface(message)
   defer: freeSurface(surface)
-    
+
   var rect: Rect
   rect.x = 0
   rect.y = 0
@@ -35,7 +33,7 @@ proc loadTilePaletteFromFile*(filename: string; tilesize: Vec2i; levels: int): T
 
   let rows = (surface.h div tilesize.y)
   let cols = (surface.w div tilesize.x)
-  
+
   result = newTexture2DArray(tilesize, rows * cols, levels = levels)
 
   var i = 0
@@ -82,7 +80,7 @@ let tileSelectionMap = newTextureRectangle(vec2i(16), internalFormat = GL_R8)
 
 block:
   var selectionTiles = newSeq[uint8](16 * 16)
-  
+
   for i, tile in selectionTiles.mpairs:
     let x = i mod 16
     let y = 15 - i div 16
@@ -152,7 +150,7 @@ proc drawTiles(highlightPos: Vec2i; map: TextureRectangle; cameraPos: Vec2f): vo
       """
       ivec2 gridPos = ivec2(pos.xy + floor(cameraPos));
       highlight = int(highlightPos == gridPos);
-      
+
       tileId =  int(round(255 * texelFetch(map, gridPos).r));
       gl_Position = vec4((pos - fract(cameraPos)) * scale, 0, 1);
       v_texCoord = texCoords[gl_VertexID % 6];
@@ -196,8 +194,8 @@ proc drawCrosshair(): void =
       """
       color = vec4(1,1,1,1);
       """
-      
-      
+
+
 var running = true
 var frame = 0
 #var gameTimer = newStopWatch(true)
@@ -255,7 +253,7 @@ proc mouseDragged(evt: MouseMotionEventPtr): void =
 
     if fancygl.any( gridPos .< vec2i(0) ) or fancygl.any(gridPos .>= vec2i(mapwidth)):
       return
-      
+
     map.setPixel(gridPos, tileLeft)
 
   if mouseRightDown:
@@ -263,7 +261,7 @@ proc mouseDragged(evt: MouseMotionEventPtr): void =
     movement.x =  evt.xrel / (tilewidth * scaling)
     movement.y = -evt.yrel / (tilewidth * scaling)
     cameraPos -= movement
-  
+
 while running:
   defer:
     frame += 1
@@ -274,7 +272,7 @@ while running:
     if evt.kind == QuitEvent:
       running = false
       break
-    
+
     elif evt.kind == KeyDown:
       case evt.key.keysym.scancode:
       of SDL_SCANCODE_ESCAPE:
@@ -286,7 +284,7 @@ while running:
         tileSelection = not tileSelection
       else:
         discard
-        
+
     elif evt.kind == MouseButtonDown:
       if evt.button.button == ButtonLeft:
         mouseLeftDown = true
@@ -294,33 +292,33 @@ while running:
       elif evt.button.button == ButtonRight:
         mouseRightDown = true
         dragRightStartPos = vec2i(evt.button.x, evt.button.y)
-        
+
     elif evt.kind == MouseButtonUp:
 
       if evt.button.button == ButtonLeft:
         if not mouseLeftDrag:
           mouseClicked(evt.button)
-          
+
         mouseLeftDrag = false
         mouseLeftDown = false
-        
+
       if evt.button.button == ButtonRight:
         if not mouseRightDown:
           mouseClicked(evt.button)
-          
+
         mouseRightDrag = false
         mouseRightDown = false
-        
+
     elif evt.kind == MouseMotion:
       let mousePos = vec2i(evt.motion.x, evt.motion.y)
-      
-      if mouseLeftDown:  
+
+      if mouseLeftDown:
         let dist = abs(dragLeftStartPos - mousePos);
         if dist.x + dist.y > dragThreshold:
           mouseLeftDrag = true
           mouseDragged(evt.motion)
 
-      if mouseRightDown:  
+      if mouseRightDown:
         let dist = abs(dragRightStartPos - mousePos);
         if dist.x + dist.y > dragThreshold:
           mouseRightDrag = true
@@ -339,11 +337,8 @@ while running:
     drawTiles(pixelToWorldSpace(vec2f(8), mousePos).floor.vec2i, tileSelectionMap, vec2f(8))
   else:
     drawTiles(pixelToWorldSpace(cameraPos, mousePos).floor.vec2i, map, cameraPos)
-  
-  
+
+
   drawCrosshair()
 
   glSwapWindow(window)
-  
-
-  
