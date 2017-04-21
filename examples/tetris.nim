@@ -70,21 +70,9 @@ let rotationsArray = [
   mat2i(vec2i( 0,-1), vec2i( 1, 0))
 ]
 
-const numSegments = 32
-
-var coneMesh, cylinderMesh, icosphereMesh, sphereMesh, boxMesh, tetraederMesh, torusMesh: SimpleMesh
+var icosphereMesh: SimpleMesh
 
 block init:
-  proc texCoord2Color(x: Vec2f): Vec4f = vec4f(x,0,1)
-  coneMesh.vertices  = arrayBuffer(coneVertices(numSegments))
-  coneMesh.normals   = arrayBuffer(coneNormals(numSegments))
-  coneMesh.colors    = arrayBuffer(coneTexCoords(numSegments).map(texCoord2Color))
-  coneMesh.indices   = elementArrayBuffer(coneIndices(numSegments))
-
-  cylinderMesh.vertices  = arrayBuffer(cylinderVertices(numSegments))
-  cylinderMesh.normals   = arrayBuffer(cylinderNormals(numSegments))
-  cylinderMesh.colors    = arrayBuffer(cylinderTexCoords(numSegments).map(texCoord2Color))
-  cylinderMesh.indices   = elementArrayBuffer(cylinderIndices(numSegments))
 
   let isNumVerts = icosphereIndicesTriangles.len
   var unrolledVertices = newSeqOfCap[Vec4f](isNumVerts)
@@ -113,26 +101,6 @@ block init:
   icosphereMesh.colors   = arrayBuffer(unrolledColors)
   icosphereMesh.normals  = arrayBuffer(unrolledNormals)
   icosphereMesh.indices  = elementArrayBuffer(iotaSeq[int16](unrolledVertices.len.int16))
-
-  sphereMesh.vertices = arrayBuffer(uvSphereVertices(numSegments, numSegments div 2))
-  sphereMesh.colors   = arrayBuffer(uvSphereTexCoords(numSegments, numSegments div 2).map(texCoord2Color))
-  sphereMesh.normals  = arrayBuffer(uvSphereNormals(numSegments, numSegments div 2))
-  sphereMesh.indices  = elementArrayBuffer(uvSphereIndices(numSegments, numSegments div 2))
-
-  boxMesh.vertices = arrayBuffer(boxVertices)
-  boxMesh.colors = arrayBuffer(boxColors)
-  boxMesh.normals = arrayBuffer(boxNormals)
-  boxMesh.indices = elementArrayBuffer(iotaSeq[int16](boxVertices.len.int16))
-
-  tetraederMesh.vertices = arrayBuffer(tetraederVertices)
-  tetraederMesh.colors = arrayBuffer(tetraederColors)
-  tetraederMesh.normals = arrayBuffer(tetraederNormals)
-  tetraederMesh.indices = elementArrayBuffer(iotaSeq[int16](tetraederVertices.len.int16))
-
-  torusMesh.vertices = arrayBuffer(torusVertices(numSegments, numSegments div 2, 1, 0.5))
-  torusMesh.colors   = arrayBuffer(torusTexCoords(numSegments, numSegments div 2).map(texCoord2Color))
-  torusMesh.normals  = arrayBuffer(torusNormals(numSegments, numSegments div 2))
-  torusMesh.indices  = elementArrayBuffer(torusIndicesTriangles(numSegments, numSegments div 2).map(proc(x: int32): int16 = int16(x)))
 
   glDisable(GL_DEPTH_CLAMP)
 
