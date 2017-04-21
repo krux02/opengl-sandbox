@@ -11,10 +11,20 @@ type
   SimpleMesh = object
     vertices,normals,colors: ArrayBuffer[Vec4f]
     indices: ElementArrayBuffer[int16]
+    indicesLen: int
+
+const
+  NumRows = 24
+  NumCols = 10
+
+  startBlockPos = vec2i(NumCols div 2, NumRows - 1)
+  nextBlockPos  = vec2i(NumCols + 5, NumRows - 5)
 
 var camera = newWorldNode()
-camera.pos.xyz = vec3f(0,0,30)
-camera.lookAt(vec3f(0.0001,0.0002,0.0001), vec3f(0,1,0))
+camera.pos.xyz = vec3f(0,-12,20)
+camera.lookAt(vec3f(0.0001,-2.0002,0.0001), vec3f(0,1,0))
+camera.pos.x += float32(NumCols div 2)
+camera.pos.y += float32(NumRows div 2)
 
 let colorsArray = [
   vec4f(1,0,0,1),
@@ -70,7 +80,7 @@ let rotationsArray = [
   mat2i(vec2i( 0,-1), vec2i( 1, 0))
 ]
 
-var icosphereMesh: SimpleMesh
+var icosphereMesh, boxMesh: SimpleMesh
 
 block init:
 
@@ -97,20 +107,33 @@ block init:
     let color = vec4f(rand_f32(), rand_f32(), rand_f32(), 1'f32)
     unrolledColors.add([color,color,color])
 
+  for v in unrolledVertices.mitems:
+    v.xyz = (v.xyz * 0.65 * 0.5f) + 0.5f
+
+
   icosphereMesh.vertices = arrayBuffer(unrolledVertices)
   icosphereMesh.colors   = arrayBuffer(unrolledColors)
   icosphereMesh.normals  = arrayBuffer(unrolledNormals)
   icosphereMesh.indices  = elementArrayBuffer(iotaSeq[int16](unrolledVertices.len.int16))
+  icosphereMesh.indicesLen = icosphereMesh.indices.len
+
+  var newBoxVertices = boxVertices
+  for v in newBoxVertices.mitems:
+    v.xyz = (v.xyz * 0.5f) + 0.5f
+
+  boxMesh.vertices = arrayBuffer(newBoxVertices)
+  boxMesh.colors = arrayBuffer(boxColors)
+  boxMesh.normals = arrayBuffer(boxNormals)
+  boxMesh.indices = elementArrayBuffer(iotaSeq[int16](boxVertices.len.int16))
+  boxMesh.indicesLen = boxMesh.indices.len
 
   glDisable(GL_DEPTH_CLAMP)
 
-let icosphereVerticesLen = icosphereMesh.vertices.len
-
 var planeVertices = arrayBuffer([
-  vec4f(0,0,0,1), vec4f( 1, 0,0,0), vec4f( 0, 1,0,0),
-  vec4f(0,0,0,1), vec4f( 0, 1,0,0), vec4f(-1, 0,0,0),
-  vec4f(0,0,0,1), vec4f(-1, 0,0,0), vec4f( 0,-1,0,0),
-  vec4f(0,0,0,1), vec4f( 0,-1,0,0), vec4f( 1, 0,0,0)
+  vec4f(0,0,0,1), vec4f( 100, 0,0,1), vec4f( 0, 100,0,1),
+  vec4f(0,0,0,1), vec4f( 0, 100,0,1), vec4f(-100, 0,0,1),
+  vec4f(0,0,0,1), vec4f(-100, 0,0,1), vec4f( 0,-100,0,1),
+  vec4f(0,0,0,1), vec4f( 0,-100,0,1), vec4f( 100, 0,0,1)
 ])
 
 var planeNode = newWorldNode()
@@ -119,9 +142,6 @@ var evt: Event = defaultEvent
 var runGame: bool = true
 
 var frame = 0
-
-const NumRows = 24
-const NumCols = 10
 
 var fieldRows: array[NumRows, array[NumCols, int]]
 
@@ -134,23 +154,45 @@ proc fieldRead(pos: Vec2i): int =
   else:
     0x7fffffff
 
-for y in 0 ..< NumRows:
-  fieldRows[y].fill(-1)
-
-for y in 0 ..< NumRows div 2:
-  for x in 0 ..< NumCols:
-    fieldRows[y][x] = max(rand(int32(colorsArray.len * 2)) - colorsArray.len, -1)
+for row in fieldRows.mitems:
+  row.fill(-1)
 
 let positionsBuffer = newArrayBuffer[Vec4f](NumRows*NumCols)
 let colorsBuffer    = newArrayBuffer[Vec4f](NumRows*NumCols)
 
-var noiseArray: array[21, float32]
-for x in noiseArray.mitems:
-  x = (rand_f32()*2-1) * 0.01f;
+var framePositionsBuffer : ArrayBuffer[Vec4f]
+var frameColorsBuffer    : ArrayBuffer[Vec4f]
+var framePositionsLen: int
+
+block:
+  var framePositionsSeq = newSeq[Vec4f]()
+  var frameColorsSeq    = newSeq[Vec4f]()
+
+  for i in 0 ..< NumCols:
+    framePositionsSeq.add vec4f(float32(i), -1.0f,   0, 1)
+    #framePositionsSeq.add vec4f(float32(i), NumRows, 0, 1)
+
+  for i in 0 ..< NumRows:
+    framePositionsSeq.add vec4f(-1.0f,   float32(i), 0, 1)
+    framePositionsSeq.add vec4f(NumCols, float32(i), 0, 1)
+
+  framePositionsSeq.add vec4f(-1,-1,0,1)
+  framePositionsSeq.add vec4f(NumCols, -1,0,1)
+
+  for i in -3'i32 ..< 3'i32:
+    framePositionsSeq.add vec4f(vec2f(nextBlockPos + vec2i( i,-3)), 0, 1)
+    framePositionsSeq.add vec4f(vec2f(nextBlockPos + vec2i(-i, 3)), 0, 1)
+    framePositionsSeq.add vec4f(vec2f(nextBlockPos + vec2i(-3,-i)), 0, 1)
+    framePositionsSeq.add vec4f(vec2f(nextBlockPos + vec2i( 3, i)), 0, 1)
+
+  frameColorsSeq.setLen(framePositionsSeq.len)
+  frameColorsSeq.fill(vec4f(vec3f(0.5f), 1))
 
 
-const startBlockPos = vec2i(NumCols div 2, NumRows - 1)
-const nextBlockPos  = vec2i(NumCols + 5, NumRows - 5)
+
+  framePositionsBuffer = arrayBuffer(framePositionsSeq)
+  frameColorsBuffer    = arrayBuffer(frameColorsSeq)
+  framePositionsLen = framePositionsSeq.len
 
 var nextBlockType = 0
 var nextBlockRot  = 0
@@ -158,6 +200,11 @@ var nextBlockRot  = 0
 var blockPos: Vec2i
 var blockType: int
 var blockRot: int
+
+var clearedRows = 0
+var score = 0
+
+var downTimer = newStopWatch(true)
 
 proc callNextBlock(): void =
   blockPos  = startBlockPos
@@ -182,6 +229,37 @@ proc validBlockPos(pos: Vec2i, rot,typ: int): bool =
 
   return true
 
+proc loose(): void =
+  echo "YOU LOOSE"
+  echo "cleared rows: ", clearedRows
+  echo "score:        ", score
+  runGame = false
+
+proc insertBlock(): void =
+  var ok = true
+  for pos in blockPositions(blockPos, blockRot, blockType):
+    if NumRows <= pos.y or fieldRead(pos) > -1:
+       ok = false
+       break
+  if ok:
+    score += 1
+    for pos in blockPositions(blockPos, blockRot, blockType):
+      fieldRows[pos.y][pos.x] = blockType
+    callNextBlock()
+    if not validBlockPos(blockPos, blockRot, blockType):
+      loose()
+  else:
+    loose()
+
+proc downStep(): void =
+  downTimer.reset()
+  let offset = vec2i(0,-1)
+  if validBlockPos(blockPos + offset, blockRot, blockType):
+    blockPos += offset
+  else:
+    insertBlock()
+
+
 while runGame:
   frame += 1
 
@@ -198,46 +276,52 @@ while runGame:
       of SDL_SCANCODE_ESCAPE:
         runGame = false
         break
-
-      of SDL_SCANCODE_I, SDL_SCANCODE_UP:
-        let offset = vec2i(0,1)
-        if validBlockPos(blockPos + offset, blockRot, blockType):
-          blockPos += offset
       of SDL_SCANCODE_J, SDL_SCANCODE_LEFT:
         let offset = vec2i(-1,0)
         if validBlockPos(blockPos + offset, blockRot, blockType):
           blockPos += offset
       of SDL_SCANCODE_K, SDL_SCANCODE_DOWN:
-        let offset = vec2i(0,-1)
-        if validBlockPos(blockPos + offset, blockRot, blockType):
-          blockPos += offset
+        downStep()
       of SDL_SCANCODE_L, SDL_SCANCODE_RIGHT:
         let offset = vec2i(1,0)
         if validBlockPos(blockPos + offset, blockRot, blockType):
           blockPos += offset
 
-      of SDL_SCANCODE_O:
+      of SDL_SCANCODE_O, SDL_SCANCODE_UP:
         let nBlockRot = (blockRot - 1) and 3
-        if validBlockPos(blockPos, nBlockRot, blockType):
-          blockRot = nBlockRot
-
+        for offset in [vec2i(0,0), vec2i(-1,0), vec2i(1,0)]:
+          if validBlockPos(blockPos + offset, nBlockRot, blockType):
+            blockRot = nBlockRot
+            blockPos += offset
+            break
       of SDL_SCANCODE_U:
         let nBlockRot = (blockRot + 1) and 3
-        if validBlockPos(blockPos, nBlockRot, blockType):
-          blockRot = nBlockRot
+        for offset in [vec2i(0,0), vec2i(-1,0), vec2i(1,0)]:
+          if validBlockPos(blockPos + offset, nBlockRot, blockType):
+            blockRot = nBlockRot
+            blockPos += offset
+            break
 
       of SDL_SCANCODE_SPACE:
         let offset = vec2i(0, -1)
         while validBlockPos(blockPos + offset, blockRot, blockType):
           blockPos += offset
 
-        for pos in blockPositions(blockPos, blockRot, blockType):
-          fieldRows[pos.y][pos.x] = blockType
-
-        callNextBlock()
+        insertBlock()
+      of SDL_SCANCODE_KP_PLUS:
+        clearedRows += 10
 
       of SDL_SCANCODE_F10:
         window.screenshot
+
+      of SDL_SCANCODE_KP_8:
+        camera.pos.y += 1
+      of SDL_SCANCODE_KP_2:
+        camera.pos.y -= 1
+      of SDL_SCANCODE_KP_6:
+        camera.pos.x += 1
+      of SDL_SCANCODE_KP_4:
+        camera.pos.x -= 1
 
       else:
         discard
@@ -246,13 +330,39 @@ while runGame:
   # apply game logic #
   ####################
 
+  let level = clearedRows div 10
+
+  if downTimer.time > pow(0.8, level.float64):
+    downStep()
+
   # remove full lines
 
+  var clearedRowsLocal = 0
   for y in 0 ..< NumRows:
     while fieldRows[y].find(-1) == -1:
       fieldRows[y].fill(-1)
       for y2 in y+1 ..< NumRows:
         swap(fieldRows[y2-1], fieldRows[y2])
+      clearedRowsLocal += 1
+
+  clearedRows += clearedRowsLocal
+
+  case clearedRowsLocal
+  of 0:
+    discard
+  of 1:
+    score +=   40 * (level + 1)
+  of 2:
+    score +=  100 * (level + 1)
+  of 3:
+    score +=  300 * (level + 1)
+  of 4:
+    score += 1200 * (level + 1)
+  else:
+    echo "WTF cleared ", clearedRowsLocal, " at once"
+    echo "no idea what to do with that"
+    echo "just give you a billion points"
+    score += 1000000000
 
   ###############
   # Render Code #
@@ -260,86 +370,80 @@ while runGame:
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-  #proc renderShape(node: WorldNode, vertices, normals, texcoords: ArrayBuffe[Vec4f])
+  renderText("score: " & $score,       vec2i(20, 20))
+  renderText("level: " & $level,       vec2i(20, 40))
+  renderText("lines: " & $clearedRows, vec2i(20, 60))
 
   iterator allBlockPositions(): tuple[pos:Vec2i; typ: int] =
-    var counter = 0
     for y, row in fieldRows:
       for x, value in row:
         let tile = fieldRows[y][x]
         if tile > -1:
           yield((pos: vec2i(x,y), typ: tile))
-          counter += 1
 
     for pos in blockPositions(blockPos, blockRot, blockType):
       yield((pos: pos, typ: blockType))
-      counter += 1
 
     for pos in blockPositions(nextBlockPos, nextBlockRot, nextBlockType):
       yield((pos: pos, typ: nextBlockType))
-      counter += 1
 
   var numPositions = 0
   positionsBuffer.mapWriteBlock:
     colorsBuffer.mapWriteBlock:
-
       for pos, typ in allBlockPositions():
-        let posx = float32(pos.x - NumCols div 2)
-        let posy = float32(pos.y - NumRows div 2)
+        let posx = float32(pos.x)
+        let posy = float32(pos.y)
         positionsBuffer[numPositions] = vec4f(posx, posy, 0, 1)
         colorsBuffer[numPositions] = colorsArray[typ]
         numPositions += 1
 
-  shadingDsl:
-    primitiveMode = GL_TRIANGLES
-    numVertices   = icosphereVerticesLen
-    indices       = icosphereMesh.indices
-    numInstances  = numPositions
+  proc renderMeshInstanced(mesh: SimpleMesh; pos, color: ArrayBuffer[Vec4f], numInstances: int ): void =
+    shadingDsl:
+      primitiveMode = GL_TRIANGLES
+      numVertices   = mesh.indicesLen
+      indices       = mesh.indices
+      numInstances  = numInstances
 
-    uniforms:
-      proj = projection_mat
-      modelView = camera.viewMat
+      uniforms:
+        proj = projection_mat
+        modelView = camera.viewMat
 
-    attributes:
-      a_vertex   = icosphereMesh.vertices
-      a_normal   = icosphereMesh.normals
-      a_texCoord = icosphereMesh.colors
+      attributes:
+        a_vertex   = mesh.vertices
+        a_normal   = mesh.normals
+        a_texCoord = mesh.colors
 
-      instanceData:
-        objectPos   = positionsBuffer
-        objectColor = colorsBuffer
+        instanceData:
+          objectPos   = pos
+          objectColor = color
 
 
-    vertexMain:
-      """
-      gl_Position = proj * modelView * vec4(a_vertex.xyz * 0.25 + objectPos.xyz, 1);
-      v_normal = modelView * a_normal;
-      v_Color = vec4(a_texCoord.x + a_texCoord.y) * objectColor;
-      """
-    vertexOut:
-      "out vec4 v_normal"
-      "out vec4 v_Color"
+      vertexMain:
+        """
+        gl_Position = proj * modelView * vec4(a_vertex.xyz + objectPos.xyz, 1);
+        v_normal = modelView * a_normal;
+        v_Color = vec4(a_texCoord.x + a_texCoord.y) * objectColor;
+        """
+      vertexOut:
+        "out vec4 v_normal"
+        "out vec4 v_Color"
 
-    fragmentMain:
-      """
-      // cheap fake lighting from camera direction
-      color = v_Color * v_normal.z;
-      """
+      fragmentMain:
+        """
+        // cheap fake lighting from camera direction
+        color = v_Color * v_normal.z;
+        """
+
+  renderMeshInstanced(icosphereMesh, positionsBuffer, colorsBuffer, numPositions)
+  renderMeshInstanced(boxMesh, framePositionsBuffer, frameColorsBuffer, framePositionsBuffer.len)
 
   let modelViewProj = projection_mat * camera.viewMat * planeNode.modelMat
 
-  # shapes with infinitely far away points, can't interpolate alon the vertices,
-  # therefore so varyings don't work.
-  # The matrix transformation of can be inverted in the fragment shader, so that that in this case
-  # object space coordinates can be recontructed.
-
   shadingDsl:
     primitiveMode = GL_TRIANGLES
-    numVertices = planeVertices.len
+    numVertices = 12
     uniforms:
       modelViewProj
-      invModelViewProj = inverse(modelViewProj)
-      invWindowSize    = vec2f(1 / float32(windowSize.x), 1 / float32(windowSize.y))
 
     attributes:
       a_vertex   = planeVertices
@@ -347,28 +451,13 @@ while runGame:
     vertexMain:
       """
       gl_Position = modelViewProj * a_vertex;
+      v_pos_os = a_vertex;
       """
-
+    vertexOut:
+      "out vec4 v_pos_os"
     fragmentMain:
       """
-      color = vec4(1,0,1,0);
-      vec4 tmp = gl_FragCoord;
-
-      // reconstructing normalized device coordinates from fragment depth, fragment position.
-      vec4 ndc_pos;
-      ndc_pos.xy = gl_FragCoord.xy * invWindowSize * 2 - 1;
-      ndc_pos.z  = gl_FragCoord.z                  * 2 - 1;
-      ndc_pos.w = 1;
-
-      // coordinate in object space coordinate
-      vec4 objPos = invModelViewProj * ndc_pos;
-      // the projection part of this operation alternates the w component of the vector
-      // in order to make xyz components meaningful, a normalization is required
-      objPos /= objPos.w;
-
-      // objPos.z is expected to be 0, fract on an almost 0 value would lead to weird patterns
-      // an optimization would be to shrinkthe matrices, so that it isn't calculated anymore.
-      color = vec4(fract(objPos.xy) * 0.1, 0, 1);
+      color = vec4(fract(v_pos_os.xy) * 0.1, 0, 1);
       """
 
   glSwapWindow(window)
