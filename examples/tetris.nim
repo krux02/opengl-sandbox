@@ -269,32 +269,32 @@ while runGame:
 
   while pollEvent(evt):
     if evt.kind == QuitEvent:
-      runGame = false
+      loose()
       break
     if evt.kind == KeyDown:
       case evt.key.keysym.scancode
       of SDL_SCANCODE_ESCAPE:
-        runGame = false
+        loose()
         break
-      of SDL_SCANCODE_J, SDL_SCANCODE_LEFT:
+
+      of SDL_SCANCODE_J, SDL_SCANCODE_S, SDL_SCANCODE_KP_4, SDL_SCANCODE_LEFT:
+        # step left
         let offset = vec2i(-1,0)
         if validBlockPos(blockPos + offset, blockRot, blockType):
           blockPos += offset
-      of SDL_SCANCODE_K, SDL_SCANCODE_DOWN:
+
+      of SDL_SCANCODE_K, SDL_SCANCODE_D, SDL_SCANCODE_KP_5, SDL_SCANCODE_DOWN:
+        # step down
         downStep()
-      of SDL_SCANCODE_L, SDL_SCANCODE_RIGHT:
+
+      of SDL_SCANCODE_L, SDL_SCANCODE_F, SDL_SCANCODE_KP_6, SDL_SCANCODE_RIGHT:
+        # step right
         let offset = vec2i(1,0)
         if validBlockPos(blockPos + offset, blockRot, blockType):
           blockPos += offset
 
-      of SDL_SCANCODE_O, SDL_SCANCODE_UP:
-        let nBlockRot = (blockRot - 1) and 3
-        for offset in [vec2i(0,0), vec2i(-1,0), vec2i(1,0)]:
-          if validBlockPos(blockPos + offset, nBlockRot, blockType):
-            blockRot = nBlockRot
-            blockPos += offset
-            break
-      of SDL_SCANCODE_U:
+      of SDL_SCANCODE_U, SDL_SCANCODE_W, SDL_SCANCODE_KP_7:
+        # rotate left
         let nBlockRot = (blockRot + 1) and 3
         for offset in [vec2i(0,0), vec2i(-1,0), vec2i(1,0)]:
           if validBlockPos(blockPos + offset, nBlockRot, blockType):
@@ -302,26 +302,25 @@ while runGame:
             blockPos += offset
             break
 
-      of SDL_SCANCODE_SPACE:
+      of SDL_SCANCODE_O, SDL_SCANCODE_R, SDL_SCANCODE_KP_9, SDL_SCANCODE_UP:
+        # rotate right
+        let nBlockRot = (blockRot - 1) and 3
+        for offset in [vec2i(0,0), vec2i(-1,0), vec2i(1,0)]:
+          if validBlockPos(blockPos + offset, nBlockRot, blockType):
+            blockRot = nBlockRot
+            blockPos += offset
+            break
+
+      of SDL_SCANCODE_I, SDL_SCANCODE_E, SDL_SCANCODE_KP_8, SDL_SCANCODE_SPACE:
+        # drop the brick
         let offset = vec2i(0, -1)
         while validBlockPos(blockPos + offset, blockRot, blockType):
           blockPos += offset
 
         insertBlock()
-      of SDL_SCANCODE_KP_PLUS:
-        clearedRows += 10
 
       of SDL_SCANCODE_F10:
         window.screenshot
-
-      of SDL_SCANCODE_KP_8:
-        camera.pos.y += 1
-      of SDL_SCANCODE_KP_2:
-        camera.pos.y -= 1
-      of SDL_SCANCODE_KP_6:
-        camera.pos.x += 1
-      of SDL_SCANCODE_KP_4:
-        camera.pos.x -= 1
 
       else:
         discard
