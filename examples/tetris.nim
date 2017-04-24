@@ -21,11 +21,13 @@ const
   nextBlockPos  = vec2i(NumCols + 5, NumRows - 5)
 
 var camera = newWorldNode()
-camera.pos.xyz = vec3f(0,-12,20)
-camera.lookAt(vec3f(0,-22,0), vec3f(0,1,0))
+camera.pos.xyz = vec3f(NumCols div 2, NumRows div 2 - 13, 20)
+camera.turnRelativeX(0.5f)
+echo camera
+#camera.lookAt(vec3f(0,-22,0), vec3f(0,1,0))
 
-camera.pos.x += float32(NumCols div 2)
-camera.pos.y += float32(NumRows div 2)
+#camera.pos.x += float32(NumCols div 2)
+#camera.pos.y += float32(NumRows div 2)
 
 let colorsArray = [
   vec4f(1,0,0,1),
@@ -158,8 +160,8 @@ proc fieldRead(pos: Vec2i): int =
 for row in fieldRows.mitems:
   row.fill(-1)
 
-let positionsBuffer = newArrayBuffer[Vec4f](NumRows*NumCols)
-let colorsBuffer    = newArrayBuffer[Vec4f](NumRows*NumCols)
+let positionsBuffer = newArrayBuffer[Vec4f](length = NumRows*NumCols, usage = GL_STREAM_DRAW, label = "positions" )
+let colorsBuffer    = newArrayBuffer[Vec4f](length = NumRows*NumCols, usage = GL_STREAM_DRAW, label = "colors")
 
 var framePositionsBuffer : ArrayBuffer[Vec4f]
 var frameColorsBuffer    : ArrayBuffer[Vec4f]

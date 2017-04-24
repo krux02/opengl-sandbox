@@ -1,7 +1,7 @@
 import sequtils, strutils, ../fancygl
 
 #var windowsize = vec2i(640,480)
-let (window, context) = defaultSetup()
+let (window, context) = defaultSetup(windowsize = vec2i(640,480))
 
 var hm = newHeightMap(128,64)
 hm.DiamondSquare(64)

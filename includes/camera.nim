@@ -5,7 +5,7 @@ type
     dir*: Quatf
 
 proc newWorldNode*() : WorldNode =
-  result.dir.z = 1
+  result.dir.w = 1
   result.pos.w = 1
 
 proc modelmat*(cam: WorldNode): Mat4f =
