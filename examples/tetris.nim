@@ -22,7 +22,8 @@ const
 
 var camera = newWorldNode()
 camera.pos.xyz = vec3f(0,-12,20)
-camera.lookAt(vec3f(0.0001,-2.0002,0.0001), vec3f(0,1,0))
+camera.lookAt(vec3f(0,-22,0), vec3f(0,1,0))
+
 camera.pos.x += float32(NumCols div 2)
 camera.pos.y += float32(NumRows div 2)
 
