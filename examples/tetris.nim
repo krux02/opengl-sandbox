@@ -29,7 +29,7 @@ echo camera
 #camera.pos.x += float32(NumCols div 2)
 #camera.pos.y += float32(NumRows div 2)
 
-let colorsArray = [
+const colorsArray = [
   vec4f(1,0,0,1),
   vec4f(0,1,0,1),
   vec4f(0,0,1,1),
@@ -74,7 +74,6 @@ const piecesArray = [
   [vec2i( 0, 1), vec2i( 0,-1), vec2i( 0,-2)]
 ]
 
-
 # BUG: why does this not work with const?
 let rotationsArray = [
   mat2i(vec2i( 1, 0), vec2i( 0, 1)),
@@ -82,6 +81,8 @@ let rotationsArray = [
   mat2i(vec2i(-1, 0), vec2i( 0,-1)),
   mat2i(vec2i( 0,-1), vec2i( 1, 0))
 ]
+
+#proc rotationMat(angle: float32): Mat2f =
 
 var icosphereMesh, boxMesh: SimpleMesh
 
@@ -220,7 +221,7 @@ proc callNextBlock(): void =
 callNextBlock()
 callNextBlock()
 
-iterator blockPositions(pos: Vec2i, rot,typ: int): Vec2i =
+iterator blockPositions(pos: Vec2i, rot, typ: int): Vec2i =
   yield pos
   for rawOffset in piecesArray[typ]:
     yield pos + rotationsArray[rot] * rawOffset
