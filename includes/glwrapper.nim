@@ -626,6 +626,8 @@ macro mapReadBlock*(buffer: ArrayBuffer, blck: untyped) : untyped =
       `blck`
 
 macro mapWriteBlock*(buffer: ArrayBuffer, blck: untyped) : untyped =
+  ## remember when you fill a buffer per frame, then you should put
+  ## the usage hint of the buffer to GL_STEAM_DRAW
   buffer.expectKind nnkSym
   let ident = ident(buffer.repr)
   result = quote do:

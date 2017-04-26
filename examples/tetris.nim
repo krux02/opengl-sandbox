@@ -20,6 +20,8 @@ const
   startBlockPos = vec2i(NumCols div 2, NumRows - 1)
   nextBlockPos  = vec2i(NumCols + 5, NumRows - 5)
 
+  animationLength = 0.20
+
 var camera = newWorldNode()
 camera.pos.xyz = vec3f(NumCols div 2, NumRows div 2 - 13, 20)
 camera.turnRelativeX(0.5f)
@@ -81,6 +83,14 @@ let rotationsArray = [
   mat2i(vec2i(-1, 0), vec2i( 0,-1)),
   mat2i(vec2i( 0,-1), vec2i( 1, 0))
 ]
+
+proc rotationMat2(angle: float32): Mat2f =
+  let s = sin(angle)
+  let c = cos(angle)
+  result[0,0] =  c
+  result[0,1] =  s
+  result[1,0] = -s
+  result[1,1] =  c
 
 #proc rotationMat(angle: float32): Mat2f =
 
@@ -198,25 +208,36 @@ block:
   frameColorsBuffer    = arrayBuffer(frameColorsSeq)
   framePositionsLen = framePositionsSeq.len
 
-var nextBlockType = 0
-var nextBlockRot  = 0
+var previewBlockType = 0
+var previewBlockRot  = 0
+
+
+var visualBlockPos: Vec2f
+var visualBlockVel: Vec2f
+var visualBlockRot: float32
+var visualBlockAnimationEndTime: float64
 
 var blockPos: Vec2i
-var blockType: int
 var blockRot: int
+var blockType: int
 
 var clearedRows = 0
 var score = 0
 
 var downTimer = newStopWatch(true)
+var gameTimer = newStopWatch(true)
+
+var gameTime, lastGameTime: float64
 
 proc callNextBlock(): void =
   blockPos  = startBlockPos
-  blockType = nextBlockType
-  blockRot  = nextBlockRot
+  blockType = previewBlockType
+  blockRot  = previewBlockRot
 
-  nextBlockType = rand_i32() mod piecesArray.len
-  nextBlockRot      = rand_i32() mod 3
+  visualBlockAnimationEndTime = 0 # cancel all animations
+
+  previewBlockType = rand_i32() mod piecesArray.len
+  previewBlockRot  = rand_i32() mod 3
 
 callNextBlock()
 callNextBlock()
@@ -225,6 +246,11 @@ iterator blockPositions(pos: Vec2i, rot, typ: int): Vec2i =
   yield pos
   for rawOffset in piecesArray[typ]:
     yield pos + rotationsArray[rot] * rawOffset
+
+iterator blockPositions(pos: Vec2f; rot: float32; typ: int): Vec2f =
+  yield pos
+  for rawOffset in piecesArray[typ]:
+    yield pos + rotationMat2(rot) * vec2f(rawOffset)
 
 proc validBlockPos(pos: Vec2i, rot,typ: int): bool =
   for npos in blockPositions(pos,rot,typ):
@@ -260,12 +286,16 @@ proc downStep(): void =
   let offset = vec2i(0,-1)
   if validBlockPos(blockPos + offset, blockRot, blockType):
     blockPos += offset
+    visualBlockAnimationEndTime = gameTime + animationLength
   else:
     insertBlock()
 
 
 while runGame:
   frame += 1
+
+  lastGameTime = gameTime
+  gameTime = gameTimer.time
 
   ####################
   # Input Processing #
@@ -286,6 +316,7 @@ while runGame:
         let offset = vec2i(-1,0)
         if validBlockPos(blockPos + offset, blockRot, blockType):
           blockPos += offset
+          visualBlockAnimationEndTime = gameTime + animationLength
 
       of SDL_SCANCODE_K, SDL_SCANCODE_D, SDL_SCANCODE_KP_5, SDL_SCANCODE_DOWN:
         # step down
@@ -296,6 +327,7 @@ while runGame:
         let offset = vec2i(1,0)
         if validBlockPos(blockPos + offset, blockRot, blockType):
           blockPos += offset
+          visualBlockAnimationEndTime = gameTime + animationLength
 
       of SDL_SCANCODE_U, SDL_SCANCODE_W, SDL_SCANCODE_KP_7:
         # rotate left
@@ -304,6 +336,7 @@ while runGame:
           if validBlockPos(blockPos + offset, nBlockRot, blockType):
             blockRot = nBlockRot
             blockPos += offset
+            visualBlockAnimationEndTime = gameTime + animationLength
             break
 
       of SDL_SCANCODE_O, SDL_SCANCODE_R, SDL_SCANCODE_KP_9, SDL_SCANCODE_UP:
@@ -313,6 +346,7 @@ while runGame:
           if validBlockPos(blockPos + offset, nBlockRot, blockType):
             blockRot = nBlockRot
             blockPos += offset
+            visualBlockAnimationEndTime = gameTime + animationLength
             break
 
       of SDL_SCANCODE_I, SDL_SCANCODE_E, SDL_SCANCODE_KP_8, SDL_SCANCODE_SPACE:
@@ -367,6 +401,31 @@ while runGame:
     echo "just give you a billion points"
     score += 1000000000
 
+  #####################
+  # animation updates #
+  #####################
+
+  if gameTime < visualBlockAnimationEndTime:
+    # does animation
+
+    # before entering this block of code, all animations have the
+    # state of animations for lastGameTime. The state is known for how
+    # the state should be at visualBlockAnimationEndTime. So the state
+    # that should be atgame Time can be interpolated.
+
+    let a = (gameTime - lastGameTime) / (visualBlockAnimationEndTime - lastGameTime)
+    assert(0 <= a and a <= 1)
+
+    let blockRotf = float32(blockRot) * 0.5f * float32(Pi)
+
+    visualBlockRot = mix(visualBlockRot, blockRotf, a)
+    visualBlockPos = mix(visualBlockPos, vec2f(blockPos), a)
+  else:
+    # animation is over just show the real position
+    visualBlockRot = float32(blockRot) * 0.5f * float32(Pi)
+    visualBlockPos = vec2f(blockPos)
+
+
   ###############
   # Render Code #
   ###############
@@ -377,18 +436,19 @@ while runGame:
   renderText("level: " & $level,       vec2i(20, 40))
   renderText("lines: " & $clearedRows, vec2i(20, 60))
 
-  iterator allBlockPositions(): tuple[pos:Vec2i; typ: int] =
+  iterator allBlockPositions(): tuple[pos:Vec2f; typ: int] =
     for y, row in fieldRows:
       for x, value in row:
         let tile = fieldRows[y][x]
         if tile > -1:
-          yield((pos: vec2i(x,y), typ: tile))
+          let pos = vec2f(float32(x),float32(y))
+          yield((pos: pos, typ: tile))
 
-    for pos in blockPositions(blockPos, blockRot, blockType):
+    for pos in blockPositions(visualBlockPos, visualBlockRot, blockType):
       yield((pos: pos, typ: blockType))
 
-    for pos in blockPositions(nextBlockPos, nextBlockRot, nextBlockType):
-      yield((pos: pos, typ: nextBlockType))
+    for pos in blockPositions(nextBlockPos, previewBlockRot, previewBlockType):
+      yield((pos: vec2f(pos), typ: previewBlockType))
 
   var numPositions = 0
   positionsBuffer.mapWriteBlock:
