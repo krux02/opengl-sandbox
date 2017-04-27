@@ -5,6 +5,8 @@ import sequtils, algorithm
 let (window, _) = defaultSetup()
 let windowsize = window.size
 
+var animationLength = 0.125
+
 let projection_mat : Mat4f = perspective(45'f32, windowsize.x / windowsize.y, 0.1, 100.0)
 
 type
@@ -322,8 +324,7 @@ proc initiateAnimation(gameTime: float64, endState: AnimationState): void =
   animationEndDerivative = (var tmp: AnimationState; tmp)
 
   animationStartTime = gameTime
-  # animationLength
-  animationEndTime = gameTime + 0.125
+  animationEndTime = gameTime + animationLength
 
 proc currentBlockStateAsAnimationState(): AnimationState =
   result.position = vec2f(blockPos)
@@ -470,6 +471,11 @@ while runGame:
           blockPos += offset
 
         insertBlock()
+
+      of SDL_SCANCODE_KP_PLUS:
+        animationLength *= 2.0
+      of SDL_SCANCODE_KP_MINUS:
+        animationLength *= 0.5
 
       of SDL_SCANCODE_F10:
         window.screenshot
