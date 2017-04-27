@@ -604,25 +604,45 @@ macro shadingDsl*(statement: untyped) : untyped =
       of "attributes":
         let attributesCall = newCall(bindSym"attributes")
 
-        proc handleCapture(attributesCall, capture: NimNode, divisor: int) =
-          capture.expectKind({nnkAsgn, nnkIdent})
+        proc matchDivisorPragma(node: NimNode): NimNode =
+          node.expectKind(nnkPragma)
+          node.expectLen(1)
+          node[0].expectKind(nnkExprColonExpr)
+          node[0][0].expectIdent("divisor")
+          node[0][1]
 
-          var nameNode, identNode: NimNode
+        proc handleCapture(attributesCall, capture: NimNode, default_divisor: int) =
+          capture.expectKind({nnkAsgn, nnkIdent, nnkPragmaExpr})
+
+          var
+            nameNode, identNode: NimNode
+            divisor: NimNode
 
           if capture.kind == nnkAsgn:
             capture.expectLen 2
             capture[0].expectKind nnkIdent
             nameNode = newLit($capture[0])
-            identNode = capture[1]
+            if capture[1].kind == nnkPragmaExpr:
+              identNode = capture[1][0]
+              divisor = capture[1][1].matchDivisorPragma
+            else:
+              identNode = capture[1]
           elif capture.kind == nnkIdent:
             nameNode  = newLit($capture)
             identNode = capture
+          elif capture.kind == nnkPragmaExpr:
+            capture[0].expectKind(nnkIdent)
+            nameNode  = newLit($capture[0])
+            identNode = capture[0]
+            divisor   = capture[1].matchDivisorPragma
+
+          if divisor.isNil:
+            divisor = newLit(default_divisor)
 
           let glslType  = newCall(bindSym"glslTypeRepr",  newCall(
             bindSym"type", newDotExpr(identNode,ident"T")))
           attributesCall.add( newCall(
-            bindSym"attribute", nameNode, identNode, newLit(divisor), glslType ) )
-
+            bindSym"attribute", nameNode, identNode, divisor, glslType ) )
 
         for capture in stmtList.items:
           if capture.kind == nnkCall:
@@ -633,7 +653,7 @@ macro shadingDsl*(statement: untyped) : untyped =
                 handleCapture(attributesCall, capture, 1)
 
             else:
-              error "expected call to instanceData, but got: " & capture.repr
+              error "expected call to instanceData, but got: " & capture.repr, capture
           else:
             handleCapture(attributesCall, capture, 0)
 

@@ -561,7 +561,7 @@ while runGame:
         colorsBuffer[numPositions] = colorsArray[typ]
         numPositions += 1
 
-  proc renderMeshInstanced(mesh: SimpleMesh; pos, color: ArrayBuffer[Vec4f], numInstances: int ): void =
+  proc renderMeshInstanced(mesh: SimpleMesh; objectPos, objectColor: ArrayBuffer[Vec4f], numInstances: int ): void =
     shadingDsl:
       primitiveMode = GL_TRIANGLES
       numVertices   = mesh.indicesLen
@@ -576,10 +576,8 @@ while runGame:
         a_vertex   = mesh.vertices
         a_normal   = mesh.normals
         a_texCoord = mesh.colors
-
-        instanceData:
-          objectPos   = pos
-          objectColor = color
+        objectPos   {.divisor: 1.}
+        objectColor {.divisor: 1.}
 
 
       vertexMain:

@@ -25,7 +25,7 @@ proc newDotExpr*(a,b,c: NimNode): NimNode =
 
 proc newBracketExpr*(a,b: NimNode): NimNode =
   nnkBracketExpr.newTree(a,b)
-  
+
 proc newRangeUntil*(upper: int): NimNode {.compileTime.} =
   nnkInfix.newTree(ident"..<", newLit(0), newLit(upper))
 
@@ -71,15 +71,22 @@ proc addAll*(dst: NimNode; src: openarray[NimNode]): NimNode {.discardable.} =
   for node in src:
     dst.add(node)
   dst
-  
+
 proc isIdentChar(c: char): bool =
   'A' <= c and c <= 'Z' or 'a' <= c and c <= 'z' or '0' <= c and c <= '9' or c == '_'
-  
+
+proc expectIdent*(n: NimNode, name: string) {.compileTime.} =
+  ## checks that `n` is an identifier with name `name`. If this is not the case,
+  ## compilation aborts with an error message. This is useful for writing
+  ## macros that check the AST that is passed to them.
+  n.expectKind(nnkIdent)
+  if not n.eqIdent(name): error("Expected a node with identifier " & name & ", got " & $n, n)
+
 macro s*(arg: static[string]): string =
   # does not handle utf8 runes properly
-  # pretents everything is ASCII 
+  # pretents everything is ASCII
   # no way to escape the $ sign implemented. Should probably be $$.
-  
+
   result = nnkStmtListExpr.newTree()
   let str = genSym(nskVar, "str")
   result.add quote do:
@@ -94,12 +101,12 @@ macro s*(arg: static[string]): string =
     let lit = newLit(arg[i..<j])
     result.add quote do:
       `str`.add(`lit`)
-      
-    if j == len(arg):    
+
+    if j == len(arg):
       break
 
     var exprString : string
-    
+
     if arg[j+1] == '{':
       j += 2
       i = j
@@ -116,22 +123,22 @@ macro s*(arg: static[string]): string =
       i = j
       while j < len(arg) and arg[j].isIdentChar:
         # does not deal with the fact that identifiers may not start or end on _,
-        # also does not deal with the fact that the first char may not be a digit 
+        # also does not deal with the fact that the first char may not be a digit
         j += 1
       exprString = arg[i ..< j]
 
     let expr = parseExpr(exprString)
     result.add quote do:
       add(`str`, $`expr`) ## a
-      
+
     if j == len(arg):
       break
-    
+
     i = j
-    
+
   for i in 0 ..< result.len:
     # remove unnecessary stmtList wrapping
-    # of each statement 
+    # of each statement
     result[i] = result[i][0]
-    
+
   result.add str

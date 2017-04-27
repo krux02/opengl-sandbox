@@ -36,6 +36,7 @@
 ** TODO add general pupose linear algebra package (eg BLAS, Eigen, etc)
 ** DONE compile time for typeinfo
 ** TODO generic texture/sampler setData
+** TODO include glm as a git subtree
 
 * examples [0/4]
 
@@ -44,6 +45,10 @@
 ** TODO fix portal rendering in example
 *** TODO changes on the quaternion probably introduced a bug in the portal rendering, they don't work anymore
 ** TODO cubical marching squares example
+
+* documentation
+
+** intro to get the project running without nim experience
 
 * other [1/2]
 
