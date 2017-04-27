@@ -326,11 +326,8 @@ proc render() =
         pos = sphereVertices
         normal = sphereNormals
         #texCoord = sphereTexCoords
-
-        instanceData:
-          offset = lightPositions
-          col = lightColors
-
+        offset = lightPositions {.divisor: 1.}
+        col = lightColors       {.divisor: 1.}
       vertexMain:
         """
         gl_Position = mvp * vec4(pos.xyz * scale + offset, 1);

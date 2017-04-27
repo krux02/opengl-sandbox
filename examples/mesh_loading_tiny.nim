@@ -586,10 +586,8 @@ proc main() =
 
           attributes:
             a_texcoord = quadTexCoords
-
-            instanceData:
-              a_position = textPositions
-              a_textIndex = jointNameIndicesBuffer
+            a_position = textPositions  {.divisor: 1.}
+            a_textIndex = jointNameIndicesBuffer {.divisor: 1}
 
           vertexMain:
             """
