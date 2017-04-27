@@ -12,6 +12,8 @@
 *** TODO easy transformation of buffers/views to transform feedback objects
 ** TODO unifom buffer
 ** TODO tesselation shader stages
+** TODO polymorphic shaders (using glSubroutine)
+** TODO compute shaders
 ** TODO modular shader system
 ** TODO forward vertex shader when only geometry shader is available
 ** TODO infer primitive mode from buffer
