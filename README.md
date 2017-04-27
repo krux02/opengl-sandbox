@@ -89,17 +89,20 @@ reflection and a lot more.
 
 ### the c++11 lambda like
 
-As mentioned earlier, creating code that renders things from data stored in
-local variables should be as easy/complicated as writing a c++11 style lambda expression.
-While I cannot provide the compact syntax for c++11 lambdas here in an *embedded
-DSL* (embeded domain specific language), I am very much able to have the same functionality. A c++ lambda has three
-bracket pairs, the capture, the arguments and the body or code block.
-``[capture1, capture2](A arg1, B arg2){ foo(arg1); bar(arg2); }``. The captures
-are variables that are copied into the lambda object, and then they can be
-accessed from within the body of the lambda expression. That is what I wanted
-to have for my shaders, too. I wanted to be able to write a shader inline in my
-render function, and from there I wanted to be able to access all local
-variables with their name from the actual shader code.
+As mentioned earlier, creating code that renders things from data
+stored in local variables should be as easy/complicated as writing a
+c++11 style lambda expression.  While I cannot provide the compact
+syntax for c++11 lambdas here in an *embedded DSL* (embeded domain
+specific language), I am very much able to have the same
+functionality. A c++ lambda has three bracket pairs, the capture, the
+arguments and the body or code block.
+``[capture1, capture2](A arg1, B arg2){ foo(arg1); bar(arg2); }``. The
+captures are variables that are copied into the lambda object, and
+then they can be accessed from within the body of the lambda
+expression. That is what I wanted to have for my shaders, too. I
+wanted to be able to write a shader inline in my render function, and
+from there I wanted to be able to access all local variables with
+their name from the actual shader code.
 
 
     shadingDsl:
@@ -287,7 +290,7 @@ and tangents as colored lines.
 When for some reason the module `nre` does not work (`pcre` not found)
 this switch disables it. Regular expressions are used to parse shader
 compiler errors.  Without them the compiler error message is still
-printed, but properly parsed messages are nicer.
+printed, but properly parsed messages are nicer for development.
 
 # requirements (important for owners of computers from Apple)
 
@@ -309,7 +312,8 @@ updates, and then they just don't provide OpengGL updates. Please
 correct me, if I am wrong but as far as I know the highest Version of
 OpenGL usable on Mac OS is 4.1. That version is from 2010, and since
 then a lot of problems have been resolved and extensions have been
-released, to make the live of developers easier.
+released, to make the live of developers easier, just not for
+people of Apple computers.
 
 I will not try to put some dirty hacks into this project to make it
 work on Mac OS, it would greatly reduce the readability of the code,
@@ -318,7 +322,8 @@ releases a driver and all the work was for nothing. What you can do,
 is you try to find a hack that lets you allow to install a newer
 driver into your operating system, or you can find a way to hack
 another operating on your machine that allows you to use modern
-drivers. Sorry for the inconvenience.
+drivers. There hardware is not the limitation. Sorry for the
+inconvenience.
 
 # ideas for other names
 
