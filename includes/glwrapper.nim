@@ -15,28 +15,28 @@ type
     data: ptr UncheckedArray[T]
     size: int
 
-proc isNil[T](view: DataView[T] | ReadView[T] | WriteView[T]): bool =
+proc isNil[T](view: DataView[T] | ReadView[T] | WriteView[T]): bool {.inline.} =
   view.data.isNil
 
-proc dataView*[T](data: pointer, size: int) : DataView[T] =
+proc dataView*[T](data: pointer, size: int) : DataView[T] {.inline.} =
   DataView[T](data: cast[ptr UncheckedArray[T]](data), size: size)
 
-proc len*(mb : ReadView | WriteView | DataView) : int =
+proc len*(mb : ReadView | WriteView | DataView) : int {.inline.} =
   mb.size
 
-proc `[]`*[T](mb : ReadView[T], index: int) : T =
+proc `[]`*[T](mb : ReadView[T], index: int) : T {.inline.} =
   mb.data[index]
 
-proc `[]=`*[T](mb : WriteView[T], index: int, val: T) : void =
+proc `[]=`*[T](mb : WriteView[T], index: int, val: T) : void {.inline.} =
   mb.data[index] = val
 
-proc `[]`*[T](mb : DataView[T]; index: int) : var T =
+proc `[]`*[T](mb : DataView[T]; index: int) : var T {.inline.} =
   mb.data[index]
 
-proc `[]=`*[T](mb : DataView[T], index: int, val: T) : void =
+proc `[]=`*[T](mb : DataView[T], index: int, val: T) : void {.inline.} =
   mb.data[index] = val
 
-iterator items*[T](view: ReadView[T]) : T =
+iterator items*[T](view: ReadView[T]) : T {.inline.} =
   let p = view.data
   var i = 0
   while i < view.size:
@@ -50,7 +50,7 @@ iterator pairs*[T](view: ReadView[T]): tuple[key: int, val: T] {.inline.} =
     yield (i, p[i])
     inc(i)
 
-iterator items*[T](view: DataView[T]) : T =
+iterator items*[T](view: DataView[T]) : T {.inline.} =
   let p = view.data
   var i = 0
   while i < view.size:
@@ -64,7 +64,7 @@ iterator pairs*[T](view: DataView[T]): tuple[key: int, val: T] {.inline.} =
     yield (i, p[i])
     inc(i)
 
-iterator mitems*[T](view: DataView[T]) : var T =
+iterator mitems*[T](view: DataView[T]) : var T {.inline.} =
   let p = view.data
   var i = 0
   while i < view.size:
@@ -78,7 +78,7 @@ iterator mpairs*[T](view: DataView[T]): tuple[key: int, val: var T] {.inline.} =
     yield (i, p[i])
     inc(i)
 
-iterator mitems*[T](wv: WriteView[T]) : var T =
+iterator mitems*[T](wv: WriteView[T]) : var T {.inline.} =
   let p = wv.data
   var i = 0
   while i < wv.size:
@@ -93,7 +93,7 @@ iterator mpairs*[T](wv: WriteView[T]): tuple[key: int, val: var T] {.inline.} =
     inc(i)
 
 
-proc take*[T](view: DataView[T], num: int) : DataView[T] =
+proc take*[T](view: DataView[T], num: int) : DataView[T] {.inline.} =
   result.data = view.data
   result.size = max(min(num, view.size), 0)
 
