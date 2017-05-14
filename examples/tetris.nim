@@ -221,27 +221,29 @@ type
     position: Vec2f
     rotation: float32
 
-var animationStartState, animationStartDerivative, animationEndState, animationEndDerivative: AnimationState
-var animationStartTime, animationEndTime: float64
+  Animation = object
+    startState, startDerivative, endState, endDerivative: AnimationState
+    startTime, endTime: float64
 
 
-template cubicTemplate = ((v1 * s + v2) * s + v3) * s + v4
+var playerAnimation: Animation
+var insertAnimation: Animation
 
-proc cubic*[N,T](v1,v2,v3,v4: Vec[N,T]; s: T): Vec[N,T] =
-  ## return a point from a cubic curve
-  return cubicTemplate
-
-proc cubic*[T : SomeNumber](v1,v2,v3,v4,s: T): T =
-  ## return a point from a cubic curve
-  return cubicTemplate
+# template cubicTemplate = ((v1 * s + v2) * s + v3) * s + v4
+# proc cubic*[N,T](v1,v2,v3,v4: Vec[N,T]; s: T): Vec[N,T] =
+#   ## return a point from a cubic curve
+#   return cubicTemplate
+# proc cubic*[T : SomeNumber](v1,v2,v3,v4,s: T): T =
+#   ## return a point from a cubic curve
+#   return cubicTemplate
 
 var blockPos: Vec2i
 var blockRot: int
-var blockType: int
+var lastBlockType, blockType: int
 
-proc animate(gameTime: float64): tuple[state,derivative: AnimationState] =
+proc animate(animation: Animation; gameTime: float64): tuple[state,derivative: AnimationState] =
 
-  if gameTime < animationEndTime:
+  if gameTime < animation.endTime:
     # does animation
 
     # before entering this block of code, all animations have the
@@ -270,32 +272,32 @@ proc animate(gameTime: float64): tuple[state,derivative: AnimationState] =
       result[3] = 3 * x * x
 
     let m = transpose(mat4f(
-      calcMatCol(animationStartTime - animationStartTime),
-      calcMatColPrime(animationStartTime - animationStartTime),
-      calcMatCol(animationEndTime - animationStartTime),
-      calcMatColPrime(animationEndTime - animationStartTime)
+      calcMatCol(0),
+      calcMatColPrime(0),
+      calcMatCol(animation.endTime - animation.startTime),
+      calcMatColPrime(animation.endTime - animation.startTime)
     ))
 
     var v,w : Vec4f
 
     let m_inv = inverse(m)
 
-    w = calcMatCol(gameTime - animationStartTime)
+    w = calcMatCol(gameTime - animation.startTime)
     # solve for animation parameters [a b c d] (stored in v)
-    v = m_inv * vec4f(animationStartState.rotation, animationStartDerivative.rotation, animationEndState.rotation, animationEndDerivative.rotation)
+    v = m_inv * vec4f(animation.startState.rotation, animation.startDerivative.rotation, animation.endState.rotation, animation.endDerivative.rotation)
     result.state.rotation = dot(v, w)
-    v = m_inv * vec4f(animationStartState.position.x, animationStartDerivative.position.x, animationEndState.position.x, animationEndDerivative.position.x)
+    v = m_inv * vec4f(animation.startState.position.x, animation.startDerivative.position.x, animation.endState.position.x, animation.endDerivative.position.x)
     result.state.position.x = dot(v, w)
-    v = m_inv * vec4f(animationStartState.position.y, animationStartDerivative.position.y, animationEndState.position.y, animationEndDerivative.position.y)
+    v = m_inv * vec4f(animation.startState.position.y, animation.startDerivative.position.y, animation.endState.position.y, animation.endDerivative.position.y)
     result.state.position.y = dot(v, w)
 
-    w = calcMatColPrime(gameTime - animationStartTime)
+    w = calcMatColPrime(gameTime - animation.startTime)
     # solve for animation parameters [a b c d] (stored in v)
-    v = m_inv * vec4f(animationStartState.rotation, animationStartDerivative.rotation, animationEndState.rotation, animationEndDerivative.rotation)
+    v = m_inv * vec4f(animation.startState.rotation, animation.startDerivative.rotation, animation.endState.rotation, animation.endDerivative.rotation)
     result.derivative.rotation = dot(v, w)
-    v = m_inv * vec4f(animationStartState.position.x, animationStartDerivative.position.x, animationEndState.position.x, animationEndDerivative.position.x)
+    v = m_inv * vec4f(animation.startState.position.x, animation.startDerivative.position.x, animation.endState.position.x, animation.endDerivative.position.x)
     result.derivative.position.x = dot(v, w)
-    v = m_inv * vec4f(animationStartState.position.y, animationStartDerivative.position.y, animationEndState.position.y, animationEndDerivative.position.y)
+    v = m_inv * vec4f(animation.startState.position.y, animation.startDerivative.position.y, animation.endState.position.y, animation.endDerivative.position.y)
     result.derivative.position.y = dot(v, w)
 
     # f (x) = calcMatCol(x) ⋅ v  // v is only true for visualBlockRot
@@ -313,18 +315,21 @@ proc animate(gameTime: float64): tuple[state,derivative: AnimationState] =
     #visualBlockRot = mix(visualBlockRot, blockRotf, a)
     #visualBlockPos = mix(visualBlockPos, vec2f(blockPos), a)
   else:
-    result.state      = animationEndState
-    result.derivative = animationEndDerivative
+    result.state      = animation.endState
+    result.derivative = animation.endDerivative
 
-proc initiateAnimation(gameTime: float64, endState: AnimationState): void =
-  let (state, derivative) = animate(gameTime)
-  animationStartState      = state
-  animationStartDerivative = derivative
-  animationEndState = endState
-  animationEndDerivative = (var tmp: AnimationState; tmp)
+proc stickAnimation(animation: Animation; gameTime: float64, endState, endDerivative: AnimationState): Animation =
+  ## creates a new animation, that sticks perfectly to the time point of another animation:
+  ## used to make transitions between two animations smooth
 
-  animationStartTime = gameTime
-  animationEndTime = gameTime + animationLength
+  let (state, derivative) = animation.animate(gameTime)
+  result.startState      = state
+  result.startDerivative = derivative
+  result.endState = endState
+  result.endDerivative = endDerivative
+
+  result.startTime = gameTime
+  result.endTime = gameTime + animationLength
 
 proc currentBlockStateAsAnimationState(): AnimationState =
   result.position = vec2f(blockPos)
@@ -343,13 +348,15 @@ var gameTimer = newStopWatch(true)
 var gameTime, lastGameTime: float64
 
 proc callNextBlock(): void =
+  lastBlockType = blockType
+
   blockPos  = startBlockPos
   blockType = previewBlockType
   blockRot  = previewBlockRot
 
-  # cancel all animations
-  animationEndTime = 0
-  animationEndState = currentBlockStateAsAnimationState()
+  # cancel player animations
+  playerAnimation.endTime = 0
+  playerAnimation.endState = currentBlockStateAsAnimationState()
 
   previewBlockType = rand_i32() mod piecesArray.len
   previewBlockRot  = rand_i32() mod 3
@@ -401,7 +408,7 @@ proc downStep(): void =
   let offset = vec2i(0,-1)
   if validBlockPos(blockPos + offset, blockRot, blockType):
     blockPos += offset
-    initiateAnimation(gameTime, currentBlockStateAsAnimationState())
+    playerAnimation = stickAnimation(playerAnimation, gameTime, currentBlockStateAsAnimationState(), AnimationState())
   else:
     insertBlock()
 
@@ -431,7 +438,8 @@ while runGame:
         let offset = vec2i(-1,0)
         if validBlockPos(blockPos + offset, blockRot, blockType):
           blockPos += offset
-          initiateAnimation(gameTime, currentBlockStateAsAnimationState())
+          playerAnimation = stickAnimation(playerAnimation, gameTime, currentBlockStateAsAnimationState(), AnimationState())
+
 
       of SDL_SCANCODE_K, SDL_SCANCODE_D, SDL_SCANCODE_KP_5, SDL_SCANCODE_DOWN:
         # step down
@@ -442,7 +450,8 @@ while runGame:
         let offset = vec2i(1,0)
         if validBlockPos(blockPos + offset, blockRot, blockType):
           blockPos += offset
-          initiateAnimation(gameTime, currentBlockStateAsAnimationState())
+          playerAnimation = stickAnimation(playerAnimation, gameTime,
+                                           currentBlockStateAsAnimationState(), AnimationState())
 
       of SDL_SCANCODE_U, SDL_SCANCODE_W, SDL_SCANCODE_KP_7:
         # rotate left
@@ -451,7 +460,8 @@ while runGame:
           if validBlockPos(blockPos + offset, nBlockRot, blockType):
             blockRot = nBlockRot
             blockPos += offset
-            initiateAnimation(gameTime, currentBlockStateAsAnimationState())
+            playerAnimation = stickAnimation(playerAnimation, gameTime,
+                                             currentBlockStateAsAnimationState(), AnimationState())
             break
 
       of SDL_SCANCODE_O, SDL_SCANCODE_R, SDL_SCANCODE_KP_9, SDL_SCANCODE_UP:
@@ -461,7 +471,9 @@ while runGame:
           if validBlockPos(blockPos + offset, nBlockRot, blockType):
             blockRot = nBlockRot
             blockPos += offset
-            initiateAnimation(gameTime, currentBlockStateAsAnimationState())
+
+            playerAnimation = stickAnimation(playerAnimation, gameTime,
+                                             currentBlockStateAsAnimationState(), AnimationState())
             break
 
       of SDL_SCANCODE_I, SDL_SCANCODE_E, SDL_SCANCODE_KP_8, SDL_SCANCODE_SPACE:
@@ -470,6 +482,10 @@ while runGame:
         while validBlockPos(blockPos + offset, blockRot, blockType):
           blockPos += offset
 
+        let aes = AnimationState(position: vec2f(0,-20))
+        insertAnimation = stickAnimation(playerAnimation, gameTime, currentBlockStateAsAnimationState(), aes)
+
+        # TODO foobar
         insertBlock()
 
       of SDL_SCANCODE_KP_PLUS:
@@ -525,8 +541,6 @@ while runGame:
   # animation updates #
   #####################
 
-  let visualBlockState = animate(gameTime)
-
   ###############
   # Render Code #
   ###############
@@ -545,8 +559,16 @@ while runGame:
           let pos = vec2f(float32(x),float32(y))
           yield((pos: pos, typ: tile))
 
+
+    let visualBlockState = playerAnimation.animate(gameTime)
     for pos in blockPositions(visualBlockState.state.position, visualBlockState.state.rotation, blockType):
       yield((pos: pos, typ: blockType))
+
+    if score > 0 and gameTime < insertAnimation.endTime:
+      let visualBlockState = insertAnimation.animate(gameTime)
+      for pos in blockPositions(visualBlockState.state.position, visualBlockState.state.rotation, lastBlockType):
+        yield((pos: pos, typ: lastBlockType))
+
 
     for pos in blockPositions(nextBlockPos, previewBlockRot, previewBlockType):
       yield((pos: vec2f(pos), typ: previewBlockType))
@@ -561,7 +583,7 @@ while runGame:
         colorsBuffer[numPositions] = colorsArray[typ]
         numPositions += 1
 
-  proc renderMeshInstanced(mesh: SimpleMesh; objectPos, objectColor: ArrayBuffer[Vec4f], numInstances: int ): void =
+  proc renderMeshInstanced(mesh: SimpleMesh; objectPos, objectColor: ArrayBuffer[Vec4f], numInstances: int): void =
     shadingDsl:
       primitiveMode = GL_TRIANGLES
       numVertices   = mesh.indicesLen

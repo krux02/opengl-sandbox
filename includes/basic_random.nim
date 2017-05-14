@@ -1,6 +1,6 @@
-import mersenne, ziggurat_normal_dist, math
+import mersenne, ziggurat_normal_dist, math, times
 
-var mt = newMersenneTwister(seed = 123)
+var mt = newMersenneTwister(uint32(epochTime()))
 
 proc randNormal*(): float64 = mt.nextGaussian()
 
@@ -41,6 +41,13 @@ proc rand*(maxval: uint32): uint32 =
     bits = rand_u32()
   result = bits mod maxval
 
+proc rand*(maxval: uint): uint =
+  assert(maxval != 0)
+  when sizeof(int) == 8:
+    rand(maxval.uint64).uint
+  else:
+    rand(maxval.uint32).uint
+
 proc rand*(maxval: int32): int32 =
   assert(maxval > 0)
   rand(maxval.uint32).int32
@@ -48,3 +55,10 @@ proc rand*(maxval: int32): int32 =
 proc rand*(maxval: int64): int64 =
   assert(maxval > 0)
   rand(maxval.uint64).int64
+
+proc rand*(maxval: int): int =
+  assert(maxval > 0)
+  when sizeof(int) == 8:
+    rand(maxval.uint64).int
+  else:
+    rand(maxval.uint32).int
