@@ -1,33 +1,27 @@
-import sdl2, sdl2/audio, ../fancygl, fftw3
+import ../fancygl, sdl2/audio, fftw3, os
 
-###############################################################################
-# WARNING thistest is incomplete and has not yet been updatad for a long time #
-###############################################################################
+################################################################################
+# WARNING this test is incomplete and has not yet been updatad for a long time #
+################################################################################
 
-discard sdl2.init(INIT_EVERYTHING)
+discard init(INIT_EVERYTHING)
 
 var wav_spec: AudioSpec
 var wav_length: uint32
 var wav_buffer: ptr uint8
 
-if loadWAV("song.wav", wav_spec.addr, wav_buffer.addr, wav_length.addr) == nil:
-  stderr.write "Could not open test.wav: ", sdl2.getError(), "\n"
+if loadWAV(getAppDir() / "resources/song.wav", wav_spec.addr, wav_buffer.addr, wav_length.addr) == nil:
+  stderr.write "Could not open test.wav: ", getError(), "\n"
+  quit(QUIT_FAILURE)
 
 echo wav_spec
 
-echo cast[int](wav_buffer.pointer)
-echo wav_buffer[]
-
 var puffer = dataView[int16](wav_buffer.pointer, int(wav_length div 2))
-
-echo puffer.len
-# echo puffer.data
 
 proc `*`(str: string, i: int): string =
   result = ""
   for _ in 1 .. i:
     result.add str
-
 
 var
   streamA = newSeq[float64](puffer.len)
@@ -37,13 +31,11 @@ for i in 0 ..< (puffer.len div 2):
   let
     x = puffer[i*2].float64
     y = puffer[i*2+1].float64
-    z = float64(high(int16))
+    z : float64 = pow(2.0,15) - 1
 
   streamA[i] = x / z
   streamB[i] = y / z
   # echo " "*int(30+streamA[i]*60), "x"
-
-echo wav_spec
 
 const N = 44100 div 60
 var input : array[N, float64]
@@ -56,24 +48,40 @@ const WIDTH = 640
 const HEIGHT = 480
 
 var
-  window = sdl2.createWindow("title", 0, 0, WIDTH, HEIGHT, 0)
-  renderer = sdl2.createRenderer(window, -1, sdl2.RENDERER_PRESENTVSYNC)
+  window = createWindow("title", 0, 0, WIDTH, HEIGHT, 0)
+  renderer = createRenderer(window, -1, RENDERER_PRESENTVSYNC)
+
+  event = defaultEvent
+  runGame: bool = true
+
 
 for offset in 0 .. (wav_length div N):
-  renderer.clear()
+  if not runGame:
+    break
+
+  while pollEvent(event):
+    if event.kind == QuitEvent:
+      runGame = false
+      break
+    if event.kind == KeyDown and event.key.keysym.scancode == SDL_SCANCODE_ESCAPE:
+      runGame = false
+
+  # update data code
+
   for i in 0 ..< N:
     input[i] = streamA[int(offset)*N + i]
-
   fftw_execute(plan)
+
+  # rendering code
+
+  renderer.clear()
 
   for i in 0..< N:
       let x = output[i] * WIDTH / 12 + WIDTH / 2
       let y = output[i+1] * HEIGHT / 12 + HEIGHT / 2
-      sdl2.drawPoint(renderer, cint(x), cint(y))
+      drawPoint(renderer, cint(x), cint(y))
 
-  sdl2.present(renderer)
-
-
+  renderer.present()
 
 # block b:
 #   while true:
