@@ -7,6 +7,9 @@ proc parseArg[T](arg: string): tuple[couldParse: bool, value: T] =
     let processedChars = parseutils.parseInt(arg, result.value)
     if processedChars == arg.len:
       result.couldParse = true
+  elif T is string:
+    result.couldParse = true
+    result.value = arg
 
 macro parseArgument(argsIdent: untyped; argIdent: untyped; typ: typed; argId: static[int]): untyped =
   let idLit      = newLit(argId)
@@ -19,14 +22,14 @@ macro parseArgument(argsIdent: untyped; argIdent: untyped; typ: typed; argId: st
 
 type CommandProc = proc(args: openarray[string]): void
 
-var registeredCommands = newSeq[tuple[name: string, callback: CommandProc]]()
+var registeredCommands = newSeq[tuple[name: string, callback: CommandProc, comment: string]]()
 
-proc registerCommand(name: string; callback: CommandProc): void =
-  registeredCommands.add((name: name, callback: callback))
+proc registerCommand(name: string; callback: CommandProc, comment: string): void =
+  registeredCommands.add((name: name, callback: callback, comment: comment))
 
 proc callCommand(cmdname: string; arguments: openarray[string]): void =
   var cmdFound = false
-  for name, callback in registeredCommands.items:
+  for name, callback, _ in registeredCommands.items:
     if name == cmdname:
       callback(arguments)
       cmdFound = true
@@ -35,17 +38,23 @@ proc callCommand(cmdname: string; arguments: openarray[string]): void =
   if not cmdFound:
     stderr.writeLine("could not find command: ", cmdname)
 
-
 proc stripPrefix(arg, prefix: string): string =
   if arg.startsWith prefix:
     result = arg.substr(prefix.len, arg.len - 1)
   else:
     result = arg
 
+macro genCommandFacade(impl: typed): untyped =
+  let comment =
+    if impl[6].kind == nnkStmtList and impl[6][0].kind == nnkCommentStmt:
+      impl[6][0].strVal
+    else:
+      "<no comment>"
 
-macro genCommandFacade(arg: typed): untyped =
-  let impl = arg.symbol.getImpl
-  let name = impl[0].repr
+  let commentLit = newLit(comment)
+  let arg = impl[0]
+  let name = $impl[0]
+
   let commandNameLit = newLit(name.stripPrefix("command_"))
   var paramTypes    = newSeq[NimNode](0)
   let params = impl[3]
@@ -77,32 +86,36 @@ macro genCommandFacade(arg: typed): untyped =
 
       `commandCall`
 
-    registerCommand(`commandNameLit`, `facadeSym`)
+    registerCommand(`commandNameLit`, `facadeSym`, `commentLit`)
 
-  echo result.repr
+  #echo result.repr
 
+proc add(arg1: int; arg2: int): void {.genCommandFacade.} =
+  ## adds two numbers
+  let res = arg1 + arg2
+  echo arg1, " + ", arg2, " = ", res
 
+proc add3(arg1,arg2,arg3: int): void {.genCommandFacade.} =
+  ## adds three numbers
+  let res = arg1 + arg2 + arg3
+  echo arg1, " + ", arg2, " + ", arg3, " = ", res
 
-macro interpreterProcs(arg: untyped): untyped =
-  result = arg
+proc mult(arg1,arg2: int): void {.genCommandFacade.} =
+  ## multiplies two numbers
+  echo arg1, " * ", arg2, " = ", arg1 * arg2
 
-  for procDef in arg:
-    if procDef.kind == nnkProcDef:
-      result.add newCall(bindSym"genCommandFacade", procDef[0])
+proc ls(): void {.genCommandFacade.} =
+  ## list all functions
+  for name, _, comment in registeredCommands.items:
+    echo name, "\t", comment
 
-  echo arg.treeRepr
-
-interpreterProcs:
-  proc command_add(arg1: int, arg2: int): void =
-    let res = arg1 + arg2
-    echo arg1, " + ", arg2, " = ", res
-
-  proc command_add3(arg1,arg2,arg3: int): void =
-    let res = arg1 + arg2 + arg3
-    echo arg1, " + ", arg2, " + ", arg3, " = ", res
-
-  proc command_mult(arg1,arg2: int): void =
-    echo arg1, " * ", arg2, " = ", arg1 * arg2
+proc help(arg: string): void {.genCommandFacade.} =
+  ## prints documentation of a single function
+  for name, _, comment in registeredCommands.items:
+    if name == arg:
+      echo comment
+      return
+  echo "ERROR: no such function found"
 
 block main:
   var line: string = ""
