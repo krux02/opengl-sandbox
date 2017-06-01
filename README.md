@@ -1,3 +1,11 @@
+
+# WARNING: Nim version 0.17 not supported:
+
+The reason for version 0.17 to be not supported is, the newest version
+sneaked in breaking changes that break a functionality I relied
+heavily on during the development of the project.
+https://github.com/nim-lang/Nim/issues/5845
+
 # minimal rendering prototyper
 
 This project is a toolbox project that wants to make the utilization of the
