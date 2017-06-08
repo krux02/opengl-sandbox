@@ -46,8 +46,8 @@ proc stripPrefix(arg, prefix: string): string =
 
 macro genCommandFacade(impl: typed): untyped =
   let comment =
-    if impl[6].kind == nnkStmtList and impl[6][0].kind == nnkCommentStmt:
-      impl[6][0].strVal
+    if impl.body.kind == nnkStmtList and impl.body[0].kind == nnkCommentStmt:
+      $impl.body[0]
     else:
       "<no comment>"
 
@@ -104,7 +104,7 @@ proc mult(arg1,arg2: int): void {.genCommandFacade.} =
   ## multiplies two numbers
   echo arg1, " * ", arg2, " = ", arg1 * arg2
 
-proc ls(): void {.genCommandFacade.} =
+proc commands(): void {.genCommandFacade.} =
   ## list all functions
   for name, _, comment in registeredCommands.items:
     echo name, "\t", comment
@@ -118,6 +118,8 @@ proc help(arg: string): void {.genCommandFacade.} =
   echo "ERROR: no such function found"
 
 block main:
+  echo "this is the command interpreter, to get a list of possible commands, type \"commands\""
+  echo "to get help for a specific command, type \"help <command>\""
   var line: string = ""
 
   # if readPasswordFromStdin("gimme your password> ", line):

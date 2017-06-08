@@ -673,13 +673,13 @@ proc main(): void =
           objectPos   {.divisor: 1.}
           objectColor {.divisor: 1.}
 
-
         vertexMain:
           """
           gl_Position = proj * modelView * vec4(a_vertex.xyz + objectPos.xyz, 1);
           v_normal = modelView * a_normal;
           v_Color = vec4(a_texCoord.x + a_texCoord.y) * objectColor;
           """
+
         vertexOut:
           "out vec4 v_normal"
           "out vec4 v_Color"
