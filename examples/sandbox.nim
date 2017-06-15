@@ -1,6 +1,6 @@
 # OpenGL example using SDL2
 
-import ../fancygl, strutils, os
+import ../fancygl, os
 
 let windowsize = vec2i(640, 480)
 let (window, context) = defaultSetup(windowsize)
@@ -59,7 +59,6 @@ var
   fps          = 0
   frameCounter = 0
 
-glViewport(0, 0, windowsize.x, windowsize.y)
 glClearColor(0.4,0.1,0.2,1.0)
 glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
 
