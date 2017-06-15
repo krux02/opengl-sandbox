@@ -1,0 +1,5 @@
+Nim Compiler Version 0.17.1 (2017-06-15) [Linux: amd64]
+Copyright (c) 2006-2017 by Andreas Rumpf
+
+git hash: 6ca9ad6608b92246198b613c40dcea8ee2b36b5d
+active boot switches: -d:release
