@@ -1,13 +1,13 @@
-import memfiles, glm, ../fancygl, sdl2, sdl2/ttf , opengl, strutils, sequtils, math, AntTweakBar
+import memfiles, ../fancygl, sdl2/ttf, os, strutils, sequtils, AntTweakBar
 
 const WindowSize = vec2i(1024, 768)
 
-proc `$`(v: Vec): string = glm.`$`(v)
+#proc `$`(v: Vec): string = glm.`$`(v)
 
 proc main() =
   let (window, context) = defaultSetup(WindowSize)
 
-  defer: sdl2.quit()
+  defer: fancygl.quit()
   discard ttfinit()
 
   if TwInit(TW_OPENGL_CORE, nil) == 0:
@@ -26,10 +26,10 @@ proc main() =
   if font.isNil:
     font = ttf.openFont("/usr/share/fonts/TTF/Inconsolata-Regular.ttf", textHeight.cint)
   if font.isNil:
-    panic "from example: could not load font: ", sdl2.getError(),
+    panic "from example: could not load font: ", getError(),
         "\nfrom example: sorry system font locations are hard coded into the program, change that to fix this problem"
 
-  var file = memfiles.open("resources/mrfixit.iqm")
+  var file = memfiles.open(getAppDir() / "resources/mrfixit.iqm")
   defer:
     close(file)
 
@@ -125,7 +125,7 @@ proc main() =
     echo "got iqm mesh:"
     echo "  name:           ", text(mesh.name)
     echo "  material:       ", text(mesh.material)
-    meshTextures[i] = loadTexture2DFromFile( "resources/" & $text(mesh.material) )
+    meshTextures[i] = loadTexture2DFromFile(getAppDir() / "resources" / $text(mesh.material))
 
   echo "=========================================================================="
 
@@ -267,7 +267,7 @@ proc main() =
     #### handle events ####
     #######################
 
-    var evt = sdl2.defaultEvent
+    var evt: Event
     while pollEvent(evt):
       let handled = TwEventSDL(cast[pointer](evt.addr), 2.cuchar, 0.cuchar) != 0
       if handled:

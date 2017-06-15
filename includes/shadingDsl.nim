@@ -403,17 +403,17 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
     vertexShaderSource = genShaderSource(sourceHeader, uniformsSection, attributesSection, -1, vertexOutSection, includesSection, vertexMain.strVal)
 
-  if not vertexMain.isNil:
-    let
-      li = vertexMain.lineinfo
-      p0 = li.find(".nim(")
-      p1 = li.find(',',p0)
-      # p2 = li.find(')',p1)
-      basename = li.substr(0, p0-1)
-      line     = li.substr(p0+5, p1-1).parseInt
-      #filename = joinPath(getTempDir(), s"${basename}_${line}.vert")
-
-    #writeFile(filename, vertexShaderSource)
+  # TODO do something with this unused block of code
+  # if not vertexMain.isNil:
+  #   let
+  #     li = vertexMain.lineinfo
+  #     p0 = li.find(".nim(")
+  #     p1 = li.find(',',p0)
+  #     p2 = li.find(')',p1)
+  #     basename = li.substr(0, p0-1)
+  #     line     = li.substr(p0+5, p1-1).parseInt
+  #     filename = joinPath(getTempDir(), s"${basename}_${line}.vert")
+  #   writeFile(filename, vertexShaderSource)
 
   if numVertices.isNil:
     error "numVertices needs to be assigned"
@@ -695,11 +695,12 @@ macro shadingDsl*(statement: untyped) : untyped =
             transformFeedbackVaryingNamesCall.add nameLit
 
           of nnkIdent:
+            # TODO this is very much WIP
             let name = section.repr
             if name != "transformFeedback":
               error("foobar")
 
-            let nameLit = newLit(name)
+            #let nameLit = newLit(name)
             let identNode = section
 
             outCall.add head(quote do:

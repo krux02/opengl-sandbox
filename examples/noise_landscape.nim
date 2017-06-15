@@ -15,7 +15,7 @@ vec4 taylorInvSqrt(vec4 r) {
   return 1.79284291400159 - 0.85373472095314 * r;
 }
 
-float snoise(vec3 v) { 
+float snoise(vec3 v) {
   const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
   const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
 
@@ -38,10 +38,10 @@ float snoise(vec3 v) {
   vec3 x3 = x0 - D.yyy;      // -1.0+3.0*C.x = -0.5 = -D.y
 
 // Permutations
-  i = mod289(i); 
-  vec4 p = permute( permute( permute( 
+  i = mod289(i);
+  vec4 p = permute( permute( permute(
              i.z + vec4(0.0, i1.z, i2.z, 1.0 ))
-           + i.y + vec4(0.0, i1.y, i2.y, 1.0 )) 
+           + i.y + vec4(0.0, i1.y, i2.y, 1.0 ))
            + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
 
 // Gradients: 7x7 points over a square, mapped onto an octahedron.
@@ -85,7 +85,7 @@ float snoise(vec3 v) {
 // Mix final noise value
   vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
   m = m * m;
-  return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), 
+  return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1),
                                 dot(p2,x2), dot(p3,x3) ) );
 }
 
@@ -95,8 +95,8 @@ float calcHeight(vec2 pos) {
 """
 
 
-import ../fancygl
-import algorithm
+import ../fancygl, algorithm, os
+
 
 const
   cubemapWidth = 64'i32
@@ -108,7 +108,7 @@ const
 let (window, context) = defaultSetup()
 
 let windowsize = window.size
-  
+
 let verts                = arrayBuffer(gridVerticesXMajor(vec2i(gridTiles + 1)))
 let triangleStripIndices = elementArrayBuffer(gridIndicesTriangleStrip(vec2i(gridTiles + 1)))
 let quadIndices          = elementArrayBuffer(gridIndicesQuads(vec2i(gridTiles + 1)))
@@ -117,7 +117,7 @@ let circleVertices       = arrayBuffer(circleVertices(48))
 for vert in verts.mitems:
   vert.xy -= vec2f(gridTiles div 2)
 
-let skyTexture = loadTexture2DFromFile("resources/panorama.jpg")
+let skyTexture = loadTexture2DFromFile(getAppDir() / "resources/panorama.jpg")
 
 skyTexture.parameter(GL_TEXTURE_WRAP_S, GL_REPEAT)
 skyTexture.parameter(GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
@@ -160,7 +160,7 @@ block:
     color.y = rand_u8()
     color.z = rand_u8()
     color.w = 255
-    
+
   layers.setData data
   layers.generateMipmap
 
@@ -183,7 +183,7 @@ proc setup(): void =
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
 proc drawSky(viewMat: Mat4f): void =
-  
+
   shadingDsl:
     primitiveMode = GL_TRIANGLES
     numVertices   = sphereIndicesLen
@@ -251,7 +251,7 @@ proc drawTorus(modelViewMat: Mat4f, clipPlane_ws: Vec4f): void =
       invProj = projMat.inverse
 
     attributes:
-      position = torusVertices 
+      position = torusVertices
       normal   = torusNormals
       texCoord = torusTexCoords
 
@@ -275,7 +275,7 @@ proc drawTorus(modelViewMat: Mat4f, clipPlane_ws: Vec4f): void =
 
 
 let quadVertices = arrayBuffer([vec4f(-1,-1,0,1), vec4f(1, -1, 0 ,1), vec4f(-1,1,0,1), vec4f(1,1,0,1)])
-      
+
 proc drawPlane(modelViewMat: Mat4f): void =
   shadingDsl:
     primitiveMode = GL_TRIANGLE_STRIP
@@ -298,7 +298,7 @@ proc drawPlane(modelViewMat: Mat4f): void =
       """
       color= vec4(v_texCoord,0,1);
       """
-      
+
 proc drawHeightMap(viewMat: Mat4f, clipPlane_ws: Vec4f): void =
   let mvp = projMat * viewMat
   let viewInverted = inverse(viewMat)
@@ -307,7 +307,7 @@ proc drawHeightMap(viewMat: Mat4f, clipPlane_ws: Vec4f): void =
   let camdir = -viewInverted[2].xy
   let angle = round((arctan2(camdir.y, camdir.x) - radians(90f)) / radians(90f)) * radians(90f)
   let rotMat = rotMat2f(angle)
-  
+
   shadingDsl:
     primitiveMode = GL_TRIANGLE_STRIP
     numVertices = triangleStripIndicesLen
@@ -333,7 +333,7 @@ proc drawHeightMap(viewMat: Mat4f, clipPlane_ws: Vec4f): void =
       vec4 vertexPos = vec4(  rotMat * pos.xy + offset,calcHeight(pos2d_ws),1);
 
       gl_ClipDistance[0] = dot(clipPlane_ws, vertexPos);
-      
+
       gl_Position = mvp * vertexPos;
       distance = length(viewMat * vertexPos);
       """
@@ -411,7 +411,7 @@ type
 proc clipPlane(this: WorldNode): Vec4f =
   result = this.modelmat[2]
   result.w = -dot(result, this.pos)
-    
+
 proc connect(p0,p1: var Portal): void =
   p0.target = p1.addr
   p1.target = p0.addr
@@ -425,12 +425,12 @@ proc tunnelTest*(this: Portal; a,b : Vec4f): bool =
   # everything is transformed into the coordinate system of the Portal
   let posA_os = viewmat * a
   let posB_os = viewmat * b
- 
+
   let z1 = posA_os.z
   let z2 = posB_os.z
 
   # test if we intersect the xy plane
-  if (z1 < 0 and 0 <= z2) or (z2 < 0 and 0 <= z1):     
+  if (z1 < 0 and 0 <= z2) or (z2 < 0 and 0 <= z1):
     # z is always 0 after this transformation, so it is left out
     # the result is the intersection from the xy plane and the line between a and b in object space
     let pos0_os = (posA_os.xy * z2 - posB_os.xy * z1) / (z2 - z1)
@@ -442,7 +442,7 @@ proc transformNode*(this: Portal; node: WorldNode): WorldNode =
   result.pos = mat[3]
   result.dir = quat(mat)
 
-    
+
 var camera = newWorldNode()
 
 camera.turnRelativeX(radians(45.0f))
@@ -478,28 +478,28 @@ proc drawPortal(viewMat: Mat4f, src,dst: WorldNode) =
   glStencilMask(system.high(uint32))
   glEnable(GL_STENCIL_TEST)
   glDisable(GL_CULL_FACE)
-  
+
   glStencilFunc(GL_ALWAYS, 1, 1)
   glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE)
-  
+
   drawPortalWindow(viewMat * src.modelmat)
-  
+
   glEnable(GL_CULL_FACE)
-  
+
   let viewPrime = viewMat * src.modelmat * dst.viewmat
   let objPos_cs = viewMat * src.pos
   var a = projMat * (objPos_cs + vec4f(-1,-1,0,0))
   var b = projMat * (objPos_cs + vec4f( 1, 1,0,0))
-  
+
   a /= a.w
   b /= b.w
   var x = vec2i((a.xy * 0.5 + 0.5) * vec2f(window.size))
   var y = vec2i((b.xy * 0.5 + 0.5) * vec2f(window.size))
   x = clamp(x, vec2i(0), window.size)
-  y = clamp(y, vec2i(0), window.size) 
+  y = clamp(y, vec2i(0), window.size)
   let s = y - x
 
-  
+
   if s.x > 0 and s.y > 0:
     glEnable(GL_STENCIL_TEST)
     glStencilFunc(GL_EQUAL, 1, 1)
@@ -512,12 +512,12 @@ proc drawPortal(viewMat: Mat4f, src,dst: WorldNode) =
     glClear(GL_DEPTH_BUFFER_BIT)
     drawScene(viewPrime, dst.clipPlane)
     glDisable(GL_CLIP_PLANE0)
-    
+
     glDisable(GL_SCISSOR_TEST)
     glDisable(GL_STENCIL_TEST)
-  
+
   glDisable(GL_STENCIL_TEST)
-  
+
 setup()
 
 while running:
@@ -525,7 +525,7 @@ while running:
     frame += 1
 
   # handle events
-  
+
   var evt = defaultEvent
   var rotation, movement : Vec3f
 
@@ -546,7 +546,7 @@ while running:
         skybox = not skybox
       else:
         discard
-        
+
     elif evt.kind == MouseMotion:
       rotation.x = rotation.x - evt.motion.yrel.float / 128.0
       rotation.y = rotation.y - evt.motion.xrel.float / 128.0
@@ -569,7 +569,7 @@ while running:
 
   for i, portal in portals:
     if portal.tunnelTest(oldCamera.pos, camera.pos):
-      camera = portal.transformNode(camera)        
+      camera = portal.transformNode(camera)
 
   time = gameTimer.time.float32
 
@@ -586,8 +586,5 @@ while running:
   else:
     drawPortal(view, portals[1].node, portals[1].target.node)
     drawPortal(view, portals[0].node, portals[0].target.node)
-    
-  glSwapWindow(window)
-  
 
-  
+  glSwapWindow(window)
