@@ -110,20 +110,22 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
     else:
       fragmentOutputs.add($asgn[0])
 
-  result.add head quote do:
+  result.add head(quote do:
     type
       `typename` = object
         handle*: FrameBuffer
         depth*: `depthType`
+  )
 
   for fragOut in fragmentOutputs:
 
     result[^1][0][2][2].add newExpIdentDef(!fragOut, bindSym"Texture2D")
 
   let fragmentOutputsSeqNode = fragmentOutputs.toConstExpr
-  result.add quote do:
+  result.add(quote do:
     template fragmentOutputSeq(t: typedesc[`typename`]): seq[string] =
       `fragmentOutputsSeqNode`
+  )
 
   #result.add newConstStmt(ident"fragmentOutputs", fragmentOutputs.toConstExpr)
 
@@ -131,9 +133,10 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
 
   let resultIdent = ident"result"
 
-  branchStmtList.add quote do:
+  branchStmtList.add(quote do:
     `resultIdent`.handle = newFrameBuffer()
     `resultIdent`.depth  = `depthCreateExpr`
+  )
 
   #branchStmtList.add(newAssignment(newDotExpr(ident"result", ident"handle"),
   #  newCall(bindSym"newFrameBuffer")
@@ -143,14 +146,18 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
   #))
 
   if useDepthRenderbuffer:
-    branchStmtList.add quote do:
-      glNamedFramebufferRenderbuffer( `resultIdent`.handle.handle, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, `resultIdent`.depth.handle )
+    branchStmtList.add(quote do:
+      glNamedFramebufferRenderbuffer( `resultIdent`.handle.handle,
+          GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, `resultIdent`.depth.handle )
+    )
   else:
-    branchStmtList.add quote do:
+    branchStmtList.add(quote do:
       `resultIdent`.handle.setTexture(GL_DEPTH_ATTACHMENT, `resultIdent`.depth, 0)
+    )
 
-  let drawBuffersCall = head quote do:
+  let drawBuffersCall = head(quote do:
     drawBuffers( `resultIdent`.handle )
+  )
 
   var i = 0
   for asgn in arg:
@@ -160,22 +167,25 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
     if lhs.ident != !"depth":
       let nameIdent = ident($lhs)
       let attachmentLit = ident("GL_COLOR_ATTACHMENT" & $i)
-      branchStmtList.add quote do:
+      branchStmtList.add(quote do:
         `resultIdent`.`nameIdent` = `rhs`
         setTexture( `resultIdent`.handle, `attachmentLit`, `resultIdent`.`nameIdent`, 0)
+      )
 
-      drawBuffersCall.add head quote do:
+      drawBuffersCall.add head(quote do:
         GLenum(`attachmentLit`)
+      )
 
       i += 1
 
   branchStmtList.add( drawBuffersCall )
   let labelLit = newLit($typename)
   let constructorIdent = ident("new" & $typename)
-  result.add quote do:
+  result.add(quote do:
     proc `constructorIdent`(label: string = `labelLit`): `typename` =
       `branchStmtList`
       `resultIdent`.handle.label = label
+  )
 
   if wrapWithDebugResult:
     result = newCall(bindSym"debugResult", result)

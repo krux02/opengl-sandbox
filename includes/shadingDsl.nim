@@ -226,8 +226,9 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
       else:
         error("wrong kind for indices: " & $value.getTypeImpl[1].typeKind, value)
 
-      drawBlock.addAll quote do:
+      drawBlock.addAll(quote do:
         bindIt(`vao`, `value`)
+      )
 
     of "uniforms":
       for innerCall in call[1][1].items:
@@ -247,23 +248,27 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
         let loc = getLocation(numLocations)
         let warningLit = newLit(value.lineinfo & " Hint: unused uniform: " & name)
 
-        initUniformsBlock.add quote do:
+        initUniformsBlock.add(quote do:
           `loc`.index = glGetUniformLocation(`program`.handle, `nameLit`)
           if `loc`.index < 0:
             writeLine stderr, `warningLit`
+        )
 
         if isSampler:
           let bindingIndexLit = newLit(numSamplers)
-          initUniformsBlock.add head quote do:
+          initUniformsBlock.add head(quote do:
             glUniform1i(`loc`.index, `bindingIndexLit`)
+          )
 
-          bindTexturesCall[2].add head quote do:
+          bindTexturesCall[2].add head(quote do:
             `value`.handle
+          )
 
           numSamplers += 1
         else:
-          drawBlock.add head quote do:
+          drawBlock.add head(quote do:
             `program`.uniform(`loc`, `value`)
+          )
 
         uniformsSection.add( baseString )
 
@@ -294,7 +299,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
         let warningLit = newLit(value.lineinfo & " Hint: unused attribute: " & name)
 
-        bufferCreationBlock.addAll quote do:
+        bufferCreationBlock.addAll(quote do:
           `location` = attributeLocation(`program`, `nameLit`)
           # this needs to change, when multiple
           # attributes per buffer should be supported
@@ -305,9 +310,11 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
             writeLine stderr, `warningLit`
 
           bindAndAttribPointer(`vao`, `value`, `location`)
+        )
 
-        drawBlock.addAll quote do:
+        drawBlock.addAll(quote do:
           setBuffer(`vao`, `value`, `location`)
+        )
 
         attribNames.add( name )
         attribTypes.add( glslType )
@@ -425,8 +432,9 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
     geometryHeader &= ";\n"
     let gsSrcLit = newLit genShaderSource(geometryHeader, uniformsSection, vertexOutSection, geometryNumVerts(mode.intVal.GLenum), geometryOutSection, includesSection, geometryMain)
 
-    compileShaderBlock.addAll quote do:
+    compileShaderBlock.addAll(quote do:
       `program`.attachAndDeleteShader(compileShader(GL_GEOMETRY_SHADER, `gsSrcLit`))
+    )
 
   if not fragmentMain.isNil:
     var fsSrcLit =
@@ -434,16 +442,18 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
         newLit genShaderSource(sourceHeader, uniformsSection, vertexOutSection, -1, fragmentOutSection, includesSection, fragmentMain)
       else:
         newLit genShaderSource(sourceHeader, uniformsSection, geometryOutSection, -1, fragmentOutSection, includesSection, fragmentMain)
-    compileShaderBlock.addAll quote do:
+    compileShaderBlock.addAll(quote do:
       `program`.attachAndDeleteShader(compileShader(GL_FRAGMENT_SHADER, `fsSrcLit`))
+    )
 
   if transformFeedbackVaryingNames.len > 0:
     let namesLit = nnkBracket.newTree
     for name in transformFeedbackVaryingNames:
       namesLit.add newLit(name)
 
-    compileShaderBlock.addAll quote do:
+    compileShaderBlock.addAll(quote do:
       `program`.transformFeedbackVaryings(`namesLit`, GL_INTERLEAVED_ATTRIBS)
+    )
 
   if hasIndices:
     var indicesPtr = newTree( nnkCast, bindSym"pointer", newInfix(bindSym"*", vertexOffset, newLit(sizeofIndexType)))
@@ -678,8 +688,9 @@ macro shadingDsl*(statement: untyped) : untyped =
             let nameLit = newLit(name)
             let identNode = section[1]
 
-            outCall.add head quote do:
+            outCall.add head(quote do:
               "out " & glslTypeRepr(type(`identNode`.T)) & " " & `nameLit`
+            )
 
             transformFeedbackVaryingNamesCall.add nameLit
 
@@ -691,8 +702,9 @@ macro shadingDsl*(statement: untyped) : untyped =
             let nameLit = newLit(name)
             let identNode = section
 
-            outCall.add head quote do:
+            outCall.add head(quote do:
               transformFeedbackOutSection(`identNode`)
+            )
 
 
             #outCall.add head quote do:

@@ -89,8 +89,9 @@ macro s*(arg: static[string]): string =
 
   result = nnkStmtListExpr.newTree()
   let str = genSym(nskVar, "str")
-  result.add quote do:
+  result.add(quote do:
     var `str`: string = ""
+  )
 
   var i = 0
   var j = 0
@@ -99,8 +100,9 @@ macro s*(arg: static[string]): string =
       j += 1
 
     let lit = newLit(arg[i..<j])
-    result.add quote do:
+    result.add(quote do:
       `str`.add(`lit`)
+    )
 
     if j == len(arg):
       break
@@ -128,8 +130,9 @@ macro s*(arg: static[string]): string =
       exprString = arg[i ..< j]
 
     let expr = parseExpr(exprString)
-    result.add quote do:
+    result.add(quote do:
       add(`str`, $`expr`) ## a
+    )
 
     if j == len(arg):
       break
