@@ -389,6 +389,36 @@ proc loose(): void =
   echo "YOU LOOSE"
   echo "cleared rows: ", clearedRows
   echo "score:        ", score
+
+  echo "*** HIGHSCORE ***"
+
+  var highscore = newSeq[int](0)
+
+  let filename = getAppDir() / "highscore"
+  if fileExists(filename):
+    for line in lines(filename):
+      highscore.add parseInt(line)
+
+  highscore.sort(cmp, SortOrder.Descending)
+
+  var index = 0
+  while index < highscore.len and highscore[index] >= score:
+    index += 1
+
+  highscore.insert(score, index)
+
+  for i, score in highscore:
+    if i == index:
+      echo " +++ ", i+1, ".\t", score, " +++ "
+    else:
+      echo "     ", i+1, ".\t", score
+
+  let outfile = open(filename, fmWrite)
+  defer:
+    outfile.close
+  for score in highscore:
+    outfile.writeLine $score
+
   runGame = false
 
 proc insertBlock(): void =
