@@ -707,10 +707,10 @@ when isMainModule:
 
   var testArrayBuffer = ArrayBuffer[TestType](handle : 7)
 
-  assert testArrayBuffer.view(a) == ArrayBufferView[TestType,int](buffer: ArrayBuffer[TestType](handle: 7), offset: 0, stride: 16)
-  assert testArrayBuffer.view(b) == ArrayBufferView[TestType,int](buffer: ArrayBuffer[TestType](handle: 7), offset: 4, stride: 16)
-  assert testArrayBuffer.view(c) == ArrayBufferView[TestType,int](buffer: ArrayBuffer[TestType](handle: 7), offset: 8, stride: 16)
-  assert testArrayBuffer.view(d) == ArrayBufferView[TestType,int](buffer: ArrayBuffer[TestType](handle: 7), offset:12, stride: 16)
+  assert testArrayBuffer.view(a) == ArrayBufferView[TestType,float32](buffer: ArrayBuffer[TestType](handle: 7), offset: 0, stride: 16)
+  assert testArrayBuffer.view(b) == ArrayBufferView[TestType,float32](buffer: ArrayBuffer[TestType](handle: 7), offset: 4, stride: 16)
+  assert testArrayBuffer.view(c) == ArrayBufferView[TestType,float32](buffer: ArrayBuffer[TestType](handle: 7), offset: 8, stride: 16)
+  assert testArrayBuffer.view(d) == ArrayBufferView[TestType,float32](buffer: ArrayBuffer[TestType](handle: 7), offset:12, stride: 16)
 
 #### shader
 
