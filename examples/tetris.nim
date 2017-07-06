@@ -385,8 +385,8 @@ proc validBlockPos(pos: Vec2i, rot,typ: int): bool =
 
   return true
 
-proc loose(): void =
-  echo "YOU LOOSE"
+proc lose(): void =
+  echo "YOU LOSE"
   echo "cleared rows: ", clearedRows
   echo "score:        ", score
 
@@ -433,9 +433,9 @@ proc insertBlock(): void =
       fieldRows[pos.y][pos.x] = blockType
     callNextBlock()
     if not validBlockPos(blockPos, blockRot, blockType):
-      loose()
+      lose()
   else:
-    loose()
+    lose()
 
 proc downStep(): void =
   downTimer.reset()
@@ -507,6 +507,33 @@ proc toggleAudio(): void =
 
 nextTrack()
 
+var menuActive = true
+
+proc action_start(): void =
+  menuActive = false
+  discard
+
+proc action_highscore(): void =
+  echo "action highscore"
+  discard
+
+proc action_quit(): void =
+  runGame = false
+
+const
+  mainMenuEntries = ["start", "highscore", "quit"]
+  mainMenuActions = [action_start, action_highscore, action_quit]
+var mainMenuSelection : 0..mainMenuEntries.high
+
+proc mainMenu(): void =
+  for i, entry in mainMenuEntries:
+    let y = int32(i * 20 + 20)
+    let x = int32(40)
+    if i == mainMenuSelection:
+      renderText("> ", vec2i(x - 20, y))
+    renderText(entry, vec2i(x,y))
+
+
 proc main(): void =
 
   while runGame:
@@ -521,230 +548,250 @@ proc main(): void =
 
     while pollEvent(evt):
       if evt.kind == QuitEvent:
-        loose()
+        lose()
         break
+
       if evt.kind == KeyDown:
-        case evt.key.keysym.scancode
-        of SDL_SCANCODE_ESCAPE:
-          loose()
-          break
+        if menuActive:
+          case evt.key.keysym.scancode
+          of SDL_SCANCODE_UP:
+            mainMenuSelection = (mainMenuSelection + mainMenuEntries.high) mod mainMenuEntries.len
+          of SDL_SCANCODE_DOWN:
+            mainMenuSelection = (mainMenuSelection + 1) mod mainMenuEntries.len
 
-        of SDL_SCANCODE_J, SDL_SCANCODE_S, SDL_SCANCODE_KP_4, SDL_SCANCODE_LEFT:
-          # step left
-          let offset = vec2i(-1,0)
-          if validBlockPos(blockPos + offset, blockRot, blockType):
-            blockPos += offset
-            playerAnimation = stickAnimation(playerAnimation, gameTime, currentBlockStateAsAnimationState(), AnimationState())
+          of SDL_SCANCODE_SPACE, SDL_SCANCODE_RETURN:
+            mainMenuActions[mainMenuSelection]()
 
+          else:
+            discard
 
-        of SDL_SCANCODE_K, SDL_SCANCODE_D, SDL_SCANCODE_KP_5, SDL_SCANCODE_DOWN:
-          # step down
-          downStep()
-
-        of SDL_SCANCODE_L, SDL_SCANCODE_F, SDL_SCANCODE_KP_6, SDL_SCANCODE_RIGHT:
-          # step right
-          let offset = vec2i(1,0)
-          if validBlockPos(blockPos + offset, blockRot, blockType):
-            blockPos += offset
-            playerAnimation = stickAnimation(playerAnimation, gameTime,
-                                             currentBlockStateAsAnimationState(), AnimationState())
-
-        of SDL_SCANCODE_U, SDL_SCANCODE_W, SDL_SCANCODE_KP_7:
-          # rotate left
-          let nBlockRot = blockRot + 1
-          for offset in [vec2i(0,0), vec2i(-1,0), vec2i(1,0)]:
-            if validBlockPos(blockPos + offset, nBlockRot, blockType):
-              blockRot = nBlockRot
-              blockPos += offset
-              playerAnimation = stickAnimation(playerAnimation, gameTime,
-                                               currentBlockStateAsAnimationState(), AnimationState())
-              break
-
-        of SDL_SCANCODE_O, SDL_SCANCODE_R, SDL_SCANCODE_KP_9, SDL_SCANCODE_UP:
-          # rotate right
-          let nBlockRot = blockRot - 1
-          for offset in [vec2i(0,0), vec2i(-1,0), vec2i(1,0)]:
-            if validBlockPos(blockPos + offset, nBlockRot, blockType):
-              blockRot = nBlockRot
-              blockPos += offset
-
-              playerAnimation = stickAnimation(playerAnimation, gameTime,
-                                               currentBlockStateAsAnimationState(), AnimationState())
-              break
-
-        of SDL_SCANCODE_I, SDL_SCANCODE_E, SDL_SCANCODE_KP_8, SDL_SCANCODE_SPACE:
-          # drop the brick
-          let offset = vec2i(0, -1)
-          while validBlockPos(blockPos + offset, blockRot, blockType):
-            blockPos += offset
-
-
-          let aes = AnimationState(position: vec2f(0,-20))
-          insertAnimation = stickAnimation(playerAnimation, gameTime, currentBlockStateAsAnimationState(), aes)
-
-
-          insertBlock()
-
-        of SDL_SCANCODE_F2:
-          nextTrack()
-
-        of SDL_SCANCODE_KP_PLUS:
-          animationLength *= 2.0
-        of SDL_SCANCODE_KP_MINUS:
-          animationLength *= 0.5
-
-        of SDL_SCANCODE_F10:
-          window.screenshot
 
         else:
-          discard
+          case evt.key.keysym.scancode
+          of SDL_SCANCODE_ESCAPE:
+            lose()
+            break
 
-    ####################
-    # apply game logic #
-    ####################
+          of SDL_SCANCODE_J, SDL_SCANCODE_S, SDL_SCANCODE_KP_4, SDL_SCANCODE_LEFT:
+            # step left
+            let offset = vec2i(-1,0)
+            if validBlockPos(blockPos + offset, blockRot, blockType):
+              blockPos += offset
+              playerAnimation = stickAnimation(playerAnimation, gameTime, currentBlockStateAsAnimationState(), AnimationState())
 
-    if downTimer.time > pow(0.8, level.float64):
-      downStep()
 
-    # remove full lines
+          of SDL_SCANCODE_K, SDL_SCANCODE_D, SDL_SCANCODE_KP_5, SDL_SCANCODE_DOWN:
+            # step down
+            downStep()
 
-    var clearedRowsLocal = 0
-    for y in 0 ..< NumRows:
-      while fieldRows[y].find(-1) == -1:
-        fieldRows[y].fill(-1)
-        for y2 in y+1 ..< NumRows:
-          swap(fieldRows[y2-1], fieldRows[y2])
-        clearedRowsLocal += 1
+          of SDL_SCANCODE_L, SDL_SCANCODE_F, SDL_SCANCODE_KP_6, SDL_SCANCODE_RIGHT:
+            # step right
+            let offset = vec2i(1,0)
+            if validBlockPos(blockPos + offset, blockRot, blockType):
+              blockPos += offset
+              playerAnimation = stickAnimation(playerAnimation, gameTime,
+                                               currentBlockStateAsAnimationState(), AnimationState())
 
-    clearedRows += clearedRowsLocal
-    rowsToGo -= clearedRowsLocal
+          of SDL_SCANCODE_U, SDL_SCANCODE_W, SDL_SCANCODE_KP_7:
+            # rotate left
+            let nBlockRot = blockRot + 1
+            for offset in [vec2i(0,0), vec2i(-1,0), vec2i(1,0)]:
+              if validBlockPos(blockPos + offset, nBlockRot, blockType):
+                blockRot = nBlockRot
+                blockPos += offset
+                playerAnimation = stickAnimation(playerAnimation, gameTime,
+                                                 currentBlockStateAsAnimationState(), AnimationState())
+                break
 
-    while rowsToGo <= 0:
-      rowsToGo += RowsPerLevel
-      level += 1
-      nextTrack()
+          of SDL_SCANCODE_O, SDL_SCANCODE_R, SDL_SCANCODE_KP_9, SDL_SCANCODE_UP:
+            # rotate right
+            let nBlockRot = blockRot - 1
+            for offset in [vec2i(0,0), vec2i(-1,0), vec2i(1,0)]:
+              if validBlockPos(blockPos + offset, nBlockRot, blockType):
+                blockRot = nBlockRot
+                blockPos += offset
 
-    case clearedRowsLocal
-    of 0:
-      discard
-    of 1:
-      score +=   40 * (level + 1)
-    of 2:
-      score +=  100 * (level + 1)
-    of 3:
-      score +=  300 * (level + 1)
-    of 4:
-      score += 1200 * (level + 1)
+                playerAnimation = stickAnimation(playerAnimation, gameTime,
+                                                 currentBlockStateAsAnimationState(), AnimationState())
+                break
+
+          of SDL_SCANCODE_I, SDL_SCANCODE_E, SDL_SCANCODE_KP_8, SDL_SCANCODE_SPACE:
+            # drop the brick
+            let offset = vec2i(0, -1)
+            while validBlockPos(blockPos + offset, blockRot, blockType):
+              blockPos += offset
+
+
+            let aes = AnimationState(position: vec2f(0,-20))
+            insertAnimation = stickAnimation(playerAnimation, gameTime, currentBlockStateAsAnimationState(), aes)
+
+
+            insertBlock()
+
+          of SDL_SCANCODE_F2:
+            nextTrack()
+
+          of SDL_SCANCODE_KP_PLUS:
+            animationLength *= 2.0
+          of SDL_SCANCODE_KP_MINUS:
+            animationLength *= 0.5
+
+          of SDL_SCANCODE_F10:
+            window.screenshot
+
+          else:
+            discard
+
+    if menuActive:
+      glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+
+      mainMenu()
     else:
-      echo "WTF cleared ", clearedRowsLocal, " at once"
-      echo "no idea what to do with that"
-      echo "just give you a billion points"
-      score += 1000000000
+      ####################
+      # apply game logic #
+      ####################
 
-    #####################
-    # animation updates #
-    #####################
+      if downTimer.time > pow(0.8, level.float64):
+        downStep()
 
-    ###############
-    # Render Code #
-    ###############
+      # remove full lines
 
-    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+      var clearedRowsLocal = 0
+      for y in 0 ..< NumRows:
+        while fieldRows[y].find(-1) == -1:
+          fieldRows[y].fill(-1)
+          for y2 in y+1 ..< NumRows:
+            swap(fieldRows[y2-1], fieldRows[y2])
+          clearedRowsLocal += 1
 
-    renderText("score: " & $score,       vec2i(20, 20))
-    renderText("level: " & $level,       vec2i(20, 40))
-    renderText("lines: " & $clearedRows, vec2i(20, 60))
+      clearedRows += clearedRowsLocal
+      rowsToGo -= clearedRowsLocal
 
-    iterator allBlockPositions(): tuple[pos:Vec2f; typ: int] =
-      for y, row in fieldRows:
-        for x, value in row:
-          let tile = fieldRows[y][x]
-          if tile > -1:
-            let pos = vec2f(float32(x),float32(y))
-            yield((pos: pos, typ: tile))
+      while rowsToGo <= 0:
+        rowsToGo += RowsPerLevel
+        level += 1
+        nextTrack()
 
-      let visualBlockState = playerAnimation.animate(gameTime)
-      for pos in blockPositions(visualBlockState.state.position, visualBlockState.state.rotation, blockType):
-        yield((pos: pos, typ: blockType))
+      case clearedRowsLocal
+      of 0:
+        discard
+      of 1:
+        score +=   40 * (level + 1)
+      of 2:
+        score +=  100 * (level + 1)
+      of 3:
+        score +=  300 * (level + 1)
+      of 4:
+        score += 1200 * (level + 1)
+      else:
+        echo "WTF cleared ", clearedRowsLocal, " at once"
+        echo "no idea what to do with that"
+        echo "just give you a billion points"
+        score += 1000000000
 
-      if score > 0 and gameTime < insertAnimation.endTime:
-        let visualBlockState = insertAnimation.animate(gameTime)
-        for pos in blockPositions(visualBlockState.state.position, visualBlockState.state.rotation, lastBlockType):
-          yield((pos: pos, typ: lastBlockType))
+      #####################
+      # animation updates #
+      #####################
 
-      for pos in blockPositions(nextBlockPos, previewBlockRot, previewBlockType):
-        yield((pos: vec2f(pos), typ: previewBlockType))
+      ###############
+      # Render Code #
+      ###############
 
-    var numPositions = 0
-    positionsBuffer.mapWriteBlock:
-      colorsBuffer.mapWriteBlock:
-        for pos, typ in allBlockPositions():
-          let posx = float32(pos.x)
-          let posy = float32(pos.y)
-          positionsBuffer[numPositions] = vec4f(posx, posy, 0, 1)
-          colorsBuffer[numPositions] = colorsArray[typ]
-          numPositions += 1
+      glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-    proc renderMeshInstanced(mesh: SimpleMesh; objectPos, objectColor: ArrayBuffer[Vec4f], numInstances: int ): void =
+      #renderText("score: " & $score,       vec2i(20, 20))
+      #renderText("level: " & $level,       vec2i(20, 40))
+      #renderText("lines: " & $clearedRows, vec2i(20, 60))
+      iterator allBlockPositions(): tuple[pos:Vec2f; typ: int] =
+        for y, row in fieldRows:
+          for x, value in row:
+            let tile = fieldRows[y][x]
+            if tile > -1:
+              let pos = vec2f(float32(x),float32(y))
+              yield((pos: pos, typ: tile))
+
+        let visualBlockState = playerAnimation.animate(gameTime)
+        for pos in blockPositions(visualBlockState.state.position, visualBlockState.state.rotation, blockType):
+          yield((pos: pos, typ: blockType))
+
+        if score > 0 and gameTime < insertAnimation.endTime:
+          let visualBlockState = insertAnimation.animate(gameTime)
+          for pos in blockPositions(visualBlockState.state.position, visualBlockState.state.rotation, lastBlockType):
+            yield((pos: pos, typ: lastBlockType))
+
+        for pos in blockPositions(nextBlockPos, previewBlockRot, previewBlockType):
+          yield((pos: vec2f(pos), typ: previewBlockType))
+
+      var numPositions = 0
+      positionsBuffer.mapWriteBlock:
+        colorsBuffer.mapWriteBlock:
+          for pos, typ in allBlockPositions():
+            let posx = float32(pos.x)
+            let posy = float32(pos.y)
+            positionsBuffer[numPositions] = vec4f(posx, posy, 0, 1)
+            colorsBuffer[numPositions] = colorsArray[typ]
+            numPositions += 1
+
+      proc renderMeshInstanced(mesh: SimpleMesh; objectPos, objectColor: ArrayBuffer[Vec4f], numInstances: int ): void =
+        shadingDsl:
+          primitiveMode = GL_TRIANGLES
+          numVertices   = mesh.indicesLen
+          indices       = mesh.indices
+          numInstances  = numInstances
+
+          uniforms:
+            proj = projection_mat
+            modelView = camera.viewMat
+
+          attributes:
+            a_vertex   = mesh.vertices
+            a_normal   = mesh.normals
+            a_texCoord = mesh.colors
+            objectPos   {.divisor: 1.}
+            objectColor {.divisor: 1.}
+
+          vertexMain:
+            """
+            gl_Position = proj * modelView * vec4(a_vertex.xyz + objectPos.xyz, 1);
+            v_normal = modelView * a_normal;
+            v_Color = vec4(a_texCoord.x + a_texCoord.y) * objectColor;
+            """
+
+          vertexOut:
+            "out vec4 v_normal"
+            "out vec4 v_Color"
+
+          fragmentMain:
+            """
+            // cheap fake lighting from camera direction
+            color = v_Color * v_normal.z;
+            """
+
+      renderMeshInstanced(icosphereMesh, positionsBuffer, colorsBuffer, numPositions)
+      renderMeshInstanced(boxMesh, framePositionsBuffer, frameColorsBuffer, framePositionsBuffer.len)
+
+      let modelViewProj = projection_mat * camera.viewMat * planeNode.modelMat
+
       shadingDsl:
         primitiveMode = GL_TRIANGLES
-        numVertices   = mesh.indicesLen
-        indices       = mesh.indices
-        numInstances  = numInstances
-
+        numVertices = 12
         uniforms:
-          proj = projection_mat
-          modelView = camera.viewMat
+          modelViewProj
 
         attributes:
-          a_vertex   = mesh.vertices
-          a_normal   = mesh.normals
-          a_texCoord = mesh.colors
-          objectPos   {.divisor: 1.}
-          objectColor {.divisor: 1.}
+          a_vertex   = planeVertices
 
         vertexMain:
           """
-          gl_Position = proj * modelView * vec4(a_vertex.xyz + objectPos.xyz, 1);
-          v_normal = modelView * a_normal;
-          v_Color = vec4(a_texCoord.x + a_texCoord.y) * objectColor;
+          gl_Position = modelViewProj * a_vertex;
+          v_pos_os = a_vertex;
           """
-
         vertexOut:
-          "out vec4 v_normal"
-          "out vec4 v_Color"
-
+          "out vec4 v_pos_os"
         fragmentMain:
           """
-          // cheap fake lighting from camera direction
-          color = v_Color * v_normal.z;
+          color = vec4(fract(v_pos_os.xy) * 0.1, 0, 1);
           """
-
-    renderMeshInstanced(icosphereMesh, positionsBuffer, colorsBuffer, numPositions)
-    renderMeshInstanced(boxMesh, framePositionsBuffer, frameColorsBuffer, framePositionsBuffer.len)
-
-    let modelViewProj = projection_mat * camera.viewMat * planeNode.modelMat
-
-    shadingDsl:
-      primitiveMode = GL_TRIANGLES
-      numVertices = 12
-      uniforms:
-        modelViewProj
-
-      attributes:
-        a_vertex   = planeVertices
-
-      vertexMain:
-        """
-        gl_Position = modelViewProj * a_vertex;
-        v_pos_os = a_vertex;
-        """
-      vertexOut:
-        "out vec4 v_pos_os"
-      fragmentMain:
-        """
-        color = vec4(fract(v_pos_os.xy) * 0.1, 0, 1);
-        """
 
     glSwapWindow(window)
 

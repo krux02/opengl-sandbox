@@ -106,11 +106,13 @@ proc screenshot*(window : sdl2.WindowPtr; basename : string) : bool {.discardabl
   os.createDir "screenshots"
 
   var i = 0
-  template filename : string = "screenshots/" & basename & "_" & intToStr(i,4) & ".bmp"
+  template filename : string = getAppDir() / "screenshots" / (basename & "_" & intToStr(i,4) & ".png")
   while os.fileExists(filename):
     i += 1
+    if i >= 10000:
+      echo "too many screenshots with the same base name: ", basename
 
-  if surface.saveBMP(filename):
+  if surface.savePNG(filename) == 0:
     echo sdl2.getError()
     return false
 
