@@ -1,5 +1,4 @@
 ## not a graphical demo here, just a console in development that might get integrated with rendering and stuff.
-
 import rdstdin, strutils, sequtils, parseutils, macros, typetraits
 
 proc parseArg[T](arg: string): tuple[couldParse: bool, value: T] =
@@ -19,6 +18,18 @@ macro parseArgument(argsIdent: untyped; argIdent: untyped; typ: typed; argId: st
     if not parseOk:
       stderr.writeLine("argument ", `idLit`, " (", `argsIdent`[`idLit`], ") cannot be parsed as type ", `typeStrLit`)
       return
+
+macro parseVarargs(argsIdent: untyped; argIdent; typ: typed; argId: static[int]): untyped =
+  let idLit      = newLit(argId)
+  let typeStrLit = newLit(typ.repr)
+  result = quote do:
+    var `argIdent` = newSeq[`typ`](0)
+    for i in `argId` ..< `argsIdent`.len:
+      let (parseOk, value) = parseArg[`typ`](`argsIdent`[i])
+      if not parseOk:
+        stderr.writeLine("argument ", `idLit`, " (", `argsIdent`[`idLit`], ") cannot be parsed as type ", `typeStrLit`)
+        return
+      `argIdent`.add value
 
 type CommandProc = proc(args: openarray[string]): void
 
@@ -44,7 +55,9 @@ proc stripPrefix(arg, prefix: string): string =
   else:
     result = arg
 
-macro genCommandFacade(impl: typed): untyped =
+macro interpreterCommand(impl: typed): untyped =
+  ## Inteded to be called as a pragma on a procedure.
+  ## Generates the wrapper code so that the procedure can be called from the interpreter
   let comment =
     if impl.body.kind == nnkStmtList and impl.body[0].kind == nnkCommentStmt:
       $impl.body[0]
@@ -59,6 +72,7 @@ macro genCommandFacade(impl: typed): untyped =
   var paramTypes    = newSeq[NimNode](0)
   let params = impl[3]
   let argsIdent = genSym(nskParam, "args")
+  var hasVarargs = newLit(false)
 
   for i in 1 ..< params.len:
     let identDefs = params[i]
@@ -68,48 +82,79 @@ macro genCommandFacade(impl: typed): untyped =
   let parseArgumentCalls = newStmtList()
 
   let commandCall = newCall(arg)
-  for i, paramType in paramTypes:
-    let paramIdent = genSym(nskLet, "arg" & $(i+1))
-    parseArgumentCalls.add newCall(bindSym"parseArgument", argsIdent, paramIdent, paramType, newLit(i+1))
-    commandCall.add paramIdent
 
+  for i, paramType in paramTypes:
+    # varargs
+    if paramType.kind == nnkBracketExpr and paramType[0] == bindSym"varargs":
+      if i != paramTypes.high:
+        error("varargs needs to be last", paramType)
+      #echo "hoohoo"
+      let paramIdent = genSym(nskVar, "arg" & $(i+1))
+      parseArgumentCalls.add newCall(bindSym"parseVarargs", argsIdent, paramIdent, paramType[1], newLit(i+1))
+      commandCall.add paramIdent
+      hasVarargs = newLit(true)
+    else:
+      echo paramType.lispRepr
+      let paramIdent = genSym(nskLet, "arg" & $(i+1))
+      parseArgumentCalls.add newCall(bindSym"parseArgument", argsIdent, paramIdent, paramType, newLit(i+1))
+      commandCall.add paramIdent
 
   let numParamsLit = newLit(paramTypes.len)
   let facadeSym = genSym(nskProc, name & "_facade")
   result = quote do:
     proc `facadeSym`(`argsIdent`: openarray[string]): void =
-      if `argsIdent`.len != `numParamsLit` + 1:
-        stderr.writeLine("expect ", `numParamsLit`, " arguments, got ", `argsIdent`.len - 1, " arguments")
-        return
+      when `hasVarargs`:
+        if `argsIdent`.len - 1  < `numParamsLit` - 1:
+          stderr.writeLine("expect at least ", `numParamsLit` - 1, " arguments, got ", `argsIdent`.len - 1, " arguments")
+          return
+      else:
+        if `argsIdent`.len - 1 != `numParamsLit`:
+          stderr.writeLine("expect ", `numParamsLit`, " arguments, got ", `argsIdent`.len - 1, " arguments")
+          return
 
       `parseArgumentCalls`
-
       `commandCall`
 
     registerCommand(`commandNameLit`, `facadeSym`, `commentLit`)
 
-  #echo result.repr
+  echo result.repr
 
-proc add(arg1: int; arg2: int): void {.genCommandFacade.} =
+proc add(arg1: int; arg2: int): void {.interpreterCommand.} =
   ## adds two numbers
   let res = arg1 + arg2
   echo arg1, " + ", arg2, " = ", res
 
-proc add3(arg1,arg2,arg3: int): void {.genCommandFacade.} =
+proc add3(arg1,arg2,arg3: int): void {.interpreterCommand.} =
   ## adds three numbers
   let res = arg1 + arg2 + arg3
   echo arg1, " + ", arg2, " + ", arg3, " = ", res
 
-proc mult(arg1,arg2: int): void {.genCommandFacade.} =
+proc mult(arg1,arg2: int): void {.interpreterCommand.} =
   ## multiplies two numbers
   echo arg1, " * ", arg2, " = ", arg1 * arg2
 
-proc commands(): void {.genCommandFacade.} =
+# if the last argument is varargs, it also works in the interpreter
+proc sum(arg1: int; args: varargs[int]): void {.interpreterCommand.} =
+  ## sum up all arguments, at least one
+  var accum: int = arg1
+  for arg in args:
+    accum += arg
+  echo "sum: ", accum
+
+# if the last argument is varargs, it also works in the interpreter
+proc prod(args: varargs[int]): void {.interpreterCommand.} =
+  ## multiply up all arguments
+  var accum: int = 1
+  for arg in args:
+    accum *= arg
+  echo "prod: ", accum
+
+proc commands(): void {.interpreterCommand.} =
   ## list all functions
   for name, _, comment in registeredCommands.items:
     echo name, "\t", comment
 
-proc help(arg: string): void {.genCommandFacade.} =
+proc help(arg: string): void {.interpreterCommand.} =
   ## prints documentation of a single function
   for name, _, comment in registeredCommands.items:
     if name == arg:
