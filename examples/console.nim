@@ -88,13 +88,11 @@ macro interpreterCommand(impl: typed): untyped =
     if paramType.kind == nnkBracketExpr and paramType[0] == bindSym"varargs":
       if i != paramTypes.high:
         error("varargs needs to be last", paramType)
-      #echo "hoohoo"
       let paramIdent = genSym(nskVar, "arg" & $(i+1))
       parseArgumentCalls.add newCall(bindSym"parseVarargs", argsIdent, paramIdent, paramType[1], newLit(i+1))
       commandCall.add paramIdent
       hasVarargs = newLit(true)
     else:
-      echo paramType.lispRepr
       let paramIdent = genSym(nskLet, "arg" & $(i+1))
       parseArgumentCalls.add newCall(bindSym"parseArgument", argsIdent, paramIdent, paramType, newLit(i+1))
       commandCall.add paramIdent
@@ -117,26 +115,21 @@ macro interpreterCommand(impl: typed): untyped =
 
     registerCommand(`commandNameLit`, `facadeSym`, `commentLit`)
 
-  echo result.repr
+  #echo result.repr
 
 proc add(arg1: int; arg2: int): void {.interpreterCommand.} =
   ## adds two numbers
   let res = arg1 + arg2
   echo arg1, " + ", arg2, " = ", res
 
-proc add3(arg1,arg2,arg3: int): void {.interpreterCommand.} =
-  ## adds three numbers
-  let res = arg1 + arg2 + arg3
-  echo arg1, " + ", arg2, " + ", arg3, " = ", res
-
 proc mult(arg1,arg2: int): void {.interpreterCommand.} =
   ## multiplies two numbers
   echo arg1, " * ", arg2, " = ", arg1 * arg2
 
 # if the last argument is varargs, it also works in the interpreter
-proc sum(arg1: int; args: varargs[int]): void {.interpreterCommand.} =
+proc sum(args: varargs[int]): void {.interpreterCommand.} =
   ## sum up all arguments, at least one
-  var accum: int = arg1
+  var accum: int
   for arg in args:
     accum += arg
   echo "sum: ", accum
@@ -175,8 +168,11 @@ block main:
 
   while readLineFromStdin("> ", line):
     #echo "got line: ", line
+    var arguments = newSeq[string](0)
+    for arg in split(line):
+      if arg != "":
+        arguments.add arg
 
-    let arguments = toSeq(split(line))
     if arguments.len > 0:
       let command = arguments[0]
       if command.len > 0:
