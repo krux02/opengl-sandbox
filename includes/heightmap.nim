@@ -11,7 +11,7 @@ proc data*(hm: HeightMap): seq[float32] = hm.dataseq
 
 template linearIndex(x,y): untyped =
   (x and (hm.w - 1)) + hm.w * (y and hm.h - 1)
-  
+
 proc `[]`*(hm: HeightMap, x,y: int): float32 {. inline .} =
   hm.dataseq[linearIndex(x,y)]
 
@@ -22,14 +22,14 @@ proc `[]`*(hm: HeightMap, x,y: float32): float32 {. inline .} =
   let
     bx = x.floor.int
     by = y.floor.int
-    
+
     d1 = hm.dataseq[linearIndex(bx  , by  )]
     d2 = hm.dataseq[linearIndex(bx+1, by  )]
     d3 = hm.dataseq[linearIndex(bx  , by+1)]
     d4 = hm.dataseq[linearIndex(bx+1, by+1)]
 
-    rx = x - x.floor
-    ry = y - y.floor
+    rx = fract(x)
+    ry = fract(y)
 
   mix( mix(d1,d2, rx), mix(d3,d4, rx), ry )
 
@@ -131,7 +131,7 @@ proc minMax*(hm: HeightMap): (float,float) =
     result[0] = min(result[0], v)
     result[1] = max(result[1], v)
 
-# TODO add to glm  
+# TODO add to glm
 proc linMap(v,min,max, newMin, newMax: float32): float32 =
   (v - min) * (newMax - newMin) / (max - min) + newMin
 
@@ -206,5 +206,3 @@ proc newHeightMap*(width,height: int): HeightMap =
   result.w = width
   result.h = height
   result.dataseq = newSeq[float32](width*height)
-
-
