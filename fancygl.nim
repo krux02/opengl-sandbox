@@ -2,7 +2,12 @@
 ############################### fancy gl ###############################
 ########################################################################
 import opengl, glm, math, random, strutils, macros,
-       includes/macroutils, sdl2, sdl2/image, sdl2/ttf, os, terminal, includes/basic_random
+       sdl2, sdl2/image, sdl2/ttf, os, terminal
+
+import fancyglpkg/[
+  macroutils,
+  basic_random
+]
 
 proc panic*(message: varargs[string, `$`]): void {. noreturn .} =
   ## nobody cares about exception classes
@@ -11,13 +16,26 @@ proc panic*(message: varargs[string, `$`]): void {. noreturn .} =
     msg.add msgFract
   raise newException(Exception, msg)
 
-include includes/etc, includes/glm_additions, includes/stopwatch, includes/default_setup, includes/shapes, includes/typeinfo, includes/samplers, includes/samplertypeinfo,
-       includes/framebuffer, includes/glwrapper, includes/heightmap, includes/iqm, includes/camera, includes/sdladditions, includes/cameraControls, includes/shadingDsl
-
-include includes/text
+include fancyglpkg/etc
+include fancyglpkg/glm_additions
+include fancyglpkg/stopwatch
+include fancyglpkg/default_setup
+include fancyglpkg/shapes
+include fancyglpkg/typeinfo
+include fancyglpkg/samplers
+include fancyglpkg/samplertypeinfo
+include fancyglpkg/framebuffer
+include fancyglpkg/glwrapper
+include fancyglpkg/heightmap
+include fancyglpkg/iqm
+include fancyglpkg/camera
+include fancyglpkg/sdladditions
+include fancyglpkg/cameraControls
+include fancyglpkg/shadingDsl
+include fancyglpkg/text
 
 export opengl, glm, sdl2, basic_random, macroutils.s
 export math.arctan2
 
 when (not defined release) and (not defined windows) and (not defined nogdbsection):
-  include includes/debug
+  include fancyglpkg/debug
