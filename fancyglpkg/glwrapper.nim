@@ -742,7 +742,9 @@ const parseErrors = not defined(noregexp)
 
 when parseErrors:
   import nre
-  proc showError(log: string, source: string): void =
+  proc showError(log: string; source: string; lineinfo: LineInfo): void =
+    stdout.styledWriteLine(fgRed, $lineinfo, " shader compile fail")
+
     let lines = source.splitLines
     var problems = newSeq[tuple[lineNr: int, message: string]](0)
     # matches on intel driver
@@ -767,10 +769,13 @@ when parseErrors:
         if problem.lineNr == lineNr:
           stdout.styledWriteLine("     ", fgRed, problem.message)
     stdout.styledWriteLine(fgGreen, "------------------------------------------------------------------")
+
+    stdout.styledWriteLine(fgGreen, "------------------------------------------------------------------")
     stdout.styledWriteLine(fgRed, log)
     stdout.styledWriteLine(fgGreen, "==== end Shader Problems =========================================")
 else:
-  proc showError(log: string; source: string): void =
+  proc showError(log: string; source: string, lineinfo: LineInfo): void =
+    stdout.styledWriteLine(fgRed, $lineinfo, " shader compile fail")
     stdout.styledWriteLine(fgGreen, "==== start Shader Problems =======================================")
     let lines = source.splitLines
     for i, line in lines:
@@ -787,13 +792,13 @@ proc infoLog(program: Program): string =
   result = newString(length.int)
   glGetProgramInfoLog(program.handle, length, nil, result);
 
-proc compileShader*(shaderType: GLenum, source: string): Shader =
+proc compileShader*(shaderType: GLenum, source: string, lineinfo: LineInfo): Shader =
   result.handle = glCreateShader(shaderType)
   result.shaderSource(source)
   glCompileShader(result.handle)
 
   if not result.compileStatus:
-    showError(result.shaderInfoLog, source)
+    showError(result.shaderInfoLog, source, lineinfo)
 
 proc attachAndDeleteShader*(program: Program; shader: Shader): void =
   glAttachShader(program.handle, shader.handle)

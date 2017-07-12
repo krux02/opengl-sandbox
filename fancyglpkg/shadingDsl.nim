@@ -28,6 +28,18 @@ void main() {
 }
 """
 
+const
+  userCodePrefix = """
+////////////////////////////////////////////////////////////////////////////////
+//                            user code begins here                           //
+"""
+  userCodePostfix = """
+
+//                            user code ends here                             //
+////////////////////////////////////////////////////////////////////////////////
+"""
+
+
 proc genShaderSource(
     sourceHeader: string,
     uniforms : openArray[string],
@@ -51,7 +63,9 @@ proc genShaderSource(
     result.add incl
 
   result.add("void main() {\n")
+  result.add(userCodePrefix)
   result.add(mainSrc)
+  result.add(userCodePostfix)
   result.add("\n}\n")
 
 proc forwardVertexShaderSource(sourceHeader: string,
@@ -167,8 +181,8 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
   var includesSection : seq[string] = @[]
   var vertexMain: NimNode
   var geometryLayout: string
-  var geometryMain: string
-  var fragmentMain: string
+  var geometryMain: NimNode
+  var fragmentMain: NimNode
   var hasIndices = false
   var indexType: NimNode = nil
   var sizeofIndexType = 0
@@ -246,7 +260,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
         let baseString = s"uniform $glslType $name"
 
         let loc = getLocation(numLocations)
-        let warningLit = newLit(value.lineinfo & " Hint: unused uniform: " & name)
+        let warningLit = newLit($value.lineinfoObj & " Hint: unused uniform: " & name)
 
         initUniformsBlock.add(quote do:
           `loc`.index = glGetUniformLocation(`program`.handle, `nameLit`)
@@ -297,7 +311,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
         let divisorLit = newLit(divisorVal)
 
-        let warningLit = newLit(value.lineinfo & " Hint: unused attribute: " & name)
+        let warningLit = newLit($value.lineinfoObj & " Hint: unused attribute: " & name)
 
         bufferCreationBlock.addAll(quote do:
           `location` = attributeLocation(`program`, `nameLit`)
@@ -356,12 +370,12 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
       vertexMain = call[1]
 
     of "fragmentMain":
-      fragmentMain = call[1].strVal
+      fragmentMain = call[1]
 
     of "geometryMain":
 
       geometryLayout = call[1].strVal
-      geometryMain = call[2].strVal
+      geometryMain = call[2]
 
     else:
       error "unknown section", call[0]
@@ -419,9 +433,10 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
     error "numVertices needs to be assigned"
 
   let vsSrcLit = newLit vertexShaderSource
+  let lineinfoLit = newLit(vertexMain.lineinfoObj)
 
   var compileShaderBlock = quote do:
-    `program`.attachAndDeleteShader(compileShader(GL_VERTEX_SHADER, `vsSrcLit`))
+    `program`.attachAndDeleteShader(compileShader(GL_VERTEX_SHADER, `vsSrcLit`, `lineinfoLit`))
 
   if not geometryMain.isNil:
     var geometryHeader = sourceHeader
@@ -430,20 +445,21 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
     geometryHeader &= "\n"
     geometryHeader &= geometryLayout
     geometryHeader &= ";\n"
-    let gsSrcLit = newLit genShaderSource(geometryHeader, uniformsSection, vertexOutSection, geometryNumVerts(mode.intVal.GLenum), geometryOutSection, includesSection, geometryMain)
-
+    let gsSrcLit = newLit genShaderSource(geometryHeader, uniformsSection, vertexOutSection, geometryNumVerts(mode.intVal.GLenum), geometryOutSection, includesSection, geometryMain.strVal)
+    let lineinfoLit = newLit(geometryMain.lineinfoObj)
     compileShaderBlock.addAll(quote do:
-      `program`.attachAndDeleteShader(compileShader(GL_GEOMETRY_SHADER, `gsSrcLit`))
+      `program`.attachAndDeleteShader(compileShader(GL_GEOMETRY_SHADER, `gsSrcLit`, `lineinfoLit`))
     )
 
   if not fragmentMain.isNil:
     var fsSrcLit =
       if geometryMain.isNil:
-        newLit genShaderSource(sourceHeader, uniformsSection, vertexOutSection, -1, fragmentOutSection, includesSection, fragmentMain)
+        newLit genShaderSource(sourceHeader, uniformsSection, vertexOutSection, -1, fragmentOutSection, includesSection, fragmentMain.strVal)
       else:
-        newLit genShaderSource(sourceHeader, uniformsSection, geometryOutSection, -1, fragmentOutSection, includesSection, fragmentMain)
+        newLit genShaderSource(sourceHeader, uniformsSection, geometryOutSection, -1, fragmentOutSection, includesSection, fragmentMain.strVal)
+    let lineinfoLit = newLit(fragmentMain.lineinfoObj)
     compileShaderBlock.addAll(quote do:
-      `program`.attachAndDeleteShader(compileShader(GL_FRAGMENT_SHADER, `fsSrcLit`))
+      `program`.attachAndDeleteShader(compileShader(GL_FRAGMENT_SHADER, `fsSrcLit`, `lineinfoLit`))
     )
 
   if transformFeedbackVaryingNames.len > 0:
