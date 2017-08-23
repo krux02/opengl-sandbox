@@ -1,7 +1,7 @@
 
 #+SEQ_TODO: NEXT(n) TODO(t) | DONE(d)
 
-* DSL [3/10]
+* DSL [3/13]
 
 ** DONE Add user code sctions for afterSetup, beforeRender, afterRender
 ** TODO Document user code sections for afterSetup, beforeRender, afterRender
@@ -12,9 +12,10 @@
 *** TODO easy transformation of buffers/views to transform feedback objects
 ** TODO unifom buffer
 ** TODO tesselation shader stages
-** TODO polymorphic shaders (using glSubroutine)
+** TODO polymorphic shaders (using glSubroutine) (probably not possible as thought)
 ** TODO compute shaders
 ** TODO modular shader system
+*** TODO VAO bindings should be fixed and not depending on the attibute location (allows to recompile the shader when the locations change)
 ** TODO forward vertex shader when only geometry shader is available
 ** TODO infer primitive mode from buffer
 ** DONE In DSL move indices from attributes to named argument section
