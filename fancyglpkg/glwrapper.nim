@@ -111,10 +111,6 @@ type
     ## Can be -1 for uniforms/attributes that are optimized out
     index*: GLint
 
-  Binding* = object
-    ## index of a buffer attached to a vertex array objact
-    index*: GLuint
-
 proc isNil*(program: Program): bool =
   program.handle == 0
 
@@ -354,8 +350,12 @@ proc `label=`*(arg: Shader; label: string): void =
 
 #### Vertex Array Object ####
 
-type VertexArrayObject* = object
+type
+  VertexArrayObject* = object
     handle*: GLuint
+
+  VertexArrayObjectBinding* = object
+    index*: GLuint
 
 proc label*(arg: VertexArrayObject): string =
   const bufsize = 255
@@ -376,12 +376,11 @@ proc newVertexArrayObject*(label: string = nil) : VertexArrayObject =
 proc delete*(vao: VertexArrayObject) =
   glDeleteVertexArrays(1, vao.handle.unsafeAddr)
 
-proc divisor*(vao: VertexArrayObject; binding: Binding; divisor: GLuint) : void =
+proc divisor*(vao: VertexArrayObject; binding: VertexArrayObjectBinding; divisor: GLuint) : void =
   glVertexArrayBindingDivisor(vao.handle, binding.index, divisor)
 
-proc enableAttrib*(vao: VertexArrayObject, location: Location) : void =
-  if location.index >= 0:
-    glEnableVertexArrayAttrib(vao.handle, location.index.GLuint)
+proc enableAttrib*(vao: VertexArrayObject, location: VertexArrayObjectBinding) : void =
+  glEnableVertexArrayAttrib(vao.handle, location.index)
 
 ################################################################################
 ################################ Array  Buffers ################################
@@ -837,6 +836,18 @@ proc readPixel*(x,y: int) : Color =
 
 proc readPixel*(pos: Vec2i) : Color = readPixel(pos.x.int, pos.y.int)
 
+proc setFormat*[T](vao: VertexArrayObject, binding: VertexArrayObjectBinding, buffer: ArrayBuffer[T]) =
+  glVertexArrayAttribFormat(vao.handle, binding.index, attribSize(T), attribType(T), attribNormalized(T), #[ relative offset ?! ]# 0);
+
+proc setFormat*[S,T](vao: VertexArrayObject; binding: VertexArrayObjectBinding; view: ArrayBufferView[S,T]): void =
+  glVertexArrayAttribFormat(vao.handle, binding.index, attribSize(view.T), attribType(view.T), attribNormalized(view.T), #[ relative offset ?! ]# 0);
+
+proc setBuffer*[T](vao: VertexArrayObject; binding: VertexArrayObjectBinding; buffer: ArrayBuffer[T]): void =
+  glVertexArrayVertexBuffer(vao.handle, binding.index, buffer.handle, 0, GLsizei(sizeof(T)))
+
+proc setBuffer*(vao: VertexArrayObject; binding: VertexArrayObjectBinding; view: ArrayBufferView): void =
+  glVertexArrayVertexBuffer(vao.handle, binding.index, view.buffer.handle, GLsizei(view.offset), GLsizei(view.stride))
+
 ##########################
 # # transform feedback # #
 ##########################
@@ -929,7 +940,6 @@ layout(xfb_buffer = 0, xfb_stride = 36) out bananas {
 
 proc delete*(tf: TransformFeedback): void =
   glDeleteTransformFeedbacks(GLsizei(1), tf.handle.unsafeAddr)
-
 
 proc bufferBase*(tf: TransformFeedback; index: int; buffer: ArrayBuffer): void =
   glTransformFeedbackBufferBase(tf.handle, GLuint(index), buffer.handle)

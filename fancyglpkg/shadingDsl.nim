@@ -89,38 +89,6 @@ proc forwardVertexShaderSource(sourceHeader: string,
 
   echo "forwardVertexShaderSource:\n", result
 
-proc bindAndAttribPointer*[T](vao: VertexArrayObject, buffer: ArrayBuffer[T], location: Location) =
-  if 0 <= location.index:
-    let loc = location.index.GLuint
-    glVertexArrayVertexBuffer(vao.handle, loc, buffer.handle, 0, GLsizei(sizeof(T)))
-    glVertexArrayAttribFormat(vao.handle, loc, attribSize(T), attribType(T), attribNormalized(T), #[ relative offset ?! ]# 0);
-    glVertexArrayAttribBinding(vao.handle, loc, loc)
-
-proc bindAndAttribPointer*[S,T](vao: VertexArrayObject; view: ArrayBufferView[S,T]; location: Location): void =
-  if 0 <= location.index:
-    let loc = location.index.GLuint
-    glVertexArrayVertexBuffer(vao.handle, loc, view.buffer.handle, GLsizei(view.offset), GLsizei(view.stride))
-    glVertexArrayAttribFormat(vao.handle, loc, attribSize(view.T), attribType(view.T), attribNormalized(view.T), #[ relative offset ?! ]# 0);
-    glVertexArrayAttribBinding(vao.handle, loc, loc)
-
-proc setBuffer*[T](vao: VertexArrayObject; buffer: ArrayBuffer[T]; location: Location): void =
-  if 0 <= location.index:
-    let loc = location.index.GLuint
-    glVertexArrayVertexBuffer(vao.handle, loc, buffer.handle, 0, GLsizei(sizeof(T)))
-
-proc setBuffer*(vao: VertexArrayObject; view: ArrayBufferView; location: Location): void =
-  if 0 <= location.index:
-    let loc = location.index.GLuint
-    glVertexArrayVertexBuffer(vao.handle, loc, view.buffer.handle, GLsizei(view.offset), GLsizei(view.stride))
-
-
-#ArrayBufferView*[S,T] = object
-#    buffer*: ArrayBuffer[S]
-#    offset*, stride*: int
-
-proc binding*(loc: Location): Binding =
-  result.index = loc.index.GLuint
-
 type
   RenderObject*[N: static[int]] = object
     vao*: VertexArrayObject
@@ -289,6 +257,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
         numLocations += 1
 
     of "attributes":
+      var binding: VertexArrayObjectBinding
       for innerCall in call[1][1].items:
         innerCall[1].expectKind nnkStrLit
         let name = $innerCall[1]
@@ -313,27 +282,34 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
         let warningLit = newLit($value.lineinfoObj & " Hint: unused attribute: " & name)
 
+
+        let bindingLit : NimNode = newLit(binding)
+
         bufferCreationBlock.addAll(quote do:
+
+          # this needs to change, when multiple attributes per buffer
+          # should be supported (offset in buffer)
+          let binding = `bindingLit`
+          glEnableVertexArrayAttrib(`vao`.handle, binding.index)
+          glVertexArrayBindingDivisor(`vao`.handle, binding.index, `divisorLit`)
+          setFormat(`vao`, binding, `value`)
+
           `location` = attributeLocation(`program`, `nameLit`)
-          # this needs to change, when multiple
-          # attributes per buffer should be supported
           if 0 <= `location`.index:
-            enableAttrib(`vao`, `location`)
-            glVertexArrayBindingDivisor(`vao`.handle, binding(`location`).index, `divisorLit`)
+            glVertexArrayAttribBinding(`vao`.handle, binding.index, uint32(`location`.index))
           else:
             writeLine stderr, `warningLit`
-
-          bindAndAttribPointer(`vao`, `value`, `location`)
         )
 
         drawBlock.addAll(quote do:
-          setBuffer(`vao`, `value`, `location`)
+          setBuffer(`vao`, `bindingLit`, `value`)
         )
 
         attribNames.add( name )
         attribTypes.add( glslType )
         # format("in $1 $2", value.glslAttribType, name) )
         numLocations += 1
+        binding.index += 1
 
     of "vertexOut":
       #echo "vertexOut"
