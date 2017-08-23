@@ -2,14 +2,29 @@ import ../fancygl
 
 let (window, context) = defaultSetup()
 
-let vertices = arrayBuffer([vec4f(-1,-1,0,1), vec4f(1,-1,0,1), vec4f(0,1,0,1)])
-let colors   = arrayBuffer([vec4f( 1, 0,0,1), vec4f(0, 1,0,1), vec4f(0,0,1,1)])
-let moreData = arrayBuffer([vec2f(0,0), vec2f(1,0), vec2f(0,1)])
+let vertices = arrayBuffer([
+  vec4f(-1,-1, 0, 1),
+  vec4f( 1,-1, 0, 1),
+  vec4f( 0, 1, 0, 1)
+])
+
+let colors   = arrayBuffer([
+  vec4f( 1, 0,0,1),
+  vec4f(0, 1,0,1),
+  vec4f(0,0,1,1)
+])
+
+let indices = elementArrayBuffer([
+  0'u16, 1, 2
+])
 
 var evt: Event
 var runGame: bool = true
 
 let timer = newStopWatch(true)
+
+let aspect = float32(window.size.x / window.size.y)
+let proj : Mat4f = frustum(-aspect * 0.01f, aspect * 0.01f, -0.01f, 0.01f, 0.01f, 100.0)
 
 while runGame:
   while pollEvent(evt):
@@ -19,24 +34,33 @@ while runGame:
     if evt.kind == KeyDown and evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE:
       runGame = false
 
+  let time = timer.time.float32
+
+  let viewMat = mat4f(1)
+    .translate(0,1,5)            # position camera at position 0,1,5
+    .rotateX(Pi * -0.05)         # look a bit down
+    .inverse                     # the camera matrix needs to be inverted
+
+  let modelMat = mat4f(1)
+    .rotateY(time)               # rotate the triangle
+    .scale(3)                    # scale the triangle to be big enough on screen
+
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
   shadingDsl:
     primitiveMode = GL_TRIANGLES
     numVertices = 3
+    indices = indices
     uniforms:
-      time = timer.time.float32
+      modelView = viewMat * modelMat
+      proj
     attributes:
       a_vertex = vertices
       a_color  = colors
-      moreData
     vertexMain:
       """
-      gl_Position = a_vertex;
-      gl_Position.x += sin(time) * 0.1;
-      gl_Position.y += cos(time) * 0.1;
+      gl_Position = proj * modelView * a_vertex;
       v_color = a_color;
-      v_color.rg += moreData;
       """
     vertexOut:
       "out vec4 v_color"

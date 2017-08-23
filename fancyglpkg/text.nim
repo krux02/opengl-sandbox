@@ -21,7 +21,7 @@ macro getSymbolLineinfo(arg: typed): string =
   result = newLit(arg.symbol.getImpl.lineinfo)
 
 proc init(self: ptr TextRenderer): void =
-  self.textHeight = 14 * 16
+  self.textHeight = 14 #* 16
 
   for path in fontPaths:
     self.font = ttf.openFont(path, self.textHeight.cint)
@@ -55,7 +55,10 @@ proc textRenderer(): var TextRenderer =
   this[]
 
 proc textureArray(this: TextRenderer; strings: openarray[string]): Texture2DArray =
-  var maxWidth = 0
+  if strings.len == 0:
+    return
+
+  var maxSize: Vec2i
   var surfaces = newSeq[SurfacePtr](strings.len)
 
   for i, str in strings:
@@ -63,10 +66,10 @@ proc textureArray(this: TextRenderer; strings: openarray[string]): Texture2DArra
       let surf = renderTextShaded(this.font, str, this.fg, this.bg)
       assert surf != nil
       surf.flipY
-      maxWidth = max(maxWidth, surf.w)
+      maxSize = max(maxSize, surf.size)
       surfaces[i] = surf
 
-  result = newTexture2DArray(vec2i(maxWidth.int32, this.textHeight.int32 + 2), strings.len, 1)
+  result = newTexture2DArray(maxSize, strings.len, 1)
 
   for i, surf in surfaces:
     if not surf.isNil:
@@ -274,7 +277,7 @@ proc text(this: var TextRenderer; str: string; pixelPos: Vec2i): void =
       this.textureWidth *= 2
 
     delete this.texture
-    this.texture = newTexture2D(vec2i(this.textureWidth.int32, this.textHeight.int32 + 2))
+    this.texture = newTexture2D(vec2i(this.texture.size.y, this.textHeight.int32 + 2))
 
   assert this.texture.size.y == surface.size.y
 

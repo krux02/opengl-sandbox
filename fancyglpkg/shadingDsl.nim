@@ -241,7 +241,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
         error("wrong kind for indices: " & $value.getTypeImpl[1].typeKind, value)
 
       drawBlock.addAll(quote do:
-        bindIt(`vao`, `value`)
+        glVertexArrayElementBuffer(`vao`.handle, `value`.handle)
       )
 
     of "uniforms":
@@ -319,7 +319,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
           # attributes per buffer should be supported
           if 0 <= `location`.index:
             enableAttrib(`vao`, `location`)
-            divisor(`vao`, binding(`location`), `divisorLit`)
+            glVertexArrayBindingDivisor(`vao`.handle, binding(`location`).index, `divisorLit`)
           else:
             writeLine stderr, `warningLit`
 
@@ -556,10 +556,10 @@ macro shadingDsl*(statement: untyped) : untyped =
     section.expectKind({nnkCall, nnkAsgn, nnkIdent})
 
     if section.kind == nnkIdent:
-      if section == ident("debugResult"):
+      if section == ident("debug"):
         wrapWithDebugResult = true
       else:
-        error("unknown identifier: " & $section.ident & " did you mean debugResult?")
+        error("unknown identifier: " & $section.ident & " did you mean debug?")
     elif section.kind == nnkAsgn:
       section.expectLen(2)
       let ident = section[0]
