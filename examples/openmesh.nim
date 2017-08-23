@@ -444,7 +444,6 @@ proc main() =
     view_mat = view_mat.translate( vec3d(0, 0, -3) )
 
     shadingDsl(GL_TRIANGLES):
-      debugResult
       numVertices = mymesh.faces.len * 3
 
       uniforms:

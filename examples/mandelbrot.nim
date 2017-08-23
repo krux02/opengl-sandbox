@@ -44,7 +44,6 @@ while runGame:
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
   shadingDsl:
-    debugResult
     uniforms:
       time = timer.time.float32
       maxIterations = 200

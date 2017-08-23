@@ -106,7 +106,6 @@ while running:
   transformFeedback.bufferBase(0, particleTarget)
 
   shadingDsl:
-    debugResult
     primitiveMode = GL_POINTS
     numVertices   = numParticles
     programIdent  = tfProgram
@@ -199,7 +198,7 @@ while running:
   glEnable(GL_BLEND)
 
   shadingDsl:
-    #debugResult
+    #debug
     primitiveMode = GL_POINTS
     numVertices   = numParticles
 

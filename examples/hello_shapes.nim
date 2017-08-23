@@ -199,24 +199,26 @@ while runGame:
         magic
 
       attributes:
-        a_vertex   = mesh.vertices
-        a_normal   = mesh.normals
-        a_texCoord = mesh.colors
+        a_vertex = mesh.vertices
+        a_normal = mesh.normals
+        a_color  = mesh.colors
 
       vertexMain:
         """
         gl_Position = proj * modelView * a_vertex;
+        v_vertex = a_vertex;
         v_normal = modelView * a_normal;
-        v_Color = a_texCoord;
+        v_color = a_color;
         """
       vertexOut:
+        "out vec4 v_vertex"
         "out vec4 v_normal"
-        "out vec4 v_Color"
+        "out vec4 v_color"
 
       fragmentMain:
         """
         // cheap fake lighting from camera direction
-        color = v_Color * v_normal.z;
+        color = v_color * v_normal.z;
         """
 
   let modelViewProj = projection_mat * camera.viewMat * planeNode.modelMat
