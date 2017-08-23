@@ -666,7 +666,8 @@ proc uniformBuffer*[T](data : T, usage: GLenum = GL_STATIC_DRAW, label: string =
 type
   ArrayBufferView*[S,T] = object
     buffer*: ArrayBuffer[S]
-    offset*: int
+    absoluteoffset*: GLsizei
+    relativeoffset*: GLuint
     stride*: int
 
 proc len*(ab: ArrayBufferView):  int = ab.buffer.len
@@ -676,14 +677,14 @@ template view*(buf: ArrayBuffer; member: untyped): untyped =
   var dummyVal : buf.T
   var res : ArrayBufferView[buf.T, dummyVal.member.type]
   res.buffer = buf
-  res.offset = cast[int](dummyVal.member.addr) - cast[int](dummyVal.addr)
+  res.relativeoffset = GLuint(cast[int](dummyVal.member.addr) - cast[int](dummyVal.addr))
   res.stride = sizeof(buf.T)
   res
 
 proc splitView*(buf: ArrayBuffer[Mat4f]): array[4, ArrayBufferView[Mat4f, Vec4f]] =
   for i in 0 .. 3:
     result[i].buffer = buf
-    result[i].offset = i * 4 * sizeof(float32)
+    result[i].relativeoffset = GLuint(i * 4 * sizeof(float32))
     result[i].stride = 4 * 4 * sizeof(float32)
 
 when isMainModule:
@@ -837,16 +838,16 @@ proc readPixel*(x,y: int) : Color =
 proc readPixel*(pos: Vec2i) : Color = readPixel(pos.x.int, pos.y.int)
 
 proc setFormat*[T](vao: VertexArrayObject, binding: VertexArrayObjectBinding, buffer: ArrayBuffer[T]) =
-  glVertexArrayAttribFormat(vao.handle, binding.index, attribSize(T), attribType(T), attribNormalized(T), #[ relative offset ?! ]# 0);
+  glVertexArrayAttribFormat(vao.handle, binding.index, attribSize(T), attribType(T), attribNormalized(T), 0);
 
 proc setFormat*[S,T](vao: VertexArrayObject; binding: VertexArrayObjectBinding; view: ArrayBufferView[S,T]): void =
-  glVertexArrayAttribFormat(vao.handle, binding.index, attribSize(view.T), attribType(view.T), attribNormalized(view.T), #[ relative offset ?! ]# 0);
+  glVertexArrayAttribFormat(vao.handle, binding.index, attribSize(T), attribType(T), attribNormalized(T), view.relativeoffset);
 
 proc setBuffer*[T](vao: VertexArrayObject; binding: VertexArrayObjectBinding; buffer: ArrayBuffer[T]): void =
   glVertexArrayVertexBuffer(vao.handle, binding.index, buffer.handle, 0, GLsizei(sizeof(T)))
 
 proc setBuffer*(vao: VertexArrayObject; binding: VertexArrayObjectBinding; view: ArrayBufferView): void =
-  glVertexArrayVertexBuffer(vao.handle, binding.index, view.buffer.handle, GLsizei(view.offset), GLsizei(view.stride))
+  glVertexArrayVertexBuffer(vao.handle, binding.index, view.buffer.handle, view.absoluteoffset, GLsizei(view.stride))
 
 ##########################
 # # transform feedback # #
