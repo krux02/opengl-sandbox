@@ -37,5 +37,5 @@ include fancyglpkg/text
 export opengl, glm, sdl2, basic_random, macroutils.s
 export math.arctan2
 
-when (not defined release) and (not defined windows) and (not defined nogdbsection):
+when not defined(release) and not defined(windows) and not defined(nogdbsection):
   include fancyglpkg/debug

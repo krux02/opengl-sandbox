@@ -30,16 +30,10 @@ proc `label=`*(arg: FrameBuffer; label: string): void =
     if not isNil label:
       glObjectLabel(GL_FRAMEBUFFER, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
 
-proc bindIt*(drb: DepthRenderbuffer): void =
-  glBindRenderbuffer(GL_RENDERBUFFER, drb.handle)
-
 proc newDepthRenderBuffer*(size: Vec2i, label: string = nil) : DepthRenderbuffer =
   glCreateRenderbuffers(1, cast[ptr GLuint](result.addr))
   glNamedRenderbufferStorage(result.handle, GL_DEPTH_COMPONENT, size.x.GLsizei, size.y.GLsizei)
   result.label = label
-
-proc bindIt*(fb: FrameBuffer): void =
-  glBindFramebuffer(GL_FRAMEBUFFER, fb.handle)
 
 proc bindDraw*(fb: FrameBuffer): void =
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fb.handle)
@@ -195,7 +189,7 @@ template blockBindFramebuffer*(name, blok: untyped): untyped =
   glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, drawfb.addr)
   glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, readfb.addr)
 
-  name.handle.bindIt
+  glBindFramebuffer(GL_FRAMEBUFFER, name.handle.handle)
   block:
     let currentFramebuffer {. inject .} = name
     const fragmentOutputs {.inject.} = name.type.fragmentOutputSeq

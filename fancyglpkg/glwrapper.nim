@@ -373,9 +373,6 @@ proc newVertexArrayObject*(label: string = nil) : VertexArrayObject =
   glCreateVertexArrays(1, result.handle.addr)
   result.label = label
 
-proc bindIt*(vao: VertexArrayObject): void =
-  glBindVertexArray(vao.handle)
-
 proc delete*(vao: VertexArrayObject) =
   glDeleteVertexArrays(1, vao.handle.unsafeAddr)
 
@@ -385,11 +382,6 @@ proc divisor*(vao: VertexArrayObject; binding: Binding; divisor: GLuint) : void 
 proc enableAttrib*(vao: VertexArrayObject, location: Location) : void =
   if location.index >= 0:
     glEnableVertexArrayAttrib(vao.handle, location.index.GLuint)
-
-template blockBind*(vao: VertexArrayObject, blk: untyped) : untyped =
-  vao.bindIt
-  blk
-  nil_vao.bindIt
 
 ################################################################################
 ################################ Array  Buffers ################################
@@ -415,9 +407,6 @@ proc new*[T](arrayBuffer: var ElementArrayBuffer[T] ) : void =
 
 proc new*[T](arrayBuffer: var UniformBuffer[T] ) : void =
   glCreateBuffers(1, arrayBuffer.handle.addr)
-
-proc bindIt*(vao: VertexArrayObject; indices: ElementArrayBuffer): void =
-  glVertexArrayElementBuffer(vao.handle, indices.handle)
 
 proc newArrayBuffer*[T](length: int, usage: GLenum = GL_STATIC_DRAW, label: string = nil): ArrayBuffer[T] =
   result.new
@@ -475,14 +464,11 @@ proc bufferKind*[T](buffer: ElementArrayBuffer[T]) : GLenum {. inline .} =
 proc bufferKind*[T](buffer: UniformBuffer[T]) : GLenum {. inline .} =
   GL_UNIFORM_BUFFER
 
-proc bindIt*[T](buffer: AnyBuffer[T]) =
-  glBindBuffer(buffer.bufferKind, buffer.handle)
-
 template blockBind*[T](buffer : AnyBuffer[T], blk:untyped) =
   let buf = buffer
   var outer : GLint
   glGetIntegerv(buf.bindingKind, outer.addr)
-  buf.bindIt
+  glBindBuffer(buf.bufferKind, buf.handle)
   blk
   glBindBuffer(buf.bufferKind, GLuint(outer))
 
@@ -953,6 +939,3 @@ proc bufferRange*(tf: TransformFeedback; index: int; buffer: ArrayBuffer; offset
 
 proc draw*(tf: TransformFeedback; primitiveMode: GLenum): void =
   glDrawTransformFeedback(primitiveMode, tf.handle)
-
-proc bindIt*(tf: TransformFeedback): void =
-  glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, tf.handle)
