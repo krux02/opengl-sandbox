@@ -111,12 +111,6 @@ type
     ## Can be -1 for uniforms/attributes that are optimized out
     index*: GLint
 
-proc isNil*(program: Program): bool =
-  program.handle == 0
-
-proc isNil*(shader: Shader): bool =
-  shader.handle == 0
-
 proc isValid*(location: Location): bool =
   location.index >= 0
 
@@ -687,17 +681,6 @@ proc splitView*(buf: ArrayBuffer[Mat4f]): array[4, ArrayBufferView[Mat4f, Vec4f]
     result[i].relativeoffset = GLuint(i * 4 * sizeof(float32))
     result[i].stride = 4 * 4 * sizeof(float32)
 
-when isMainModule:
-  type TestType = object
-    a,b,c,d: float32
-
-  var testArrayBuffer = ArrayBuffer[TestType](handle : 7)
-
-  assert testArrayBuffer.view(a) == ArrayBufferView[TestType,float32](buffer: ArrayBuffer[TestType](handle: 7), offset: 0, stride: 16)
-  assert testArrayBuffer.view(b) == ArrayBufferView[TestType,float32](buffer: ArrayBuffer[TestType](handle: 7), offset: 4, stride: 16)
-  assert testArrayBuffer.view(c) == ArrayBufferView[TestType,float32](buffer: ArrayBuffer[TestType](handle: 7), offset: 8, stride: 16)
-  assert testArrayBuffer.view(d) == ArrayBufferView[TestType,float32](buffer: ArrayBuffer[TestType](handle: 7), offset:12, stride: 16)
-
 #### shader
 
 proc shaderSource(shader: Shader, source: string) =
@@ -837,17 +820,18 @@ proc readPixel*(x,y: int) : Color =
 
 proc readPixel*(pos: Vec2i) : Color = readPixel(pos.x.int, pos.y.int)
 
-proc setFormat*[T](vao: VertexArrayObject, binding: VertexArrayObjectBinding, buffer: ArrayBuffer[T]) =
-  glVertexArrayAttribFormat(vao.handle, binding.index, attribSize(T), attribType(T), attribNormalized(T), 0);
+proc setFormat*[T](vao: VertexArrayObject, binding: uint32, buffer: ArrayBuffer[T]) =
+  glVertexArrayAttribFormat(vao.handle, binding, attribSize(T), attribType(T), attribNormalized(T), 0);
 
-proc setFormat*[S,T](vao: VertexArrayObject; binding: VertexArrayObjectBinding; view: ArrayBufferView[S,T]): void =
-  glVertexArrayAttribFormat(vao.handle, binding.index, attribSize(T), attribType(T), attribNormalized(T), view.relativeoffset);
+proc setFormat*[S,T](vao: VertexArrayObject; binding: uint32; view: ArrayBufferView[S,T]): void =
+  glVertexArrayAttribFormat(vao.handle, binding, attribSize(T), attribType(T), attribNormalized(T), view.relativeoffset);
 
-proc setBuffer*[T](vao: VertexArrayObject; binding: VertexArrayObjectBinding; buffer: ArrayBuffer[T]): void =
-  glVertexArrayVertexBuffer(vao.handle, binding.index, buffer.handle, 0, GLsizei(sizeof(T)))
+proc setBuffer*[T](vao: VertexArrayObject; binding: uint32; buffer: ArrayBuffer[T]): void =
+  glVertexArrayVertexBuffer(vao.handle, binding, buffer.handle, 0, GLsizei(sizeof(T)))
 
-proc setBuffer*(vao: VertexArrayObject; binding: VertexArrayObjectBinding; view: ArrayBufferView): void =
-  glVertexArrayVertexBuffer(vao.handle, binding.index, view.buffer.handle, view.absoluteoffset, GLsizei(view.stride))
+proc setBuffer*(vao: VertexArrayObject; binding: uint32; view: ArrayBufferView): void =
+  glVertexArrayVertexBuffer(vao.handle, binding, view.buffer.handle, view.absoluteoffset, GLsizei(view.stride))
+
 
 ##########################
 # # transform feedback # #

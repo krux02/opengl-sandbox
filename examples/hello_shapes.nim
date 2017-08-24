@@ -116,9 +116,7 @@ var planeNode = newWorldNode()
 
 var evt: Event = defaultEvent
 var runGame: bool = true
-
 var frame = 0
-
 
 var noiseArray: array[21, float32]
 

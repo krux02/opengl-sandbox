@@ -294,11 +294,6 @@ proc text(this: var TextRenderer; str: string; pixelPos: Vec2i): void =
   let rectPos  = vec2f(rectPixelPos-vpPos) / vec2f(vpSize) * 2.0f - vec2f(1)
   let rectSize = vec2f(textSize) / vec2f(vpSize) * 2.0f
 
-  let
-    time = timer.time.float32
-    s = sin(time)
-    c = cos(time)
-
   shadingDsl:
     primitiveMode = GL_TRIANGLE_STRIP
     numVertices = 4
@@ -309,14 +304,13 @@ proc text(this: var TextRenderer; str: string; pixelPos: Vec2i): void =
       rectPos
       rectSize
       tex = this.texture
-      rotMat = mat2f(vec2f(c,s),vec2f(-s,c))
 
     attributes:
       a_texcoord = this.texCoordBuffer
 
     vertexMain:
       """
-      gl_Position.xy = rectPos + rotMat * a_texcoord * rectSize;
+      gl_Position.xy = rectPos + a_texcoord * rectSize;
       gl_Position.zw = vec2(-1,1);
       """
 

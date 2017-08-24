@@ -134,11 +134,10 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
   var numLocations = 0
   var uniformsSection = newSeq[string](0)
-  var initUniformsBlock = newStmtList()
   var drawBlock = newStmtList()
   var attribNames = newSeq[string](0)
   var attribTypes = newSeq[string](0)
-  var bufferCreationBlock = newStmtList()
+  var afterCompileBlock = newStmtList()
   var vertexOutSection = newSeq[string](0)
   var geometryOutSection = newSeq[string](0)
   var fragmentOutSection = newSeq[string](0)
@@ -230,7 +229,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
         let loc = getLocation(numLocations)
         let warningLit = newLit($value.lineinfoObj & " Hint: unused uniform: " & name)
 
-        initUniformsBlock.add(quote do:
+        afterCompileBlock.add(quote do:
           `loc`.index = glGetUniformLocation(`program`.handle, `nameLit`)
           if `loc`.index < 0:
             writeLine stderr, `warningLit`
@@ -238,7 +237,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
         if isSampler:
           let bindingIndexLit = newLit(numSamplers)
-          initUniformsBlock.add head(quote do:
+          afterCompileBlock.add head(quote do:
             glUniform1i(`loc`.index, `bindingIndexLit`)
           )
 
@@ -257,7 +256,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
         numLocations += 1
 
     of "attributes":
-      var binding: VertexArrayObjectBinding
+      var binding: uint32
       for innerCall in call[1][1].items:
         innerCall[1].expectKind nnkStrLit
         let name = $innerCall[1]
@@ -285,20 +284,17 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
         let bindingLit : NimNode = newLit(binding)
 
-        bufferCreationBlock.addAll(quote do:
-
+        afterCompileBlock.addAll(quote do:
           # this needs to change, when multiple attributes per buffer
           # should be supported (offset in buffer)
-          let binding = `bindingLit`
-          glEnableVertexArrayAttrib(`vao`.handle, binding.index)
-          glVertexArrayBindingDivisor(`vao`.handle, binding.index, `divisorLit`)
-          setFormat(`vao`, binding, `value`)
-
+          glEnableVertexArrayAttrib(`vao`.handle, `bindingLit`)
+          glVertexArrayBindingDivisor(`vao`.handle, `bindingLit`, `divisorLit`)
+          setFormat(`vao`, `bindingLit`, `value`)
           `location` = attributeLocation(`program`, `nameLit`)
-          if 0 <= `location`.index:
-            glVertexArrayAttribBinding(`vao`.handle, binding.index, uint32(`location`.index))
-          else:
+          if `location`.index < 0:
             writeLine stderr, `warningLit`
+          else:
+            glVertexArrayAttribBinding(`vao`.handle, `bindingLit`, uint32(`location`.index))
         )
 
         drawBlock.addAll(quote do:
@@ -309,7 +305,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
         attribTypes.add( glslType )
         # format("in $1 $2", value.glslAttribType, name) )
         numLocations += 1
-        binding.index += 1
+        binding += 1
 
     of "vertexOut":
       #echo "vertexOut"
@@ -468,7 +464,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
     glPushDebugGroup(GL_DEBUG_SOURCE_THIRD_PARTY, 1, 10, "shadingDsl");
 
-    if `program`.isNil:
+    if `program`.handle == 0:
       `program`.handle = glCreateProgram()
 
       `compileShaderBlock`
@@ -477,11 +473,9 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
       glUseProgram(`program`.handle)
 
-      `initUniformsBlock`
-
       `vao` = newVertexArrayObject()
 
-      `bufferCreationBlock`
+      `afterCompileBlock`
 
       `afterSetup`
 
