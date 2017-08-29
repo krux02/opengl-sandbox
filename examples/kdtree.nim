@@ -11,8 +11,6 @@ proc dist(a,b: ptr KdNode; dim: int): float32 {.inline.} =
 proc swap(x, y: ptr KdNode): void =
   swap(x[], y[])
 
-#[ see quickselect method ]#
-
 proc `+`[T](a: ptr T, i: int): ptr T =
   cast[ptr T](cast[uint](a) + uint(sizeof(T) * i))
 
@@ -193,8 +191,198 @@ proc main(): void =
   echo "visited ", sum ," nodes for ", test_runs,
        " random findings (", sum / test_runs, " per lookup)\n"
 
-when isMainModule:
-  main()
+
+import ../fancygl
+
+let (window, context) = defaultSetup()
+
+glPointSize(5)
+
+var tmp = newSeq[Vec4f](1000)
+
+for v in tmp.mitems():
+  v.x = rand_f32()
+  v.y = rand_f32()
+  v.z = rand_f32()
+  v.w = 1.0f
+
+let colors   = arrayBuffer(tmp)
+
+for v in tmp.mitems():
+  v.x = rand_f32() * 2 - 1
+  v.y = rand_f32() * 2 - 1
+  v.z = rand_f32() * 2 - 1
+  v.w = 1.0f
+
+var vertices: ArrayBuffer[Vec4f] = arraybuffer(tmp)
+
+
+var evt: Event
+var runGame: bool = true
+
+let timer = newStopWatch(true)
+
+let aspect = float32(window.size.x / window.size.y)
+let proj : Mat4f = frustum(-aspect * 0.01f, aspect * 0.01f, -0.01f, 0.01f, 0.01f, 100.0)
+
+var queryPos: Vec4f = vec4f(0,0,0,1)
+
+
+let cubeVertices = arrayBuffer([
+  vec4f( 1, 1, 1, 1),
+  vec4f(-1, 1, 1, 1),
+  vec4f( 1,-1, 1, 1),
+  vec4f(-1,-1, 1, 1),
+  vec4f( 1, 1,-1, 1),
+  vec4f(-1, 1,-1, 1),
+  vec4f( 1,-1,-1, 1),
+  vec4f(-1,-1,-1, 1)
+])
+
+let cubeLineIndices = elementArrayBuffer([
+  0'i8, 1,
+  2, 3,
+  4,5,
+  6,7,
+  0,2,
+  1,3,
+  4,6,
+  5,7,
+  0,4,
+  1,5,
+  2,6,
+  3,7
+])
+
+var linePositions = newArrayBuffer[Vec4f](1000)
+
+proc lines(mvp: Mat4f; vertices: openarray[Vec4f]): void =
+  linePositions.setData(vertices)
+
+  shadingDsl:
+    primitiveMode = GL_LINES
+    numVertices = vertices.len
+    uniforms:
+      mvp
+    attributes:
+      a_vertex = linePositions
+    vertexMain:
+      """
+      gl_Position = mvp * a_vertex;
+      """
+    fragmentMain:
+      """
+      color = vec4(1);
+      """
+
+while runGame:
+
+  while pollEvent(evt):
+    if evt.kind == QuitEvent:
+      runGame = false
+      break
+    if evt.kind == KeyDown and evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE:
+      runGame = false
+    if evt.kind == MouseMotion:
+      queryPos.x =     (evt.motion.x / window.size.x) * 2 - 1
+      queryPos.y = 1 - (evt.motion.y / window.size.y) * 2
+
+  let time = timer.time.float32
+
+  let viewMat = mat4f(1)
+    .translate(0,1,5)            # position camera at position 0,1,5
+    .rotateX(Pi * -0.05)         # look a bit down
+    .inverse                     # the camera matrix needs to be inverted
+
+  let modelMat = mat4f(1)
+    #.rotateY(time)               # rotate the triangle
+    .scale(3)                    # scale the triangle to be big enough on screen
+
+  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+
+  var selected = 0
+  var selected_dist = float32(Inf)
+
+  for i, v in tmp:
+    let dist = length(v.xyz - queryPos.xyz)
+    if dist < selected_dist:
+      selected = i
+      selected_dist = dist
+
+  shadingDsl:
+    primitiveMode = GL_POINTS
+    numVertices = tmp.len
+    uniforms:
+      modelView = viewMat * modelMat
+      proj
+      select    = int32(selected)
+    attributes:
+      a_vertex = vertices
+      a_color  = colors
+    vertexMain:
+      """
+      gl_Position = proj * modelView * a_vertex;
+      //gl_Position = a_vertex;
+      if (select == gl_VertexID) {
+        v_color = vec4(1);
+      } else {
+        v_color = a_color;
+      }
+      """
+    vertexOut:
+      "out vec4 v_color"
+    fragmentMain:
+      """
+      color = v_color;
+      """
+
+  shadingDsl:
+    primitiveMode = GL_LINES
+    numVertices = 24
+    indices = cubeLineIndices
+    uniforms:
+      modelView = viewMat * modelMat
+      proj
+      select    = int32(selected)
+    attributes:
+      a_vertex = cubeVertices
+    vertexMain:
+      """
+      gl_Position = proj * modelView * a_vertex;
+      """
+    fragmentMain:
+      """
+      color = vec4(1);
+      """
+
+  let mvp = proj * viewMat * modelMat
+
+  var a,b,c,d, e, f: Vec4f = queryPos
+  a.x = -1
+  b.x =  1
+  c.y = -1
+  d.y =  1
+  e.xy = tmp[selected].xy
+
+  lines(mvp, [
+    vec4f( 1, 1, queryPos.z, 1), vec4f(-1, 1, queryPos.z, 1),
+    vec4f(-1, 1, queryPos.z, 1), vec4f(-1,-1, queryPos.z, 1),
+    vec4f(-1,-1, queryPos.z, 1), vec4f( 1,-1, queryPos.z, 1),
+    vec4f( 1,-1, queryPos.z, 1), vec4f( 1, 1, queryPos.z, 1),
+    a,b,c,d, queryPos, e, e, tmp[selected], tmp[selected], queryPos
+  ])
+
+
+
+  glSwapWindow(window)
+
+
+
+#when isMainModule:
+#  main()
+
+
+
 
 #[
 {
