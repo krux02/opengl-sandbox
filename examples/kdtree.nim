@@ -23,39 +23,40 @@ proc `-`[T](a,b: ptr T): int =
 proc `++`[T](arg: var ptr T): void =
   arg = cast[ptr T](cast[uint](arg) + uint(sizeof(T)))
 
-proc find_median(a,b: ptr KdNode; idx: int): ptr KdNode =
+proc find_median(data: var openarray[KdNode]; a,b: int, idx: int): int =
+  if b <= a:
+    return -1;
+
+  if a + 1 == b:
+    return a;
+
   var start = a
   var endd = b
-  if endd <= start:
-    return nil;
 
-  if endd == start + 1:
-    return start;
-
-  var p,store: ptr KdNode
-  let md: ptr KdNode = start + (endd - start) div 2;
+  var p = -1
+  var store = -1
+  let md: int = start + (endd - start) div 2;
   var pivot: float32
 
-
   while true:
-    pivot = md.x.arr[idx]
+    pivot = data[md].x.arr[idx]
 
-    swap(md, endd - 1)
+    swap(data[md], data[endd - 1])
 
     p = start
     store = p
 
     while p < endd:
-      if p.x.arr[idx] < pivot:
+      if data[p].x.arr[idx] < pivot:
         if p != store:
-          swap(p, store);
-        ++store
-      ++p
+          swap(data[p], data[store]);
+        store += 1
+      p += 1
 
-    swap(store, endd - 1);
+    swap(data[store], data[endd - 1])
 
     # median has duplicate values
-    if store.x.arr[idx] == md.x.arr[idx]:
+    if data[store].x.arr[idx] == data[md].x.arr[idx]:
       return md;
 
     if store > md:
@@ -63,23 +64,17 @@ proc find_median(a,b: ptr KdNode; idx: int): ptr KdNode =
     else:
       start = store;
 
-proc make_tree(t: ptr KdNode, len, i, dim: int): ptr KdNode =
-  if len == 0:
-    return nil
+proc make_tree(data: var openarray[KdNode]; a,b: int, i: int): int =
+  if a == b:
+    return -1
 
-  result = find_median(t, t + len, i)
+  result = find_median(data, a, b, i)
 
-  if result != nil:
-    let j = (i + 1) mod dim
-    result.left = make_tree(t, result - t, j, dim)
-    result.right = make_tree(result + 1, t + len - (result + 1), j, dim)
-
-
-# global variable, so sue me
-
-  if result < 0:
-    result.left  = make_tree(data,          t,            result - t , (i + 1) mod 3)
-    result.right = make_tree(data, result + 1, t + len - (result + 1), (i + 1) mod 3)
+  if 0 <= result:
+    let idxL = make_tree(data, a,   result, (i + 1) mod 3)
+    let idxR = make_tree(data, result+1, b, (i + 1) mod 3)
+    data[result].left  = if idxL < 0: nil else: data[idxL].addr
+    data[result].right = if idxR < 0: nil else: data[idxR].addr
 
 proc nearest(root, nd: ptr KdNode): tuple[best: ptr KdNode, best_dist: float32, visited: int] =
   var visited = 0
@@ -137,7 +132,7 @@ proc main(): void =
 
   block:
     var testNode = KdNode(x: vec3f(2,3,0))
-    let root = make_tree(wp[0].addr, wp.len, 0)
+    let root = wp[make_tree(wp, 0, wp.len, 0)].addr
     let (found, best_dist, visited) = nearest(root, testNode.addr);
 
     echo ">> WP tree\nsearching for ", testNode.x
@@ -147,7 +142,7 @@ proc main(): void =
   var million = newSeq[KdNode](N)
   for i in 0 ..< N:
     million[i] = rand_node()
-  let root = make_tree(million[0].addr, N, 0);
+  let root = million[make_tree(million, 0, N, 0)].addr;
 
   block:
     var testNode = rand_node()
