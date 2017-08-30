@@ -5,64 +5,40 @@ type
     x: Vec3f
     left,right: ptr KdNode
 
-proc dist(a,b: ptr KdNode): float32 {.inline.} =
-  length(a.x - b.x)
+proc find_median(data: var openarray[KdNode]; aa,bb: int, idx: int): int =
+  var a = aa
+  var b = bb
 
-proc swap(x, y: ptr KdNode): void =
-  swap(x[], y[])
-
-proc `+`[T](a: ptr T, i: int): ptr T =
-  cast[ptr T](cast[uint](a) + uint(sizeof(T) * i))
-
-proc `-`[T](a: ptr T, i: int): ptr T =
-  cast[ptr T](cast[uint](a) - uint(sizeof(T) * i))
-
-proc `-`[T](a,b: ptr T): int =
-  cast[int](cast[uint](a) - cast[uint](b)) div sizeof(T)
-
-proc `++`[T](arg: var ptr T): void =
-  arg = cast[ptr T](cast[uint](arg) + uint(sizeof(T)))
-
-proc find_median(data: var openarray[KdNode]; a,b: int, idx: int): int =
   if b <= a:
     return -1;
 
   if a + 1 == b:
     return a;
 
-  var start = a
-  var endd = b
 
-  var p = -1
-  var store = -1
-  let md: int = start + (endd - start) div 2;
-  var pivot: float32
+  let pivot_idx: int = a + (b - a) div 2;
 
   while true:
-    pivot = data[md].x.arr[idx]
+    swap(data[pivot_idx], data[b - 1])
 
-    swap(data[md], data[endd - 1])
+    var store = a
 
-    p = start
-    store = p
-
-    while p < endd:
-      if data[p].x.arr[idx] < pivot:
+    for p in a ..< b:
+      if data[p].x.arr[idx] < data[pivot_idx].x.arr[idx]:
         if p != store:
           swap(data[p], data[store]);
         store += 1
-      p += 1
 
-    swap(data[store], data[endd - 1])
+    swap(data[store], data[b - 1])
 
     # median has duplicate values
-    if data[store].x.arr[idx] == data[md].x.arr[idx]:
-      return md;
+    if data[store].x.arr[idx] == data[pivot_idx].x.arr[idx]:
+      return pivot_idx;
 
-    if store > md:
-      endd = store;
+    if store > pivot_idx:
+      b = store;
     else:
-      start = store;
+      a = store;
 
 proc make_tree(data: var openarray[KdNode]; a,b: int, i: int): int =
   if a == b:
@@ -82,7 +58,7 @@ proc nearest(root, nd: ptr KdNode): tuple[best: ptr KdNode, best_dist: float32, 
     if root == nil:
       return
 
-    let d = dist(root, nd)
+    let d = length(root.x - nd.x)
     let dx = root.x.arr[i] - nd.x[i]
     let dx2 = dx * dx
 
