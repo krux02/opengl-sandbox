@@ -7,10 +7,13 @@ let windowsize = window.size
 
 let projection_mat : Mat4f = perspective(45'f32, windowsize.x / windowsize.y, 0.1, 100.0)
 
+var vertices,normals,colors: ArrayBuffer[Vec4f]
+var indices: ElementArrayBuffer[int32]
+
 type
   SimpleMesh = object
-    vertices,normals,colors: ArrayBuffer[Vec4f]
-    indices: ElementArrayBuffer[int16]
+    vertexOffset: int
+    numVertices: int
 
 var coneNode = newWorldNode()
 coneNode.pos.xyz = vec3f(-3, 3,1)
@@ -43,15 +46,39 @@ var coneMesh, cylinderMesh, icosphereMesh, sphereMesh, boxMesh, tetraederMesh, t
 
 block init:
   proc texCoord2Color(x: Vec2f): Vec4f = vec4f(x,0,1)
-  coneMesh.vertices  = arrayBuffer(coneVertices(numSegments))
-  coneMesh.normals   = arrayBuffer(coneNormals(numSegments))
-  coneMesh.colors    = arrayBuffer(coneTexCoords(numSegments).map(texCoord2Color))
-  coneMesh.indices   = elementArrayBuffer(coneIndices(numSegments))
 
-  cylinderMesh.vertices  = arrayBuffer(cylinderVertices(numSegments))
-  cylinderMesh.normals   = arrayBuffer(cylinderNormals(numSegments))
-  cylinderMesh.colors    = arrayBuffer(cylinderTexCoords(numSegments).map(texCoord2Color))
-  cylinderMesh.indices   = elementArrayBuffer(cylinderIndices(numSegments))
+  var verticesSeq = newSeq[Vec4f](0)
+  var normalsSeq  = newSeq[Vec4f](0)
+  var colorsSeq   = newSeq[Vec4f](0)
+  var indicesSeq  = newSeq[int32](0)
+
+  proc appendMesh(
+      newVertices, newNormals, newColors: openarray[Vec4f];
+      newIndices: openarray[int16]): SimpleMesh =
+
+    let offset = verticesSeq.len
+
+    verticesSeq.add(newVertices)
+    normalsSeq.add(newNormals)
+    colorsSeq.add(newColors)
+
+    result.vertexOffset = indicesSeq.len
+    result.numVertices = newIndices.len
+    # apply offset
+    for idx in newIndices:
+      indicesSeq.add( int32(idx + offset) )
+
+  coneMesh = appendMesh(
+    coneVertices(numSegments),
+    coneNormals(numSegments),
+    coneTexCoords(numSegments).map(texCoord2Color),
+    coneIndices(numSegments))
+
+  cylinderMesh = appendMesh(
+    cylinderVertices(numSegments),
+    cylinderNormals(numSegments),
+    cylinderTexCoords(numSegments).map(texCoord2Color),
+    cylinderIndices(numSegments))
 
   let isNumVerts = icosphereIndicesTriangles.len
   var unrolledVertices = newSeqOfCap[Vec4f](isNumVerts)
@@ -76,34 +103,40 @@ block init:
     let color = vec4f(rand_f32(), rand_f32(), rand_f32(), 1'f32)
     unrolledColors.add([color,color,color])
 
-  icosphereMesh.vertices = arrayBuffer(unrolledVertices)
-  icosphereMesh.colors   = arrayBuffer(unrolledColors)
-  icosphereMesh.normals  = arrayBuffer(unrolledNormals)
-  icosphereMesh.indices  = elementArrayBuffer(iotaSeq[int16](unrolledVertices.len.int16))
+  icosphereMesh = appendMesh(
+    unrolledVertices,
+    unrolledNormals,
+    unrolledColors,
+    iotaSeq[int16](unrolledVertices.len.int16))
 
-  sphereMesh.vertices = arrayBuffer(uvSphereVertices(numSegments, numSegments div 2))
-  sphereMesh.colors   = arrayBuffer(uvSphereTexCoords(numSegments, numSegments div 2).map(texCoord2Color))
-  sphereMesh.normals  = arrayBuffer(uvSphereNormals(numSegments, numSegments div 2))
-  sphereMesh.indices  = elementArrayBuffer(uvSphereIndices(numSegments, numSegments div 2))
+  sphereMesh = appendMesh(
+    uvSphereVertices(numSegments, numSegments div 2),
+    uvSphereNormals(numSegments, numSegments div 2),
+    uvSphereTexCoords(numSegments, numSegments div 2).map(texCoord2Color),
+    uvSphereIndices(numSegments, numSegments div 2))
 
-  boxMesh.vertices = arrayBuffer(boxVertices)
-  boxMesh.colors = arrayBuffer(boxColors)
-  boxMesh.normals = arrayBuffer(boxNormals)
-  boxMesh.indices = elementArrayBuffer(iotaSeq[int16](boxVertices.len.int16))
+  boxMesh = appendMesh(
+    boxVertices,
+    boxNormals,
+    boxColors,
+    iotaSeq[int16](boxVertices.len.int16))
 
-  tetraederMesh.vertices = arrayBuffer(tetraederVertices)
-  tetraederMesh.colors = arrayBuffer(tetraederColors)
-  tetraederMesh.normals = arrayBuffer(tetraederNormals)
-  tetraederMesh.indices = elementArrayBuffer(iotaSeq[int16](tetraederVertices.len.int16))
+  tetraederMesh = appendMesh(
+    tetraederVertices,
+    tetraederNormals,
+    tetraederColors,
+    iotaSeq[int16](tetraederVertices.len.int16))
 
-  torusMesh.vertices = arrayBuffer(torusVertices(numSegments, numSegments div 2, 1, 0.5))
-  torusMesh.colors   = arrayBuffer(torusTexCoords(numSegments, numSegments div 2).map(texCoord2Color))
-  torusMesh.normals  = arrayBuffer(torusNormals(numSegments, numSegments div 2))
-  torusMesh.indices  = elementArrayBuffer(torusIndicesTriangles(numSegments, numSegments div 2).map(proc(x: int32): int16 = int16(x)))
+  torusMesh = appendMesh(
+    torusVertices(numSegments, numSegments div 2, 1, 0.5),
+    torusNormals(numSegments, numSegments div 2),
+    torusTexCoords(numSegments, numSegments div 2).map(texCoord2Color),
+    torusIndicesTriangles(numSegments, numSegments div 2).map(proc(x: int32): int16 = int16(x)))
 
-  glDisable(GL_DEPTH_CLAMP)
-
-let icosphereVerticesLen = icosphereMesh.vertices.len
+  vertices = arrayBuffer(verticesSeq)
+  normals = arrayBuffer(normalsSeq)
+  colors = arrayBuffer(colorsSeq)
+  indices = elementArrayBuffer(indicesSeq)
 
 var planeVertices = arrayBuffer([
   vec4f(0,0,0,1), vec4f( 1, 0,0,0), vec4f( 0, 1,0,0),
@@ -155,9 +188,9 @@ while runGame:
   torusNode.turnRelativeY(noiseArray[19])
   torusNode.turnRelativeZ(noiseArray[20])
 
-  # the plane on the ground is rotating the camera is still.
-  # I really provides the illusion the camera would rotate
-  # around the shapes though
+  # the plane on the ground is rotating the camera is still.  It
+  # really provides the illusion the camera would rotate around the
+  # shapes though
   planeNode.turnAbsoluteZ(0.0001)
 
   while pollEvent(evt):
@@ -181,15 +214,16 @@ while runGame:
   let magic = int32(frame mod 2)
 
   #proc renderShape(node: WorldNode, vertices, normals, texcoords: ArrayBuffe[Vec4f])
-
   for i, node in [coneNode, cylinderNode, icosphereNode, sphereNode, boxNode, tetraederNode, torusNode]:
-    let mesh   = [coneMesh, cylinderMesh, icosphereMesh, sphereMesh, boxMesh, tetraederMesh, torusMesh][i]
+    let mesh = [coneMesh, cylinderMesh, icosphereMesh, sphereMesh, boxMesh, tetraederMesh, torusMesh][i]
 
     shadingDsl:
+      debug
       primitiveMode = GL_TRIANGLES
-      numVertices = mesh.indices.len
+      numVertices = mesh.numVertices
+      vertexOffset = mesh.vertexOffset
 
-      indices = mesh.indices
+      indices = indices
 
       uniforms:
         proj = projection_mat
@@ -197,9 +231,9 @@ while runGame:
         magic
 
       attributes:
-        a_vertex = mesh.vertices
-        a_normal = mesh.normals
-        a_color  = mesh.colors
+        a_vertex = vertices
+        a_normal = normals
+        a_color  = colors
 
       vertexMain:
         """
