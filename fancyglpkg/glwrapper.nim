@@ -361,7 +361,7 @@ proc label*(arg: VertexArrayObject): string =
 proc `label=`*(arg: VertexArrayObject; label: string): void =
     ## does nothing when label is nil (allows nil checks on other places)
     if not isNil label:
-      glObjectLabel(GL_PROGRAM, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
+      glObjectLabel(GL_VERTEX_ARRAY, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
 
 proc newVertexArrayObject*(label: string = nil) : VertexArrayObject =
   glCreateVertexArrays(1, result.handle.addr)
