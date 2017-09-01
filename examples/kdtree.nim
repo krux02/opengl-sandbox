@@ -1,13 +1,30 @@
 import glm
 
 type
+  KdTree = object
+    data: seq[KdNode]
+    rootIdx: int
+
   KdNode = object
     x: Vec3f
-    left,right: ptr KdNode
+    left,right: int32
 
-proc find_median(data: var openarray[KdNode]; aa,bb: int, idx: int): int =
-  var a = aa
-  var b = bb
+  Box = object
+    min,max: Vec3f
+
+proc split(box: Box; value: float32; dim: int): tuple[l,r: Box] =
+  assert( box.min[dim] <= value )
+  assert( value <= box.max[dim] )
+
+  var l = box
+  var r = box
+
+  l.max[dim] = value
+  r.min[dim] = value
+
+proc find_median(t: var KdTree; a,b: int, dim: int): int =
+  var a = a
+  var b = b
 
   if b <= a:
     return -1;
@@ -16,23 +33,23 @@ proc find_median(data: var openarray[KdNode]; aa,bb: int, idx: int): int =
     return a;
 
 
-  let pivot_idx: int = a + (b - a) div 2;
+  let pivot_idx: int = (a + b) div 2;
 
   while true:
-    swap(data[pivot_idx], data[b - 1])
+    swap(t.data[pivot_idx], t.data[b - 1])
 
     var store = a
 
     for p in a ..< b:
-      if data[p].x.arr[idx] < data[pivot_idx].x.arr[idx]:
+      if t.data[p].x.arr[dim] < t.data[pivot_idx].x.arr[dim]:
         if p != store:
-          swap(data[p], data[store]);
+          swap(t.data[p], t.data[store]);
         store += 1
 
-    swap(data[store], data[b - 1])
+    swap(t.data[store], t.data[b - 1])
 
     # median has duplicate values
-    if data[store].x.arr[idx] == data[pivot_idx].x.arr[idx]:
+    if t.data[store].x.arr[dim] == t.data[pivot_idx].x.arr[dim]:
       return pivot_idx;
 
     if store > pivot_idx:
@@ -40,47 +57,59 @@ proc find_median(data: var openarray[KdNode]; aa,bb: int, idx: int): int =
     else:
       a = store;
 
-proc make_tree(data: var openarray[KdNode]; a,b: int, i: int): int =
+
+proc subtree_sort(t: var KdTree; a,b: int, i: int): int =
   if a == b:
     return -1
 
-  result = find_median(data, a, b, i)
+  result = find_median(t, a, b, i)
 
   if 0 <= result:
-    let idxL = make_tree(data, a,   result, (i + 1) mod 3)
-    let idxR = make_tree(data, result+1, b, (i + 1) mod 3)
-    data[result].left  = if idxL < 0: nil else: data[idxL].addr
-    data[result].right = if idxR < 0: nil else: data[idxR].addr
+    t.data[result].left  = subtree_sort(t, a,   result, (i + 1) mod 3).int32
+    t.data[result].right = subtree_sort(t, result+1, b, (i + 1) mod 3).int32
 
-proc nearest(root, nd: ptr KdNode): tuple[best: ptr KdNode, best_dist: float32, visited: int] =
-  var visited = 0
-  proc nearest(root, nd: ptr KdNode, i: int; best: var ptr KdNode, best_dist: var float32): void =
-    if root == nil:
-      return
+proc init(t: var KdTree): void =
+  t.rootIdx = t.subtree_sort(0, t.data.len, 0)
 
-    let d = length(root.x - nd.x)
-    let dx = root.x.arr[i] - nd.x[i]
-    let dx2 = dx * dx
+proc nearestIntern(this: KdTree; root_idx: int; nd: KdNode, dim: int; best_idx: var int, best_dist: var float32, visited: var int): void =
+  if root_idx == -1:
+    return
 
-    visited += 1
+  template root: KdNode = this.data[root_idx]
 
-    if best == nil or d < best_dist:
-      best_dist = d
-      best = root
+  let d = length(root.x - nd.x)
+  let dx = root.x.arr[dim] - nd.x[dim]
+  let dx2 = dx * dx
+
+  visited += 1
+
+  if best_idx == -1 or d < best_dist:
+    best_dist = d
+    best_idx = root_idx
+
+  if best_dist == 0:
+    return #(perfect match)
+
+  let dim2 = (dim + 1) mod 3
+
+  this.nearestIntern(if 0 < dx: root.left else: root.right, nd, dim2, best_idx, best_dist, visited)
+  if (dx2 >= best_dist):
+    return
+  this.nearestIntern(if 0 < dx: root.right else: root.left, nd, dim2, best_idx, best_dist, visited)
 
 
-    if best_dist == 0:
-       return #(perfect match)
+proc nearest(this: KdTree, nd: KdNode): tuple[best_idx: int, best_dist: float32, visited: int] =
+  result.best_idx = -1
+  this.nearestIntern(this.rootIdx, nd, 0, result.best_idx, result.best_dist, result.visited)
 
-    let j = (i + 1) mod 3
+proc nearestLinear(this: KdTree, nd: KdNode): tuple[best_idx: int, best_dist: float32] =
 
-    nearest(if 0 < dx: root.left else: root.right, nd, j, best, best_dist)
-    if (dx2 >= best_dist):
-      return
-    nearest(if 0 < dx: root.right else: root.left, nd, j, best, best_dist)
-
-  nearest(root, nd, 0, result.best, result.best_dist)
-  result.visited = visited
+  result.best_dist = Inf
+  for i, node in this.data:
+    let dist = length(node.x - nd.x)
+    if dist < result.best_dist:
+      result.best_idx = i
+      result.best_dist = dist
 
 const N = 1000000
 
@@ -91,38 +120,37 @@ proc rand1(): float32 =
 proc rand_node(): KdNode {.inline.} =
   result.x.arr = [rand1(), rand1(), rand1()]
 
-
-#define rand1() (rand() / (double)RAND_MAX)
-#define rand_pt(v) { v.x[0] = rand1(); v.x[1] = rand1(); v.x[2] = rand1(); }
-
 proc main(): void =
-  var wp : seq[KdNode] = @[
-    KdNode(x: vec3f(2,3,1)),
-    KdNode(x: vec3f(5,4,2)),
-    KdNode(x: vec3f(9,6,3)),
-    KdNode(x: vec3f(4,7,4)),
-    KdNode(x: vec3f(8,1,5)),
-    KdNode(x: vec3f(7,2,6))
-  ]
 
 
   block:
+
+    var wp = KdTree(data: @[
+      KdNode(x: vec3f(2,3,1)),
+      KdNode(x: vec3f(5,4,2)),
+      KdNode(x: vec3f(9,6,3)),
+      KdNode(x: vec3f(4,7,4)),
+      KdNode(x: vec3f(8,1,5)),
+      KdNode(x: vec3f(7,2,6))
+    ])
+    wp.init
     var testNode = KdNode(x: vec3f(2,3,0))
-    let root = wp[make_tree(wp, 0, wp.len, 0)].addr
-    let (found, best_dist, visited) = nearest(root, testNode.addr);
+    let (found_idx, best_dist, visited) = wp.nearest(testNode);
+    let found = wp.data[found_idx]
 
     echo ">> WP tree\nsearching for ", testNode.x
     echo "found ", found.x, " dist ", sqrt(best_dist)
     echo "seen ", visited, " nodes\n"
 
-  var million = newSeq[KdNode](N)
+  var million = KdTree(data: newSeq[KdNode](N))
   for i in 0 ..< N:
-    million[i] = rand_node()
-  let root = million[make_tree(million, 0, N, 0)].addr;
+    million.data[i] = rand_node()
+  million.init
 
   block:
     var testNode = rand_node()
-    let (found, best_dist, visited) = nearest(root, testNode.addr);
+    let (found_idx, best_dist, visited) = million.nearest(testNode);
+    let found = million.data[found_idx]
 
     echo ">> Million tree"
     echo "searching for ", testNode.x
@@ -145,7 +173,9 @@ proc main(): void =
     let test_runs = 1000
     for i in 1 .. test_runs: # number of test runs
       var testNode = rand_node()
-      let (found, best_dest, visited) = nearest(root, testNode.addr)
+      let (foundA, distA, visited) = million.nearest(testNode)
+      let (foundB, distB) = million.nearestLinear(testNode)
+      doAssert(foundA == foundB, $foundA & " == " & $foundB & " distA: " & $distA & " distB: " & $distB)
       sum += visited
 
     echo "Million tree"
