@@ -309,10 +309,10 @@ while runGame:
       vec2 texcoord_dx = fwidth(texcoord);
       //vec2 texcoord_dy = dFdy(texcoord);
       color = vec4(0,0,0,1);
-      // over the top 100x antialiasing
-      for(int i = 0; i <= 100; ++i) {
-        vec2 offset = texcoord_dx * (float(i-50) / 50.0);
-        color.rg += fract(texcoord + offset) / 100;
+      // antialiasing
+      for(int i = 0; i <= 4; ++i) {
+        vec2 offset = texcoord_dx * (float(i-2) / 2.0);
+        color.rg += fract(texcoord + offset) / 5;
       }
 
       """
