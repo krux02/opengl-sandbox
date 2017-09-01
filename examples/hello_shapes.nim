@@ -222,6 +222,7 @@ while runGame:
       primitiveMode = GL_TRIANGLES
       numVertices = mesh.numVertices
       vertexOffset = mesh.vertexOffset
+      basevertex = 1234
 
       indices = indices
 

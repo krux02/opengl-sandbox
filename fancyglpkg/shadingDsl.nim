@@ -551,6 +551,9 @@ macro shadingDsl*(statement: untyped) : untyped =
           result[1] = value
         else:
           error("double declaration of programIdent", section)
+      of "basevertex":
+        echo("got basevertex: ", value.repr)
+        echo("basevertex not yet supported")
       of "vaoIdent":
         if result[2].kind == nnkNilLit:
           result[2] = value
