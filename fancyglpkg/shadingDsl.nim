@@ -119,6 +119,8 @@ proc incl(arg: string): int = 0
 proc numVertices(num: int): int = 0
 proc numInstances(num: int): int = 0
 proc vertexOffset(offset: int) : int = 0
+proc baseInstance(base: int): int = 0
+proc baseVertex(base: int): int = 0
 
 ##################################################################################
 #### Shading Dsl Inner ###########################################################
@@ -153,7 +155,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
   var hasIndices = false
   var indexType: NimNode = nil
   var sizeofIndexType = 0
-  var numVertices, numInstances, vertexOffset: NimNode = nil
+  var numVertices, numInstances, vertexOffset, baseVertex, baseInstance: NimNode = nil
   var bindTexturesCall = newCall(bindSym"bindTextures", newLit(numSamplers), nnkBracket.newTree)
 
   #### BEGIN PARSE TREE ####
@@ -349,8 +351,12 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
       geometryLayout = call[1].strVal
       geometryMain = call[2]
 
+    of "baseVertex":
+      baseVertex = newCall(bindSym"GLint", call[1])
+    of "baseInstance":
+      baseInstance = newCall(bindSym"GLuint", call[1])
     else:
-      error "unknown section", call[0]
+      error "unknown section " & $call[0], call[0]
 
   if bindTexturesCall[2].len > 0: #actually got any uniform textures
     drawBlock.add bindTexturesCall
@@ -443,17 +449,53 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
       `program`.transformFeedbackVaryings(`namesLit`, GL_INTERLEAVED_ATTRIBS)
     )
 
+  template indicesPtr: NimNode =
+    newTree( nnkCast, bindSym"pointer", newInfix(bindSym"*", vertexOffset, newLit(sizeofIndexType)))
+
   if hasIndices:
-    var indicesPtr = newTree( nnkCast, bindSym"pointer", newInfix(bindSym"*", vertexOffset, newLit(sizeofIndexType)))
     if numInstances.isNil:
-      drawBlock.add newCall( bindSym"glDrawElements", mode, numVertices, indexType, indicesPtr )
+      if baseVertex.isNil:
+        drawBlock.add newCall(
+          bindSym"glDrawElements", mode, numVertices, indexType, indicesPtr )
+      else:
+        drawBlock.add newCall(
+          bindSym"glDrawElementsBaseVertex",
+          mode, numVertices, indexType, indicesPtr, baseVertex )
     else:
-      drawBlock.add newCall( bindSym"glDrawElementsInstanced", mode, numVertices, indexType, indicesPtr, numInstances )
+      if baseInstance.isNil:
+        if baseVertex.isNil:
+          drawBlock.add newCall(
+            bindSym"glDrawElementsInstanced",
+            mode, numVertices, indexType, indicesPtr, numInstances )
+        else:
+          drawBlock.add newCall(
+            bindSym"glDrawElementsInstancedBaseVertex",
+            mode, numVertices, indexType, indicesPtr, numInstances, baseVertex )
+      else:
+        if baseVertex.isNil:
+          drawBlock.add newCall(
+            bindSym"glDrawElementsInstancedBaseInstance",
+            mode, numVertices, indexType, indicesPtr, numInstances, baseInstance )
+        else:
+          drawBlock.add newCall(
+            bindSym"glDrawElementsInstancedBaseVertexBaseInstance",
+            mode, numVertices, indexType, indicesPtr, numInstances, baseVertex, baseInstance )
+
   else:
     if numInstances.isNil:
-      drawBlock.add newCall( bindSym"glDrawArrays", mode, vertexOffset, numVertices )
+      drawBlock.add newCall(
+        bindSym"glDrawArrays",
+        mode, vertexOffset, numVertices )
     else:
-      drawBlock.add newCall( bindSym"glDrawArraysInstanced", mode, vertexOffset, numVertices, numInstances )
+      if baseInstance.isNil:
+        drawBlock.add newCall(
+          bindSym"glDrawArraysInstanced",
+          mode, vertexOffset, numVertices, numInstances )
+      else:
+        drawBlock.add newCall(
+          bindSym"glDrawArraysInstancedBaseInstance",
+          mode, vertexOffset, numVertices, numInstances, baseInstance )
+
 
   let numLocationsLit = newLit(numLocations)
 
@@ -500,7 +542,6 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 #### Shading Dsl Outer ###########################################################
 ##################################################################################
 
-
 macro transformFeedbackOutSection(self: TransformFeedback): string =
   result = newLit("""
 layout(xfb_buffer = 0, xfb_stride = 36) out bananas {
@@ -511,16 +552,10 @@ layout(xfb_buffer = 0, xfb_stride = 36) out bananas {
   layout(xfb_offset = 32) float birthday;
 }""")
 
-
 macro shadingDsl*(statement: untyped) : untyped =
   var wrapWithDebugResult = false
 
   result = newCall(bindSym"shadingDslInner", newNilLit(), newNilLit(), bindSym"GL_TRIANGLES", newStmtList(), newStmtList(), newStmtList(), ident"fragmentOutputs", )
-
-
-
-  # numVertices = result[2]
-  # numInstances = result[3]
 
   for section in statement.items:
     section.expectKind({nnkCall, nnkAsgn, nnkIdent})
@@ -544,6 +579,10 @@ macro shadingDsl*(statement: untyped) : untyped =
         result.add( newCall(bindSym"vertexOffset", value ) )
       of "indices":
         result.add( newCall(bindSym"indices", value ) )
+      of "baseVertex":
+        result.add( newCall(bindSym"baseVertex", value ) )
+      of "baseInstance":
+        result.add( newCall(bindSym"baseInstance", value ) )
       of "primitiveMode":
         result[3] = value
       of "programIdent":
@@ -551,9 +590,6 @@ macro shadingDsl*(statement: untyped) : untyped =
           result[1] = value
         else:
           error("double declaration of programIdent", section)
-      of "basevertex":
-        echo("got basevertex: ", value.repr)
-        echo("basevertex not yet supported")
       of "vaoIdent":
         if result[2].kind == nnkNilLit:
           result[2] = value

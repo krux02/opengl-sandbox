@@ -7,74 +7,84 @@ let windowsize = window.size
 
 let projection_mat : Mat4f = perspective(45'f32, windowsize.x / windowsize.y, 0.1, 100.0)
 
+
+type
+  IdMesh = enum
+    IdCone,
+    IdCylinder,
+    IdIcosphere,
+    IdSphere,
+    IdBox,
+    IdTetraeder,
+    IdTorus
+
+type
+  WorldObject = object
+    node: WorldNode
+    name: string
+    mesh: int
+
+proc newWorldNode(x,y,z: float32): WorldNode =
+  result = newWorldNode()
+  result.pos.xyz = vec3f(x,y,z)
+
+var worldNodes : array[IdMesh, WorldNode] = [
+  newWorldNode(-3, 3,1),
+  newWorldNode(3,-3,1),
+  newWorldNode(-3,-3,1),
+  newWorldNode(3,3,1),
+  newWorldNode(0,0,1),
+  newWorldNode(0,-6,1),
+  newWorldNode(-6,0,1)
+]
+
+var camera = newWorldNode(0,9,4)
+camera.lookAt(vec3f(0.1,0.2,1))
+
 var vertices,normals,colors: ArrayBuffer[Vec4f]
-var indices: ElementArrayBuffer[int32]
+var indices: ElementArrayBuffer[int16]
 
 type
   SimpleMesh = object
     vertexOffset: int
     numVertices: int
+    baseVertex: int
 
-var coneNode = newWorldNode()
-coneNode.pos.xyz = vec3f(-3, 3,1)
-
-var cylinderNode = newWorldNode()
-cylinderNode.pos.xyz = vec3f(3,-3,1)
-
-var icosphereNode = newWorldNode()
-icosphereNode.pos.xyz = vec3f(-3,-3,1)
-
-var sphereNode = newWorldNode()
-sphereNode.pos.xyz = vec3f(3,3,1)
-
-var boxNode = newWorldNode()
-boxNode.pos.xyz = vec3f(0,0,1)
-
-var tetraederNode = newWorldNode()
-tetraederNode.pos.xyz = vec3f(0,-6,1)
-
-var torusNode = newWorldNode()
-torusNode.pos.xyz = vec3f(-6,0,1)
-
-var camera = newWorldNode()
-camera.pos.xyz = vec3f(0,9,4)
-camera.lookAt(vec3f(0.1,0.2,1))
-
-const numSegments = 32
-
-var coneMesh, cylinderMesh, icosphereMesh, sphereMesh, boxMesh, tetraederMesh, torusMesh: SimpleMesh
+var meshes: array[IdMesh, SimpleMesh]
 
 block init:
+  const numSegments = 32
+
   proc texCoord2Color(x: Vec2f): Vec4f = vec4f(x,0,1)
 
   var verticesSeq = newSeq[Vec4f](0)
   var normalsSeq  = newSeq[Vec4f](0)
   var colorsSeq   = newSeq[Vec4f](0)
-  var indicesSeq  = newSeq[int32](0)
+  var indicesSeq  = newSeq[indices.T](0)
 
-  proc appendMesh(
+  proc appendMesh(id: IdMesh,
       newVertices, newNormals, newColors: openarray[Vec4f];
-      newIndices: openarray[int16]): SimpleMesh =
+      newIndices: openarray[int16]): void =
 
     let offset = verticesSeq.len
+
+    meshes[id].vertexOffset = indicesSeq.len
+    meshes[id].numVertices = newIndices.len
+    meshes[id].baseVertex = offset
 
     verticesSeq.add(newVertices)
     normalsSeq.add(newNormals)
     colorsSeq.add(newColors)
-
-    result.vertexOffset = indicesSeq.len
-    result.numVertices = newIndices.len
+    indicesSeq.add(newIndices)
     # apply offset
-    for idx in newIndices:
-      indicesSeq.add( int32(idx + offset) )
 
-  coneMesh = appendMesh(
+  appendMesh(IdCone,
     coneVertices(numSegments),
     coneNormals(numSegments),
     coneTexCoords(numSegments).map(texCoord2Color),
     coneIndices(numSegments))
 
-  cylinderMesh = appendMesh(
+  appendMesh(IdCylinder,
     cylinderVertices(numSegments),
     cylinderNormals(numSegments),
     cylinderTexCoords(numSegments).map(texCoord2Color),
@@ -103,31 +113,31 @@ block init:
     let color = vec4f(rand_f32(), rand_f32(), rand_f32(), 1'f32)
     unrolledColors.add([color,color,color])
 
-  icosphereMesh = appendMesh(
+  appendMesh(IdIcosphere,
     unrolledVertices,
     unrolledNormals,
     unrolledColors,
     iotaSeq[int16](unrolledVertices.len.int16))
 
-  sphereMesh = appendMesh(
+  appendMesh(IdSphere,
     uvSphereVertices(numSegments, numSegments div 2),
     uvSphereNormals(numSegments, numSegments div 2),
     uvSphereTexCoords(numSegments, numSegments div 2).map(texCoord2Color),
     uvSphereIndices(numSegments, numSegments div 2))
 
-  boxMesh = appendMesh(
+  appendMesh(IdBox,
     boxVertices,
     boxNormals,
     boxColors,
     iotaSeq[int16](boxVertices.len.int16))
 
-  tetraederMesh = appendMesh(
+  appendMesh(IdTetraeder,
     tetraederVertices,
     tetraederNormals,
     tetraederColors,
     iotaSeq[int16](tetraederVertices.len.int16))
 
-  torusMesh = appendMesh(
+  appendMesh(IdTorus,
     torusVertices(numSegments, numSegments div 2, 1, 0.5),
     torusNormals(numSegments, numSegments div 2),
     torusTexCoords(numSegments, numSegments div 2).map(texCoord2Color),
@@ -160,33 +170,33 @@ while runGame:
   frame += 1
 
   # just some meaningless numbers to make the shapes rotate
-  coneNode.turnRelativeZ(noiseArray[0])
-  coneNode.turnRelativeX(noiseArray[1])
-  coneNode.turnRelativeY(noiseArray[2])
+  worldNodes[IdCone].turnRelativeZ(noiseArray[0])
+  worldNodes[IdCone].turnRelativeX(noiseArray[1])
+  worldNodes[IdCone].turnRelativeY(noiseArray[2])
 
-  cylinderNode.turnRelativeX(noiseArray[3])
-  cylinderNode.turnRelativeY(noiseArray[4])
-  cylinderNode.turnRelativeZ(noiseArray[5])
+  worldNodes[Idcylinder].turnRelativeX(noiseArray[3])
+  worldNodes[Idcylinder].turnRelativeY(noiseArray[4])
+  worldNodes[Idcylinder].turnRelativeZ(noiseArray[5])
 
-  icosphereNode.turnRelativeX(noiseArray[6])
-  icosphereNode.turnRelativeY(noiseArray[7])
-  icosphereNode.turnRelativeZ(noiseArray[8])
+  worldNodes[Idicosphere].turnRelativeX(noiseArray[6])
+  worldNodes[Idicosphere].turnRelativeY(noiseArray[7])
+  worldNodes[Idicosphere].turnRelativeZ(noiseArray[8])
 
-  sphereNode.turnRelativeX(noiseArray[9])
-  sphereNode.turnRelativeY(noiseArray[10])
-  sphereNode.turnRelativeZ(noiseArray[11])
+  worldNodes[Idsphere].turnRelativeX(noiseArray[9])
+  worldNodes[Idsphere].turnRelativeY(noiseArray[10])
+  worldNodes[Idsphere].turnRelativeZ(noiseArray[11])
 
-  boxNode.turnRelativeX(noiseArray[12])
-  boxNode.turnRelativeY(noiseArray[13])
-  boxNode.turnRelativeZ(noiseArray[14])
+  worldNodes[Idbox].turnRelativeX(noiseArray[12])
+  worldNodes[Idbox].turnRelativeY(noiseArray[13])
+  worldNodes[Idbox].turnRelativeZ(noiseArray[14])
 
-  tetraederNode.turnRelativeX(noiseArray[15])
-  tetraederNode.turnRelativeY(noiseArray[16])
-  tetraederNode.turnRelativeZ(noiseArray[17])
+  worldNodes[Idtetraeder].turnRelativeX(noiseArray[15])
+  worldNodes[Idtetraeder].turnRelativeY(noiseArray[16])
+  worldNodes[Idtetraeder].turnRelativeZ(noiseArray[17])
 
-  torusNode.turnRelativeX(noiseArray[18])
-  torusNode.turnRelativeY(noiseArray[19])
-  torusNode.turnRelativeZ(noiseArray[20])
+  worldNodes[Idtorus].turnRelativeX(noiseArray[18])
+  worldNodes[Idtorus].turnRelativeY(noiseArray[19])
+  worldNodes[Idtorus].turnRelativeZ(noiseArray[20])
 
   # the plane on the ground is rotating the camera is still.  It
   # really provides the illusion the camera would rotate around the
@@ -214,16 +224,15 @@ while runGame:
   let magic = int32(frame mod 2)
 
   #proc renderShape(node: WorldNode, vertices, normals, texcoords: ArrayBuffe[Vec4f])
-  for i, node in [coneNode, cylinderNode, icosphereNode, sphereNode, boxNode, tetraederNode, torusNode]:
-    let mesh = [coneMesh, cylinderMesh, icosphereMesh, sphereMesh, boxMesh, tetraederMesh, torusMesh][i]
+  for i, node in worldNodes:
+    let mesh = meshes[i]
 
     shadingDsl:
       debug
       primitiveMode = GL_TRIANGLES
       numVertices = mesh.numVertices
       vertexOffset = mesh.vertexOffset
-      basevertex = 1234
-
+      baseVertex = mesh.baseVertex
       indices = indices
 
       uniforms:
@@ -296,7 +305,16 @@ while runGame:
 
       // objPos.z is expected to be 0, fract on an almost 0 value would lead to weird patterns
       // an optimization would be to shrinkthe matrices, so that it isn't calculated anymore.
-      color = vec4(fract(objPos.xy), 0, 1);
+      vec2 texcoord = objPos.xy;
+      vec2 texcoord_dx = fwidth(texcoord);
+      //vec2 texcoord_dy = dFdy(texcoord);
+      color = vec4(0,0,0,1);
+      // over the top 100x antialiasing
+      for(int i = 0; i <= 100; ++i) {
+        vec2 offset = texcoord_dx * (float(i-50) / 50.0);
+        color.rg += fract(texcoord + offset) / 100;
+      }
+
       """
 
   glSwapWindow(window)
