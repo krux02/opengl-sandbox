@@ -454,6 +454,8 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
   if hasIndices:
     if numInstances.isNil:
+      if not baseInstance.isNil:
+        error "no instancing, unable to use parameter baseInstance", baseInstance[1]
       if baseVertex.isNil:
         drawBlock.add newCall(
           bindSym"glDrawElements", mode, numVertices, indexType, indicesPtr )
@@ -482,7 +484,11 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
             mode, numVertices, indexType, indicesPtr, numInstances, baseVertex, baseInstance )
 
   else:
+    if not baseVertex.isNil:
+      error "no indices, unable to use parameter baseVertex", baseVertex[1]
     if numInstances.isNil:
+      if not baseInstance.isNil:
+        error "no instancing, unable to use parameter baseInstance", baseInstance[1]
       drawBlock.add newCall(
         bindSym"glDrawArrays",
         mode, vertexOffset, numVertices )
