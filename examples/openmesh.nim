@@ -1,4 +1,4 @@
-import ../fancygl, sdl2, opengl, glm, memfiles, OpenMesh, math, hashes, tables, mersenne
+import ../fancygl, memfiles, OpenMesh, os, hashes, tables, mersenne
 
 ###############################################################################
 # WARNING thistest is incomplete and has not yet been updatad for a long time #
@@ -153,10 +153,9 @@ proc updateRenderBuffers(mymesh: var MyMeshType,
     #echo a_position
     #echo mat4f(projection) * vec4f(a_position, 1);
 
-  # var faceColors: Texture1D = texture1D(mymesh.faces.len, GL_RGBA8)
-  # faceColors.setData(mymesh.faceProperties.color)
-  # var indices = indicesSeq.elementArrayBuffer
-  # faceColors.setData(mymesh.faceProperties.color)
+  #var faceColors: Texture1D = newTexture1D(mymesh.faces.len, GL_RGBA8)
+  #faceColors.setData(mymesh.faceProperties.color)
+  #var indices = indicesSeq.elementArrayBuffer
 
 ################################################################################
 #################################### Main ######################################
@@ -172,9 +171,9 @@ const
   projection = frustum(-halfWidth, halfWidth, -halfHeight, halfHeight, Near, Far)
 
 proc main() =
-  let (window, context) = defaultSetup(vec2f(WindowSize))
+  let (window, context) = defaultSetup(WindowSize)
 
-  var file = memfiles.open("mrfixit.iqm")
+  var file = memfiles.open(getAppDir() / "resources/mrfixit.iqm")
   defer:
     close(file)
 
@@ -212,7 +211,7 @@ proc main() =
 
   var meshTextures = newSeq[Texture2D](meshes.len)
   for i, mesh in meshes:
-    meshTextures[i] = loadTexture2DFromFile( $text(mesh.material) )
+    meshTextures[i] = loadTexture2DFromFile( getAppDir() / "resources" / $text(mesh.material) )
 
   echo "=========================================================================="
 
@@ -333,10 +332,10 @@ proc main() =
       echo "invalid halfedge handle in face at index ", i
   echo "brokenHalfedges: ", brokenHalfedges
 
-  var renderPositionBuffer = createArrayBuffer[Vec3f](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
-  var renderNormalBuffer   = createArrayBuffer[Vec3f](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
-  var renderTexCoordBuffer = createArrayBuffer[Vec2f](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
-  var renderColorBuffer    = createArrayBuffer[Color](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
+  var renderPositionBuffer = newArrayBuffer[Vec3f](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
+  var renderNormalBuffer   = newArrayBuffer[Vec3f](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
+  var renderTexCoordBuffer = newArrayBuffer[Vec2f](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
+  var renderColorBuffer    = newArrayBuffer[Color](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
 
   updateRenderBuffers(mymesh, renderPositionBuffer,renderNormalBuffer, renderTexCoordBuffer, renderColorBuffer)
 
@@ -364,7 +363,7 @@ proc main() =
     #### handle events ####
     #######################
 
-    var evt : sdl2.Event
+    var evt : Event
     while pollEvent(evt):
       if evt.kind == QuitEvent:
         runGame = false
@@ -434,7 +433,7 @@ proc main() =
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
 
-    var view_mat = vec4d()
+    var view_mat = mat4d(1)
 
     view_mat = view_mat.translate( vec3d(0, -1.5f, -17) + vec3d(0, offset.y, offset.x) )
     view_mat = view_mat.translate( vec3d(0, 0, 3) )
@@ -443,12 +442,14 @@ proc main() =
 
     view_mat = view_mat.translate( vec3d(0, 0, -3) )
 
-    shadingDsl(GL_TRIANGLES):
+    shadingDsl:
       numVertices = mymesh.faces.len * 3
+      primitiveMode = GL_TRIANGLES
 
       uniforms:
         modelview = view_mat.mat4f
         projection = projection.mat4f
+        #faceColors
       attributes:
         a_position = renderPositionBuffer
         a_normal   = renderNormalBuffer

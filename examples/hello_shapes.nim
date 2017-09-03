@@ -50,8 +50,6 @@ var meshes: array[IdMesh, SimpleMesh]
 block init:
   const numSegments = 32
 
-  proc texCoord2Color(x: Vec2f): Vec4f = vec4f(x,0,1)
-
   var verticesSeq = newSeq[Vec4f](0)
   var normalsSeq  = newSeq[Vec4f](0)
   var colorsSeq   = newSeq[Vec4f](0)
@@ -76,13 +74,13 @@ block init:
   IdCone.insertMesh(
     coneVertices(numSegments),
     coneNormals(numSegments),
-    coneTexCoords(numSegments).map(texCoord2Color),
+    coneColors(numSegments),
     coneIndices(numSegments))
 
   IdCylinder.insertMesh(
     cylinderVertices(numSegments),
     cylinderNormals(numSegments),
-    cylinderTexCoords(numSegments).map(texCoord2Color),
+    cylinderColors(numSegments),
     cylinderIndices(numSegments))
 
   let isNumVerts = icosphereIndicesTriangles.len
@@ -117,7 +115,7 @@ block init:
   IdSphere.insertMesh(
     uvSphereVertices(numSegments, numSegments div 2),
     uvSphereNormals(numSegments, numSegments div 2),
-    uvSphereTexCoords(numSegments, numSegments div 2).map(texCoord2Color),
+    uvSphereColors(numSegments, numSegments div 2),
     uvSphereIndices(numSegments, numSegments div 2))
 
   IdBox.insertMesh(
@@ -135,7 +133,7 @@ block init:
   IdTorus.insertMesh(
     torusVertices(numSegments, numSegments div 2, 1, 0.5),
     torusNormals(numSegments, numSegments div 2),
-    torusTexCoords(numSegments, numSegments div 2).map(texCoord2Color),
+    torusColors(numSegments, numSegments div 2),
     torusIndicesTriangles(numSegments, numSegments div 2).map(proc(x: int32): int16 = int16(x)))
 
   vertices = arrayBuffer(verticesSeq)
