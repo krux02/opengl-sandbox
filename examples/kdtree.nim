@@ -22,47 +22,51 @@ proc split(box: Box; value: float32; dim: int): tuple[l,r: Box] =
   l.max[dim] = value
   r.min[dim] = value
 
-proc find_median(t: var KdTree; a,b: int, dim: int): int =
+
+iterator leafNodeBoxes(this: KdTree, node: KdNode, boundingBox: Box, dim: int): Box {.closure.} =
+  let (letfBox,rightBox) = boundingBox.split(node.x[dim], dim)
+  if node.left >= 0:
+    for box in leafNodeBoxes(this, this.data[node.left], leftBox):
+      yield box
+  if node.right >= 0:
+    for box in leafNodeBoxes(this, this.data[node.right]. rightBox):
+      yield box
+
+iterator leafNodeBoxes(this: KdTree): Box {.closure.} =
+
+  var boundingBox: Box(min: vec3f(Inf), max: vec3f(-Inf))
+  for node in this.data:
+    boundingBox.min = min(node.x, boundingBox.min)
+    boundingBox.max = max(node.x, boundingBox.max)
+
+  for box in leafNodeBoxes(this, this.data[this.rootIdx], boundingBox):
+    yield box
+
+
+proc divide_by_mean(t: var KdTree, a,b: int, dim: int): int =
+  var mean: float32
+  for i in a ..< b:
+    mean += t.data[i].x.arr[dim]
+  mean /= float32(b - a)
+
   var a = a
-  var b = b
+  var b = b-1
 
-  if b <= a:
-    return -1;
+  while a < b:
+    swap(t.data[a], t.data[b])
+    while t.data[a].x.arr[dim] < mean:
+      a += 1
+    while t.data[b].x.arr[dim] >= mean:
+      b -= 1
 
-  if a + 1 == b:
-    return a;
-
-
-  let pivot_idx: int = (a + b) div 2;
-
-  while true:
-    swap(t.data[pivot_idx], t.data[b - 1])
-
-    var store = a
-
-    for p in a ..< b:
-      if t.data[p].x.arr[dim] < t.data[pivot_idx].x.arr[dim]:
-        if p != store:
-          swap(t.data[p], t.data[store]);
-        store += 1
-
-    swap(t.data[store], t.data[b - 1])
-
-    # median has duplicate values
-    if t.data[store].x.arr[dim] == t.data[pivot_idx].x.arr[dim]:
-      return pivot_idx;
-
-    if store > pivot_idx:
-      b = store;
-    else:
-      a = store;
-
+  return a
 
 proc subtree_sort(t: var KdTree; a,b: int, i: int): int =
   if a == b:
     return -1
 
-  result = find_median(t, a, b, i)
+
+  result = t.divide_by_mean(a, b, i)
 
   if 0 <= result:
     t.data[result].left  = subtree_sort(t, a,   result, (i + 1) mod 3).int32
@@ -71,47 +75,47 @@ proc subtree_sort(t: var KdTree; a,b: int, i: int): int =
 proc init(t: var KdTree): void =
   t.rootIdx = t.subtree_sort(0, t.data.len, 0)
 
-proc nearestIntern(this: KdTree; root_idx: int; nd: KdNode, dim: int; best_idx: var int, best_dist: var float32, visited: var int): void =
-  if root_idx == -1:
+proc nearestIntern(this: KdTree; node_idx: int; pos: Vec4f, dim: int; best_idx: var int, best_dist: var float32, visited: var int): void =
+  if node_idx == -1:
     return
 
-  template root: KdNode = this.data[root_idx]
+  template node: KdNode = this.data[node_idx]
 
-  let d = length(root.x - nd.x)
-  let dx = root.x.arr[dim] - nd.x[dim]
+  let d = length(root.x - node.x)
+  let dx = root.x.arr[dim] - node.x[dim]
   let dx2 = dx * dx
 
   visited += 1
 
   if best_idx == -1 or d < best_dist:
     best_dist = d
-    best_idx = root_idx
+    best_idx = node_idx
 
   if best_dist == 0:
     return #(perfect match)
 
   let dim2 = (dim + 1) mod 3
 
-  this.nearestIntern(if 0 < dx: root.left else: root.right, nd, dim2, best_idx, best_dist, visited)
+  this.nearestIntern(if 0 < dx: root.left else: root.right, pos, dim2, best_idx, best_dist, visited)
   if (dx2 >= best_dist):
     return
-  this.nearestIntern(if 0 < dx: root.right else: root.left, nd, dim2, best_idx, best_dist, visited)
+  this.nearestIntern(if 0 < dx: root.right else: root.left, pos, dim2, best_idx, best_dist, visited)
 
 
-proc nearest(this: KdTree, nd: KdNode): tuple[best_idx: int, best_dist: float32, visited: int] =
+proc nearest(this: KdTree, node: KdNode): tuple[best_idx: int, best_dist: float32, visited: int] =
   result.best_idx = -1
-  this.nearestIntern(this.rootIdx, nd, 0, result.best_idx, result.best_dist, result.visited)
+  this.nearestIntern(this.rootIdx, node.pos, 0, result.best_idx, result.best_dist, result.visited)
 
-proc nearestLinear(this: KdTree, nd: KdNode): tuple[best_idx: int, best_dist: float32] =
+proc nearestLinear(this: KdTree, node: KdNode): tuple[best_idx: int, best_dist: float32] =
 
   result.best_dist = Inf
   for i, node in this.data:
-    let dist = length(node.x - nd.x)
+    let dist = length(node.x - node.x)
     if dist < result.best_dist:
       result.best_idx = i
       result.best_dist = dist
 
-const N = 1000000
+const N = 10000
 
 import random
 proc rand1(): float32 =

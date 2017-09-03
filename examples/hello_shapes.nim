@@ -18,16 +18,11 @@ type
     IdTetraeder,
     IdTorus
 
-type
-  WorldObject = object
-    node: WorldNode
-    name: string
-    mesh: int
-
 proc newWorldNode(x,y,z: float32): WorldNode =
   result = newWorldNode()
   result.pos.xyz = vec3f(x,y,z)
 
+# for each mesh create one node in the world to Draw it there
 var worldNodes : array[IdMesh, WorldNode] = [
   newWorldNode(-3, 3,1),
   newWorldNode(3,-3,1),
@@ -62,7 +57,7 @@ block init:
   var colorsSeq   = newSeq[Vec4f](0)
   var indicesSeq  = newSeq[indices.T](0)
 
-  proc appendMesh(id: IdMesh,
+  proc insertMesh(id: IdMesh,
       newVertices, newNormals, newColors: openarray[Vec4f];
       newIndices: openarray[int16]): void =
 
@@ -78,13 +73,13 @@ block init:
     indicesSeq.add(newIndices)
     # apply offset
 
-  appendMesh(IdCone,
+  IdCone.insertMesh(
     coneVertices(numSegments),
     coneNormals(numSegments),
     coneTexCoords(numSegments).map(texCoord2Color),
     coneIndices(numSegments))
 
-  appendMesh(IdCylinder,
+  IdCylinder.insertMesh(
     cylinderVertices(numSegments),
     cylinderNormals(numSegments),
     cylinderTexCoords(numSegments).map(texCoord2Color),
@@ -113,31 +108,31 @@ block init:
     let color = vec4f(rand_f32(), rand_f32(), rand_f32(), 1'f32)
     unrolledColors.add([color,color,color])
 
-  appendMesh(IdIcosphere,
+  IdIcosphere.insertMesh(
     unrolledVertices,
     unrolledNormals,
     unrolledColors,
     iotaSeq[int16](unrolledVertices.len.int16))
 
-  appendMesh(IdSphere,
+  IdSphere.insertMesh(
     uvSphereVertices(numSegments, numSegments div 2),
     uvSphereNormals(numSegments, numSegments div 2),
     uvSphereTexCoords(numSegments, numSegments div 2).map(texCoord2Color),
     uvSphereIndices(numSegments, numSegments div 2))
 
-  appendMesh(IdBox,
+  IdBox.insertMesh(
     boxVertices,
     boxNormals,
     boxColors,
     iotaSeq[int16](boxVertices.len.int16))
 
-  appendMesh(IdTetraeder,
+  IdTetraeder.insertMesh(
     tetraederVertices,
     tetraederNormals,
     tetraederColors,
     iotaSeq[int16](tetraederVertices.len.int16))
 
-  appendMesh(IdTorus,
+  IdTorus.insertMesh(
     torusVertices(numSegments, numSegments div 2, 1, 0.5),
     torusNormals(numSegments, numSegments div 2),
     torusTexCoords(numSegments, numSegments div 2).map(texCoord2Color),
@@ -311,7 +306,7 @@ while runGame:
       color = vec4(0,0,0,1);
       // antialiasing
       for(int i = 0; i <= 4; ++i) {
-        vec2 offset = texcoord_dx * (float(i-2) / 2.0);
+        vec2 offset = texcoord_dx * 0.5 * (float(i-2) / 2.0);
         color.rg += fract(texcoord + offset) / 5;
       }
 
