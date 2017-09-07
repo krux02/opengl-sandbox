@@ -8,6 +8,12 @@ proc `<=`[N: static[int],T](a,b: Vec[N,T]): Vec[N,bool] =
   for i in 0 ..< N:
     result.arr[i] = a.arr[i] <= b.arr[i]
 
+proc reset[T](arg: var seq[T]): void =
+  if arg.isNil:
+    arg.newSeq(0)
+  else:
+    arg.setLen(0)
+
 proc `$`[N,T](arg: array[N,T]): string =
   result = "["
   for i, x in arg:
@@ -27,6 +33,7 @@ type
 
   Value = object
     pos: Vec3f
+    color: Vec3f
 
   NodeType = enum
     ntValueRange
@@ -84,6 +91,10 @@ proc leafNodeBoxes(this: Tree; aabb: AABB; node: Node; dst: var seq[AABB]) =
   else:
     for i, childIdx in node.children:
       leafNodeBoxes(this, aabb.octreeChild(i), this.nodes[childIdx], dst)
+
+proc leafNodeBoxes(this: Tree; dst: var seq[AABB]): void =
+  dst.reset
+  leafNodeBoxes(this, this.aabb, this.nodes[0], dst)
 
 proc leafNodeBoxes(this: Tree): seq[AABB] =
   result.newSeq(0)
@@ -165,50 +176,58 @@ proc subtreeInit(t: var Tree; boundingBox: AABB; a,b: int32): int32 =
       let childIdx = t.subtreeInit(childBB, arr[i], arr[i+1])
       newNode.children[i] = childIdx
 
+proc init(tree: var Tree): void =
+  ## expects ``data`` to be filled, the rest will be initialized
+  tree.aabb = AABB(min: vec3f(Inf), max: vec3f(-Inf))
+  for d in tree.data:
+    tree.aabb.incl(d.pos)
+
+  tree.nodes.reset
+  discard tree.subtreeInit(tree.aabb, 0, int32(tree.data.len))
 
 proc newOctree(data: openarray[Value]): Tree =
   result = Tree(data: @data)
-  result.aabb = AABB(min: vec3f(Inf), max: vec3f(-Inf))
-  for d in data:
-    result.aabb.incl(d.pos)
+  result.init
 
-  result.nodes.newSeq(0)
-  discard result.subtreeInit(result.aabb, 0, int32(data.len))
+
+proc randomTreeValue(): Value =
+  Value(
+    pos: Vec3f(arr: [rand_f32(), rand_f32(), rand_f32()]),
+    color: Vec3f(arr: [rand_f32(), rand_f32(), rand_f32()])
+  )
+
+proc spiralTreeValue(): Value =
+  let x = float32(randNormal() * 2)
+  let spiralPos = vec3f(sin(x), cos(x), x * 0.35)
+  let offset = vec3f(vec3(randNormal(), randNormal(), randNormal()) * 0.01)
+  Value(
+    pos: spiralPos + offset,
+    color: Vec3f(arr: [rand_f32(), rand_f32(), rand_f32()])
+  )
 
 proc randOctree(length: int): Tree =
-  var data = newSeq[Value](length)
-  for d in data.mitems:
-    d.pos = Vec3f(arr: [rand_f32(), rand_f32(), rand_f32()])
-
-  result = newOctree(data)
-
+  result.data = newSeq[Value](length)
+  for d in result.data.mitems:
+    d = randomTreeValue()
+  result.init
 
 proc spiralOctree(length: int): Tree =
   ## creates a new octree with data distributed on a spiral
-  var data = newSeq[Value](length)
-  for d in data.mitems:
-    let x = float32(randNormal() * 2)
-    let spiralPos = vec3f(sin(x), cos(x), x * 0.35)
-    let offset = vec3f(vec3(randNormal(), randNormal(), randNormal()) * 0.01)
-    d.pos = spiralPos + offset
+  result.data = newSeq[Value](length)
+  for d in result.data.mitems:
+    d = spiralTreeValue()
+  result.init
 
-  result = newOctree(data)
-
-let tree = spiralOctree(1000)
+var tree = spiralOctree(1000)
 
 let (window, context) = defaultSetup()
 
 glPointSize(5)
 
-let posBuffer = arrayBuffer(tree.data).view(pos)
+var treeDataBuffer = arrayBuffer(tree.data)
 
-var colors = newSeq[Vec3f](1000)
-for v in colors.mitems():
-  v.x = rand_f32()
-  v.y = rand_f32()
-  v.z = rand_f32()
-
-let colorsBuffer = arrayBuffer(colors)
+let posBuffer      = treeDataBuffer.view(pos)
+let colorsBuffer = treeDataBuffer.view(color)
 
 
 var evt: Event
@@ -248,16 +267,15 @@ let cubeLineIndices = elementArrayBuffer([
   3,7
 ])
 
-var linePositions = newArrayBuffer[Vec4f](1000)
+var boxes = tree.leafNodeBoxes # just for the approximation of the length
+var boxesBuffer = newArrayBuffer[AABB](boxes.len * 2)
 
-let boxes = tree.leafNodeBoxes
-let boxesBuffer = arrayBuffer(boxes)# newArrayBuffer[AABB](1000)
 let boxesMinView = boxesBuffer.view(min)
 let boxesMaxView = boxesBuffer.view(max)
 
 proc drawBoxes(proj,modelView: Mat4f, maxDepth: int): void =
-  #let boxes = tree.leafNodeBoxes(#[maxDepth]#)
-  #boxesBuffer.setData(boxes)
+  tree.leafNodeBoxes(boxes)
+  boxesBuffer.setData(boxes)
 
   shadingDsl:
     primitiveMode = GL_LINES
@@ -273,27 +291,8 @@ proc drawBoxes(proj,modelView: Mat4f, maxDepth: int): void =
       a_min = boxesMinView {.divisor: 1.}
     vertexMain:
       """
-      vec4 pos_ws = vec4(mix(a_min + 0.001, a_max - 0.001, a_vertex.xyz), 1);
+      vec4 pos_ws = vec4(mix(a_min, a_max, a_vertex.xyz), 1);
       gl_Position = proj * modelView * pos_ws;
-      """
-    fragmentMain:
-      """
-      color = vec4(1);
-      """
-
-proc lines(mvp: Mat4f; vertices: openarray[Vec4f]): void =
-  linePositions.setData(vertices)
-
-  shadingDsl:
-    primitiveMode = GL_LINES
-    numVertices = vertices.len
-    uniforms:
-      mvp
-    attributes:
-      a_vertex = linePositions
-    vertexMain:
-      """
-      gl_Position = mvp * a_vertex;
       """
     fragmentMain:
       """
@@ -339,22 +338,23 @@ while runGame:
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-  var selected = 0
-  var selected_dist = float32(Inf)
+  block:
+    let s = sin(0.002f)
+    let c = cos(0.002f)
+    let mat = mat2(vec2(c,s), vec2(-s,c))
+    for node in tree.data.mitems:
+      node.pos.xy = mat * node.pos.xy
 
-  for i, node in tree.data:
-    let dist = length(node.pos.xyz - queryPos.xyz)
-    if dist < selected_dist:
-      selected = i
-      selected_dist = dist
+  treeDataBuffer.setData(tree.data)
+
+  tree.init
 
   shadingDsl:
     primitiveMode = GL_POINTS
-    numVertices = 1000
+    numVertices = tree.data.len
     uniforms:
       modelView = viewMat * modelMat
       proj
-      select    = int32(selected)
     attributes:
       a_vertex = posBuffer
       a_color  = colorsBuffer
@@ -362,11 +362,7 @@ while runGame:
       """
       gl_Position = proj * modelView * vec4(a_vertex, 1);
       //gl_Position = a_vertex;
-      if (select == gl_VertexID) {
-        v_color = vec4(1);
-      } else {
-        v_color = vec4(a_color, 1);
-      }
+      v_color = vec4(a_color, 1);
       """
     vertexOut:
       "out vec4 v_color"
@@ -375,48 +371,7 @@ while runGame:
       color = v_color;
       """
 
-  #[
-  shadingDsl:
-    primitiveMode = GL_LINES
-    numVertices = 24
-    indices = cubeLineIndices
-    uniforms:
-      modelView = viewMat * modelMat
-      proj
-      select    = int32(selected)
-    attributes:
-      a_vertex = cubeVertices
-    vertexMain:
-      """
-      gl_Position = proj * modelView * a_vertex;
-      """
-    fragmentMain:
-      """
-      color = vec4(1);
-      """
-  ]#
-
   drawBoxes(proj, viewMat * modelMat, maxDepth)
-
-
-  let mvp = proj * viewMat * modelMat
-
-  var a,b,c,d,e: Vec4f = queryPos
-  a.x = -1
-  b.x =  1
-  c.y = -1
-  d.y =  1
-  e.xy = tree.data[selected].pos.xy
-
-  #[
-  lines(mvp, [
-    vec4f( 1, 1, queryPos.z, 1), vec4f(-1, 1, queryPos.z, 1),
-    vec4f(-1, 1, queryPos.z, 1), vec4f(-1,-1, queryPos.z, 1),
-    vec4f(-1,-1, queryPos.z, 1), vec4f( 1,-1, queryPos.z, 1),
-    vec4f( 1,-1, queryPos.z, 1), vec4f( 1, 1, queryPos.z, 1),
-    a,b,c,d, queryPos, e, e, vec4f(tree.data[selected].pos, 1), vec4f(tree.data[selected].pos, 1), queryPos
-  ])
-  ]#
 
   glSwapWindow(window)
 
