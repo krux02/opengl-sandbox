@@ -1,8 +1,7 @@
 # included from fancygl.nim
 
 proc uvSphereVertices*(segments, rings: int): seq[Vec4f] =
-  result.newSeq((segments+1) * rings)
-  result.setLen(0)
+  result = newSeqOfCap[Vec4f]((segments+1) * rings)
 
   for j in 0 .. segments:
     let
@@ -19,8 +18,7 @@ proc uvSphereVertices*(segments, rings: int): seq[Vec4f] =
       result.add( vec4f(x * r, y * r, h, 1) )
 
 proc uvSphereNormals*(segments, rings: int): seq[Vec4f] =
-  result.newSeq((segments+1) * rings)
-  result.setLen(0)
+  result = newSeqOfCap[Vec4f]((segments+1) * rings)
 
   for j in 0 .. segments:
     let
@@ -36,10 +34,8 @@ proc uvSphereNormals*(segments, rings: int): seq[Vec4f] =
 
       result.add( vec4f(x * r, y * r, h, 0) )
 
-
 proc uvSphereTexCoords*(segments, rings: int): seq[Vec2f] =
-  result.newSeq((segments+1) * rings)
-  result.setLen(0)
+  result = newSeqOfCap[Vec2f]((segments+1) * rings)
 
   for j in 0 .. segments:
     let beta = (j / segments).float32
@@ -49,10 +45,19 @@ proc uvSphereTexCoords*(segments, rings: int): seq[Vec2f] =
 
       result.add( vec2f(beta, alpha) )
 
+proc uvSphereColors*(segments, rings: int): seq[Vec4f] =
+  result = newSeqOfCap[Vec4f]((segments+1) * rings)
+
+  for j in 0 .. segments:
+    let beta = (j / segments).float32
+
+    for i in 0 .. < rings:
+      let alpha = (i / (rings-1)).float32
+
+      result.add( vec4f(beta, alpha, 0, 1) )
 
 proc uvSphereIndices*(segments, rings: int): seq[int16] =
-  result.newSeq((segments+1) * rings * 6)
-  result.setLen(0)
+  result = newSeqOfCap[int16]((segments+1) * rings)
 
   for segment in 0 ..< segments:
     for ring in 0 ..< rings - 1:
@@ -120,6 +125,24 @@ proc cylinderTexCoords*(segments: int): seq[Vec2f] =
     result[2*j+1] = vec2f(u, 1)
     result[2*(segments+1) + 1 + j] = vec2f(x,y)
     result[3*(segments+1) + 2 + j] = vec2f(x,y)
+
+proc cylinderColors*(segments: int): seq[Vec4f] =
+  result.newSeq((segments+1) * 4 + 2)
+
+  result[2 * (segments+1)] = vec4f(0.5f, 0.5f, 0, 1)
+  result[3 * (segments+1) + 1] = vec4f(0.5f, 0.5f, 0, 1)
+
+  for j in 0 .. segments:
+    let
+      u = (j / segments).float32
+      beta = (j / segments) * 2 * PI
+      x = cos(beta).float32 * 0.5f + 0.5f
+      y = sin(beta).float32 * 0.5f + 0.5f
+
+    result[2*j+0] = vec4f(u, 0, 0, 1)
+    result[2*j+1] = vec4f(u, 1, 0, 1)
+    result[2*(segments+1) + 1 + j] = vec4f(x,y, 0, 1)
+    result[3*(segments+1) + 2 + j] = vec4f(x,y, 0, 1)
 
 proc cylinderIndices*(segments: int): seq[int16] =
   result.newSeq(0)
@@ -202,6 +225,25 @@ proc coneTexCoords*(segments: int): seq[Vec2f] =
     result[2*j+1] = vec2f(u, 1)
     result[2*(segments+1) + 1 + j] = vec2f(x,y)
     result[3*(segments+1) + 2 + j] = vec2f(x,y)
+
+proc coneColors*(segments: int): seq[Vec4f] =
+  result.newSeq((segments+1) * 4 + 2)
+
+  result[2 * (segments+1)] = vec4f(0.5f, 0.5f, 0, 1)
+  result[3 * (segments+1) + 1] = vec4f(0.5f, 0.5f, 0, 1)
+
+  for j in 0 .. segments:
+    let
+      u = (j / segments).float32
+      beta = (j / segments) * 2 * PI
+      x = cos(beta).float32 * 0.5f + 0.5f
+      y = sin(beta).float32 * 0.5f + 0.5f
+
+    result[2*j+0] = vec4f(u, 0, 0, 1)
+    result[2*j+1] = vec4f(u, 1, 0, 1)
+    result[2*(segments+1) + 1 + j] = vec4f(x,y,0,1)
+    result[3*(segments+1) + 2 + j] = vec4f(x,y,0,1)
+
 
 proc coneIndices*(segments: int): seq[int16] =
   result.newSeq(0)
@@ -417,6 +459,14 @@ proc torusTexCoords*(majorSegments,minorSegments: int): seq[Vec2f] =
       let v = float32(j / minorSegments)
       result.add vec2f(u,v)
 
+proc torusColors*(majorSegments,minorSegments: int): seq[Vec4f] =
+  result = newSeqOfCap[Vec4f]((minorSegments+1) * (majorSegments+1))
+  for i in 0 .. majorSegments:
+    for j in 0 .. minorSegments:
+      let u = float32(i / majorSegments)
+      let v = float32(j / minorSegments)
+      result.add vec4f(u,v,0,1)
+
 proc torusIndicesTriangles*(majorSegments,minorSegments: int) : seq[int32]    =
   gridIndicesTriangles(vec2i(minorSegments.int32+1, majorSegments.int32+1))
 
@@ -501,11 +551,3 @@ proc infinitePlaneVertices*(planeEquation: Vec4f): array[4 * 3, Vec4f] =
    center,  dir2, -dir1,
    center, -dir1, -dir2,
    center, -dir2,  dir1]
-
-when defined(Mat2x4f):
-  proc infinitePlaneMat*(planeEquation: Vec4f): Mat2x4f =
-    let pl = planeEquation
-    # we just need a point on the plane
-    let center = vec4(pl.xyz * (-pl.w / dot(pl.xyz, pl.xyz)), 1)
-    result[0] = vec4(cross(pl.xyz, vec3f(1,0,0)), 0)
-    result[1] = vec4(cross(pl.xyz, result[0].xyz), 0)

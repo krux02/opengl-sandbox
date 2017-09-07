@@ -23,24 +23,26 @@ proc split(box: Box; value: float32; dim: int): tuple[l,r: Box] =
   r.min[dim] = value
 
 
-iterator leafNodeBoxes(this: KdTree, node: KdNode, boundingBox: Box, dim: int): Box {.closure.} =
-  let (letfBox,rightBox) = boundingBox.split(node.x[dim], dim)
+proc leafNodeBoxes(this: KdTree, node: KdNode, boundingBox: Box, dim: int; dest: var seq[Box]): void =
+  let (leftBox,rightBox) = boundingBox.split(node.x[dim], dim)
   if node.left >= 0:
-    for box in leafNodeBoxes(this, this.data[node.left], leftBox):
-      yield box
+    leafNodeBoxes(this, this.data[node.left], leftBox, (dim + 1) mod 3, dest):
+  else:
+    dest.add leftBox
+
   if node.right >= 0:
-    for box in leafNodeBoxes(this, this.data[node.right]. rightBox):
-      yield box
+    leafNodeBoxes(this, this.data[node.right], rightBox, (dim + 1) mod 3, dest):
+  else:
+    dest.add rightBox
 
-iterator leafNodeBoxes(this: KdTree): Box {.closure.} =
-
-  var boundingBox: Box(min: vec3f(Inf), max: vec3f(-Inf))
+proc leafNodeBoxes(this: KdTree): seq[Box] =
+  var boundingBox = Box(min: vec3f(Inf), max: vec3f(-Inf))
   for node in this.data:
     boundingBox.min = min(node.x, boundingBox.min)
     boundingBox.max = max(node.x, boundingBox.max)
 
-  for box in leafNodeBoxes(this, this.data[this.rootIdx], boundingBox):
-    yield box
+  result.newSeq(0)
+  leafNodeBoxes(this, this.data[this.rootIdx], boundingBox, 0, result)
 
 
 proc divide_by_mean(t: var KdTree, a,b: int, dim: int): int =
@@ -115,7 +117,7 @@ proc nearestLinear(this: KdTree, node: KdNode): tuple[best_idx: int, best_dist: 
       result.best_idx = i
       result.best_dist = dist
 
-const N = 10000
+const N = 100
 
 import random
 proc rand1(): float32 =

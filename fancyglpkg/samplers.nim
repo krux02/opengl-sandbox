@@ -270,13 +270,13 @@ proc size*(tex: Texture1D): int =
   glGetTextureLevelParameteriv(tex.handle, 0, GL_TEXTURE_WIDTH, w.addr)
   result = w.int
 
-proc setDataRGBA*( texture: Texture1D, data: seq[float32]) =
+proc setDataRGBA*( texture: Texture1D, data: openarray[float32]) =
   glTextureSubImage1D(texture.handle, 0, 0, data.len.GLsizei div 4, GL_RGBA, cGL_FLOAT, data[0].unsafeAddr)
 
-proc setData*( texture: Texture1D, data: seq[float32]) =
+proc setData*( texture: Texture1D, data: openarray[float32]) =
   glTextureSubImage1D(texture.handle, 0, 0, data.len.GLsizei, GL_RED, cGL_FLOAT, data[0].unsafeAddr)
 
-proc setData*( texture: Texture1D, data: seq[Vec4u8]) =
+proc setData*( texture: Texture1D, data: openarray[Vec4u8 | Color]) =
   glTextureSubImage1D(texture.handle, 0, 0, data.len.GLsizei, GL_RGBA, GL_UNSIGNED_BYTE, data[0].unsafeAddr)
 
 proc newTextureRectangle*(size: Vec2i; internalFormat : GLenum = GL_RGBA8): TextureRectangle =
