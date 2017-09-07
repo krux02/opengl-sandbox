@@ -20,3 +20,4 @@ highscore
 forward_vertex_shader
 mandelbrot
 kdtree
+octree
