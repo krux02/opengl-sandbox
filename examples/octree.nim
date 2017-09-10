@@ -1,5 +1,7 @@
 import ../fancygl
 
+const enableChecks = false
+
 proc `<`[N: static[int],T](a,b: Vec[N,T]): Vec[N,bool] =
   for i in 0 ..< N:
     result.arr[i] = a.arr[i] < b.arr[i]
@@ -25,6 +27,10 @@ proc `$`[N,T](arg: array[N,T]): string =
 type
   AABB = object
     min,max: Vec3f
+
+  Sphere = object
+    center: Vec3f
+    radius: float32
 
   Tree = object
     data: seq[Value]
@@ -68,8 +74,7 @@ proc octreeChild(this: AABB, idx: 0..7): AABB =
     else:
       result.max.arr[i] = mid[i]
 
-
-when isMainModule:
+when isMainModule and enableChecks:
   var tmp = AABB(min: vec3f(-1), max: vec3f(1))
   doAssert tmp.volume == 8
   for i in 0 ..< 8:
@@ -83,7 +88,6 @@ proc contains(this: AABB; value: Vec3f): bool =
     if value.arr[i] > this.max.arr[i]:
       return false
   return true
-
 
 proc leafNodeBoxes(this: Tree; aabb: AABB; node: Node; dst: var seq[AABB]) =
   if node.isLeaf:
@@ -101,8 +105,6 @@ proc leafNodeBoxes(this: Tree): seq[AABB] =
   leafNodeBoxes(this, this.aabb, this.nodes[0], result)
 
 proc divide_by_mid(t: var Tree, a,b: int32, mid: Vec3f, dim: 0..2): int32 =
-
-
   var i = a
   var j = b-1
 
@@ -121,8 +123,9 @@ proc divide_by_mid(t: var Tree, a,b: int32, mid: Vec3f, dim: 0..2): int32 =
 
   result = i
 
-  assert a <= result
-  assert result <= b
+  when enableChecks:
+    assert a <= result
+    assert result <= b
 
   var fail = false
   for k in a ..< b:
@@ -154,20 +157,21 @@ proc octreeSort(this: var Tree; boundingBox: AABB; a,b: int32): array[0..8, int3
   result[5] = this.divide_by_mid(result[4], result[6], mid, 0)
   result[7] = this.divide_by_mid(result[6], result[8], mid, 0)
 
-  for i in 0 ..< 8:
-    assert(result[i] <= result[i+1], $(@result))
+  when enableChecks:
+    for i in 0 ..< 8:
+      assert(result[i] <= result[i+1], $(@result))
 
-  for i in 0 ..< 8:
-    let childBB = boundingBox.octreeChild(i)
-    for j in result[i] ..< result[i+1]:
-      assert(childBB.contains(this.data[j].pos))
+    for i in 0 ..< 8:
+      let childBB = boundingBox.octreeChild(i)
+      for j in result[i] ..< result[i+1]:
+        assert(childBB.contains(this.data[j].pos))
 
 proc subtreeInit(t: var Tree; boundingBox: AABB; a,b: int32): int32 =
   result = int32(t.nodes.len)
   t.nodes.add Node()
   template newNode: untyped = t.nodes[result]
 
-  if b - a < 8:
+  if b - a <= 8:
     newNode = Node(isLeaf: true, a: a, b: b)
   else:
     let arr = t.octreeSort(boundingBox, a, b)
@@ -189,6 +193,64 @@ proc newOctree(data: openarray[Value]): Tree =
   result = Tree(data: @data)
   result.init
 
+#[
+  Tree = object
+    data: seq[Value]
+    nodes: seq[Node]
+    aabb: AABB
+
+  Value = object
+    pos: Vec3f
+    color: Vec3f
+
+  NodeType = enum
+    ntValueRange
+
+  Node = object
+    case isLeaf: bool
+    of true:
+      a,b: int
+    else:
+      children: array[8, int32]
+]#
+
+
+proc squaredDist(box: AABB; pos: Vec3f): float32 =
+  for i in 0 ..< 3:
+    let v = pos.arr[i]
+    let min = box.min.arr[i]
+    let max = box.max.arr[i]
+
+    if v < min:
+      result += (min - v) * (min - v)
+    if v > max:
+      result += (v - max) * (v - max)
+
+proc intersect(a: AABB; b: Sphere): bool =
+  squaredDist(a, b.center) < b.radius * b.radius
+
+proc intersect(a: Sphere; pos: Vec3f): bool =
+  length2(a.center - pos) <= a.radius * a.radius
+
+proc neighborSearch(tree: Tree; node: Node; aabb: AABB; query: Sphere; skipIndex: int; dst: var seq[(int32,int32)]): void =
+  if not intersect(aabb, query):
+    return
+
+  if node.isLeaf:
+    for i in node.a ..< node.b:
+      let data = tree.data[i]
+      if intersect(query, data.pos):
+        dst.add((int32(skipIndex), int32(i)))
+  else:
+    for i, idx in node.children:
+      if idx > skipIndex:
+        neighborSearch(tree, tree.nodes[idx], aabb.octreeChild(i),  query, skipIndex, dst)
+
+proc neighborSearch(tree: Tree; radius: float32; dst: var seq[(int32,int32)]): void =
+  dst.reset
+  for i, node in tree.nodes:
+    let query = Sphere(center: node.pos, radius: radius)
+    neighborSearch(tree, tree.nodes[0], tree.aabb, query, i, dst)
 
 proc randomTreeValue(): Value =
   Value(
@@ -224,7 +286,7 @@ let (window, context) = defaultSetup()
 
 glPointSize(5)
 
-var treeDataBuffer = arrayBuffer(tree.data)
+var treeDataBuffer = arrayBuffer(tree.data, GL_STREAM_DRAW)
 
 let posBuffer      = treeDataBuffer.view(pos)
 let colorsBuffer = treeDataBuffer.view(color)
@@ -237,9 +299,6 @@ let timer = newStopWatch(true)
 
 let aspect = float32(window.size.x / window.size.y)
 let proj : Mat4f = frustum(-aspect * 0.01f, aspect * 0.01f, -0.01f, 0.01f, 0.01f, 100.0)
-
-var queryPos: Vec4f = vec4f(0,0,0,1)
-
 
 let cubeVertices = arrayBuffer([
   vec4f( 1, 1, 1, 1),
@@ -265,10 +324,16 @@ let cubeLineIndices = elementArrayBuffer([
   1,5,
   2,6,
   3,7
+
+#  0'i8,7,
+#  1,6,
+#  2,5,
+#  3,4
 ])
+let cubeLineIndicesLen = cubeLineIndices.len
 
 var boxes = tree.leafNodeBoxes # just for the approximation of the length
-var boxesBuffer = newArrayBuffer[AABB](boxes.len * 2)
+var boxesBuffer = newArrayBuffer[AABB](boxes.len * 2, GL_STREAM_DRAW)
 
 let boxesMinView = boxesBuffer.view(min)
 let boxesMaxView = boxesBuffer.view(max)
@@ -279,7 +344,7 @@ proc drawBoxes(proj,modelView: Mat4f, maxDepth: int): void =
 
   shadingDsl:
     primitiveMode = GL_LINES
-    numVertices = 24
+    numVertices = cubeLineIndicesLen
     indices = cubeLineIndices
     numInstances = boxes.len
     uniforms:
@@ -303,6 +368,12 @@ proc drawBoxes(proj,modelView: Mat4f, maxDepth: int): void =
 var rotationX, rotationY: float32
 var maxDepth = 0
 
+
+var mouse1 = false
+var mouse2 = false
+var mouse3 = false
+var scale = 1.0f
+
 while runGame:
 
   while pollEvent(evt):
@@ -317,12 +388,27 @@ while runGame:
       if evt.key.keysym.scancode == SDL_SCANCODE_KP_MINUS:
         maxDepth -= 1
 
-    if evt.kind == MouseMotion:
-      queryPos.x =     (evt.motion.x / window.size.x) * 2 - 1
-      queryPos.y = 1 - (evt.motion.y / window.size.y) * 2
+    if evt.kind == MouseButtonDown:
+      if evt.button.button == 1:
+        mouse1 = true
+      if evt.button.button == 2:
+        mouse2 = true
+      if evt.button.button == 3:
+        mouse3 = true
+    if evt.kind == MouseButtonUp:
+      if evt.button.button == 1:
+        mouse1 = false
+      if evt.button.button == 2:
+        mouse2 = false
+      if evt.button.button == 3:
+        mouse3 = false
 
-      rotationY += float32(evt.motion.xrel) * 0.001f
-      rotationX += float32(evt.motion.yrel) * 0.001f
+    if evt.kind == MouseMotion:
+      if mouse1:
+        rotationY += float32(evt.motion.xrel) * 0.001f
+        rotationX += float32(evt.motion.yrel) * 0.001f
+      if mouse3:
+        scale += float32(evt.motion.xrel) * 0.001f
 
   let time = timer.time.float32
 
@@ -332,9 +418,9 @@ while runGame:
     .inverse                     # the camera matrix needs to be inverted
 
   let modelMat = mat4f(1)
-    .rotateY(rotationY)    # rotate the triangle
     .rotateX(rotationX)
-    .scale(1.5f)                    # scale the triangle to be big enough on screen
+    .rotateY(rotationY)    # rotate the triangle
+    .scale(scale)                    # scale the triangle to be big enough on screen
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
@@ -346,8 +432,9 @@ while runGame:
       node.pos.xy = mat * node.pos.xy
 
   treeDataBuffer.setData(tree.data)
-
   tree.init
+
+  tree.neighborSearch
 
   shadingDsl:
     primitiveMode = GL_POINTS
