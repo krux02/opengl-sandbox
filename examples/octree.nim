@@ -233,6 +233,9 @@ proc intersect(a: Sphere; pos: Vec3f): bool =
   length2(a.center - pos) <= a.radius * a.radius
 
 proc neighborSearch(tree: Tree; node: Node; aabb: AABB; query: Sphere; skipIndex: int; dst: var seq[(int32,int32)]): void =
+  if node.b <= skipIndex:
+    return
+
   if not intersect(aabb, query):
     return
 
@@ -243,8 +246,9 @@ proc neighborSearch(tree: Tree; node: Node; aabb: AABB; query: Sphere; skipIndex
         dst.add((int32(skipIndex), int32(i)))
   else:
     for i, idx in node.children:
-      if idx > skipIndex:
-        neighborSearch(tree, tree.nodes[idx], aabb.octreeChild(i),  query, skipIndex, dst)
+      let childNode = tree.nodes[idx]
+      let childAABB = aabb.octreeChild(i)
+      neighborSearch(tree, childNode, childAABB,  query, skipIndex, dst)
 
 proc neighborSearch(tree: Tree; radius: float32; dst: var seq[(int32,int32)]): void =
   dst.reset
@@ -379,6 +383,8 @@ var neighborSearchResult: seq[(int32,int32)]
 var neighborSearchResultBuffer = newElementArrayBuffer[int32](40000, GL_STREAM_DRAW)
 
 proc drawNeighborhood(proj,modelView: Mat4f): void =
+  tree.neighborSearch(0.1f, neighborSearchResult)
+
   let sizeArg = GLsizeiptr(neighborSearchResult.len * sizeof(int32) * 2)
   let handleArg = neighborSearchResultBuffer.handle
   let dataArg = neighborSearchResult[0].addr
@@ -460,10 +466,9 @@ while runGame:
     for node in tree.data.mitems:
       node.pos.xy = mat * node.pos.xy
 
-  treeDataBuffer.setData(tree.data)
   tree.init
+  treeDataBuffer.setData(tree.data)
 
-  tree.neighborSearch(0.1f, neighborSearchResult)
   drawNeighborhood(proj, viewMat * modelMat)
 
   shadingDsl:
