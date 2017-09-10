@@ -45,11 +45,12 @@ type
     ntValueRange
 
   Node = object
+    a,b: int32
     case isLeaf: bool
-    of true:
-      a,b: int
-    else:
+    of false:
       children: array[8, int32]
+    else:
+      discard
 
 proc mid(this: AABB): Vec3f = mix(this.min, this.max, 0.5f)
 
@@ -171,9 +172,8 @@ proc subtreeInit(t: var Tree; boundingBox: AABB; a,b: int32): int32 =
   t.nodes.add Node()
   template newNode: untyped = t.nodes[result]
 
-  if b - a <= 8:
-    newNode = Node(isLeaf: true, a: a, b: b)
-  else:
+  newNode = Node(isLeaf: b - a <= 8, a: a, b: b)
+  if not newNode.isLeaf:
     let arr = t.octreeSort(boundingBox, a, b)
     for i in 0 ..< 8:
       let childBB = boundingBox.octreeChild(i)
@@ -248,8 +248,8 @@ proc neighborSearch(tree: Tree; node: Node; aabb: AABB; query: Sphere; skipIndex
 
 proc neighborSearch(tree: Tree; radius: float32; dst: var seq[(int32,int32)]): void =
   dst.reset
-  for i, node in tree.nodes:
-    let query = Sphere(center: node.pos, radius: radius)
+  for i, value in tree.data:
+    let query = Sphere(center: value.pos, radius: radius)
     neighborSearch(tree, tree.nodes[0], tree.aabb, query, i, dst)
 
 proc randomTreeValue(): Value =
@@ -361,7 +361,7 @@ proc drawBoxes(proj,modelView: Mat4f, maxDepth: int): void =
       """
     fragmentMain:
       """
-      color = vec4(1);
+      color = vec4(0,0,1,1);
       """
 
 
@@ -373,6 +373,35 @@ var mouse1 = false
 var mouse2 = false
 var mouse3 = false
 var scale = 1.0f
+
+
+var neighborSearchResult: seq[(int32,int32)]
+var neighborSearchResultBuffer = newElementArrayBuffer[int32](40000, GL_STREAM_DRAW)
+
+proc drawNeighborhood(proj,modelView: Mat4f): void =
+  let sizeArg = GLsizeiptr(neighborSearchResult.len * sizeof(int32) * 2)
+  let handleArg = neighborSearchResultBuffer.handle
+  let dataArg = neighborSearchResult[0].addr
+  glNamedBufferSubData(handleArg, 0, sizeArg, dataArg)
+
+  shadingDsl:
+    primitiveMode = GL_LINES
+    numVertices = neighborSearchResult.len * 2
+    indices = neighborSearchResultBuffer
+    uniforms:
+      modelView
+      proj
+    attributes:
+      a_vertex = posBuffer
+    vertexMain:
+      """
+      gl_Position = proj * modelView * vec4(a_vertex, 1);
+      """
+    fragmentMain:
+      """
+      color = vec4(1,1,0,1);
+      """
+
 
 while runGame:
 
@@ -434,7 +463,8 @@ while runGame:
   treeDataBuffer.setData(tree.data)
   tree.init
 
-  tree.neighborSearch
+  tree.neighborSearch(0.1f, neighborSearchResult)
+  drawNeighborhood(proj, viewMat * modelMat)
 
   shadingDsl:
     primitiveMode = GL_POINTS
