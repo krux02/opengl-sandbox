@@ -187,8 +187,7 @@ active framebuffer. More on that in the future (or read the code).
 
 from here on are just some onld examples and screenshots. They are not all up to date.
 
-![Imgur1](http://i.imgur.com/zHnLCqd.png)
-
+![sandbox](https://media.giphy.com/media/l1J9s65SWjHiyaJeo/giphy.gif)
 
 ```
 < CubeVertices | cubeVertexShader | someFragmentShader > framebuffer1
