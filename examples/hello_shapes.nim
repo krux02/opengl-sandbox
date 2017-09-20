@@ -24,13 +24,13 @@ proc newWorldNode(x,y,z: float32): WorldNode =
 
 # for each mesh create one node in the world to Draw it there
 var worldNodes : array[IdMesh, WorldNode] = [
-  newWorldNode(-3, 3,1),
-  newWorldNode(3,-3,1),
-  newWorldNode(-3,-3,1),
-  newWorldNode(3,3,1),
-  newWorldNode(0,0,1),
-  newWorldNode(0,-6,1),
-  newWorldNode(-6,0,1)
+  newWorldNode(-3, 3, 1),
+  newWorldNode( 3,-3, 1),
+  newWorldNode(-3,-3, 1),
+  newWorldNode( 3, 3, 1),
+  newWorldNode( 0, 0, 1),
+  newWorldNode( 0,-6, 1),
+  newWorldNode(-6, 0, 1)
 ]
 
 var camera = newWorldNode(0,9,4)

@@ -71,6 +71,4 @@ while runGame:
       """
   ]#
 
-
-  #renderText("FPS: ???", vec2i(11))
   glSwapWindow(window)

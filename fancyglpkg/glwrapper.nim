@@ -844,28 +844,58 @@ template transformFeedbackBlock(primitiveMode: GLenum; blk: untyped): untyped =
       glEndTransformFeedback()
     blk
 
+macro countFields(arg: typed): int =
+  let typeImpl = arg.getTypeInst[1].getTypeImpl
+  typeImpl.expectKind(nnkObjectTy)
+  var acc = 0
+  for identDef in typeImpl[2]:
+    for i in 0 ..< identDef.len-2:
+      acc += 1
+  result = newLit(acc)
+
+proc numFields[T](t: typedesc[T]): int =
+  countFields(t)
+
+type
+  TestType = object
+    a,b,c: int
+    d,e: string
+
+static:
+  echo numFields(TestType)
+
 type
   TransformFeedback*[T] = object
     handle*: GLuint
+    varyingOffsets*: seq[int]
+    varyingNames*: seq[string]
 
 proc label*(arg: TransformFeedback): string =
   const bufsize = 255
   result = newString(bufsize)
   var length: GLsizei
-  glGetObjectLabel(GL_TRANSFORM_FEEDBACK, arg.handle, bufsize, length.addr, result[0].addr)
+  glGetObjectLabel(
+    GL_TRANSFORM_FEEDBACK,
+    arg.handle, bufsize, length.addr, result[0].addr)
   result.setLen(length)
 
 proc `label=`*(arg: TransformFeedback; label: string): void =
     ## does nothing when label is nil (allows nil checks on other places)
     if not isNil label:
-      glObjectLabel(GL_TRANSFORM_FEEDBACK, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
+      glObjectLabel(
+        GL_TRANSFORM_FEEDBACK,
+        arg.handle, GLsizei(label.len), label[0].unsafeAddr)
 
 macro typeName(t: typedesc): untyped =
   newLit($t.getTypeImpl[1])
 
-template offsetof*(typ, field: untyped): int = (var dummy: typ; cast[system.int](addr(dummy.field)) - cast[system.int](addr(dummy)))
+template offsetof*(typ, field: untyped): int =
+  (var dummy: typ;
+   let a = cast[system.uint](addr(dummy));
+   let b = cast[system.uint](addr(dummy.field));
+   int(b - a))
 
-macro varyingNames*(self: TransformFeedback): untyped =
+macro genVaryingNames(self: TransformFeedback): untyped =
   ## returns array of string literals
   result = nnkBracket.newTree
   let typeImpl = self.getTypeInst[1].getTypeImpl
@@ -875,19 +905,23 @@ macro varyingNames*(self: TransformFeedback): untyped =
       let sym = identDef[i]
       result.add newLit($sym)
 
-macro varyingOffsets*(self: TransformFeedback): untyped =
-  ## returns array of int literals
-  result = nnkBracket.newTree
+  echo result.repr
 
-  let tpe = self.getTypeInst[1]
-  echo tpe.treeRepr
-  let typeImpl = tpe.getTypeImpl
-  typeImpl.expectKind(nnkObjectTy)
-  for identDef in typeImpl[2]:
-    for i in 0 ..< identDef.len-2:
-      #let sym = identDef[i]
-      error "not implemented"
-      # result.add getAst(offsetOf(tpe,sym))
+macro genVaryingOffsets[T](self: TransformFeedback[T]): untyped =
+  when false:
+    result = nnkBracket.newTree()
+    let tpe = self.getTypeInst[1]
+    echo tpe.treeRepr
+    let typeImpl = tpe.getTypeImpl
+    typeImpl.expectKind(nnkObjectTy)
+    for identDef in typeImpl[2]:
+      for i in 0 ..< identDef.len-2:
+        let sym = identDef[i]
+        result.add getAst(offsetOf(tpe,sym))
+  else:
+    result = newLit([0, 8, 16, 28, 32])
+
+  echo result.repr
 
 template stride*[T](self: TransformFeedback[T]): int =
   sizeof(T)
@@ -895,10 +929,8 @@ template stride*[T](self: TransformFeedback[T]): int =
 proc newTransformFeedback*[T]() : TransformFeedback[T] =
   glCreateTransformFeedbacks(GLsizei(1), result.handle.addr)
   result.label = typeName(T)
-  echo "label: ", result.label
-  echo @(result.varyingNames)
-  echo @(result.varyingOffsets)
-  echo result.stride
+  result.varyingNames = @(result.genVaryingNames)
+  result.varyingOffsets = @(result.genVaryingOffsets)
 
 #[
 macro transformFeedbackOutSection(self: TransformFeedback): string =

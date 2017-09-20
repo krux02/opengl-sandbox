@@ -62,11 +62,7 @@ proc genShaderSource(
   for incl in includes:
     result.add incl
 
-  result.add("void main() {\n")
-  result.add(userCodePrefix)
   result.add(mainSrc)
-  result.add(userCodePostfix)
-  result.add("\n}\n")
 
 proc forwardVertexShaderSource(sourceHeader: string,
     attribNames, attribTypes : openArray[string] ): string =
@@ -111,9 +107,9 @@ proc vertexOut(args: varargs[string]): int = 0
 proc geometryOut(args: varargs[string]): int = 0
 proc fragmentOut(args: varargs[string]): int = 0
 proc transformFeedbackVaryingNames(args: varargs[string]): int = 0
-proc vertexMain(src: string): int = 0
-proc fragmentMain(src: string): int = 0
-proc geometryMain(layout, src: string): int = 0
+proc vertexSrc(src: string): int = 0
+proc fragmentSrc(src: string): int = 0
+proc geometrySrc(layout, src: string): int = 0
 proc includes(args: varargs[int]): int = 0
 proc incl(arg: string): int = 0
 proc numVertices(num: int): int = 0
@@ -148,10 +144,10 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
   for i,fragout in fragmentOutputs:
     fragmentOutSection.add format("layout(location = $1) out vec4 $2", $i, fragout)
   var includesSection : seq[string] = @[]
-  var vertexMain: NimNode
+  var vertexSrc: NimNode
   var geometryLayout: string
-  var geometryMain: NimNode
-  var fragmentMain: NimNode
+  var geometrySrc: NimNode
+  var fragmentSrc: NimNode
   var hasIndices = false
   var indexType: NimNode = nil
   var sizeofIndexType = 0
@@ -310,7 +306,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
         binding += 1
 
     of "vertexOut":
-      #echo "vertexOut"
+      ##echo "vertexOut"
 
       for innerCall in call[1][1].items:
         vertexOutSection.add( innerCall.strVal )
@@ -340,23 +336,23 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
           includesSection.add(innerCall[1].strVal)
 
 
-    of "vertexMain":
-      vertexMain = call[1]
+    of "vertexSrc":
+      vertexSrc = call[1]
 
-    of "fragmentMain":
-      fragmentMain = call[1]
+    of "fragmentSrc":
+      fragmentSrc = call[1]
 
-    of "geometryMain":
+    of "geometrySrc":
 
       geometryLayout = call[1].strVal
-      geometryMain = call[2]
+      geometrySrc = call[2]
 
     of "baseVertex":
       baseVertex = newCall(bindSym"GLint", call[1])
     of "baseInstance":
       baseInstance = newCall(bindSym"GLuint", call[1])
     else:
-      error "unknown section " & $call[0], call[0]
+      error "unknown internal section " & $call[0], call[0]
 
   if bindTexturesCall[2].len > 0: #actually got any uniform textures
     drawBlock.add bindTexturesCall
@@ -369,7 +365,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
   var vertexShaderSource : string
 
-  if vertexMain.isNil and geometryMain.isNil:
+  if vertexSrc.isNil and geometrySrc.isNil:
     # implicit screen space triangle
 
     if vertexOutSection.len > 0:
@@ -380,7 +376,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
     vertexShaderSource = screenTriagleVertexSource
     vertexOutSection.add("out vec2 texCoord")
 
-  elif vertexMain.isNil:
+  elif vertexSrc.isNil:
     vertexShaderSource = forwardVertexShaderSource(sourceHeader, attribNames, attribTypes)
 
 
@@ -393,12 +389,12 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
     for i in 0 ..< attribNames.len:
        attributesSection[i] = format(s"in ${attribTypes[i]} ${attribNames[i]}")
 
-    vertexShaderSource = genShaderSource(sourceHeader, uniformsSection, attributesSection, -1, vertexOutSection, includesSection, vertexMain.strVal)
+    vertexShaderSource = genShaderSource(sourceHeader, uniformsSection, attributesSection, -1, vertexOutSection, includesSection, vertexSrc.strVal)
 
   # TODO do something with this unused block of code
-  # if not vertexMain.isNil:
+  # if not vertexSrc.isNil:
   #   let
-  #     li = vertexMain.lineinfo
+  #     li = vertexSrc.lineinfo
   #     p0 = li.find(".nim(")
   #     p1 = li.find(',',p0)
   #     p2 = li.find(')',p1)
@@ -411,31 +407,31 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
     error "numVertices needs to be assigned"
 
   let vsSrcLit = newLit vertexShaderSource
-  let lineinfoLit = newLit(vertexMain.lineinfoObj)
+  let lineinfoLit = newLit(vertexSrc.lineinfoObj)
 
   var compileShaderBlock = quote do:
     `program`.attachAndDeleteShader(compileShader(GL_VERTEX_SHADER, `vsSrcLit`, `lineinfoLit`))
 
-  if not geometryMain.isNil:
+  if not geometrySrc.isNil:
     var geometryHeader = sourceHeader
     geometryHeader &= "\n"
     geometryHeader &= s"layout(${geometryPrimitiveLayout(mode.intVal.GLenum)}) in;"
     geometryHeader &= "\n"
     geometryHeader &= geometryLayout
     geometryHeader &= ";\n"
-    let gsSrcLit = newLit genShaderSource(geometryHeader, uniformsSection, vertexOutSection, geometryNumVerts(mode.intVal.GLenum), geometryOutSection, includesSection, geometryMain.strVal)
-    let lineinfoLit = newLit(geometryMain.lineinfoObj)
+    let gsSrcLit = newLit genShaderSource(geometryHeader, uniformsSection, vertexOutSection, geometryNumVerts(mode.intVal.GLenum), geometryOutSection, includesSection, geometrySrc.strVal)
+    let lineinfoLit = newLit(geometrySrc.lineinfoObj)
     compileShaderBlock.addAll(quote do:
       `program`.attachAndDeleteShader(compileShader(GL_GEOMETRY_SHADER, `gsSrcLit`, `lineinfoLit`))
     )
 
-  if not fragmentMain.isNil:
+  if not fragmentSrc.isNil:
     var fsSrcLit =
-      if geometryMain.isNil:
-        newLit genShaderSource(sourceHeader, uniformsSection, vertexOutSection, -1, fragmentOutSection, includesSection, fragmentMain.strVal)
+      if geometrySrc.isNil:
+        newLit genShaderSource(sourceHeader, uniformsSection, vertexOutSection, -1, fragmentOutSection, includesSection, fragmentSrc.strVal)
       else:
-        newLit genShaderSource(sourceHeader, uniformsSection, geometryOutSection, -1, fragmentOutSection, includesSection, fragmentMain.strVal)
-    let lineinfoLit = newLit(fragmentMain.lineinfoObj)
+        newLit genShaderSource(sourceHeader, uniformsSection, geometryOutSection, -1, fragmentOutSection, includesSection, fragmentSrc.strVal)
+    let lineinfoLit = newLit(fragmentSrc.lineinfoObj)
     compileShaderBlock.addAll(quote do:
       `program`.attachAndDeleteShader(compileShader(GL_FRAGMENT_SHADER, `fsSrcLit`, `lineinfoLit`))
     )
@@ -549,14 +545,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 ##################################################################################
 
 macro transformFeedbackOutSection(self: TransformFeedback): string =
-  result = newLit("""
-layout(xfb_buffer = 0, xfb_stride = 36) out bananas {
-  layout(xfb_offset = 0)  vec2 pos;
-  layout(xfb_offset = 8)  vec2 vel;
-  layout(xfb_offset = 16) vec3 col;
-  layout(xfb_offset = 28) float rot;
-  layout(xfb_offset = 32) float birthday;
-}""")
+  result = newLit("")
 
 macro shadingDsl*(statement: untyped) : untyped =
   var wrapWithDebugResult = false
@@ -635,8 +624,8 @@ macro shadingDsl*(statement: untyped) : untyped =
             identNode = capture
             nameNode  = newLit($capture)
 
-          let isSampler = newCall(bindSym"glslIsSampler", newCall(bindSym"type", identNode))
-          let glslType  = newCall(bindSym"glslTypeRepr",  newCall(bindSym"type", identNode))
+          let isSampler = newCall(bindSym("glslIsSampler", brForceOpen), newCall(bindSym"type", identNode))
+          let glslType  = newCall(bindsym("glslTypeRepr", brForceOpen),  newCall(bindSym"type", identNode))
           uniformsCall.add( newCall(
             bindSym"shaderArg",  nameNode, identNode, glslType, isSampler) )
 
@@ -680,7 +669,7 @@ macro shadingDsl*(statement: untyped) : untyped =
           if divisor.isNil:
             divisor = newLit(default_divisor)
 
-          let glslType  = newCall(bindSym"glslTypeRepr",  newCall(
+          let glslType  = newCall(bindSym("glslTypeRepr", brForceOpen),  newCall(
             bindSym"type", newDotExpr(identNode,ident"T")))
           attributesCall.add( newCall(
             bindSym"attribute", nameNode, identNode, divisor, glslType ) )
@@ -712,15 +701,19 @@ macro shadingDsl*(statement: untyped) : untyped =
         var transformFeedbackVaryingNamesCall = newCall(bindSym"transformFeedbackVaryingNames")
 
         for section in stmtList.items:
-          section.expectKind({nnkStrLit, nnkTripleStrLit, nnkAsgn, nnkIdent})
+          section.expectKind({
+            nnkStrLit, nnkTripleStrLit,
+            nnkAsgn, nnkIdent, nnkDiscardStmt
+          })
           case section.kind
           of nnkAsgn:
             let name = section[0].repr
             let nameLit = newLit(name)
             let identNode = section[1]
+            let glslTypeReprSym = bindSym("glslTypeRepr", brForceOpen)
 
             outCall.add head(quote do:
-              "out " & glslTypeRepr(type(`identNode`.T)) & " " & `nameLit`
+              "out " & `glslTypeReprSym`(type(`identNode`.T)) & " " & `nameLit`
             )
 
             transformFeedbackVaryingNamesCall.add nameLit
@@ -734,11 +727,9 @@ macro shadingDsl*(statement: untyped) : untyped =
             #let nameLit = newLit(name)
             let identNode = section
 
-            outCall.add head(quote do:
-              transformFeedbackOutSection(`identNode`)
-            )
-
-
+            #outCall.add head(quote do:
+            #  transformFeedbackOutSection(`identNode`)
+            #)
             #outCall.add head quote do:
             #  "out " & glslTypeRepr(type(`identNode`.T)) & " " & `nameLit`
             #transformFeedbackVaryingNamesCall.add nameLit
@@ -748,6 +739,8 @@ macro shadingDsl*(statement: untyped) : untyped =
           of nnkTripleStrLit:
             for line in section.strVal.splitLines:
               outCall.add line.strip.newLit
+          of nnkDiscardStmt:
+            discard
           else:
             error "unreachable"
 
@@ -758,28 +751,82 @@ macro shadingDsl*(statement: untyped) : untyped =
 
       of "vertexMain":
         stmtList.expectLen(1)
-        stmtList[0].expectKind({nnkTripleStrLit, nnkStrLit})
-        result.add( newCall(bindSym"vertexMain", stmtList[0]) )
+        if stmtList[0].kind != nnkDiscardStmt:
+          var buf = "void main() {\n"
+          buf.add(userCodePrefix)
+          buf.add(stmtList[0].strVal)
+          buf.add(userCodePostfix)
+          buf.add("\n}\n")
+          result.add( newCall(bindSym"vertexSrc", newLit(buf)) )
+      of "vertexSrc":
+        stmtList.expectLen(1)
+        if stmtList[0].kind != nnkDiscardStmt:
+          var buf = userCodePrefix
+          buf.add(stmtList[0].strVal)
+          buf.add(userCodePostfix)
+          result.add( newCall(bindSym"vertexSrc", newLit(buf)) )
 
       of "geometryMain":
-        stmtList.expectLen(2)
-        stmtList[0].expectKind({nnkTripleStrLit, nnkStrLit})
-        stmtList[1].expectKind({nnkTripleStrLit, nnkStrLit})
-        result.add( newCall(bindSym"geometryMain", stmtList[0], stmtList[1]) )
+        if stmtList.len == 1:
+          stmtList[0].expectKind nnkDiscardStmt
+        else:
+          stmtList.expectLen(2)
+          stmtList[0].expectKind({nnkTripleStrLit, nnkStrLit})
+          stmtList[1].expectKind({nnkTripleStrLit, nnkStrLit})
+
+          var buf = "void main() {\n"
+          buf.add(userCodePrefix)
+          buf.add(stmtList[1].strVal)
+          buf.add(userCodePostfix)
+          buf.add("\n}\n")
+
+          result.add(newCall(bindSym"geometrySrc", stmtList[0], newLit(buf)))
+
+      of "geometrySrc":
+        if stmtList.len == 1:
+          stmtList[0].expectKind nnkDiscardStmt
+        else:
+          stmtList.expectLen(2)
+          stmtList[0].expectKind({nnkTripleStrLit, nnkStrLit})
+          stmtList[1].expectKind({nnkTripleStrLit, nnkStrLit})
+
+          var buf = userCodePrefix
+          buf.add(stmtList[1].strVal)
+          buf.add(userCodePostfix)
+
+          result.add(newCall(bindSym"geometrySrc", stmtList[0], newLit(buf)))
 
       of "fragmentMain":
         stmtList.expectLen(1)
-        stmtList[0].expectKind({ nnkTripleStrLit, nnkStrLit })
-        result.add( newCall(bindSym"fragmentMain", stmtList[0]) )
+        if stmtList[0].kind != nnkDiscardStmt:
+          stmtList[0].expectKind({ nnkTripleStrLit, nnkStrLit })
 
+          var buf = "void main() {\n"
+          buf.add(userCodePrefix)
+          buf.add(stmtList[0].strVal)
+          buf.add(userCodePostfix)
+          buf.add("\n}\n")
+
+          result.add( newCall(bindSym"fragmentSrc", newLit(buf)) )
+
+      of "fragmentSrc":
+        stmtList.expectLen(1)
+        if stmtList[0].kind != nnkDiscardStmt:
+          stmtList[0].expectKind({ nnkTripleStrLit, nnkStrLit })
+
+          var buf = userCodePrefix
+          buf.add(stmtList[0].strVal)
+          buf.add(userCodePostfix)
+
+          result.add( newCall(bindSym"fragmentSrc", newLit(buf)) )
 
       of "includes":
         let includesCall = newCall(bindSym"includes")
 
         for statement in stmtList:
-          statement.expectKind({nnkIdent,nnkStrLit,nnkTripleStrLit})
-
-          includesCall.add( newCall(bindSym"incl", statement) )
+          if statement.kind != nnkDiscardStmt:
+            statement.expectKind({nnkIdent,nnkStrLit,nnkTripleStrLit})
+            includesCall.add( newCall(bindSym"incl", statement) )
 
         result.add(includesCall)
       else:

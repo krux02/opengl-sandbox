@@ -21,3 +21,4 @@ forward_vertex_shader
 mandelbrot
 kdtree
 octree
+font_rendering

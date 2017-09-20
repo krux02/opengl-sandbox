@@ -20,8 +20,8 @@ const fontPaths = [
 macro getSymbolLineinfo(arg: typed): string =
   result = newLit(arg.symbol.getImpl.lineinfo)
 
-proc init(self: ptr TextRenderer): void =
-  self.textHeight = 14 #* 16
+proc init(self: ptr TextRenderer; textHeight: int): void =
+  self.textHeight = textHeight
 
   for path in fontPaths:
     self.font = ttf.openFont(path, self.textHeight.cint)
@@ -50,8 +50,15 @@ proc init(self: ptr TextRenderer): void =
 proc textRenderer(): var TextRenderer =
   var this {.global.}: ptr TextRenderer = nil
   if this.isNil:
-    this = cast[ptr TextRenderer](alloc0(sizeof(TextRenderer)))
-    this.init()
+    this = create(TextRenderer)
+    this.init(14)
+  this[]
+
+proc textRendererLarge(): var TextRenderer =
+  var this {.global.}: ptr TextRenderer = nil
+  if this.isNil:
+    this = create(TextRenderer)
+    this.init(100)
   this[]
 
 proc textureArray(this: TextRenderer; strings: openarray[string]): Texture2DArray =
@@ -97,12 +104,10 @@ proc distanceTransform(image: seq[uint8]; dist: var seq[uint8]; insize, outsize:
     dist[X + Y * outsize.x]
 
   proc lerp(pos: Vec2f): float32 =
-    if pos.x < 0 or pos.y < 0 or pos.x >= insize.x.float32 or pos.y >= insize.y.float32:
-      return 1e20f
-
     let
-      p0 = vec2i(floor(pos))
-      p1 = min((p0 + 1), insize - 1)
+      posi = vec2i(floor(pos))
+      p0 = max(posi    , vec2i(0)  )  # clamp
+      p1 = min(posi + 1, insize - 1)  # clamp
       f = fract(pos)
 
     let
@@ -218,6 +223,7 @@ proc createTextObject(this: TextRenderer; arg: string): TextObject =
   var signedDistancePixels = newSeq[uint8](surface.w * surface.h)
   let size = vec2i(surface.w, surface.h)
   distanceTransform(pixeldata, signedDistancePixels, size, size, 8)
+
   #result.texture = texture2D(surface)
   discard surface.savePng(arg & "_a.png")
   copyMem(surface.pixels, signedDistancePixels[0].addr, pixelData.len)
@@ -229,7 +235,7 @@ proc createTextObject(this: TextRenderer; arg: string): TextObject =
   result.width = float32(surface.w / surface.h)
 
 proc createTextObject*(arg: string): TextObject =
-  createTextObject(textRenderer(), arg)
+  createTextObject(textRendererLarge(), arg)
 
 proc render(tr: TextRenderer; to: TextObject; mvp: Mat4f): void =
   shadingDsl:
@@ -261,7 +267,7 @@ proc render(tr: TextRenderer; to: TextObject; mvp: Mat4f): void =
       """
 
 proc render*(textObject: TextObject; mvp: Mat4f): void =
-  render(textRenderer(), textObject, mvp)
+  render(textRendererLarge(), textObject, mvp)
 
 var timer = newStopWatch(true)
 

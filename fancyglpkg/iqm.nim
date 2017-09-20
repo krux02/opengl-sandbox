@@ -2,6 +2,9 @@ const
   IQM_MAGIC* = "INTERQUAKEMODEL"
   IQM_VERSION* = 2
 
+
+type BlendWeight = distinct uint8
+
 type
   iqmheader* = object
     magic*:        array[16, char]
@@ -108,7 +111,7 @@ type
     tangent*  : DataView[Vec4f]
     blendindexes* : DataView[Vec4[uint8]]
     blendweights* : DataView[Vec4[uint8]]
-    
+
   iqmArrayBufferMeshData* = object
     position* : ArrayBuffer[Vec3f]
     texcoord* : ArrayBuffer[Vec2f]
@@ -127,10 +130,10 @@ const
 
 proc memptr[T](header: ptr iqmheader, offset: int32) : ptr T =
   cast[ptr T](cast[int](header) + offset.int)
-  
+
 proc memptr[T](header: ptr iqmheader, offset: int32, num_elements: int32) : DataView[T] =
   dataView[T]( cast[pointer](cast[int](header) + offset.int), num_elements.int )
-  
+
 proc getMeshData*(header: ptr iqmheader) : iqmMeshData =
   let vertexArrays = memptr[iqmvertexarray](header, header.ofs_vertexarrays, header.num_vertexarrays)
   for va in vertexArrays:
@@ -159,7 +162,7 @@ proc getMeshData*(header: ptr iqmheader) : iqmMeshData =
     echo "did not get blendindexes"
   if result.blendweights.isNil:
     echo "did not get blendweights"
-    
+
 proc arrayBufferMeshData*(meshData: iqmMeshData): iqmArrayBufferMeshData =
   result.position     = meshData.position.arrayBuffer
   result.texcoord     = meshData.texcoord.arrayBuffer
@@ -177,7 +180,7 @@ proc getTexts*(header: ptr iqmheader): seq[cstring] =
     while textData[i] != '\0':
       i += 1
     i += 1
-  
+
 proc getMeshes*(header: ptr iqmheader): DataView[iqmmesh] =
   memptr[iqmmesh](header, header.ofs_meshes, header.num_meshes)
 
@@ -207,7 +210,7 @@ proc grouped*[T](t : var seq[T]; groupSize : int) : seq[DataView[T]] =
   result.newSeq(t.len div groupSize + (if t.len mod groupSize == 0: 0 else: 1))
   for i in 0 .. < result.len:
     result[i] = dataView[T]( t[i * groupSize].addr.pointer, min(groupSize, t.len - i * groupSize) )
-  
+
 proc jointPose*(joint: iqmJoint) : JointPose =
   result.translate = joint.translate
   result.rotate    = joint.rotate
@@ -217,7 +220,7 @@ proc jointPose*(data: array[10, float32]): JointPose =
   result.translate = vec3f(data[0], data[1], data[2])
   result.rotate    = quatf(data[3], data[4], data[5], data[6])
   result.scale     = vec3f(data[7], data[8], data[9])
-  
+
 proc matrix*(joint : iqmJoint) : Mat4f =
   joint.jointPose.matrix
 
@@ -232,5 +235,3 @@ proc calcBaseframe*(joints: DataView[iqmjoint]) : tuple[baseframe, inversebasefr
     if joint.parent >= 0:
       result.baseframe[i] = result.baseframe[joint.parent.int] * result.baseframe[i]
       result.inversebaseframe[i] = result.inversebaseframe[i] * result.inversebaseframe[joint.parent.int]
-  
-  

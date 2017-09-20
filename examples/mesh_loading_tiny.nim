@@ -2,7 +2,7 @@ import memfiles, ../fancygl, sdl2/ttf, os, strutils, sequtils, AntTweakBar
 
 const WindowSize = vec2i(1024, 768)
 
-#proc `$`(v: Vec): string = glm.`$`(v)
+#template glslPrefix(t: typedesc[uint8]): string = ""
 
 proc main() =
   let (window, context) = defaultSetup(WindowSize)
@@ -372,6 +372,7 @@ proc main() =
     if renderNormalMap:
       for i, mesh in meshes:
         shadingDsl:
+          debug
           primitiveMode = GL_POINTS
           numVertices = mesh.num_vertexes
           vertexOffset = mesh.first_vertex
@@ -383,7 +384,7 @@ proc main() =
 
           attributes:
             a_position = meshData.position
-            a_texcoord = meshData.texcoord
+            #a_texcoord = meshData.texcoord
             a_normal_os = meshData.normal
             a_tangent_os = meshData.tangent
             a_blendindexes = meshData.blendindexes
@@ -394,7 +395,7 @@ proc main() =
             mat4 mat = mat4(0.0);
             for(int i = 0; i < 4; ++i) {
               int blendIndex = int(a_blendindexes[i]);
-              float blendWeight = a_blendweights[i];
+              float blendWeight = float(a_blendweights[i]);
 
               for(int j = 0; j < 4; ++j) {
                 mat[j] += blendWeight * texelFetch(outframeTexture, ivec2(j, blendIndex));
@@ -455,6 +456,7 @@ proc main() =
     if renderMesh:
       for i, mesh in meshes:
         shadingDsl:
+          debug
           primitiveMode = GL_TRIANGLES
           numVertices = mesh.num_triangles * 3
           vertexOffset = mesh.first_triangle * 3
@@ -465,14 +467,13 @@ proc main() =
             projection = mat4f(projection_mat)
             outframeTexture
             material = meshTextures[i]
-            time = float32(frameTime)
             renderNormalMap
 
           attributes:
             a_position = meshData.position
             a_texcoord = meshData.texcoord
             a_normal_os = meshData.normal
-            a_tangent_os = meshData.tangent
+            #a_tangent_os = meshData.tangent
             a_blendindexes = meshData.blendindexes
             a_blendweights = meshData.blendweights
 
@@ -481,7 +482,7 @@ proc main() =
             mat4 mat = mat4(0.0);
             for(int i = 0; i < 4; ++i) {
               int blendIndex = int(a_blendindexes[i]);
-              float blendWeight = a_blendweights[i];
+              float blendWeight = float(a_blendweights[i]);
 
               for(int j = 0; j < 4; ++j) {
                 mat[j] += blendWeight * texelFetch(outframeTexture, ivec2(j, blendIndex));
@@ -492,13 +493,13 @@ proc main() =
             gl_Position = projection * modelview * mat * vec4(a_position, 1);
             v_texcoord = a_texcoord;
             v_normal_cs  = modelview * vec4(a_normal_os, 0);
-            v_tangent_cs = modelview * a_tangent_os;
+            //v_tangent_cs = modelview * a_tangent_os;
             """
 
           vertexOut:
             "out vec2 v_texcoord"
             "out vec4 v_normal_cs"
-            "out vec4 v_tangent_cs"
+            #"out vec4 v_tangent_cs"
 
           fragmentMain:
             """
@@ -528,7 +529,7 @@ proc main() =
             modelview = view_mat.mat4f * model_mat
             projection = projection_mat.mat4f
             boneScale = boneScale.vec2f
-            time = float32(frameTime)
+            #time = float32(frameTime)
 
           attributes:
 

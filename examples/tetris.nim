@@ -229,14 +229,6 @@ type
 var playerAnimation: Animation
 var insertAnimation: Animation
 
-# template cubicTemplate = ((v1 * s + v2) * s + v3) * s + v4
-# proc cubic*[N,T](v1,v2,v3,v4: Vec[N,T]; s: T): Vec[N,T] =
-#   ## return a point from a cubic curve
-#   return cubicTemplate
-# proc cubic*[T : SomeNumber](v1,v2,v3,v4,s: T): T =
-#   ## return a point from a cubic curve
-#   return cubicTemplate
-
 var blockPos: Vec2i
 var blockRot: int
 var lastBlockType, blockType: int
@@ -442,7 +434,11 @@ proc downStep(): void =
   let offset = vec2i(0,-1)
   if validBlockPos(blockPos + offset, blockRot, blockType):
     blockPos += offset
-    playerAnimation = stickAnimation(playerAnimation, gameTime, currentBlockStateAsAnimationState(), AnimationState())
+    playerAnimation = stickAnimation(
+      playerAnimation, gameTime,
+      currentBlockStateAsAnimationState(),
+      AnimationState()
+    )
   else:
     insertBlock()
 
@@ -485,14 +481,15 @@ if music.len == 0:
 #    freeMusic(track)
 
 proc nextTrack(): void =
-  currentTrack = (currentTrack + 1) mod music.len
-  if shouldPlayAudio and canPlayAudio:
-    discard fadeOutMusic(250)
-    if playMusic(music[currentTrack], -1) != 0:
-      echo "problems with: ", musicNames[currentTrack]
-      echo "error: ", getError()
-    else:
-      echo "now playing: ", musicNames[currentTrack]
+  if canPlayAudio:
+    currentTrack = (currentTrack + 1) mod music.len
+    if shouldPlayAudio and canPlayAudio:
+      discard fadeOutMusic(250)
+      if playMusic(music[currentTrack], -1) != 0:
+        echo "problems with: ", musicNames[currentTrack]
+        echo "error: ", getError()
+      else:
+        echo "now playing: ", musicNames[currentTrack]
 
 proc toggleAudio(): void =
   shouldPlayAudio = not shouldPlayAudio
@@ -577,8 +574,11 @@ proc main(): void =
             let offset = vec2i(-1,0)
             if validBlockPos(blockPos + offset, blockRot, blockType):
               blockPos += offset
-              playerAnimation = stickAnimation(playerAnimation, gameTime, currentBlockStateAsAnimationState(), AnimationState())
-
+              playerAnimation = stickAnimation(
+                playerAnimation, gameTime,
+                currentBlockStateAsAnimationState(),
+                AnimationState()
+              )
 
           of SDL_SCANCODE_K, SDL_SCANCODE_D, SDL_SCANCODE_KP_5, SDL_SCANCODE_DOWN:
             # step down
@@ -589,8 +589,11 @@ proc main(): void =
             let offset = vec2i(1,0)
             if validBlockPos(blockPos + offset, blockRot, blockType):
               blockPos += offset
-              playerAnimation = stickAnimation(playerAnimation, gameTime,
-                                               currentBlockStateAsAnimationState(), AnimationState())
+              playerAnimation = stickAnimation(
+                playerAnimation, gameTime,
+                currentBlockStateAsAnimationState(),
+                AnimationState()
+              )
 
           of SDL_SCANCODE_U, SDL_SCANCODE_W, SDL_SCANCODE_KP_7:
             # rotate left
@@ -599,8 +602,11 @@ proc main(): void =
               if validBlockPos(blockPos + offset, nBlockRot, blockType):
                 blockRot = nBlockRot
                 blockPos += offset
-                playerAnimation = stickAnimation(playerAnimation, gameTime,
-                                                 currentBlockStateAsAnimationState(), AnimationState())
+                playerAnimation = stickAnimation(
+                  playerAnimation, gameTime,
+                  currentBlockStateAsAnimationState(),
+                  AnimationState()
+                )
                 break
 
           of SDL_SCANCODE_O, SDL_SCANCODE_R, SDL_SCANCODE_KP_9, SDL_SCANCODE_UP:
@@ -611,8 +617,11 @@ proc main(): void =
                 blockRot = nBlockRot
                 blockPos += offset
 
-                playerAnimation = stickAnimation(playerAnimation, gameTime,
-                                                 currentBlockStateAsAnimationState(), AnimationState())
+                playerAnimation = stickAnimation(
+                  playerAnimation, gameTime,
+                  currentBlockStateAsAnimationState(),
+                  AnimationState()
+                )
                 break
 
           of SDL_SCANCODE_I, SDL_SCANCODE_E, SDL_SCANCODE_KP_8, SDL_SCANCODE_SPACE:
@@ -623,8 +632,11 @@ proc main(): void =
 
 
             let aes = AnimationState(position: vec2f(0,-20))
-            insertAnimation = stickAnimation(playerAnimation, gameTime, currentBlockStateAsAnimationState(), aes)
-
+            insertAnimation = stickAnimation(
+              playerAnimation, gameTime,
+              currentBlockStateAsAnimationState(),
+              aes
+            )
 
             insertBlock()
 
