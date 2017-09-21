@@ -2,11 +2,8 @@ import ../fancygl, sdl2/image
 
 let (window, context) = defaultSetup()
 
-proc `$`(v: Vec | Mat): string =
-  fancygl.`$`(v)
-
 proc setup(): void =
-  glDisable(GL_DEPTH_TEST)
+  glEnable(GL_DEPTH_TEST)
   #glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
   glProvokingVertex(GL_FIRST_VERTEX_CONVENTION)
 
@@ -55,11 +52,12 @@ const rogue = true
 
 when rogue:
   const tileSize  = vec2i(8,12)
+  const tileSizeLogical = vec2i(8,8)
   const tileImage = "pixelfont.png"
 else:
   const tileSize  = vec2i(16)
+  const tileSizeLogical = tileSize
   const tileImage = "tiles.gif"
-
 
 import os
 
@@ -73,9 +71,9 @@ tilePalette.parameter(GL_TEXTURE_MAG_FILTER, GL_NEAREST)
 proc noiseTextureRectangle(size: Vec2i): TextureRectangle =
   var randomTiles = newSeq[tuple[r,g,b,a: uint8]](mapwidth * mapwidth)
   for tile in randomTiles.mitems:
-    tile.r = rand_u8()
-    tile.g = rand_u8()
-    tile.b = rand_u8()
+    tile.r = if rogue: rand_u8() else: 255
+    tile.g = if rogue: rand_u8() else: 255
+    tile.b = if rogue: rand_u8() else: 255
     tile.a = rand_u8()
 
   result = newTextureRectangle(size, internalFormat = GL_RGBA8)
@@ -130,30 +128,32 @@ var cameraPos = vec2f(mapwidth) * 0.5
 let windowsize = window.size
 
 proc pixelToWorldSpace(cameraPos: Vec2f; pos: Vec2i): Vec2f =
-  (-vec2f(windowsize) * 0.5 + vec2f(pos.x.float32, float32(windowsize.y - pos.y))) / vec2f(tileSize * scaling) + cameraPos
+  (-vec2f(windowsize) * 0.5 + vec2f(pos.x.float32, float32(windowsize.y - pos.y))) / vec2f(tileSizeLogical * scaling) + cameraPos
 
 proc gridTrianglesPosition*(size: Vec2i; offset: Vec2f) : seq[Vec4f] =
   result = newSeqOfCap[Vec4f](size.x * size.y * 6)
+
+  let y = tileSize.y / tileSizeLogical.y
 
   for i in 0 ..< size.y:
     for j in 0 ..< size.x:
       let pos = vec2f(float32(j),float32(i)) + offset
       let
-        a = vec4(pos + vec2f(0,0), 0, 1)
-        b = vec4(pos + vec2f(1,0), 0, 1)
-        c = vec4(pos + vec2f(0,1), 1, 1)
-        d = vec4(pos + vec2f(1,1), 1, 1)
+        a = vec4(pos + vec2f(0,0),    0, 1)
+        b = vec4(pos + vec2f(1,0),    0, 1)
+        c = vec4(pos + vec2f(0,y), -1, 1)
+        d = vec4(pos + vec2f(1,y), -1, 1)
 
       result.add([a,d,c,a,b,d])
 
-let gridSize     = vec2f(windowsize) / vec2f(tileSize * scaling)
+let gridSize     = vec2f(windowsize) / vec2f(tileSizeLogical * scaling)
 let gridHalfSize = gridSize * 0.5
 
 # one extra row and column for scrolling and one, because the offset is floored
 let gridVertices    = arrayBuffer(gridTrianglesPosition(gridSize.vec2i + 3, floor(-gridHalfSize)))
 let gridVerticesLen = gridVertices.len
 
-let scale = vec2f(tileSize * 2 * scaling) / vec2f(windowsize)
+let scale = vec2f(tileSizeLogical * 2 * scaling) / vec2f(windowsize)
 
 proc drawTiles(highlightPos: Vec2i; map: TextureRectangle; cameraPos: Vec2f): void =
 
@@ -293,8 +293,8 @@ proc mouseDragged(evt: MouseMotionEventPtr): void =
 
   if mouseRightDown:
     var movement : Vec2f
-    movement.x =  evt.xrel / (tileSize.x * scaling)
-    movement.y = -evt.yrel / (tileSize.y * scaling)
+    movement.x =  evt.xrel / (tileSizeLogical.x * scaling)
+    movement.y = -evt.yrel / (tileSizeLogical.y * scaling)
     cameraPos -= movement
 
 while running:
@@ -362,7 +362,7 @@ while running:
     else:
       discard
 
-  glClear(GL_COLOR_BUFFER_BIT)
+  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
   var mousePos : Vec2i
 
