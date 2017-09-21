@@ -63,40 +63,57 @@ else:
 
 import os
 
-let tilePalette = loadTilePaletteFromFile(getAppDir() / "resources" / tileImage, tileSize, levels = 1)
+let tilePalette = loadTilePaletteFromFile(
+  getAppDir() / "resources" / tileImage, tileSize, levels = 1)
 tilePalette.parameter(GL_TEXTURE_MIN_FILTER, GL_NEAREST)
 tilePalette.parameter(GL_TEXTURE_MAG_FILTER, GL_NEAREST)
 
 # TODO make GL_R8UI work
 
 proc noiseTextureRectangle(size: Vec2i): TextureRectangle =
-  var randomTiles = newSeq[uint8](mapwidth * mapwidth)
+  var randomTiles = newSeq[tuple[r,g,b,a: uint8]](mapwidth * mapwidth)
   for tile in randomTiles.mitems:
-    tile = rand_u8()
+    tile.r = rand_u8()
+    tile.g = rand_u8()
+    tile.b = rand_u8()
+    tile.a = rand_u8()
 
-  result = newTextureRectangle(size, internalFormat = GL_R8)
+  result = newTextureRectangle(size, internalFormat = GL_RGBA8)
   #result.setData(randomTiles)
-  glTextureSubImage2D(texture = 3, level = 0, xoffset = 0, yoffset = 0, width = 1024, height = 1024, format = GL_RED, type = GL_UNSIGNED_BYTE, pixels = randomTiles[0].addr)
+  glTextureSubImage2D(
+    texture = 3, level = 0,
+    xoffset = 0, yoffset = 0,
+    width = size.x, height = size.y,
+    format = GL_RGBA, type = GL_UNSIGNED_BYTE,
+    pixels = randomTiles[0].addr
+  )
 
 proc loadMapFromFile(): TextureRectangle =
   var surface = image.load(mapFilename)
-  assert( not surface.isNil, s"can't load texture $mapFilename: ${fancygl.getError()}" )
+  assert( not surface.isNil,
+          s"can't load texture $mapFilename: ${fancygl.getError()}" )
   defer: freeSurface(surface)
 
   assert surface.format.BitsPerPixel == 8
   glCreateTextures(GL_TEXTURE_RECTANGLE, 1, result.handle.addr)
   glTextureStorage2D(result.handle, 1, GL_R8, surface.w, surface.h)
-  glTextureSubImage2D(result.handle, 0, 0, 0, surface.w, surface.h, GL_RED, GL_UNSIGNED_BYTE, surface.pixels)
+  glTextureSubImage2D(
+    result.handle, 0, 0, 0,
+    surface.w, surface.h,
+    GL_RED, GL_UNSIGNED_BYTE, surface.pixels)
 
-let tileSelectionMap = newTextureRectangle(vec2i(16), internalFormat = GL_R8)
+let tileSelectionMap = newTextureRectangle(vec2i(16), internalFormat = GL_RGBA8)
 
 block:
-  var selectionTiles = newSeq[uint8](16 * 16)
+  var selectionTiles = newSeq[Color](16 * 16)
 
   for i, tile in selectionTiles.mpairs:
     let x = i mod 16
     let y = 15 - i div 16
-    tile = uint8(x + y * 16)
+    tile.r = 255
+    tile.g = 255
+    tile.b = 255
+    tile.a = uint8(x + y * 16)
 
   tileSelectionMap.setData(selectionTiles)
 
@@ -115,17 +132,17 @@ let windowsize = window.size
 proc pixelToWorldSpace(cameraPos: Vec2f; pos: Vec2i): Vec2f =
   (-vec2f(windowsize) * 0.5 + vec2f(pos.x.float32, float32(windowsize.y - pos.y))) / vec2f(tileSize * scaling) + cameraPos
 
-proc gridTrianglesPosition*(size: Vec2i; offset: Vec2f) : seq[Vec2f] =
-  result = newSeqOfCap[Vec2f](size.x * size.y * 6)
+proc gridTrianglesPosition*(size: Vec2i; offset: Vec2f) : seq[Vec4f] =
+  result = newSeqOfCap[Vec4f](size.x * size.y * 6)
 
   for i in 0 ..< size.y:
     for j in 0 ..< size.x:
       let pos = vec2f(float32(j),float32(i)) + offset
       let
-        a = pos + vec2f(0,0)
-        b = pos + vec2f(1,0)
-        c = pos + vec2f(0,1)
-        d = pos + vec2f(1,1)
+        a = vec4(pos + vec2f(0,0), 0, 1)
+        b = vec4(pos + vec2f(1,0), 0, 1)
+        c = vec4(pos + vec2f(0,1), 1, 1)
+        d = vec4(pos + vec2f(1,1), 1, 1)
 
       result.add([a,d,c,a,b,d])
 
@@ -163,21 +180,25 @@ proc drawTiles(highlightPos: Vec2i; map: TextureRectangle; cameraPos: Vec2f): vo
       ivec2 gridPos = ivec2(pos.xy + floor(cameraPos));
       highlight = int(highlightPos == gridPos);
 
-      tileId =  int(round(255 * texelFetch(map, gridPos).r));
-      gl_Position = vec4((pos - fract(cameraPos)) * scale, 0, 1);
+      tileId =  int(round(255 * texelFetch(map, gridPos).a));
+      tintColor = texelFetch(map, gridPos).rgb;
+      gl_Position = vec4((pos.xy - fract(cameraPos)) * scale, pos.zw);
       v_texCoord = texCoords[gl_VertexID % 6];
       """
     vertexOut:
       "out vec2 v_texCoord"
       "flat out int tileId"
+      "flat out vec3 tintColor"
       "flat out int highlight"
     fragmentMain:
       """
       color = texture(tilePalette, vec3(v_texCoord, tileId));
       if( color.rgb == vec3(1,0,1) )
         discard;
-      if(highlight != 0) {
-        color.rgb = vec3(1) - color.gbr;
+      if(highlight == 0) {
+        color.rgb *= tintColor;
+      } else {
+        color.rgb = fract(color.rgb * 1.2);
       }
       """
 
@@ -219,8 +240,8 @@ var dragRightStartPos: Vec2i
 
 setup()
 
-var tileLeft : uint8 = 128
-var tileRight : uint8 = 0
+var tileLeft : Color = (r:255'u8, g:255'u8, b:255'u8, a:128'u8)
+var tileRight : Color =(r:255'u8, g:255'u8, b:255'u8, a:0'u8)
 var tileSelection : bool = false
 
 proc mouseClicked(evt: MouseButtonEventPtr): void =
@@ -228,7 +249,9 @@ proc mouseClicked(evt: MouseButtonEventPtr): void =
   if tileSelection:
     let mousePos = pixelToWorldSpace(vec2f(8), vec2i(evt.x, evt.y))
     let gridPos = vec2i(mousePos.floor)
-    let pixel: uint8 = uint8(gridPos.x + (15 - gridPos.y) * 16)
+    let pixel: Color =
+      (r: 255'u8, g: 255'u8, b: 255'u8,
+            a: uint8(gridPos.x + (15 - gridPos.y) * 16))
 
     if evt.button == ButtonLeft:
       tileLeft = pixel
@@ -245,7 +268,7 @@ proc mouseClicked(evt: MouseButtonEventPtr): void =
     if fancygl.any( gridPos .< vec2i(0) ) or fancygl.any(gridPos .>= vec2i(mapwidth)):
       return
 
-    var pixel : uint8
+    var pixel : Color
     if evt.button == ButtonLeft:
       pixel = tileLeft
     elif evt.button == ButtonRight:

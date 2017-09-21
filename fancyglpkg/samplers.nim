@@ -293,6 +293,7 @@ proc subImage*( texture : TextureRectangle; data : var seq[Mat4f] ) =
   glTextureSubImage2D(texture.handle, 0, 0, 0, 4, data.len.GLsizei, GL_RGBA, cGL_FLOAT, data[0].addr.pointer )
 
 proc setData*[T](texture: TextureRectangle; data: seq[T]) =
+  mixin attribSize
   let
     s = texture.size
     w = s.x.GLint
