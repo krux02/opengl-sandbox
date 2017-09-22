@@ -1,4 +1,4 @@
-import ../fancygl, sdl2/image
+import ../fancygl, sdl2/image, os
 
 let (window, context) = defaultSetup()
 
@@ -7,10 +7,25 @@ proc setup(): void =
   #glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
   glProvokingVertex(GL_FIRST_VERTEX_CONVENTION)
 
-proc loadTilePaletteFromFile*(filename: string; tilesize: Vec2i; levels: int): Texture2DArray =
-  glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, -1, "loadTilemapFromFile");
-  defer:
-    glPopDebugGroup()
+
+const rogue = true
+## change ``rogue`` to true if you want font tiles :P
+when rogue:
+  const scaling   = 4
+  const tileSize  = vec2i(8,12)
+  const tileSizeLogical = vec2i(8,4)
+  const tileImage = "pixelfont2.png"
+else:
+  const scaling   = 2
+  const tileSize  = vec2i(16)
+  const tileSizeLogical = tileSize
+  const tileImage = "tiles.gif"
+
+const numTiles = 256
+let tileMapAbsolutePath = getAppDir() / "resources" / tileImage
+
+proc updateTilePaletteFromFile(self: Texture2DArray; filename: string): void =
+
   var surface = image.load(filename)
   if surface.isNil:
     let message = s"can't load texture $filename: ${getError()}"
@@ -21,48 +36,34 @@ proc loadTilePaletteFromFile*(filename: string; tilesize: Vec2i; levels: int): T
   var rect: Rect
   rect.x = 0
   rect.y = 0
-  rect.w = tilesize.x
-  rect.h = tilesize.y
+  rect.w = tileSize.x
+  rect.h = tileSize.y
 
-  var layerSurface = createRGBSurface(0, tilesize.x, tilesize.y, 32, 0,0,0,0)
+  var layerSurface = createRGBSurface(0, tileSize.x, tileSize.y, 32, 0,0,0,0)
   defer: freeSurface(layerSurface)
 
-
-  let rows = (surface.h div tilesize.y)
-  let cols = (surface.w div tilesize.x)
-
-  result = newTexture2DArray(tilesize, rows * cols, levels = levels)
+  let rows = (surface.h div tileSize.y)
+  let cols = (surface.w div tileSize.x)
 
   var i = 0
   for y in 0 ..< rows:
     for x in 0 ..< cols:
-      rect.x = cint(x) * tilesize.x
-      rect.y = cint(y) * tilesize.y
+      rect.x = cint(x) * tileSize.x
+      rect.y = cint(y) * tileSize.y
       blitSurface(surface, rect.addr, layerSurface, nil)
-      result.subImage(layerSurface, layer = i)
+      self.subImage(layerSurface, layer = i)
       i += 1
 
+
+
 const mapwidth  = 1024
-const scaling   = 2
 const dragThreshold = 4
 const mapFilename = "map.bmp"
 
-const rogue = true
-## change ``rogue`` to true if you want font tiles :P
+let tilePalette = newTexture2DArray(tileSize, numTiles, levels = 1)
+var tileMapModificationTime = getLastModificationTime(tileMapAbsolutePath)
+tilePalette.updateTilePaletteFromFile(tileMapAbsolutePath)
 
-when rogue:
-  const tileSize  = vec2i(8,12)
-  const tileSizeLogical = vec2i(8,8)
-  const tileImage = "pixelfont.png"
-else:
-  const tileSize  = vec2i(16)
-  const tileSizeLogical = tileSize
-  const tileImage = "tiles.gif"
-
-import os
-
-let tilePalette = loadTilePaletteFromFile(
-  getAppDir() / "resources" / tileImage, tileSize, levels = 1)
 tilePalette.parameter(GL_TEXTURE_MIN_FILTER, GL_NEAREST)
 tilePalette.parameter(GL_TEXTURE_MAG_FILTER, GL_NEAREST)
 
@@ -374,6 +375,12 @@ while running:
     drawTiles(pixelToWorldSpace(cameraPos, mousePos).floor.vec2i, map, cameraPos)
 
 
-  drawCrosshair()
+  #drawCrosshair()
+
+
+  let newTileMapModificationTime = getLastModificationTime(tileMapAbsolutePath)
+  if int64(tileMapModificationTime) < int64(newTileMapModificationTime):
+    tilePalette.updateTilePaletteFromFile(tileMapAbsolutePath)
+
 
   glSwapWindow(window)

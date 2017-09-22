@@ -1,8 +1,17 @@
-import memfiles, ../fancygl, sdl2/ttf, os, strutils, sequtils, AntTweakBar
+import memfiles, ../fancygl, sdl2/ttf, os, strutils, sequtils, AntTweakBar, macros
 
 const WindowSize = vec2i(1024, 768)
 
-#template glslPrefix(t: typedesc[uint8]): string = ""
+template glslPrefix(t: typedesc[uint8]): string = ""
+
+template addVarRW(bar: ptr TwBar; value: var float32, stuff: string= ""): void =
+  discard TwAddVarRW(bar,astToStr(value), TW_TYPE_FLOAT, value.addr, stuff)
+
+template addVarRW(bar: ptr TwBar; value: var bool, stuff: string = ""): void =
+  discard TwAddVarRW(bar,astToStr(value), TW_TYPE_BOOL8, value.addr, stuff)
+
+template addVarRW(bar: ptr TwBar; value: var Quatf, stuff: string = ""): void =
+  discard TwAddVarRW(bar,astToStr(value), TW_TYPE_QUAT4F, value.addr, stuff)
 
 proc main() =
   let (window, context) = defaultSetup(WindowSize)
@@ -251,12 +260,13 @@ proc main() =
   var scale: float32 = 1
 
   var bar = TwNewBar("TwBar")
-  discard TwAddVarRW(bar, "scale", TW_TYPE_FLOAT, scale.addr, " precision=3 step=0.01")
-  discard TwAddVarRW(bar, "renderBoneNames", TW_TYPE_BOOL8, renderBoneNames.addr, "")
-  discard TwAddVarRW(bar, "renderBones", TW_TYPE_BOOL8, renderBones.addr, "")
-  discard TwAddVarRW(bar, "renderMesh", TW_TYPE_BOOL8, renderMesh.addr, "")
-  discard TwAddVarRW(bar, "renderNormalMap", TW_TYPE_BOOL8, renderNormalMap.addr, "")
-  discard TwAddVarRW(bar, "objRotation", TW_TYPE_QUAT4F, obj_quat.addr, " label='Object rotation' opened=true help='Change the object orientation.' ");
+
+  bar.addVarRW scale, " precision=3 step=0.01"
+  bar.addVarRW renderBoneNames
+  bar.addVarRW renderBones
+  bar.addVarRW renderMesh
+  bar.addVarRW renderNormalMap
+  bar.addVarRW obj_quat, " label='Object rotation' opened=true help='Change the object orientation.' "
 
   glEnable(GL_DEPTH_TEST)
   glEnable(GL_CULL_FACE)

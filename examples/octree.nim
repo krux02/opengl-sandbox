@@ -336,13 +336,13 @@ let cubeLineIndices = elementArrayBuffer([
 ])
 let cubeLineIndicesLen = cubeLineIndices.len
 
-var boxes = tree.leafNodeBoxes # just for the approximation of the length
+var boxes : seq[AABB] = tree.leafNodeBoxes # just for the approximation of the length
 var boxesBuffer = newArrayBuffer[AABB](boxes.len * 2, GL_STREAM_DRAW)
 
 let boxesMinView = boxesBuffer.view(min)
 let boxesMaxView = boxesBuffer.view(max)
 
-proc drawBoxes(proj,modelView: Mat4f, maxDepth: int): void =
+proc drawBoxes(proj,modelView: Mat4f): void =
   tree.leafNodeBoxes(boxes)
   boxesBuffer.setData(boxes)
 
@@ -352,8 +352,7 @@ proc drawBoxes(proj,modelView: Mat4f, maxDepth: int): void =
     indices = cubeLineIndices
     numInstances = boxes.len
     uniforms:
-      modelView
-      proj
+      modelViewProj = proj * modelView
     attributes:
       a_vertex = cubeVertices
       a_max = boxesMaxView {.divisor: 1.}
@@ -361,7 +360,7 @@ proc drawBoxes(proj,modelView: Mat4f, maxDepth: int): void =
     vertexMain:
       """
       vec4 pos_ws = vec4(mix(a_min, a_max, a_vertex.xyz), 1);
-      gl_Position = proj * modelView * pos_ws;
+      gl_Position = modelViewProj * pos_ws;
       """
     fragmentMain:
       """
@@ -370,7 +369,6 @@ proc drawBoxes(proj,modelView: Mat4f, maxDepth: int): void =
 
 
 var rotationX, rotationY: float32
-var maxDepth = 0
 
 
 var mouse1 = false
@@ -416,27 +414,34 @@ while runGame:
       runGame = false
       break
     if evt.kind == KeyDown:
-      if evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE:
+      case evt.key.keysym.scancode
+      of SDL_SCANCODE_ESCAPE:
         runGame = false
-      if evt.key.keysym.scancode == SDL_SCANCODE_KP_PLUS:
-        maxDepth += 1
-      if evt.key.keysym.scancode == SDL_SCANCODE_KP_MINUS:
-        maxDepth -= 1
+      of SDL_SCANCODE_F10:
+        window.screenshot
+      else:
+        discard
 
     if evt.kind == MouseButtonDown:
-      if evt.button.button == 1:
+      case evt.button.button
+      of 1:
         mouse1 = true
-      if evt.button.button == 2:
+      of 2:
         mouse2 = true
-      if evt.button.button == 3:
+      of 3:
         mouse3 = true
+      else:
+        discard
     if evt.kind == MouseButtonUp:
-      if evt.button.button == 1:
+      case evt.button.button
+      of 1:
         mouse1 = false
-      if evt.button.button == 2:
+      of 2:
         mouse2 = false
-      if evt.button.button == 3:
+      of 3:
         mouse3 = false
+      else:
+        discard
 
     if evt.kind == MouseMotion:
       if mouse1:
@@ -493,7 +498,7 @@ while runGame:
       color = v_color;
       """
 
-  drawBoxes(proj, viewMat * modelMat, maxDepth)
+  drawBoxes(proj, viewMat * modelMat)
 
   glSwapWindow(window)
 
