@@ -286,7 +286,7 @@ proc spiralOctree(length: int): Tree =
 
 var tree = spiralOctree(1000)
 
-let (window, context) = defaultSetup()
+let (window, context) = defaultSetup( vec2i(640,480) )
 
 glPointSize(5)
 
@@ -407,6 +407,39 @@ proc drawNeighborhood(proj,modelView: Mat4f): void =
       """
 
 
+
+import gifh
+
+type
+  GifAnimation = object
+    writer: gifh.Writer
+    w,h, delay: int32
+    bitDepth: int32
+    dither: bool
+    buffer: seq[uint32]
+
+proc startGifAnimation(window: WindowPtr, delay: int32; bitDepth: int32 = 8; dither: bool = false): GifAnimation =
+  let (w,h) = window.getSize
+  result.buffer = newSeq[uint32](w*h)
+  result.w = w
+  result.h = h
+  result.delay = delay
+  result.bitDepth = bitDepth
+  result.dither = dither
+  echo "start: ", result.writer.begin(window.title & ".gif", w, h, delay, bitDepth, dither)
+
+
+proc frameGifAnimation(this: var GifAnimation): void =
+  glReadPixels(0,0,this.w,this.h,GL_RGBA, GL_UNSIGNED_BYTE, this.buffer[0].addr)
+  echo "frame: ", this.writer.writeFrame(this.buffer[0].addr, this.w, this.h, this.delay, this.bitDepth, this.dither)
+
+proc endGifAnimation(this: var GifAnimation): void =
+  echo "end: ", this.writer.gifEnd()
+  this.buffer = nil
+
+var animation: GifAnimation
+var remainingFrames = 0
+
 while runGame:
 
   while pollEvent(evt):
@@ -419,6 +452,9 @@ while runGame:
         runGame = false
       of SDL_SCANCODE_F10:
         window.screenshot
+      of SDL_SCANCODE_S:
+        animation = window.startGifAnimation(delay = 1, dither = false)
+        remainingFrames = 100
       else:
         discard
 
@@ -465,8 +501,8 @@ while runGame:
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
   block:
-    let s = sin(0.002f)
-    let c = cos(0.002f)
+    let s = sin(2 * Pi * 0.01'f32)
+    let c = cos(2 * Pi * 0.01'f32)
     let mat = mat2(vec2(c,s), vec2(-s,c))
     for node in tree.data.mitems:
       node.pos.xy = mat * node.pos.xy
@@ -501,6 +537,15 @@ while runGame:
   drawBoxes(proj, viewMat * modelMat)
 
   glSwapWindow(window)
+
+
+  if remainingFrames > 0:
+    animation.frameGifAnimation()
+    remainingFrames -= 1
+    if remainingFrames == 0:
+      animation.endGifAnimation()
+
+
 
 
 
