@@ -857,14 +857,6 @@ proc numFields[T](t: typedesc[T]): int =
   countFields(t)
 
 type
-  TestType = object
-    a,b,c: int
-    d,e: string
-
-static:
-  echo numFields(TestType)
-
-type
   TransformFeedback*[T] = object
     handle*: GLuint
     varyingOffsets*: seq[int]
