@@ -39,10 +39,7 @@ type
 
   Value = object
     pos: Vec3f
-    color: Vec3f
-
-  NodeType = enum
-    ntValueRange
+    id : uint32  ## after ``init`` ``srcPositions[id] == pos`` should be true
 
   Node = object
     a,b: int32
@@ -51,6 +48,35 @@ type
       children: array[8, int32]
     else:
       discard
+
+
+proc catchUpOrder[T](this: var Tree; data: var seq[T]): void =
+  ## the tree changes the order of the nodes,
+  ## catch Up order also applies that permutation to data that is associated with the tree data
+
+  # inverse id
+  let N = this.data.len
+  var i = 0
+  while i < N:
+    let dst = this.data[i].id and 0xffff
+    if dst < i:
+      this.data[dst].id = uint32(i) and 0xffff
+    else:
+      this.data[dst].id = this.data[dst].id and 0xffff or uint32(i shl 16)
+    this.data[i].id = this.data[i].id shr 16
+    i += 1
+  # reorder
+  assert data.len == this.data.len, "Illegal Argument"
+  i = 0
+  var k = 0
+  while i < N:
+    while int(this.data[i].id) != int(i):
+      let j = int(this.data[i].id)
+      swap(this.data[i].id, this.data[j].id)
+      swap(     data[i]   ,      data[j]   )
+      k += 1
+    i += 1
+  assert k < i
 
 proc mid(this: AABB): Vec3f = mix(this.min, this.max, 0.5f)
 
@@ -256,45 +282,40 @@ proc neighborSearch(tree: Tree; radius: float32; dst: var seq[(int32,int32)]): v
     let query = Sphere(center: value.pos, radius: radius)
     neighborSearch(tree, tree.nodes[0], tree.aabb, query, i, dst)
 
-proc randomTreeValue(): Value =
-  Value(
-    pos: Vec3f(arr: [rand_f32(), rand_f32(), rand_f32()]),
-    color: Vec3f(arr: [rand_f32(), rand_f32(), rand_f32()])
-  )
-
-proc spiralTreeValue(): Value =
+proc randomSpiralPosition(): Vec3f =
   let x = float32(randNormal() * 2)
   let spiralPos = vec3f(sin(x), cos(x), x * 0.35)
   let offset = vec3f(vec3(randNormal(), randNormal(), randNormal()) * 0.01)
-  Value(
-    pos: spiralPos + offset,
-    color: Vec3f(arr: [rand_f32(), rand_f32(), rand_f32()])
-  )
-
-proc randOctree(length: int): Tree =
-  result.data = newSeq[Value](length)
-  for d in result.data.mitems:
-    d = randomTreeValue()
-  result.init
+  return spiralPos + offset
 
 proc spiralOctree(length: int): Tree =
   ## creates a new octree with data distributed on a spiral
   result.data = newSeq[Value](length)
-  for d in result.data.mitems:
-    d = spiralTreeValue()
+  for i, d in result.data.mpairs:
+    d.pos = randomSpiralPosition()
+    d.id = uint32(i)
   result.init
+
+proc randomColors(N: int): seq[Color] =
+  result.newSeq(N)
+  for color in result.mitems:
+    color.r = rand_u8()
+    color.g = rand_u8()
+    color.b = rand_u8()
+    color.a = 255
 
 var tree = spiralOctree(1000)
 
-let (window, context) = defaultSetup( vec2i(640,480) )
+let (window, context) = defaultSetup()
 
-glPointSize(5)
+glPointSize(20)
 
 var treeDataBuffer = arrayBuffer(tree.data, GL_STREAM_DRAW)
 
 let posBuffer      = treeDataBuffer.view(pos)
-let colorsBuffer = treeDataBuffer.view(color)
 
+var colorsData = randomColors(tree.data.len)
+let colorsBuffer = arrayBuffer(colorsData)
 
 var evt: Event
 var runGame: bool = true
@@ -406,36 +427,7 @@ proc drawNeighborhood(proj,modelView: Mat4f): void =
       color = vec4(1,1,0,1);
       """
 
-
-
 import gifh
-
-type
-  GifAnimation = object
-    writer: gifh.Writer
-    w,h, delay: int32
-    bitDepth: int32
-    dither: bool
-    buffer: seq[uint32]
-
-proc startGifAnimation(window: WindowPtr, delay: int32; bitDepth: int32 = 8; dither: bool = false): GifAnimation =
-  let (w,h) = window.getSize
-  result.buffer = newSeq[uint32](w*h)
-  result.w = w
-  result.h = h
-  result.delay = delay
-  result.bitDepth = bitDepth
-  result.dither = dither
-  echo "start: ", result.writer.begin(window.title & ".gif", w, h, delay, bitDepth, dither)
-
-
-proc frameGifAnimation(this: var GifAnimation): void =
-  glReadPixels(0,0,this.w,this.h,GL_RGBA, GL_UNSIGNED_BYTE, this.buffer[0].addr)
-  echo "frame: ", this.writer.writeFrame(this.buffer[0].addr, this.w, this.h, this.delay, this.bitDepth, this.dither)
-
-proc endGifAnimation(this: var GifAnimation): void =
-  echo "end: ", this.writer.gifEnd()
-  this.buffer = nil
 
 var animation: GifAnimation
 var remainingFrames = 0
@@ -486,7 +478,7 @@ while runGame:
       if mouse3:
         scale += float32(evt.motion.xrel) * 0.001f
 
-  let time = timer.time.float32
+  #let time = timer.time.float32
 
   let viewMat = mat4f(1)
     .translate(0,1,5)            # position camera at position 0,1,5
@@ -501,16 +493,19 @@ while runGame:
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
   block:
-    let s = sin(2 * Pi * 0.01'f32)
-    let c = cos(2 * Pi * 0.01'f32)
+    let s = sin(2 * Pi * 0.001'f32)
+    let c = cos(2 * Pi * 0.001'f32)
     let mat = mat2(vec2(c,s), vec2(-s,c))
     for node in tree.data.mitems:
       node.pos.xy = mat * node.pos.xy
 
   tree.init
   treeDataBuffer.setData(tree.data)
+  tree.catchUpOrder(colorsData)
+  colorsBuffer.setData(colorsData)
 
   drawNeighborhood(proj, viewMat * modelMat)
+
 
   shadingDsl:
     primitiveMode = GL_POINTS
@@ -525,7 +520,7 @@ while runGame:
       """
       gl_Position = proj * modelView * vec4(a_vertex, 1);
       //gl_Position = a_vertex;
-      v_color = vec4(a_color, 1);
+      v_color = a_color;
       """
     vertexOut:
       "out vec4 v_color"
@@ -535,12 +530,10 @@ while runGame:
       """
 
   drawBoxes(proj, viewMat * modelMat)
-
   glSwapWindow(window)
 
-
   if remainingFrames > 0:
-    animation.frameGifAnimation()
+    animation.frameGifAnimationGl()
     remainingFrames -= 1
     if remainingFrames == 0:
       animation.endGifAnimation()
