@@ -461,46 +461,46 @@ proc render() =
 proc mainLoopFunc(): void =
 
   for evt in events():
-    if evt.kind == QuitEvent:
+    if evt.kind == QUIT:
       runGame = false
       break
-    if evt.kind == KeyDown:
+    if evt.kind == KEY_DOWN:
 
       case evt.key.keysym.scancode
-      of SDL_SCANCODE_ESCAPE:
+      of SCANCODE_ESCAPE:
         runGame = false
         break
 
-      of SDL_SCANCODE_SPACE:
+      of SCANCODE_SPACE:
         effectOrigin = camera.pos.xy
         effectTimer.reset
 
-      of SDL_SCANCODE_PAUSE:
+      of SCANCODE_PAUSE:
         gameTimer.toggle
 
-      of SDL_SCANCODE_1:
+      of SCANCODE_1:
         hideDeferredShading = not hideDeferredShading
 
-      of SDL_SCANCODE_2:
+      of SCANCODE_2:
         hideNormals = not hideNormals
 
-      of SDL_SCANCODE_3:
+      of SCANCODE_3:
         flatShading = not flatShading
 
-      of SDL_SCANCODE_4:
+      of SCANCODE_4:
         wireframe = not wireframe
 
-      of SDL_SCANCODE_F10:
+      of SCANCODE_F10:
         window.screenshot
 
       else:
         discard
 
-    if evt.kind == MouseButtonDown:
+    if evt.kind == MOUSE_BUTTON_DOWN:
       var toggle {. global .} = false
       if evt.button.button == 3:
         toggle = not toggle
-        discard setRelativeMouseMode(Bool32(toggle))
+        discard setRelativeMouseMode(toggle)
 
     if evt.kind == MouseMotion:
       mousePos.x = evt.motion.x.float32

@@ -20,18 +20,18 @@ var offset = vec3f(0,0,-10f)
 while runGame:
   let time = timer.time.float32
   for evt in events():
-    if evt.kind == QuitEvent:
+    if evt.kind == QUIT:
       runGame = false
       break
-    if evt.kind == KeyDown and evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE:
+    if evt.kind == KEY_DOWN and evt.key.keysym.scancode == SCANCODE_ESCAPE:
       runGame = false
 
-  var state = getKeyboardState()
-  offset.x += (state[SDL_SCANCODE_S.int].float - state[SDL_SCANCODE_F.int].float) * 0.1f
-  offset.y += (state[SDL_SCANCODE_D.int].float - state[SDL_SCANCODE_E.int].float) * 0.1f
-  if state[SDL_SCANCODE_KP_PLUS.int] != 0:
+  var state = getKeyboardState(nil)
+  offset.x += (state[SCANCODE_S.int].float - state[SCANCODE_F.int].float) * 0.1f
+  offset.y += (state[SCANCODE_D.int].float - state[SCANCODE_E.int].float) * 0.1f
+  if state[SCANCODE_KP_PLUS.int] != 0:
     scaler *= 1.1
-  if state[SDL_SCANCODE_KP_MINUS.int] != 0:
+  if state[SCANCODE_KP_MINUS.int] != 0:
     scaler *= 0.9
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)

@@ -15,27 +15,27 @@ var centerScale = vec3f(0,0,1)
 
 while runGame:
   for evt in events():
-    if evt.kind == QuitEvent:
+    if evt.kind == QUIT:
       runGame = false
       break
-    if evt.kind == KeyDown and evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE:
+    if evt.kind == KEY_DOWN and evt.key.keysym.scancode == SCANCODE_ESCAPE:
       runGame = false
-    if evt.kind == KeyDown and evt.key.keysym.scancode == SDL_SCANCODE_F10:
+    if evt.kind == KEY_DOWN and evt.key.keysym.scancode == SCANCODE_F10:
       window.screenshot
   # TODO maybe a mouse interface?
 
-  var state = getKeyboardState()
-  if state[SDL_SCANCODE_UP.int] != 0:
+  var state = getKeyboardState(nil)
+  if state[SCANCODE_UP.int] != 0:
     centerScale.y += centerScale.z * 0.005
-  if state[SDL_SCANCODE_DOWN.int] != 0:
+  if state[SCANCODE_DOWN.int] != 0:
     centerScale.y -= centerScale.z * 0.005
-  if state[SDL_SCANCODE_RIGHT.int] != 0:
+  if state[SCANCODE_RIGHT.int] != 0:
     centerScale.x += centerScale.z * 0.005
-  if state[SDL_SCANCODE_LEFT.int] != 0:
+  if state[SCANCODE_LEFT.int] != 0:
     centerScale.x -= centerScale.z * 0.005
-  if state[SDL_SCANCODE_KP_MINUS.int] != 0:
+  if state[SCANCODE_KP_MINUS.int] != 0:
     centerScale.z *= 1.02
-  if state[SDL_SCANCODE_KP_PLUS.int] != 0:
+  if state[SCANCODE_KP_PLUS.int] != 0:
     centerScale.z *= (1 / 1.02)
 
 

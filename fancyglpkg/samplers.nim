@@ -4,11 +4,11 @@
 #### Sampler Types #############################################################
 ################################################################################
 
-proc createErrorSurface*(message: string = nil): sdl2.SurfacePtr =
+proc createErrorSurface*(message: string = nil): sdl.Surface =
   # TODO message is still unsued
   result = createRGBSurface(0, 512, 512, 32, 0,0,0,0)
   if result.isNil:
-    panic "SDL_CreateRGBSurface() failed: ", getError()
+    panic "SDL_CreateRGBSurface() failed: ", sdl.getError()
 
   let pixels = cast[ptr array[512*512,uint32]](result.pixels)
   for i in 0 ..< 512*512:
@@ -134,10 +134,10 @@ proc `label=`*(arg: AnyTexture; label: string): void =
     if not isNil label:
       glObjectLabel(GL_TEXTURE, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
 
-proc loadSurfaceFromFile*(filename: string): SurfacePtr =
-  let surface = image.load(filename)
+proc loadSurfaceFromFile*(filename: string): Surface =
+  let surface = img.load(filename)
   defer: freeSurface(surface)
-  result = surface.convertSurfaceFormat(SDL_PIXELFORMAT_RGBA8888, 0)
+  result = surface.convertSurfaceFormat(PIXELFORMAT_RGBA8888, 0)
 
 proc size*(tex: Texture2D): Vec2i =
   var w,h: GLint
@@ -146,23 +146,23 @@ proc size*(tex: Texture2D): Vec2i =
   result = vec2i(w, h)
 
 
-proc subImage*(this: Texture2D; surface: sdl2.SurfacePtr; pos: Vec2i = vec2i(0); level: int = 0): void =
+proc subImage*(this: Texture2D; surface: Surface; pos: Vec2i = vec2i(0); level: int = 0): void =
   case surface.format.format
-  of SDL_PIXELFORMAT_RGBA8888:
+  of PIXELFORMAT_RGBA8888:
     glTextureSubImage2D(this.handle, level.GLint, pos.x, pos.y, surface.w, surface.h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface.pixels)
-  of SDL_PIXELFORMAT_RGB24:
+  of PIXELFORMAT_RGB24:
     glTextureSubImage2D(this.handle, level.GLint, pos.x, pos.y, surface.w, surface.h, GL_RGB,  GL_UNSIGNED_BYTE, surface.pixels)
   else:
     echo "converting surface format to RGBA8888, from: ", getPixelFormatName(surface.format.format)
-    let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
+    let surface2 = sdl.convertSurfaceFormat(surface, PIXELFORMAT_RGBA8888, 0)
     defer: freeSurface(surface2)
     glTextureSubImage2D(this.handle, level.GLint, pos.x, pos.y, surface2.w, surface2.h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
 
-proc subImageGrayscale*(this: Texture2D; surface: sdl2.SurfacePtr; pos: Vec2i = vec2i(0); level: int = 0): void =
-  assert(surface.format.format == SDL_PIXELFORMAT_INDEX8, $getPixelFormatName(surface.format.format))
+proc subImageGrayscale*(this: Texture2D; surface: sdl.Surface; pos: Vec2i = vec2i(0); level: int = 0): void =
+  assert(surface.format.format == PIXELFORMAT_INDEX8, $getPixelFormatName(surface.format.format))
   glTextureSubImage2D(this.handle, level.GLint, pos.x, pos.y, surface.w, surface.h, GL_RED, GL_UNSIGNED_BYTE, surface.pixels)
 
-proc texture2D*(surface: sdl2.SurfacePtr): Texture2D =
+proc texture2D*(surface: sdl.Surface): Texture2D =
   glCreateTextures(GL_TEXTURE_2D, 1, result.handle.addr)
   let levels = min(surface.w, surface.h).float32.log2.floor.GLint
   glTextureStorage2D(result.handle, levels, GL_RGBA8, surface.w, surface.h)
@@ -202,12 +202,12 @@ proc size*(tex: Texture2DArray): tuple[size : Vec2i, depth: int] =
   glGetTextureLevelParameteriv(tex.handle, 0, GL_TEXTURE_DEPTH, d.addr)
   result = (size: vec2i(w,h), depth: int(d))
 
-proc subImage*(this: Texture2DArray; surface: sdl2.SurfacePtr; pos: Vec2i = vec2i(0); layer: int; level: int = 0): void =
-  let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
+proc subImage*(this: Texture2DArray; surface: sdl.Surface; pos: Vec2i = vec2i(0); layer: int; level: int = 0): void =
+  let surface2 = sdl.convertSurfaceFormat(surface, PIXELFORMAT_RGBA8888, 0)
   defer: freeSurface(surface2)
   glTextureSubImage3D(this.handle, level.GLint, pos.x.GLint, pos.y.GLint, layer.GLint, surface2.w.GLsizei, surface2.h.GLsizei, 1, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
 
-proc `[]=`*(tex: Texture2DArray; i: int; surface: sdl2.SurfacePtr): void =
+proc `[]=`*(tex: Texture2DArray; i: int; surface: sdl.Surface): void =
   let (size, _) = tex.size # ignore depth
   assert size.x == surface.w
   assert size.y == surface.h
@@ -224,7 +224,7 @@ proc `[]=`*(tex: Texture2DArray; i: int; surface: sdl2.SurfacePtr): void =
 
   glTextureSubImage3D(tex.handle, level, xoffset, yoffset, zoffset, width, height, depth, format, typ, surface.pixels)
 
-proc texture2DArray*(surfaces: openarray[sdl2.SurfacePtr]; internalFormat: GLenum = GL_RGBA8): Texture2DArray =
+proc texture2DArray*(surfaces: openarray[sdl.Surface]; internalFormat: GLenum = GL_RGBA8): Texture2DArray =
   glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, result.handle.addr)
   let w = surfaces[0].w
   let h = surfaces[0].h
@@ -236,8 +236,8 @@ proc texture2DArray*(surfaces: openarray[sdl2.SurfacePtr]; internalFormat: GLenu
 
   glGenerateTextureMipmap(result.handle)
 
-proc textureRectangle*(surface: sdl2.SurfacePtr): TextureRectangle =
-  let surface2 = sdl2.convertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA8888, 0)
+proc textureRectangle*(surface: sdl.Surface): TextureRectangle =
+  let surface2 = sdl.convertSurfaceFormat(surface, PIXELFORMAT_RGBA8888, 0)
   defer: freeSurface(surface2)
 
   glCreateTextures(GL_TEXTURE_RECTANGLE, 1, cast[ptr GLuint](result.addr))
@@ -245,9 +245,9 @@ proc textureRectangle*(surface: sdl2.SurfacePtr): TextureRectangle =
   glTextureSubImage2D(result.handle, 0, 0, 0, surface2.w, surface2.h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
 
 proc loadTextureRectangleFromFile*(filename: string): TextureRectangle =
-  var surface = image.load(filename)
+  var surface = img.load(filename)
   if surface.isNil:
-    let message = s"can't load texture $filename: ${sdl2.getError()}"
+    let message = s"can't load texture $filename: ${sdl.getError()}"
     echo message
     surface = createErrorSurface(message)
 
@@ -303,9 +303,9 @@ proc setPixel*[T](texture: TextureRectangle; pos: Vec2i; pixel: T) =
 #  glGetTextureSubImage(texture.handle, 0, pos.x, pos.y, 0, 1, 1, 1, typeConst[T.attribSize-1], T.attribType, result.addr)
 
 proc loadTexture2DFromFile*(filename: string): Texture2D =
-  var surface = image.load(filename)
+  var surface = img.load(filename)
   if surface.isNil:
-    let message = s"can't load texture $filename: ${sdl2.getError()}"
+    let message = s"can't load texture $filename: ${sdl.getError()}"
     echo message
     surface = createErrorSurface(message)
 
@@ -330,11 +330,11 @@ proc saveToGrayscaleBmpFile*(tex: Texture2D | TextureRectangle; filename: string
 
   let s = tex.size
   var surface = createRGBSurface(0, s.x.int32, s.y.int32, 8, 0, 0, 0, 0)
-  setPaletteColors(surface.format.palette, colors[0].addr, 0, 256);
+  discard setPaletteColors(surface.format.palette, colors[0].addr, 0, 256);
 
   let bufferSize = GLsizei(s.x * s.y)
   glGetTextureImage(tex.handle, 0, GL_RED, GL_UNSIGNED_BYTE, bufferSize, surface.pixels)
-  surface.saveBMP(filename)
+  discard surface.saveBMP(filename)
 
 proc newTexture2D*(size: Vec2i, internalFormat: GLenum = GL_RGBA8; levels: int = -1) : Texture2D =
   glCreateTextures(GL_TEXTURE_2D, 1, result.handle.addr)
@@ -363,4 +363,4 @@ proc saveToBmpFile*(tex: TextureRectangle, filename: string): void =
   var surface = createRGBSurface(0, s.x.int32, s.y.int32, 32, 0xff000000.uint32, 0x00ff0000, 0x0000ff00, 0x000000ff)  # no alpha, rest default
   let bufferSize = GLsizei(s.x * s.y * 4)
   glGetTextureImage(tex.handle, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, bufferSize, surface.pixels)
-  surface.saveBMP(filename)
+  discard surface.saveBMP(filename)

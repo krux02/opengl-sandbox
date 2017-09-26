@@ -4,7 +4,7 @@ type
   TextRenderer = object
     textHeight : int
     fontPath: string
-    font: FontPtr
+    font: Font
     fg: Color
     bg: Color
     texCoordBuffer: ArrayBuffer[Vec2f]
@@ -27,7 +27,7 @@ proc init(self: ptr TextRenderer; textHeight: int): void =
     self.font = ttf.openFont(path, self.textHeight.cint)
 
     if self.font.isNil:
-      echo sdl2.getError()
+      echo ttf.getError()
     else:
       self.fontPath = path
       break
@@ -39,8 +39,8 @@ proc init(self: ptr TextRenderer; textHeight: int): void =
     msg.add "\nyou could add a path to a font that exists on your system."
     panic(msg)
 
-  self.fg = (255.uint8, 255.uint8, 255.uint8, 255.uint8)
-  self.bg = (0.uint8, 0.uint8, 0.uint8, 255.uint8)
+  self.fg = Color(r: 255, g: 255, b:255, a:255)
+  self.bg = Color(r:   0, g:   0, b:  0, a:255)
 
   self.texCoordBuffer = arrayBuffer([vec2f(0,0), vec2f(1,0), vec2f(0,-1), vec2f(1,-1)], GL_STATIC_DRAW)
 
@@ -66,7 +66,7 @@ proc textureArray(this: TextRenderer; strings: openarray[string]): Texture2DArra
     return
 
   var maxSize: Vec2i
-  var surfaces = newSeq[SurfacePtr](strings.len)
+  var surfaces = newSeq[Surface](strings.len)
 
   for i, str in strings:
     if str.len > 0:

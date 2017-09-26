@@ -1,4 +1,4 @@
-import ../fancygl, sdl2/audio, fftw3, os
+import ../fancygl, fftw3, os
 
 ################################################################################
 # WARNING this test is incomplete and has not yet been updatad for a long time #
@@ -59,10 +59,10 @@ for offset in 0 .. (wav_length div N):
     break
 
   for event in events():
-    if event.kind == QuitEvent:
+    if event.kind == QUIT:
       runGame = false
       break
-    if event.kind == KeyDown and event.key.keysym.scancode == SDL_SCANCODE_ESCAPE:
+    if event.kind == KEY_DOWN and event.key.keysym.scancode == SCANCODE_ESCAPE:
       runGame = false
 
   # update data code
@@ -73,11 +73,11 @@ for offset in 0 .. (wav_length div N):
 
   # rendering code
 
-  renderer.clear()
+  discard renderClear(renderer)
 
   for i in 0..< N:
       let x = output[i] * WIDTH / 12 + WIDTH / 2
       let y = output[i+1] * HEIGHT / 12 + HEIGHT / 2
-      drawPoint(renderer, cint(x), cint(y))
+      discard renderDrawPoint(renderer, cint(x), cint(y))
 
-  renderer.present()
+  renderPresent(renderer)

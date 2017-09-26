@@ -12,41 +12,8 @@ proc randomColor() : Color =
   result.b = mt.getNum.uint8
   result.a = 255.uint8
 
-proc xyz(v: var Vec4f): var Vec3f =
-  return cast[ptr Vec3f](v.addr)[]
-
-proc xyz(v: var Vec3f): var Vec3f =
-  return cast[ptr Vec3f](v.addr)[]
-
-proc `+=`(lhs: var Vec4f; rhs: Vec4f) =
-  lhs = lhs + rhs
-
-proc `+=`(lhs: var Vec3f; rhs: Vec3f) =
-  lhs = lhs + rhs
-
-proc `-`(v: Vec4f): Vec4f =
-  v * -1
-
-proc `-`(v: Vec3f): Vec3f =
-  v * -1
-
-proc `*`(scalar: float32; v: Vec4f): Vec4f =
-  v * scalar
-
-proc `*`(scalar: float32; v: Vec3f): Vec3f =
-  v * scalar
-
-proc norm(v: Vec4f): auto = sqrt(dot(v,v))
-proc norm(v: Vec3f): auto = sqrt(dot(v,v))
-
 proc hash(v: Vec3f): Hash =
   hash(cast[array[3, float32]](v))
-
-proc `==`(v1, v2: Vec3f): bool =
-  for i in 0 ..< 3:
-    if v1[i] != v2[i]:
-      return false
-  true
 
 createMeshType(MyMeshType):
   type
@@ -110,6 +77,12 @@ proc addFace(mesh: var MyMeshType): MyMeshType_FaceRef =
   result.mesh = mesh.addr
   result.handle = FaceHandle(mesh.faces.high)
 
+
+iterator faceRefs(mesh: var MyMeshType): MyMeshType_FaceRef =
+  var res: MyMeshType_FaceRef
+  res.mesh = mesh.addr
+  for i in 0 ..< mesh.faces.len:
+    res.handle = FaceHandle(i)
 
 ################################################################################
 ######################### prepare render vertex array ##########################
@@ -364,9 +337,9 @@ proc main() =
     #######################
 
     for evt in events():
-      if evt.kind == QuitEvent:
+      if evt.kind == QUIT:
         runGame = false
-      elif evt.kind == KeyDown and evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE:
+      elif evt.kind == KeyDown and evt.key.keysym.scancode == SCANCODE_ESCAPE:
         runGame = false
 
       if evt.kind in {MouseButtonDown, MouseButtonUp}:

@@ -196,16 +196,16 @@ while runGame:
   planeNode.turnAbsoluteZ(0.0001)
 
   for evt in events():
-    if evt.kind == QuitEvent:
+    if evt.kind == QUIT:
       runGame = false
       break
-    if evt.kind == KeyDown:
+    if evt.kind == KEY_DOWN:
       case evt.key.keysym.scancode
-      of SDL_SCANCODE_ESCAPE:
+      of SCANCODE_ESCAPE:
         runGame = false
         break
 
-      of SDL_SCANCODE_F10:
+      of SCANCODE_F10:
         window.screenshot
 
       else:
@@ -215,7 +215,6 @@ while runGame:
 
   let magic = int32(frame mod 2)
 
-  #proc renderShape(node: WorldNode, vertices, normals, texcoords: ArrayBuffe[Vec4f])
   for i, node in worldNodes:
     let mesh = meshes[i]
 

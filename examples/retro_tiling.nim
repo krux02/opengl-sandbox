@@ -1,4 +1,4 @@
-import ../fancygl, sdl2/image, os
+import ../fancygl, sdl2/sdl_image as img, os
 
 let (window, context) = defaultSetup()
 
@@ -26,9 +26,9 @@ let tileMapAbsolutePath = getAppDir() / "resources" / tileImage
 
 proc updateTilePaletteFromFile(self: Texture2DArray; filename: string): void =
 
-  var surface = image.load(filename)
+  var surface = img.load(filename)
   if surface.isNil:
-    let message = s"can't load texture $filename: ${getError()}"
+    let message = s"can't load texture $filename: ${img.getError()}"
     echo message
     surface = createErrorSurface(message)
   defer: freeSurface(surface)
@@ -50,7 +50,7 @@ proc updateTilePaletteFromFile(self: Texture2DArray; filename: string): void =
     for x in 0 ..< cols:
       rect.x = cint(x) * tileSize.x
       rect.y = cint(y) * tileSize.y
-      blitSurface(surface, rect.addr, layerSurface, nil)
+      discard blitSurface(surface, rect.addr, layerSurface, nil)
       self.subImage(layerSurface, layer = i)
       i += 1
 
@@ -88,7 +88,7 @@ proc noiseTextureRectangle(size: Vec2i): TextureRectangle =
   )
 
 proc loadMapFromFile(): TextureRectangle =
-  var surface = image.load(mapFilename)
+  var surface = img.load(mapFilename)
   assert( not surface.isNil,
           s"can't load texture $mapFilename: ${fancygl.getError()}" )
   defer: freeSurface(surface)
@@ -118,6 +118,7 @@ block:
 
 let map = noiseTextureRectangle(vec2i(mapwidth))
 #let map = loadMapFromFile()
+
 
 proc saveMap(): void {.noconv.} =
   map.saveToGrayscaleBmpFile(mapFilename)
@@ -241,17 +242,17 @@ var dragRightStartPos: Vec2i
 
 setup()
 
-var tileLeft : Color = (r:255'u8, g:255'u8, b:255'u8, a:128'u8)
-var tileRight : Color =(r:255'u8, g:255'u8, b:255'u8, a:0'u8)
+var tileLeft  : Color = Color(r:255'u8, g:255'u8, b:255'u8, a:128'u8)
+var tileRight : Color = Color(r:255'u8, g:255'u8, b:255'u8, a:0'u8)
 var tileSelection : bool = false
 
-proc mouseClicked(evt: MouseButtonEventPtr): void =
+proc mouseClicked(evt: MouseButtonEventObj): void =
   echo "mouseClicked"
   if tileSelection:
     let mousePos = pixelToWorldSpace(vec2f(8), vec2i(evt.x, evt.y))
     let gridPos = vec2i(mousePos.floor)
     let pixel: Color =
-      (r: 255'u8, g: 255'u8, b: 255'u8,
+      Color(r: 255'u8, g: 255'u8, b: 255'u8,
             a: uint8(gridPos.x + (15 - gridPos.y) * 16))
 
     if evt.button == ButtonLeft:
@@ -279,7 +280,7 @@ proc mouseClicked(evt: MouseButtonEventPtr): void =
 
     map.setPixel(gridPos, pixel)
 
-proc mouseDragged(evt: MouseMotionEventPtr): void =
+proc mouseDragged(evt: MouseMotionEventObj): void =
   if tileSelection:
     return
 
@@ -303,18 +304,18 @@ while running:
     frame += 1
 
   for evt in events():
-    if evt.kind == QuitEvent:
+    if evt.kind == QUIT:
       running = false
       break
 
     elif evt.kind == KeyDown:
       case evt.key.keysym.scancode:
-      of SDL_SCANCODE_ESCAPE:
+      of SCANCODE_ESCAPE:
         running = false
         break
-      of SDL_SCANCODE_F10:
+      of SCANCODE_F10:
         window.screenshot
-      of SDL_SCANCODE_SPACE:
+      of SCANCODE_SPACE:
         tileSelection = not tileSelection
       else:
         discard

@@ -1,4 +1,4 @@
-import ../fancygl, sdl2/mixer, os, strutils
+import ../fancygl, sdl2/sdl_mixer as mix, os, strutils
 
 import sequtils, algorithm
 
@@ -448,14 +448,14 @@ proc downStep(): void =
 var shouldPlayAudio = true
 var canPlayAudio = true
 
-if mixer.openAudio(MIX_DEFAULT_FREQUENCY * 2, MIX_DEFAULT_FORMAT, 2, 1024) == -1:
-  stderr.write "Could not open sdl2 mixer: ", getError(), "\n"
+if mix.openAudio(mix.DEFAULT_FREQUENCY * 2, mix.DEFAULT_FORMAT, 2, 1024) == -1:
+  stderr.write "Could not open sdl2 mixer: ", mix.getError(), "\n"
   canPlayAudio = false
 
 # defer: mixer.closeAudio()
 
 var currentTrack = -1
-var music = newSeq[ptr Music](0)
+var music = newSeq[Music](0)
 var music_names = newSeq[string](0)
 
 if canPlayAudio:
@@ -463,7 +463,7 @@ if canPlayAudio:
     if kind == pcFile:
       let track = loadMUS(path)
       if track.isNil:
-        stderr.write "Could not open music: ", getError(), "\n"
+        stderr.write "Could not open music: ", mix.getError(), "\n"
       else:
         music.add track
         let a = path.rfind('/') + 1
@@ -486,7 +486,7 @@ proc nextTrack(): void =
       discard fadeOutMusic(250)
       if playMusic(music[currentTrack], -1) != 0:
         echo "problems with: ", musicNames[currentTrack]
-        echo "error: ", getError()
+        echo "error: ", mix.getError()
       else:
         echo "now playing: ", musicNames[currentTrack]
 
@@ -495,7 +495,7 @@ proc toggleAudio(): void =
   if shouldPlayAudio:
     if playMusic(music[currentTrack], -1) != 0:
       echo "problems with: ", musicNames[currentTrack]
-      echo "error: ", getError()
+      echo "error: ", mix.getError()
     else:
       echo "now playing: ", musicNames[currentTrack]
   else:
@@ -543,19 +543,19 @@ proc main(): void =
     ####################
 
     for evt in events():
-      if evt.kind == QuitEvent:
+      if evt.kind == QUIT:
         lose()
         break
 
       if evt.kind == KeyDown:
         if menuActive:
           case evt.key.keysym.scancode
-          of SDL_SCANCODE_UP:
+          of SCANCODE_UP:
             mainMenuSelection = (mainMenuSelection + mainMenuEntries.high) mod mainMenuEntries.len
-          of SDL_SCANCODE_DOWN:
+          of SCANCODE_DOWN:
             mainMenuSelection = (mainMenuSelection + 1) mod mainMenuEntries.len
 
-          of SDL_SCANCODE_SPACE, SDL_SCANCODE_RETURN:
+          of SCANCODE_SPACE, SCANCODE_RETURN:
             mainMenuActions[mainMenuSelection]()
 
           else:
@@ -564,11 +564,11 @@ proc main(): void =
 
         else:
           case evt.key.keysym.scancode
-          of SDL_SCANCODE_ESCAPE:
+          of SCANCODE_ESCAPE:
             lose()
             break
 
-          of SDL_SCANCODE_J, SDL_SCANCODE_S, SDL_SCANCODE_KP_4, SDL_SCANCODE_LEFT:
+          of SCANCODE_J, SCANCODE_S, SCANCODE_KP_4, SCANCODE_LEFT:
             # step left
             let offset = vec2i(-1,0)
             if validBlockPos(blockPos + offset, blockRot, blockType):
@@ -579,11 +579,11 @@ proc main(): void =
                 AnimationState()
               )
 
-          of SDL_SCANCODE_K, SDL_SCANCODE_D, SDL_SCANCODE_KP_5, SDL_SCANCODE_DOWN:
+          of SCANCODE_K, SCANCODE_D, SCANCODE_KP_5, SCANCODE_DOWN:
             # step down
             downStep()
 
-          of SDL_SCANCODE_L, SDL_SCANCODE_F, SDL_SCANCODE_KP_6, SDL_SCANCODE_RIGHT:
+          of SCANCODE_L, SCANCODE_F, SCANCODE_KP_6, SCANCODE_RIGHT:
             # step right
             let offset = vec2i(1,0)
             if validBlockPos(blockPos + offset, blockRot, blockType):
@@ -594,7 +594,7 @@ proc main(): void =
                 AnimationState()
               )
 
-          of SDL_SCANCODE_U, SDL_SCANCODE_W, SDL_SCANCODE_KP_7:
+          of SCANCODE_U, SCANCODE_W, SCANCODE_KP_7:
             # rotate left
             let nBlockRot = blockRot + 1
             for offset in [vec2i(0,0), vec2i(-1,0), vec2i(1,0)]:
@@ -608,7 +608,7 @@ proc main(): void =
                 )
                 break
 
-          of SDL_SCANCODE_O, SDL_SCANCODE_R, SDL_SCANCODE_KP_9, SDL_SCANCODE_UP:
+          of SCANCODE_O, SCANCODE_R, SCANCODE_KP_9, SCANCODE_UP:
             # rotate right
             let nBlockRot = blockRot - 1
             for offset in [vec2i(0,0), vec2i(-1,0), vec2i(1,0)]:
@@ -623,7 +623,7 @@ proc main(): void =
                 )
                 break
 
-          of SDL_SCANCODE_I, SDL_SCANCODE_E, SDL_SCANCODE_KP_8, SDL_SCANCODE_SPACE:
+          of SCANCODE_I, SCANCODE_E, SCANCODE_KP_8, SCANCODE_SPACE:
             # drop the brick
             let offset = vec2i(0, -1)
             while validBlockPos(blockPos + offset, blockRot, blockType):
@@ -639,15 +639,15 @@ proc main(): void =
 
             insertBlock()
 
-          of SDL_SCANCODE_F2:
+          of SCANCODE_F2:
             nextTrack()
 
-          of SDL_SCANCODE_KP_PLUS:
+          of SCANCODE_KP_PLUS:
             animationLength *= 2.0
-          of SDL_SCANCODE_KP_MINUS:
+          of SCANCODE_KP_MINUS:
             animationLength *= 0.5
 
-          of SDL_SCANCODE_F10:
+          of SCANCODE_F10:
             window.screenshot
 
           else:

@@ -1,6 +1,10 @@
 import glm
 import ../fancygl
 
+#############################################
+# WARNING: this kdtree is really incomplete #
+#############################################
+
 type
   KdTree = object
     data: seq[KdNode]
@@ -286,18 +290,18 @@ var maxDepth = 0
 while runGame:
 
   for evt in events():
-    if evt.kind == QuitEvent:
+    if evt.kind == QUIT:
       runGame = false
       break
-    if evt.kind == KeyDown:
-      if evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE:
+    if evt.kind == KEY_DOWN:
+      if evt.key.keysym.scancode == SCANCODE_ESCAPE:
         runGame = false
-      if evt.key.keysym.scancode == SDL_SCANCODE_KP_PLUS:
+      if evt.key.keysym.scancode == SCANCODE_KP_PLUS:
         maxDepth += 1
-      if evt.key.keysym.scancode == SDL_SCANCODE_KP_MINUS:
+      if evt.key.keysym.scancode == SCANCODE_KP_MINUS:
         maxDepth -= 1
 
-    if evt.kind == MouseMotion:
+    if evt.kind == MOUSE_MOTION:
       queryPos.x =     (evt.motion.x / window.size.x) * 2 - 1
       queryPos.y = 1 - (evt.motion.y / window.size.y) * 2
 

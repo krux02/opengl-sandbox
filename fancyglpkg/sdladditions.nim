@@ -1,30 +1,25 @@
 # sdl additions
-import sdl2, glm
+import glm
 
-proc size*(window: WindowPtr): Vec2i =
-  var x,y: cint
-  getSize(window, x, y)
-  Vec2i(arr: [x.int32, y.int32])
+proc size*(window: Window): Vec2i =
+  getWindowSize(window, result.x.addr, result.y.addr)
 
-proc `size=`*(window: WindowPtr; size: Vec2i): void =
-  setSize(window, size.x, size.y)
+proc `size=`*(window: Window; size: Vec2i): void =
+  setWindowSize(window, size.x, size.y)
 
-proc position*(window: WindowPtr): Vec2i =
-  var x,y: cint
-  getPosition(window, x, y)
-  Vec2i(arr: [x.int32, y.int32])
+proc position*(window: Window): Vec2i =
+  getWindowPosition(window, result.x.addr, result.y.addr)
 
-proc `position=`*(window: WindowPtr; pos: Vec2i): void =
-  setPosition(window, pos.x, pos.y)
+proc `position=`*(window: Window; pos: Vec2i): void =
+  setWindowPosition(window, pos.x, pos.y)
 
+proc title*(window: Window): string =
+  result = $getWindowTitle(window)
 
-proc title*(window: WindowPtr): string =
-  result = $getTitle(window)
+proc `title=`*(window: Window; title: string): void =
+  setWindowTitle(window, title)
 
-proc `title=`*(window: WindowPtr; title: string): void =
-  setTitle(window, title)
-
-proc size*(surface: SurfacePtr): Vec2i =
+proc size*(surface: Surface): Vec2i =
   vec2i(surface.w, surface.h)
 
 proc rel*(evt: MouseMotionEventObj): Vec2i =
@@ -43,24 +38,8 @@ proc pos*(evt: MouseWheelEventObj): Vec2i =
   result.x = evt.x
   result.y = evt.y
 
-proc rel*(evt: MouseMotionEventPtr): Vec2i =
-  result.x = evt.xrel
-  result.y = evt.yrel
 
-proc pos*(evt: MouseMotionEventPtr): Vec2i =
-  result.x = evt.x
-  result.y = evt.y
-
-proc pos*(evt: MouseButtonEventPtr): Vec2i =
-  result.x = evt.x
-  result.y = evt.y
-
-proc pos*(evt: MouseWheelEventPtr): Vec2i =
-  result.x = evt.x
-  result.y = evt.y
-
-
-proc flipY*(surface: SurfacePtr): void =
+proc flipY*(surface: Surface): void =
   assert(not surface.isNil, "surface may not be nil")
   # handy conversion, because in Opengl the origin of texture coordinates is bottom left and not top left
 
@@ -81,10 +60,12 @@ proc flipY*(surface: SurfacePtr): void =
     copyMem(p1,  p2, pitch)
     copyMem(p2, mem, pitch)
 
-proc screenshot*(window : sdl2.WindowPtr; basename : string) : bool {.discardable.} =
+proc screenshot*(window : sdl.Window; basename : string) : bool {.discardable.} =
   var
-    (w,h) = window.getSize
-    data = newSeq[uint32](w * h)
+    size = window.size
+    w = size.x
+    h = size.y
+    data = newSeq[uint32](size.x * size.y)
 
   glReadPixels(0,0,w,h,GL_RGBA, GL_UNSIGNED_BYTE, data[0].addr)
   let surface = createRGBSurfaceFrom(data[0].addr,w,h,32,w*4,
@@ -93,7 +74,7 @@ proc screenshot*(window : sdl2.WindowPtr; basename : string) : bool {.discardabl
   surface.flipY
 
   if surface.isNil:
-    echo "Could not create SDL_Surface from pixel data: ", sdl2.getError()
+    echo "Could not create SDL_Surface from pixel data: ", sdl.getError()
     return false
 
   defer: surface.freeSurface
@@ -108,15 +89,15 @@ proc screenshot*(window : sdl2.WindowPtr; basename : string) : bool {.discardabl
       echo "too many screenshots with the same base name: ", basename
 
   if surface.savePNG(filename) == 0:
-    echo sdl2.getError()
+    echo sdl.getError()
     return false
 
   true
 
-proc screenshot*(window : sdl2.WindowPtr) : bool {.discardable.} =
+proc screenshot*(window : sdl.Window) : bool {.discardable.} =
   window.screenshot(window.title)
 
-proc newSurface(texture: Texture2D): SurfacePtr =
+proc newSurface(texture: Texture2D): Surface =
   var
     size = texture.size
     stride = size.x * 4
@@ -129,19 +110,19 @@ proc newSurface(texture: Texture2D): SurfacePtr =
               0x0000ffu32,0x00ff00u32,0xff0000u32,0xff000000u32)
 
   if result.isNil:
-    panic("Could not create SDL_Surface from pixel data: ", sdl2.getError())
+    panic("Could not create SDL_Surface from pixel data: ", sdl.getError())
 
 proc saveBMP*(texture: Texture2D; filename: string): void =
   let surface = newSurface(texture)
   defer: surface.freeSurface
-  surface.saveBMP(filename)
+  discard surface.saveBMP(filename)
 
 proc savePNG*(texture: Texture2D; filename: string): void =
   let surface = newSurface(texture)
   defer: surface.freeSurface
   discard surface.savePNG(filename)
 
-iterator events*(): sdl2.Event =
-  var event: sdl2.Event
-  while pollEvent(event):
+iterator events*(): sdl.Event =
+  var event: sdl.Event
+  while pollEvent(event.addr) != 0:
     yield event

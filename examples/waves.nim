@@ -3,7 +3,7 @@ import ../fancygl, os
 var windowsize = vec2i(1024,768)
 let (window, context) = defaultSetup(windowsize)
 
-discard setRelativeMouseMode(Bool32(true))
+discard setRelativeMouseMode(true)
 var hm = newHeightMap(128,128)
 hm.DiamondSquare(64)
 
@@ -205,20 +205,20 @@ proc render() =
 
 proc mainLoopFunc(): void =
   for evt in events():
-    if evt.kind == QuitEvent:
+    if evt.kind == QUIT:
       runGame = false
       break
     if evt.kind == KeyDown:
 
       case evt.key.keysym.scancode
-      of SDL_SCANCODE_ESCAPE:
+      of SCANCODE_ESCAPE:
         runGame = false
         break
 
-      of SDL_SCANCODE_PAUSE:
+      of SCANCODE_PAUSE:
         gameTimer.toggle
 
-      of SDL_SCANCODE_F10:
+      of SCANCODE_F10:
         window.screenshot
 
       else:
@@ -228,7 +228,7 @@ proc mainLoopFunc(): void =
       var toggle {. global .} = true
       if evt.button.button == 3:
         toggle = not toggle
-        discard setRelativeMouseMode(Bool32(toggle))
+        discard setRelativeMouseMode(toggle)
 
 
     if evt.kind == MouseMotion:
@@ -238,10 +238,10 @@ proc mainLoopFunc(): void =
       rotation.y = rotation.y - evt.motion.xrel.float / 128.0
 
 
-  var state = getKeyboardState()
+  var state = getKeyboardState(nil)
 
-  movement.z = (state[SDL_SCANCODE_D.int].float - state[SDL_SCANCODE_E.int].float) * 0.4
-  movement.x = (state[SDL_SCANCODE_F.int].float - state[SDL_SCANCODE_S.int].float) * 0.4
+  movement.z = (state[SCANCODE_D.int].float - state[SCANCODE_E.int].float) * 0.4
+  movement.x = (state[SCANCODE_F.int].float - state[SCANCODE_S.int].float) * 0.4
 
   if fpsTimer.time >= 1:
     echo "FPS: ", fpsFrameCounter

@@ -195,7 +195,7 @@ proc render() =
         """
 
   glEnable(GL_BLEND)
-  renderText("FPS: $1" % [$fps], vec2i(11) )
+  renderText(s"FPS: $fps", vec2i(11) )
   glDisable(GL_BLEND)
 
   frameCounter += 1
@@ -209,16 +209,16 @@ var
 while runGame:
 
   for evt in events():
-    if evt.kind == QuitEvent:
+    if evt.kind == QUIT:
       runGame = false
       break
     if evt.kind == KeyDown:
       case evt.key.keysym.scancode
-      of SDL_SCANCODE_ESCAPE:
+      of SCANCODE_ESCAPE:
         runGame = false
-      of SDL_SCANCODE_PAUSE:
+      of SCANCODE_PAUSE:
         gameTimer.toggle
-      of SDL_SCANCODE_F10:
+      of SCANCODE_F10:
         window.screenshot
       else:
         discard

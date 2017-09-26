@@ -203,15 +203,15 @@ void main() {
       glDisable(GL_RASTERIZER_DISCARD);
 
   for evt in events():
-    if evt.kind == QuitEvent:
+    if evt.kind == QUIT:
       running = false
       break
-    if evt.kind == KeyDown:
+    if evt.kind == KEY_DOWN:
       case evt.key.keysym.scancode
-      of SDL_SCANCODE_ESCAPE:
+      of SCANCODE_ESCAPE:
         running = false
         break
-      of SDL_SCANCODE_PAUSE:
+      of SCANCODE_PAUSE:
         gameTimer.toggle
 
       else:

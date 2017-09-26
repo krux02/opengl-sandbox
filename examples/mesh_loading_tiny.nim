@@ -1,4 +1,4 @@
-import memfiles, ../fancygl, sdl2/ttf, os, strutils, sequtils, AntTweakBar, macros
+import memfiles, ../fancygl, sdl2/sdl_ttf as ttf, os, strutils, sequtils, AntTweakBar, macros
 
 const WindowSize = vec2i(1024, 768)
 
@@ -16,7 +16,7 @@ template addVarRW(bar: ptr TwBar; value: var Quatf, stuff: string = ""): void =
 iterator twFilteredSdl2Events(): Event =
   ## same as the default sdl2 event iterator, it just consumes events in AntTweakBar
   var event: Event
-  while pollEvent(event):
+  while pollEvent(event.addr) != 0:
     if TwEventSDL(cast[pointer](event.addr), 2.cuchar, 0.cuchar) == 0:
       yield event
 
@@ -24,7 +24,7 @@ proc main() =
   let (window, context) = defaultSetup(WindowSize)
 
   defer: fancygl.quit()
-  discard ttfinit()
+  discard ttf.init()
 
   if TwInit(TW_OPENGL_CORE, nil) == 0:
     echo "could not initialize AntTweakBar: ", TwGetLastError()
@@ -42,7 +42,7 @@ proc main() =
   if font.isNil:
     font = ttf.openFont("/usr/share/fonts/TTF/Inconsolata-Regular.ttf", textHeight.cint)
   if font.isNil:
-    panic "from example: could not load font: ", getError(),
+    panic "from example: could not load font: ", ttf.getError(),
         "\nfrom example: sorry system font locations are hard coded into the program, change that to fix this problem"
 
   var file = memfiles.open(getAppDir() / "resources/mrfixit.iqm")
@@ -287,24 +287,24 @@ proc main() =
     for evt in twFilteredSdl2Events():
 
 
-      if evt.kind == QuitEvent:
+      if evt.kind == QUIT:
         runGame = false
         break
 
       if evt.kind == KeyDown:
 
         case evt.key.keysym.scancode
-        of SDL_SCANCODE_ESCAPE:
+        of SCANCODE_ESCAPE:
           runGame = false
-        of SDL_SCANCODE_1:
+        of SCANCODE_1:
           renderMesh = not renderMesh
-        of SDL_SCANCODE_2:
+        of SCANCODE_2:
           renderBones = not renderBones
-        of SDL_SCANCODE_3:
+        of SCANCODE_3:
           renderBoneNames = not renderBoneNames
-        of SDL_SCANCODE_4:
+        of SCANCODE_4:
           renderNormalMap = not renderNormalMap
-        of SDL_SCANCODE_F10:
+        of SCANCODE_F10:
           window.screenshot
         else:
           discard

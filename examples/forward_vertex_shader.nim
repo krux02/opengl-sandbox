@@ -1,4 +1,4 @@
-import ../fancygl, colors
+import ../fancygl
 
 let (window, context) = defaultSetup()
 
@@ -11,10 +11,10 @@ let timer = newStopWatch(true)
 
 while runGame:
   for evt in events():
-    if evt.kind == QuitEvent:
+    if evt.kind == QUIT:
       runGame = false
       break
-    if evt.kind == KeyDown and evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE:
+    if evt.kind == KEY_DOWN and evt.key.keysym.scancode == SCANCODE_ESCAPE:
       runGame = false
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)

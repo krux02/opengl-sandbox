@@ -205,14 +205,14 @@ var
 
 while runGame:
   for evt in events():
-    if evt.kind == QuitEvent:
+    if evt.kind == QUIT:
       runGame = false
       break
-    if evt.kind == KeyDown:
+    if evt.kind == KEY_DOWN:
       case evt.key.keysym.scancode
-      of SDL_SCANCODE_ESCAPE:
+      of SCANCODE_ESCAPE:
         runGame = false
-      of SDL_SCANCODE_F10:
+      of SCANCODE_F10:
         window.screenshot
       else:
         discard

@@ -149,7 +149,7 @@ var
   gameTimer = newStopWatch(true)
   time: float32 = 0
 
-discard setRelativeMouseMode(Bool32(true))
+discard setRelativeMouseMode(true)
 
 let layers = newTexture1D(512, GL_RGBA8)
 
@@ -529,19 +529,19 @@ while running:
   var rotation, movement : Vec3f
 
   for evt in events():
-    if evt.kind == QuitEvent:
+    if evt.kind == QUIT:
       running = false
       break
     elif evt.kind == KeyDown:
       case evt.key.keysym.scancode:
-      of SDL_SCANCODE_ESCAPE:
+      of SCANCODE_ESCAPE:
         running = false
         break
-      of SDL_SCANCODE_F10:
+      of SCANCODE_F10:
         window.screenshot
-      of SDL_SCANCODE_W:
+      of SCANCODE_W:
         toggleWireframe()
-      of SDL_SCANCODE_R:
+      of SCANCODE_R:
         skybox = not skybox
       else:
         discard
@@ -553,10 +553,10 @@ while running:
     else:
       discard
 
-  var state = getKeyboardState()
+  var state = getKeyboardState(nil)
 
-  movement.z = (state[SDL_SCANCODE_D.int].float - state[SDL_SCANCODE_E.int].float) * 0.4
-  movement.x = (state[SDL_SCANCODE_F.int].float - state[SDL_SCANCODE_S.int].float) * 0.4
+  movement.z = (state[SCANCODE_D.int].float - state[SCANCODE_E.int].float) * 0.4
+  movement.x = (state[SCANCODE_F.int].float - state[SCANCODE_S.int].float) * 0.4
 
   let oldCamera = camera
 
