@@ -7,23 +7,21 @@ let (window, context) = defaultSetup()
 glDisable(GL_DEPTH_TEST)
 let aspectRatio = float32(window.size.x / window.size.y)
 
-var evt: Event
 var runGame: bool = true
 
 let timer = newStopWatch(true)
 
-let vertices = arrayBuffer([vec4f(-1,-1,0,1), vec4f(1,-1,0,1), vec4f(0,1,0,1)])
-let colors   = arrayBuffer([vec4f( 1, 0,0,1), vec4f(0, 1,0,1), vec4f(0,0,1,1)])
-
 var centerScale = vec3f(0,0,1)
 
 while runGame:
-  while pollEvent(evt):
+  for evt in events():
     if evt.kind == QuitEvent:
       runGame = false
       break
     if evt.kind == KeyDown and evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE:
       runGame = false
+    if evt.kind == KeyDown and evt.key.keysym.scancode == SDL_SCANCODE_F10:
+      window.screenshot
   # TODO maybe a mouse interface?
 
   var state = getKeyboardState()

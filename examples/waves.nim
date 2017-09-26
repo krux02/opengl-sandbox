@@ -204,8 +204,7 @@ proc render() =
 #end render
 
 proc mainLoopFunc(): void =
-  var evt: Event  = defaultEvent
-  while pollEvent(evt):
+  for evt in events():
     if evt.kind == QuitEvent:
       runGame = false
       break

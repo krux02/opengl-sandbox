@@ -363,8 +363,7 @@ proc main() =
     #### handle events ####
     #######################
 
-    var evt : Event
-    while pollEvent(evt):
+    for evt in events():
       if evt.kind == QuitEvent:
         runGame = false
       elif evt.kind == KeyDown and evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE:

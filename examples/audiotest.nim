@@ -51,7 +51,6 @@ var
   window = createWindow("title", 0, 0, WIDTH, HEIGHT, 0)
   renderer = createRenderer(window, -1, RENDERER_PRESENTVSYNC)
 
-  event = defaultEvent
   runGame: bool = true
 
 
@@ -59,7 +58,7 @@ for offset in 0 .. (wav_length div N):
   if not runGame:
     break
 
-  while pollEvent(event):
+  for event in events():
     if event.kind == QuitEvent:
       runGame = false
       break
@@ -82,10 +81,3 @@ for offset in 0 .. (wav_length div N):
       drawPoint(renderer, cint(x), cint(y))
 
   renderer.present()
-
-# block b:
-#   while true:
-#     var event:sdl2.Event
-#     while sdl2.pollEvent(event):
-#       if event.kind == sdl2.QuitEvent:
-#         break b

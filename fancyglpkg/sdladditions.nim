@@ -77,9 +77,9 @@ proc flipY*(surface: SurfacePtr): void =
     let p1 = cast[pointer](cast[uint](pixels) + uint(y * pitch))
     let p2 = cast[pointer](cast[uint](pixels) + uint((h-y-1) * pitch))
 
-    mem.copyMem(p1, pitch)
-    p1.copyMem(p2, pitch)
-    p2.copyMem(mem, pitch)
+    copyMem(mem, p1, pitch)
+    copyMem(p1,  p2, pitch)
+    copyMem(p2, mem, pitch)
 
 proc screenshot*(window : sdl2.WindowPtr; basename : string) : bool {.discardable.} =
   var
@@ -87,11 +87,6 @@ proc screenshot*(window : sdl2.WindowPtr; basename : string) : bool {.discardabl
     data = newSeq[uint32](w * h)
 
   glReadPixels(0,0,w,h,GL_RGBA, GL_UNSIGNED_BYTE, data[0].addr)
-
-  #for y in 0 .. < h div 2:
-  #  for x in 0 .. < w:
-  #    swap(data[y*w+x], data[(h-y-1)*w+x])
-
   let surface = createRGBSurfaceFrom(data[0].addr,w,h,32,w*4,
                                      0x0000ffu32,0x00ff00u32,0xff0000u32,0xff000000u32)
 
@@ -145,3 +140,8 @@ proc savePNG*(texture: Texture2D; filename: string): void =
   let surface = newSurface(texture)
   defer: surface.freeSurface
   discard surface.savePNG(filename)
+
+iterator events*(): sdl2.Event =
+  var event: sdl2.Event
+  while pollEvent(event):
+    yield event

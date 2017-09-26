@@ -15,7 +15,7 @@ declareFramebuffer(RenderTarget):
   color  = newTexture2D(renderTargetSize, GL_RGBA8)
 
 let framebuffer0 = newRenderTarget()
-  
+
 proc generateGaussianNoise(mu, sigma: float64): float64 =
   let epsilon = fenv.epsilon(float64)
   let two_pi = 2.0 * PI
@@ -109,11 +109,11 @@ proc render() =
   lastWeightsTexture.setDataRGBA(lastWeights_d0)
 
   blockBindFramebuffer(framebuffer0):
-    
+
     glViewport(0,0,renderTargetSize.x, renderTargetSize.y)
 
     shadingDsl:
-      
+
       includes:
         glslCode
       uniforms:
@@ -186,7 +186,7 @@ proc render() =
 
   shadingDsl:
     uniforms:
-    
+
       tex = framebuffer0.color
 
     fragmentMain:
@@ -204,8 +204,7 @@ var
   fpsFrameCounter = 0
 
 while runGame:
-  var evt: Event = defaultEvent
-  while pollEvent(evt):
+  for evt in events():
     if evt.kind == QuitEvent:
       runGame = false
       break

@@ -7,7 +7,6 @@ let vertices = arrayBuffer([vec4f(-1,-1,0,1), vec4f(1,-1,0,1), vec4f(0,1,0,1)])
 let colors   = arrayBuffer([vec4f( 1, 0,0,1), vec4f(0, 1,0,1), vec4f(0,0,1,1)])
 let moreData = arrayBuffer([vec2f(0,0), vec2f(1,0), vec2f(0,1)])
 
-var evt: Event
 var runGame: bool = true
 
 let timer = newStopWatch(true)
@@ -20,14 +19,12 @@ var offset = vec3f(0,0,-10f)
 
 while runGame:
   let time = timer.time.float32
-  while pollEvent(evt):
+  for evt in events():
     if evt.kind == QuitEvent:
       runGame = false
       break
     if evt.kind == KeyDown and evt.key.keysym.scancode == SDL_SCANCODE_ESCAPE:
       runGame = false
-
-
 
   var state = getKeyboardState()
   offset.x += (state[SDL_SCANCODE_S.int].float - state[SDL_SCANCODE_F.int].float) * 0.1f

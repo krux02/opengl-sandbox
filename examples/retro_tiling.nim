@@ -302,9 +302,7 @@ while running:
   defer:
     frame += 1
 
-  var evt = defaultEvent
-
-  while pollEvent(evt):
+  for evt in events():
     if evt.kind == QuitEvent:
       running = false
       break

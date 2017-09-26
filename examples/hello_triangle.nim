@@ -19,7 +19,6 @@ let indices = elementArrayBuffer([
   0'u16, 1, 2
 ])
 
-var evt: Event
 var runGame: bool = true
 
 let timer = newStopWatch(true)
@@ -64,7 +63,7 @@ var animation = window.startGifAnimation(delay = 1, dither = false)
 while runGame:
   frame += 1
 
-  while pollEvent(evt):
+  for evt in events():
     if evt.kind == QuitEvent:
       runGame = false
       break

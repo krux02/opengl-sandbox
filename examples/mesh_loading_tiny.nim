@@ -13,6 +13,13 @@ template addVarRW(bar: ptr TwBar; value: var bool, stuff: string = ""): void =
 template addVarRW(bar: ptr TwBar; value: var Quatf, stuff: string = ""): void =
   discard TwAddVarRW(bar,astToStr(value), TW_TYPE_QUAT4F, value.addr, stuff)
 
+iterator twFilteredSdl2Events(): Event =
+  ## same as the default sdl2 event iterator, it just consumes events in AntTweakBar
+  var event: Event
+  while pollEvent(event):
+    if TwEventSDL(cast[pointer](event.addr), 2.cuchar, 0.cuchar) == 0:
+      yield event
+
 proc main() =
   let (window, context) = defaultSetup(WindowSize)
 
@@ -277,11 +284,7 @@ proc main() =
     #### handle events ####
     #######################
 
-    var evt: Event
-    while pollEvent(evt):
-      let handled = TwEventSDL(cast[pointer](evt.addr), 2.cuchar, 0.cuchar) != 0
-      if handled:
-        continue
+    for evt in twFilteredSdl2Events():
 
 
       if evt.kind == QuitEvent:

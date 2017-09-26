@@ -285,7 +285,7 @@ var maxDepth = 0
 
 while runGame:
 
-  while pollEvent(evt):
+  for evt in events():
     if evt.kind == QuitEvent:
       runGame = false
       break

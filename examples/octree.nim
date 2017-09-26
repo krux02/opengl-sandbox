@@ -317,7 +317,6 @@ let posBuffer      = treeDataBuffer.view(pos)
 var colorsData = randomColors(tree.data.len)
 let colorsBuffer = arrayBuffer(colorsData)
 
-var evt: Event
 var runGame: bool = true
 
 let timer = newStopWatch(true)
@@ -434,7 +433,7 @@ var remainingFrames = 0
 
 while runGame:
 
-  while pollEvent(evt):
+  for evt in events():
     if evt.kind == QuitEvent:
       runGame = false
       break

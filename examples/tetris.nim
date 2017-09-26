@@ -152,7 +152,6 @@ var planeVertices = arrayBuffer([
 
 var planeNode = newWorldNode()
 
-var evt: Event = defaultEvent
 var runGame: bool = true
 
 var frame = 0
@@ -543,7 +542,7 @@ proc main(): void =
     # Input Processing #
     ####################
 
-    while pollEvent(evt):
+    for evt in events():
       if evt.kind == QuitEvent:
         lose()
         break

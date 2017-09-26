@@ -150,7 +150,6 @@ var planeVertices = arrayBuffer([
 
 var planeNode = newWorldNode()
 
-var evt: Event = defaultEvent
 var runGame: bool = true
 var frame = 0
 
@@ -196,7 +195,7 @@ while runGame:
   # shapes though
   planeNode.turnAbsoluteZ(0.0001)
 
-  while pollEvent(evt):
+  for evt in events():
     if evt.kind == QuitEvent:
       runGame = false
       break

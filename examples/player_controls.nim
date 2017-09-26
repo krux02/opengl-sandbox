@@ -258,7 +258,6 @@ proc renderFloor(): void =
 
 var playerNode = newWorldNode()
 
-var evt: Event = defaultEvent
 var runGame: bool = true
 var frame = 0
 
@@ -299,7 +298,7 @@ while runGame:
   worldNodes[Idtorus].turnRelativeY(noiseArray[19])
   worldNodes[Idtorus].turnRelativeZ(noiseArray[20])
 
-  while pollEvent(evt):
+  for evt in events():
     if evt.kind == QuitEvent:
       runGame = false
       break

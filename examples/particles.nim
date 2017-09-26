@@ -105,8 +105,7 @@ while running:
 
   particleRenderData.setData(cpuParticleRenderData)
 
-  var evt = defaultEvent
-  while evt.pollEvent:
+  for evt in events():
     if evt.kind == QuitEvent:
       running = false
       break

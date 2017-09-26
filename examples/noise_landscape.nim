@@ -526,10 +526,9 @@ while running:
 
   # handle events
 
-  var evt = defaultEvent
   var rotation, movement : Vec3f
 
-  while pollEvent(evt):
+  for evt in events():
     if evt.kind == QuitEvent:
       running = false
       break

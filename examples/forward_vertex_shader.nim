@@ -5,13 +5,12 @@ let (window, context) = defaultSetup()
 let vertices = arrayBuffer([vec4f(-1,-1,0,1), vec4f(1,-1,0,1), vec4f(0,1,0,1)])
 let colors   = arrayBuffer([vec4f( 1, 0,0,1), vec4f(0, 1,0,1), vec4f(0,0,1,1)])
 
-var evt: Event
 var runGame: bool = true
 
 let timer = newStopWatch(true)
 
 while runGame:
-  while pollEvent(evt):
+  for evt in events():
     if evt.kind == QuitEvent:
       runGame = false
       break

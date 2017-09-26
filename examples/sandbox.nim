@@ -202,14 +202,13 @@ proc render() =
   glSwapWindow(window) # Swap the front and back frame buffers (double buffering)
 
 var
-  evt: Event = defaultEvent
   runGame = true
   fpsTimer = newStopWatch(true)
   fpsFrameCounter = 0
 
 while runGame:
 
-  while pollEvent(evt):
+  for evt in events():
     if evt.kind == QuitEvent:
       runGame = false
       break

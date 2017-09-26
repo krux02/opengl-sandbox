@@ -202,8 +202,7 @@ void main() {
       glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, 0)
       glDisable(GL_RASTERIZER_DISCARD);
 
-  var evt = defaultEvent
-  while evt.pollEvent:
+  for evt in events():
     if evt.kind == QuitEvent:
       running = false
       break
