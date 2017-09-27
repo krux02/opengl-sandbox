@@ -9,7 +9,6 @@ let windowsize = window.size
 let projection_mat : Mat4f = perspective(45'f32, windowsize.x / windowsize.y, 0.1, 100.0)
 let inv_projection_mat = inverse(projection_mat)
 
-
 proc `*`(a: Mat4f; b: seq[Vec4f]): seq[Vec4f] =
   result.newSeq(b.len)
   for i in 0 ..< len(b):
@@ -41,9 +40,6 @@ var worldNodes : array[IdMesh, WorldNode] = [
   newWorldNode( 0,-6, 1),
   newWorldNode(-6, 0, 1),
 ]
-
-var camera = newWorldNode(0,9,4)
-camera.lookAt(vec3f(0.1,0.2,1))
 
 var vertices,normals,colors: ArrayBuffer[Vec4f]
 var indices: ElementArrayBuffer[int16]
@@ -158,7 +154,7 @@ block init:
   colors = arrayBuffer(colorsSeq)
   indices = elementArrayBuffer(indicesSeq)
 
-proc renderMesh(id: IdMesh, modelMat: Mat4): void =
+proc renderMesh(id: IdMesh, viewMat: Mat4f; modelMat: Mat4f): void =
   let mesh = meshes[id]
 
   shadingDsl:
@@ -170,7 +166,7 @@ proc renderMesh(id: IdMesh, modelMat: Mat4): void =
 
     uniforms:
       proj = projection_mat
-      modelView = camera.viewMat * modelMat
+      modelView = viewMat * modelMat
 
     attributes:
       a_vertex = vertices
@@ -202,12 +198,12 @@ var floorVertices = arrayBuffer([
   vec4f(0,0,0,1), vec4f( 0,-1,0,0), vec4f( 1, 0,0,0)
 ])
 
-proc renderFloor(): void =
+proc renderFloor(viewMat: Mat4f): void =
   # shapes with infinitely far away points, can't interpolate alon the vertices,
   # therefore so varyings don't work.
   # The matrix transformation of can be inverted in the fragment shader, so that that in this case
   # object space coordinates can be recontructed.
-  let modelViewProj = projection_mat * camera.viewMat
+  let modelViewProj = projection_mat * viewMat
 
   shadingDsl:
     primitiveMode = GL_TRIANGLES
@@ -256,89 +252,88 @@ proc renderFloor(): void =
 
       """
 
-var playerNode = newWorldNode()
-
+var cameraNode = newWorldNode(5.1, 6.2, 4)
+var playerNode = newWorldNode(0.1, 0.2, 0)
 var runGame: bool = true
 var frame = 0
 
-var noiseArray: array[21, float32]
+var joy: Joystick
 
-for x in noiseArray.mitems:
-  x = (rand_f32()*2-1) * 0.01f;
+var gameTimer = newStopWatch(true)
 
 while runGame:
   frame += 1
 
-  # just some meaningless numbers to make the shapes rotate
-  worldNodes[IdCone].turnRelativeZ(noiseArray[0])
-  worldNodes[IdCone].turnRelativeX(noiseArray[1])
-  worldNodes[IdCone].turnRelativeY(noiseArray[2])
-
-  worldNodes[Idcylinder].turnRelativeX(noiseArray[3])
-  worldNodes[Idcylinder].turnRelativeY(noiseArray[4])
-  worldNodes[Idcylinder].turnRelativeZ(noiseArray[5])
-
-  worldNodes[Idicosphere].turnRelativeX(noiseArray[6])
-  worldNodes[Idicosphere].turnRelativeY(noiseArray[7])
-  worldNodes[Idicosphere].turnRelativeZ(noiseArray[8])
-
-  worldNodes[Idsphere].turnRelativeX(noiseArray[9])
-  worldNodes[Idsphere].turnRelativeY(noiseArray[10])
-  worldNodes[Idsphere].turnRelativeZ(noiseArray[11])
-
-  worldNodes[Idbox].turnRelativeX(noiseArray[12])
-  worldNodes[Idbox].turnRelativeY(noiseArray[13])
-  worldNodes[Idbox].turnRelativeZ(noiseArray[14])
-
-  worldNodes[Idtetraeder].turnRelativeX(noiseArray[15])
-  worldNodes[Idtetraeder].turnRelativeY(noiseArray[16])
-  worldNodes[Idtetraeder].turnRelativeZ(noiseArray[17])
-
-  worldNodes[Idtorus].turnRelativeX(noiseArray[18])
-  worldNodes[Idtorus].turnRelativeY(noiseArray[19])
-  worldNodes[Idtorus].turnRelativeZ(noiseArray[20])
+  var axisInput: Vec2f
+  axisInput.x = -float32(joystickGetAxis(joy, 0)) / 32767
+  axisInput.y = -float32(joystickGetAxis(joy, 1)) / 32767
+  if axisInput.length2 > 1:
+    # clamp range
+    axisInput = axisInput.normalize
 
   for evt in events():
-    if evt.kind == QuitEvent:
+    case evt.kind
+    of QUIT:
       runGame = false
       break
-    if evt.kind == KeyDown:
+    of KEY_DOWN:
       case evt.key.keysym.scancode
-      of SDL_SCANCODE_ESCAPE:
+      of SCANCODE_ESCAPE:
         runGame = false
         break
 
-      of SDL_SCANCODE_F10:
+      of SCANCODE_F10:
         window.screenshot
 
       else:
         discard
 
+    of JOY_DEVICE_ADDED:
+      joy = joystickOpen(evt.jdevice.which)
+    else:
+      discard
+
+
+  let time = gameTimer.time.float32
+
+  cameraNode.pos.x = sin(time) * 7 + playerNode.pos.x
+  cameraNode.pos.y = cos(time) * 7 + playerNode.pos.y
+  cameraNode.lookAt(playerNode)
+
+  let cameraDir2D = (cameraNode.modelMat * vec4f(0,0,-1,0)).xy.normalize
+  let cameraDir2DRight = vec2(-cameraDir2D.y, cameraDir2D.x)
+
+  let axisMovement = mat2(cameraDir2DRight, cameraDir2D) * axisInput
+  playerNode.pos.xy += axisMovement.xy * 0.05
+
   var mousePos: Vec2i
-  let mouseState = getMouseState(mousePos.x, mousePos.y)
+  let mouseState = getMouseState(mousePos.x.addr, mousePos.y.addr)
   let relativeMousePos = (vec2f(mousePos) / vec2f(windowSize) * 2 - 1) * vec2f(1,-1)
 
-  let p0 = camera.pos
-  var p1 = camera.modelMat * inv_projection_mat * vec4f(relativeMousePos, -1, 1)
+  let p0 = cameraNode.pos
+  var p1 = cameraNode.modelMat * inv_projection_mat * vec4f(relativeMousePos, -1, 1)
   p1 /= p1.w
 
   let xxx = mix(p0, p1, -p0.z / (p1.z - p0.z))
-  playerNode.pos = xxx
 
-
-
-
+  var tmpNode = newWorldNode(xxx)
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
+
+  let viewMat = cameraNode.viewMat
+
   for id, node in worldNodes:
-    renderMesh(id, node.modelMat)
+    renderMesh(id, viewMat, node.modelMat)
 
-  renderMesh(IdPyramid, playerNode.modelMat)
+  renderMesh(IdPyramid, viewMat, tmpNode.modelMat)
+  renderMesh(IdPyramid, viewMat, playerNode.modelMat)
 
 
-  let modelViewProj = projection_mat * camera.viewMat
+  let modelViewProj = projection_mat * cameraNode.viewMat
 
-  renderFloor()
+  renderFloor(viewMat)
 
+  renderText( "axisMovement: " & $axisMovement, vec2i(22) )
+  renderText( "axisInput: " & $axisInput, vec2i(22,44) )
 
   glSwapWindow(window)
