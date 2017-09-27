@@ -82,6 +82,13 @@ proc expectIdent*(n: NimNode, name: string) {.compileTime.} =
   n.expectKind(nnkIdent)
   if not n.eqIdent(name): error("Expected a node with identifier " & name & ", got " & $n, n)
 
+template myAdd(a: var string, b: untyped): untyped =
+  ## simply tries to minimize temporary strings
+  when compiles(add(a, b)):
+    a.add(b)
+  else:
+    a.add($b)
+
 macro s*(arg: static[string]): string =
   # does not handle utf8 runes properly
   # pretents everything is ASCII
@@ -89,9 +96,8 @@ macro s*(arg: static[string]): string =
 
   result = nnkStmtListExpr.newTree()
   let str = genSym(nskVar, "str")
-  result.add(quote do:
-    var `str`: string = ""
-  )
+
+  result.add newVarStmt(str, newLit(""))
 
   var i = 0
   var j = 0
@@ -100,9 +106,7 @@ macro s*(arg: static[string]): string =
       j += 1
 
     let lit = newLit(arg[i..<j])
-    result.add(quote do:
-      `str`.add(`lit`)
-    )
+    result.add newCall(bindSym"myAdd", str, lit)
 
     if j == len(arg):
       break
@@ -130,18 +134,20 @@ macro s*(arg: static[string]): string =
       exprString = arg[i ..< j]
 
     let expr = parseExpr(exprString)
-    result.add(quote do:
-      add(`str`, $`expr`) ## a
-    )
+    result.add newCall(bindSym"myadd", str, expr)
 
     if j == len(arg):
       break
 
     i = j
 
-  for i in 0 ..< result.len:
-    # remove unnecessary stmtList wrapping
-    # of each statement
-    result[i] = result[i][0]
-
   result.add str
+
+when isMainModule:
+  let a = 123
+  let b = "abc"
+  let c = (a: 7, b: 8)
+  var str = s" $a $b $c "
+  echo str
+  str.add 123
+  echo str
