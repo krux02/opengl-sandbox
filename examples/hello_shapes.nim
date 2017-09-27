@@ -18,10 +18,6 @@ type
     IdTetraeder,
     IdTorus
 
-proc newWorldNode(x,y,z: float32): WorldNode =
-  result = newWorldNode()
-  result.pos.xyz = vec3f(x,y,z)
-
 # for each mesh create one node in the world to Draw it there
 var worldNodes : array[IdMesh, WorldNode] = [
   newWorldNode(-3, 3, 1),

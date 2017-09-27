@@ -68,7 +68,6 @@ proc enableDefaultDebugCallback*() =
 
 proc defaultSetupInternal(windowsize: Vec2i; windowTitle: string): tuple[window: Window, context: GlContext] =
   discard sdl.init(INIT_EVERYTHING)
-  discard
   if ttf.init() != 0:
     write stderr, ttf.getError()
 

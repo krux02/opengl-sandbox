@@ -8,6 +8,18 @@ proc newWorldNode*() : WorldNode =
   result.dir.w = 1
   result.pos.w = 1
 
+proc newWorldNode*(x,y,z: float32): WorldNode =
+  result.dir.w = 1
+  result.pos   = vec4f(x,y,z,1)
+
+proc newWorldNode*(pos: Vec4f): WorldNode =
+  result.dir.w = 1
+  result.pos   = pos
+
+proc newWolrdNode*(pos: Vec3f): WorldNode =
+  result.dir.w = 1
+  result.pos   = vec4(pos, 1)
+
 proc modelmat*(cam: WorldNode): Mat4f =
   result = mat4(cam.dir, cam.pos)
 

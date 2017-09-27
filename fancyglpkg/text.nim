@@ -282,8 +282,9 @@ proc text(this: var TextRenderer; str: string; pixelPos: Vec2i): void =
     while surface.w > this.textureWidth:
       this.textureWidth *= 2
 
+    let newSize = vec2i(this.textureWidth, this.textHeight.int32 + 2)
     delete this.texture
-    this.texture = newTexture2D(vec2i(this.texture.size.y, this.textHeight.int32 + 2))
+    this.texture = newTexture2D(newSize)
 
   assert this.texture.size.y == surface.size.y
 

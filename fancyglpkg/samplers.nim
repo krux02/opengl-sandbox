@@ -160,6 +160,7 @@ proc subImage*(this: Texture2D; surface: Surface; pos: Vec2i = vec2i(0); level: 
 
 proc subImageGrayscale*(this: Texture2D; surface: sdl.Surface; pos: Vec2i = vec2i(0); level: int = 0): void =
   assert(surface.format.format == PIXELFORMAT_INDEX8, $getPixelFormatName(surface.format.format))
+  echo(this.handle, level.GLint, pos.x, pos.y, surface.w, surface.h)
   glTextureSubImage2D(this.handle, level.GLint, pos.x, pos.y, surface.w, surface.h, GL_RED, GL_UNSIGNED_BYTE, surface.pixels)
 
 proc texture2D*(surface: sdl.Surface): Texture2D =
