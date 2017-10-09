@@ -1,6 +1,9 @@
-import ../fancygl
+import ../fancygl, sequtils
 
 const enableChecks = false
+
+proc sq(arg: float32): float32 =
+  arg * arg
 
 proc `<`[N: static[int],T](a,b: Vec[N,T]): Vec[N,bool] =
   for i in 0 ..< N:
@@ -48,6 +51,124 @@ type
       children: array[8, int32]
     else:
       discard
+
+
+
+
+type
+  IdMesh = enum
+    IdCone,
+    IdCylinder,
+    IdIcosphere,
+    IdSphere,
+    IdBox,
+    IdTetraeder,
+    IdTorus
+
+var vertices,normals,colors: ArrayBuffer[Vec4f]
+var indices: ElementArrayBuffer[int16]
+
+type
+  SimpleMesh = object
+    vertexOffset: int
+    numVertices: int
+    baseVertex: int
+
+var meshes: array[IdMesh, SimpleMesh]
+
+proc initMeshes(): void =
+  const numSegments = 32
+
+  var verticesSeq = newSeq[Vec4f](0)
+  var normalsSeq  = newSeq[Vec4f](0)
+  var colorsSeq   = newSeq[Vec4f](0)
+  var indicesSeq  = newSeq[indices.T](0)
+
+  proc insertMesh(id: IdMesh,
+      newVertices, newNormals, newColors: openarray[Vec4f];
+      newIndices: openarray[int16]): void =
+
+    let offset = verticesSeq.len
+
+    meshes[id].vertexOffset = indicesSeq.len
+    meshes[id].numVertices = newIndices.len
+    meshes[id].baseVertex = offset
+
+    verticesSeq.add(newVertices)
+    normalsSeq.add(newNormals)
+    colorsSeq.add(newColors)
+    indicesSeq.add(newIndices)
+    # apply offset
+
+  IdCone.insertMesh(
+    coneVertices(numSegments),
+    coneNormals(numSegments),
+    coneColors(numSegments),
+    coneIndices(numSegments))
+
+  IdCylinder.insertMesh(
+    cylinderVertices(numSegments),
+    cylinderNormals(numSegments),
+    cylinderColors(numSegments),
+    cylinderIndices(numSegments))
+
+  let isNumVerts = icosphereIndicesTriangles.len
+  var unrolledVertices = newSeqOfCap[Vec4f](isNumVerts)
+  var unrolledColors = newSeqOfCap[Vec4f](isNumVerts)
+  var unrolledNormals = newSeqOfCap[Vec4f](isNumVerts)
+
+  for i in countup(0, icosphereIndicesTriangles.len-1, 3):
+    var normal : Vec4f
+    for j in 0 ..< 3:
+      let idx = icosphereIndicesTriangles[i+j]
+      let v = icosphereVertices[idx]
+      unrolledVertices.add v
+      normal += v
+
+    # averageing vertex positions of a face, to get face normals,
+    # really only works for spherical meshes, where the xyz components
+    # of the normal and the point, is equal.
+    normal.w = 0
+    normal = normalize(normal)
+    unrolledNormals.add([normal,normal,normal])
+
+    let color = vec4f(rand_f32(), rand_f32(), rand_f32(), 1'f32)
+    unrolledColors.add([color,color,color])
+
+  IdIcosphere.insertMesh(
+    unrolledVertices,
+    unrolledNormals,
+    unrolledColors,
+    iotaSeq[int16](unrolledVertices.len.int16))
+
+  IdSphere.insertMesh(
+    uvSphereVertices(numSegments, numSegments div 2),
+    uvSphereNormals(numSegments, numSegments div 2),
+    uvSphereColors(numSegments, numSegments div 2),
+    uvSphereIndices(numSegments, numSegments div 2))
+
+  IdBox.insertMesh(
+    boxVertices,
+    boxNormals,
+    boxColors,
+    iotaSeq[int16](boxVertices.len.int16))
+
+  IdTetraeder.insertMesh(
+    tetraederVertices,
+    tetraederNormals,
+    tetraederColors,
+    iotaSeq[int16](tetraederVertices.len.int16))
+
+  IdTorus.insertMesh(
+    torusVertices(numSegments, numSegments div 2, 1, 0.5),
+    torusNormals(numSegments, numSegments div 2),
+    torusColors(numSegments, numSegments div 2),
+    torusIndicesTriangles(numSegments, numSegments div 2).map(proc(x: int32): int16 = int16(x)))
+
+  vertices = arrayBuffer(verticesSeq)
+  normals = arrayBuffer(normalsSeq)
+  colors = arrayBuffer(colorsSeq)
+  indices = elementArrayBuffer(indicesSeq)
 
 
 proc catchUpOrder[T](this: var Tree; data: var seq[T]): void =
@@ -215,32 +336,6 @@ proc init(tree: var Tree): void =
   tree.nodes.reset
   discard tree.subtreeInit(tree.aabb, 0, int32(tree.data.len))
 
-proc newOctree(data: openarray[Value]): Tree =
-  result = Tree(data: @data)
-  result.init
-
-#[
-  Tree = object
-    data: seq[Value]
-    nodes: seq[Node]
-    aabb: AABB
-
-  Value = object
-    pos: Vec3f
-    color: Vec3f
-
-  NodeType = enum
-    ntValueRange
-
-  Node = object
-    case isLeaf: bool
-    of true:
-      a,b: int
-    else:
-      children: array[8, int32]
-]#
-
-
 proc squaredDist(box: AABB; pos: Vec3f): float32 =
   for i in 0 ..< 3:
     let v = pos.arr[i]
@@ -248,9 +343,9 @@ proc squaredDist(box: AABB; pos: Vec3f): float32 =
     let max = box.max.arr[i]
 
     if v < min:
-      result += (min - v) * (min - v)
+      result += sq(min - v)
     if v > max:
-      result += (v - max) * (v - max)
+      result += sq(v - max)
 
 proc intersect(a: AABB; b: Sphere): bool =
   squaredDist(a, b.center) < b.radius * b.radius
@@ -296,26 +391,36 @@ proc spiralOctree(length: int): Tree =
     d.id = uint32(i)
   result.init
 
-proc randomColors(N: int): seq[Color] =
-  result.newSeq(N)
-  for color in result.mitems:
-    color.r = rand_u8()
-    color.g = rand_u8()
-    color.b = rand_u8()
-    color.a = 255
-
 var tree = spiralOctree(1000)
 
 let (window, context) = defaultSetup()
+
+initMeshes()
 
 glPointSize(20)
 
 var treeDataBuffer = arrayBuffer(tree.data, GL_STREAM_DRAW)
 
+type
+  ObjectData = object
+    color: Color
+    kind: IdMesh
+
 let posBuffer      = treeDataBuffer.view(pos)
 
-var colorsData = randomColors(tree.data.len)
-let colorsBuffer = arrayBuffer(colorsData)
+var objectDataSeq = newSeq[ObjectData](tree.data.len)
+
+for value in objectDataSeq.mitems:
+  value.color.r = rand_u8()
+  value.color.g = rand_u8()
+  value.color.b = rand_u8()
+  value.color.a = 255
+  value.kind = IdMesh rand(IdMesh.high.int + 1)
+
+let objectDataBuffer = arrayBuffer(objectDataSeq)
+
+let colorsBuffer = objectDataBuffer.view(color)
+let kindsBuffer = objectDataBuffer.view(kind)
 
 var runGame: bool = true
 
@@ -323,6 +428,8 @@ let timer = newStopWatch(true)
 
 let aspect = float32(window.size.x / window.size.y)
 let proj : Mat4f = frustum(-aspect * 0.01f, aspect * 0.01f, -0.01f, 0.01f, 0.01f, 100.0)
+
+# AABB box rendering
 
 let cubeVertices = arrayBuffer([
   vec4f( 1, 1, 1, 1),
@@ -387,9 +494,7 @@ proc drawBoxes(proj,modelView: Mat4f): void =
       color = vec4(0,0,1,1);
       """
 
-
 var rotationX, rotationY: float32
-
 
 var mouse1 = false
 var mouse2 = false
@@ -480,14 +585,11 @@ while runGame:
   #let time = timer.time.float32
 
   let viewMat = mat4f(1)
-    .translate(0,1,5)            # position camera at position 0,1,5
-    .rotateX(Pi * -0.05)         # look a bit down
-    .inverse                     # the camera matrix needs to be inverted
-
-  let modelMat = mat4f(1)
     .rotateX(rotationX)
-    .rotateY(rotationY)    # rotate the triangle
-    .scale(scale)                    # scale the triangle to be big enough on screen
+    .rotateY(rotationY)
+    .scale(scale)
+    .translate(0,-1,-5)
+
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
@@ -500,17 +602,16 @@ while runGame:
 
   tree.init
   treeDataBuffer.setData(tree.data)
-  tree.catchUpOrder(colorsData)
-  colorsBuffer.setData(colorsData)
+  tree.catchUpOrder(objectDataSeq)
+  objectDataBuffer.setData(objectDataSeq)
 
-  drawNeighborhood(proj, viewMat * modelMat)
-
+  drawNeighborhood(proj, viewMat)
 
   shadingDsl:
     primitiveMode = GL_POINTS
     numVertices = tree.data.len
     uniforms:
-      modelView = viewMat * modelMat
+      modelView = viewMat
       proj
     attributes:
       a_vertex = posBuffer
@@ -528,7 +629,60 @@ while runGame:
       color = v_color;
       """
 
-  drawBoxes(proj, viewMat * modelMat)
+  #for i, node in worldNodes:
+  #  let mesh = meshes[i]
+  let modelMat = mat4f(1).scale(0.05)
+
+  let cylinderPositionsSeq = newSeq[Vec3f](0)
+
+  for i, data in objectDataSeq:
+    if data.kind == IdCylinder
+       ## bla bla continue this stuff
+       cylinderPositionsSeq.add mesh.data[i].pos
+
+  block foobar:
+    ## TODO: render each object with a Mesh acconding to it's kind.
+    ## important for flocking.
+
+    let mesh = meshes[IdCylinder]
+
+    shadingDsl:
+      debug
+      primitiveMode = GL_TRIANGLES
+      numVertices = mesh.numVertices
+      vertexOffset = mesh.vertexOffset
+      baseVertex = mesh.baseVertex
+      indices = indices
+
+      uniforms:
+        proj
+        modelView = viewMat * modelMat
+
+      attributes:
+        a_vertex = vertices
+        a_normal = normals
+        a_color  = colors
+
+      vertexMain:
+        """
+        gl_Position = proj * modelView * a_vertex;
+        v_vertex = a_vertex;
+        v_normal = normalize(modelView * a_normal);
+        v_color = a_color;
+        """
+      vertexOut:
+        "out vec4 v_vertex"
+        "out vec4 v_normal"
+        "out vec4 v_color"
+
+      fragmentMain:
+        """
+        // cheap fake lighting from camera direction
+        color = v_color * v_normal.z;
+        """
+
+
+  drawBoxes(proj, viewMat)
   glSwapWindow(window)
 
   if remainingFrames > 0:

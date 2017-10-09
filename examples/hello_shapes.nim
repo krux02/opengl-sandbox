@@ -7,7 +7,6 @@ let windowsize = window.size
 
 let projection_mat : Mat4f = perspective(45'f32, windowsize.x / windowsize.y, 0.1, 100.0)
 
-
 type
   IdMesh = enum
     IdCone,
@@ -17,20 +16,6 @@ type
     IdBox,
     IdTetraeder,
     IdTorus
-
-# for each mesh create one node in the world to Draw it there
-var worldNodes : array[IdMesh, WorldNode] = [
-  newWorldNode(-3, 3, 1),
-  newWorldNode( 3,-3, 1),
-  newWorldNode(-3,-3, 1),
-  newWorldNode( 3, 3, 1),
-  newWorldNode( 0, 0, 1),
-  newWorldNode( 0,-6, 1),
-  newWorldNode(-6, 0, 1)
-]
-
-var camera = newWorldNode(0,9,4)
-camera.lookAt(vec3f(0.1,0.2,1))
 
 var vertices,normals,colors: ArrayBuffer[Vec4f]
 var indices: ElementArrayBuffer[int16]
@@ -144,11 +129,23 @@ var planeVertices = arrayBuffer([
   vec4f(0,0,0,1), vec4f( 0,-1,0,0), vec4f( 1, 0,0,0)
 ])
 
-var planeNode = newWorldNode()
+# for each mesh create one node in the world to Draw it there
+var worldNodes : array[IdMesh, WorldNode] = [
+  newWorldNode(-3, 3, 1),
+  newWorldNode( 3,-3, 1),
+  newWorldNode(-3,-3, 1),
+  newWorldNode( 3, 3, 1),
+  newWorldNode( 0, 0, 1),
+  newWorldNode( 0,-6, 1),
+  newWorldNode(-6, 0, 1)
+]
 
+var camera = newWorldNode(0,9,4)
+camera.lookAt(vec3f(0.1,0.2,1))
+
+var planeNode = newWorldNode()
 var runGame: bool = true
 var frame = 0
-
 var noiseArray: array[21, float32]
 
 for x in noiseArray.mitems:
