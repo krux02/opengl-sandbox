@@ -14,7 +14,7 @@ bin           = @[
   "examples/hello_shapes",
   "examples/hello_triangle",
   "examples/mandelbrot",
-  "examples/mesh_loading_tiny",
+  "examples/iqm_mesh_loading",
   "examples/neuralnetwork",
   "examples/noise_landscape",
   "examples/particles",
