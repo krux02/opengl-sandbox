@@ -122,7 +122,9 @@ proc savePNG*(texture: Texture2D; filename: string): void =
   defer: surface.freeSurface
   discard surface.savePNG(filename)
 
+#[
 iterator events*(): sdl.Event =
   var event: sdl.Event
   while pollEvent(event.addr) != 0:
     yield event
+]#
