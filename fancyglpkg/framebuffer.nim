@@ -104,16 +104,16 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
     else:
       fragmentOutputs.add($asgn[0])
 
-  result.add head(quote do:
+  result.add quote do:
     type
       `typename` = object
         handle*: FrameBuffer
         depth*: `depthType`
-  )
 
   for fragOut in fragmentOutputs:
 
     result[^1][0][2][2].add newExpIdentDef(!fragOut, bindSym"Texture2D")
+
 
   let fragmentOutputsSeqNode = fragmentOutputs.toConstExpr
   result.add(quote do:
@@ -149,9 +149,9 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
       `resultIdent`.handle.setTexture(GL_DEPTH_ATTACHMENT, `resultIdent`.depth, 0)
     )
 
-  let drawBuffersCall = head(quote do:
+  let drawBuffersCall = quote do:
     drawBuffers( `resultIdent`.handle )
-  )
+
 
   var i = 0
   for asgn in arg:
@@ -166,9 +166,9 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
         setTexture( `resultIdent`.handle, `attachmentLit`, `resultIdent`.`nameIdent`, 0)
       )
 
-      drawBuffersCall.add head(quote do:
+      drawBuffersCall.add quote do:
         GLenum(`attachmentLit`)
-      )
+
 
       i += 1
 

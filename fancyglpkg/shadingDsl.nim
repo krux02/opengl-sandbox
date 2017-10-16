@@ -205,7 +205,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
       else:
         error("wrong kind for indices: " & $value.getTypeImpl[1].typeKind, value)
 
-      drawBlock.addAll(quote do:
+      drawBlock.add(quote do:
         glVertexArrayElementBuffer(`vao`.handle, `value`.handle)
       )
 
@@ -235,19 +235,19 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
         if isSampler:
           let bindingIndexLit = newLit(numSamplers)
-          afterCompileBlock.add head(quote do:
+          afterCompileBlock.add quote do:
             glUniform1i(`loc`.index, `bindingIndexLit`)
-          )
 
-          bindTexturesCall[2].add head(quote do:
+
+          bindTexturesCall[2].add quote do:
             `value`.handle
-          )
+
 
           numSamplers += 1
         else:
-          drawBlock.add head(quote do:
+          drawBlock.add quote do:
             `program`.uniform(`loc`, `value`)
-          )
+
 
         uniformsSection.add( baseString )
 
@@ -282,7 +282,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
         let bindingLit : NimNode = newLit(binding)
 
-        afterCompileBlock.addAll(quote do:
+        afterCompileBlock.add(quote do:
           # this needs to change, when multiple attributes per buffer
           # should be supported (offset in buffer)
           glEnableVertexArrayAttrib(`vao`.handle, `bindingLit`)
@@ -295,7 +295,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
             glVertexArrayAttribBinding(`vao`.handle, `bindingLit`, uint32(`location`.index))
         )
 
-        drawBlock.addAll(quote do:
+        drawBlock.add(quote do:
           setBuffer(`vao`, `bindingLit`, `value`)
         )
 
@@ -409,7 +409,8 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
   let vsSrcLit = newLit vertexShaderSource
   let lineinfoLit = newLit(vertexSrc.lineinfoObj)
 
-  var compileShaderBlock = quote do:
+  var compileShaderBlock = newStmtList()
+  compileShaderBlock.add quote do:
     `program`.attachAndDeleteShader(compileShader(GL_VERTEX_SHADER, `vsSrcLit`, `lineinfoLit`))
 
   if not geometrySrc.isNil:
@@ -421,7 +422,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
     geometryHeader &= ";\n"
     let gsSrcLit = newLit genShaderSource(geometryHeader, uniformsSection, vertexOutSection, geometryNumVerts(mode.intVal.GLenum), geometryOutSection, includesSection, geometrySrc.strVal)
     let lineinfoLit = newLit(geometrySrc.lineinfoObj)
-    compileShaderBlock.addAll(quote do:
+    compileShaderBlock.add(quote do:
       `program`.attachAndDeleteShader(compileShader(GL_GEOMETRY_SHADER, `gsSrcLit`, `lineinfoLit`))
     )
 
@@ -432,7 +433,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
       else:
         newLit genShaderSource(sourceHeader, uniformsSection, geometryOutSection, -1, fragmentOutSection, includesSection, fragmentSrc.strVal)
     let lineinfoLit = newLit(fragmentSrc.lineinfoObj)
-    compileShaderBlock.addAll(quote do:
+    compileShaderBlock.add(quote do:
       `program`.attachAndDeleteShader(compileShader(GL_FRAGMENT_SHADER, `fsSrcLit`, `lineinfoLit`))
     )
 
@@ -441,7 +442,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
     for name in transformFeedbackVaryingNames:
       namesLit.add newLit(name)
 
-    compileShaderBlock.addAll(quote do:
+    compileShaderBlock.add(quote do:
       `program`.transformFeedbackVaryings(`namesLit`, GL_INTERLEAVED_ATTRIBS)
     )
 
@@ -537,6 +538,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
     glUseProgram(0);
 
     glPopDebugGroup();
+
 
 
 
@@ -712,9 +714,8 @@ macro shadingDsl*(statement: untyped) : untyped =
             let identNode = section[1]
             let glslTypeReprSym = bindSym("glslTypeRepr", brForceOpen)
 
-            outCall.add head(quote do:
+            outCall.add quote do:
               "out " & `glslTypeReprSym`(type(`identNode`.T)) & " " & `nameLit`
-            )
 
             transformFeedbackVaryingNamesCall.add nameLit
 

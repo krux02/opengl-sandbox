@@ -198,15 +198,10 @@ proc distanceTransform(image: seq[uint8]; dist: var seq[uint8]; insize, outsize:
       b += 1
       dist[i] = uint8((m-min) * det)
 
-  echo a," ", b, " ", c
-
 type
   TextObject = object
     width: float32
     texture: Texture2D
-
-## HalloWelt_a.png
-## HalloWelt_b.png
 
 # (iimage-mode-buffer 1)
 # (iimage-mode 1) (iimage-mode 0)
@@ -216,7 +211,6 @@ proc createTextObject(this: TextRenderer; arg: string): TextObject =
   assert surface != nil
   defer:
     freeSurface(surface)
-  echo surface.format.format.getPixelFormatName
 
   var pixeldata = newSeq[uint8](surface.w * surface.h)
   copyMem(pixelData[0].addr, surface.pixels, pixelData.len)
