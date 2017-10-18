@@ -37,9 +37,9 @@ skipDirs = @["tests"]
 
 requires @[
   "nim         >= 0.17.3",
-  "sdl2_nim    >= 2.0.5.0",
   "opengl      >= 1.1.0",
   "glm         >= 0.1.1",
-  "AntTweakBar >= 1.0.0"
+  "AntTweakBar >= 1.0.0",
   #"fftw3       >= 0.1.0", # add this if you want audiotest to work
+  "sdl2_nim#head"
 ]

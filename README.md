@@ -349,7 +349,9 @@ for *sdl2* you probably also need the system libraries:
 
 On __Ubuntu 14.04 and above__, type:
 `apt-get install libsdl2{,-mixer,-image,-ttf}-dev`
-_Note: Ubuntu 14.04 currently has broken header file in the SDL2 package that disables people from compiling against it. It will be needed to either patch the header file or install SDL2 from source._
+_Note: Ubuntu 14.04 currently has broken header file in the SDL2
+package that disables people from compiling against it. It will be
+needed to either patch the header file or install SDL2 from source._
 
 On __Fedora 20 and above__, type:
 `yum install SDL2{,_mixer,_image,_ttf}-devel`
@@ -361,17 +363,20 @@ On __Mac OS X__, install SDL2 via [Homebrew](http://brew.sh) like so:
 `brew install sdl2{,_image,_ttf,_mixer} pkg-config`
 
 
-to run the examples:
+To compile the examples, use nimble, it should take care about all
+dependencies.
 
 ```
-cd examples
-nim c -r <example>
+nimble build
 ```
 
-But be aware. Even though I try to keep all examples running. There
-are examples in the examples folder that simply don't work anymore. I
-marked them with a comment in the beginning of the file that the
-example is outdated. Eventually I plan to reactivate all examples. If
-you have problems running any of the other examples, please get me
-informed about it and create an issue. Maybe you can also see me in
-the Nim chat.
+Not all examples are built with this command, but the examples that
+are left out are either still under development or outdated. In the
+examples folder, you should then see the binaries of the examples.
+
+Even though I try to keep all examples running, there are examples in
+the examples folder that simply don't work anymore. I marked them with
+a comment and they are not build with ``nimble build``. Eventually I
+plan to reactivate all examples. If you have problems running any of
+the other examples, please get me informed about it and create an
+issue. Maybe you can also see me in the Nim chat.
