@@ -95,7 +95,7 @@ float calcHeight(vec2 pos) {
 """
 
 
-import ../fancygl, algorithm, os
+import ../fancygl, algorithm
 
 
 const
@@ -117,7 +117,7 @@ let circleVertices       = arrayBuffer(circleVertices(48))
 for vert in verts.mitems:
   vert.xy -= vec2f(gridTiles div 2)
 
-let skyTexture = loadTexture2DFromFile(getAppDir() / "resources/panorama.jpg")
+let skyTexture = loadTexture2DFromFile(getResourcePath("panorama.jpg"))
 
 skyTexture.parameter(GL_TEXTURE_WRAP_S, GL_REPEAT)
 skyTexture.parameter(GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
@@ -555,8 +555,8 @@ while running:
 
   var state = getKeyboardState(nil)
 
-  movement.z = (state[SCANCODE_D.int].float - state[SCANCODE_E.int].float) * 0.4
-  movement.x = (state[SCANCODE_F.int].float - state[SCANCODE_S.int].float) * 0.4
+  movement.z = (state[SCANCODE_D].float - state[SCANCODE_E].float) * 0.4
+  movement.x = (state[SCANCODE_F].float - state[SCANCODE_S].float) * 0.4
 
   let oldCamera = camera
 

@@ -1,11 +1,11 @@
 # OpenGL example using SDL2
 
-import ../fancygl, os
+import ../fancygl
 
 let windowsize = vec2i(640, 480)
 let (window, context) = defaultSetup(windowsize)
 
-let crateTexture = loadTexture2DFromFile(getAppDir() / "resources/crate.png")
+let crateTexture = loadTexture2DFromFile(getResourcePath("crate.png"))
 
 type
   VertexStruct = object

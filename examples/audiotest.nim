@@ -1,4 +1,4 @@
-import ../fancygl, fftw3, os
+import ../fancygl, fftw3
 
 ################################################################################
 # WARNING this test is incomplete and has not yet been updatad for a long time #
@@ -10,8 +10,10 @@ var wav_spec: AudioSpec
 var wav_length: uint32
 var wav_buffer: ptr uint8
 
-if loadWAV(getAppDir() / "resources/song.wav", wav_spec.addr, wav_buffer.addr, wav_length.addr) == nil:
-  stderr.write "Could not open test.wav: ", getError(), "\n"
+let resourcePath = getResourcePath("song.wav")
+if loadWAV(resourcePath, wav_spec.addr, wav_buffer.addr, wav_length.addr) == nil:
+  stderr.writeLine getError()
+  stderr.writeLine "That file isn't provided in the repo just put any wav file there"
   quit(QUIT_FAILURE)
 
 echo wav_spec

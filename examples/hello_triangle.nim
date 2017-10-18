@@ -33,6 +33,8 @@ while runGame:
       break
     if evt.kind == KEY_DOWN and evt.key.keysym.scancode == SCANCODE_ESCAPE:
       runGame = false
+    if evt.kind == KEY_DOWN and evt.key.keysym.scancode == SCANCODE_F10:
+      window.screenshot
 
   #let time = (frame / 100) * Pi * 2
   let time = timer.time.float32

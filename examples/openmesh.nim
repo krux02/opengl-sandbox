@@ -1,4 +1,4 @@
-import ../fancygl, memfiles, OpenMesh, os, hashes, tables, mersenne
+import ../fancygl, memfiles, OpenMesh, hashes, tables, mersenne
 
 ###############################################################################
 # WARNING thistest is incomplete and has not yet been updatad for a long time #
@@ -146,7 +146,7 @@ const
 proc main() =
   let (window, context) = defaultSetup(WindowSize)
 
-  var file = memfiles.open(getAppDir() / "resources/mrfixit.iqm")
+  var file = memfiles.open(getResourcePath("mrfixit.iqm"))
   defer:
     close(file)
 
@@ -184,7 +184,7 @@ proc main() =
 
   var meshTextures = newSeq[Texture2D](meshes.len)
   for i, mesh in meshes:
-    meshTextures[i] = loadTexture2DFromFile( getAppDir() / "resources" / $text(mesh.material) )
+    meshTextures[i] = loadTexture2DFromFile( getResourcePath($text(mesh.material)) )
 
   echo "=========================================================================="
 

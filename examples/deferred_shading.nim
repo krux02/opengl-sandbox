@@ -1,4 +1,4 @@
-import ../fancygl, os
+import ../fancygl
 
 #var windowsize = vec2i(640,480)
 let (window, context) = defaultSetup(windowsize = vec2i(640,480))
@@ -10,8 +10,8 @@ let windowsize = window.size
 var viewport = vec4f(0,0,window.size.vec2f)
 
 let
-  crateTexture = loadTexture2DFromFile(getAppDir() / "resources/crate.png")
-  starTexture = loadTexture2DFromFile(getAppDir() / "resources/star_symmetric_gray.png")
+  crateTexture = loadTexture2DFromFile(getResourcePath("crate.png"))
+  starTexture = loadTexture2DFromFile(getResourcePath("star_symmetric_gray.png"))
 
   hmVertices = hm.vertices.arrayBuffer(GL_STATIC_DRAW)
   hmNormals = hm.normals.arrayBuffer(GL_STATIC_DRAW)

@@ -47,12 +47,12 @@ proc init(self: ptr TextRenderer; textHeight: int): void =
   self.textureWidth = 256
   self.texture = newTexture2D(size = vec2i(self.textureWidth.int32, self.textHeight.int32 + 2), internalFormat = GL_R8, levels = 1)
 
-proc textRenderer(): var TextRenderer =
+proc textRenderer(): ptr TextRenderer =
   var this {.global.}: ptr TextRenderer = nil
   if this.isNil:
     this = create(TextRenderer)
     this.init(14)
-  this[]
+  result = this
 
 proc textRendererLarge(): var TextRenderer =
   var this {.global.}: ptr TextRenderer = nil
@@ -84,7 +84,7 @@ proc textureArray(this: TextRenderer; strings: openarray[string]): Texture2DArra
       freeSurface surf
 
 proc textureArray*(strings: openarray[string]): Texture2DArray =
-  textureArray(textRenderer(), strings)
+  textureArray(textRenderer()[], strings)
 
 proc distanceTransform(image: seq[uint8]; dist: var seq[uint8]; insize, outsize: Vec2i; searchsize: int) =
   assert(image.len == insize.x * insize.y, "invalid argument")
@@ -271,6 +271,8 @@ proc text(this: var TextRenderer; str: string; pixelPos: Vec2i): void =
   let surface = this.font.renderTextShaded(str, this.fg, this.bg)
   defer: freeSurface(surface)
 
+  assert glIsTexture(this.texture.handle)
+
   # ensure minimum width
   if surface.w > this.textureWidth:
     while surface.w > this.textureWidth:
@@ -280,6 +282,7 @@ proc text(this: var TextRenderer; str: string; pixelPos: Vec2i): void =
     delete this.texture
     this.texture = newTexture2D(newSize)
 
+  assert glIsTexture(this.texture.handle)
   assert this.texture.size.y == surface.size.y
 
   this.texture.subImageGrayscale(surface)
@@ -326,4 +329,4 @@ proc text(this: var TextRenderer; str: string; pixelPos: Vec2i): void =
 
 proc renderText*(str: string, pos: Vec2i): void =
   var renderer = textRenderer()
-  renderer.text(str, pos)
+  renderer[].text(str, pos)

@@ -312,11 +312,12 @@ while runGame:
 
   let p0 = cameraNode.pos
   var p1 = cameraNode.modelMat * inv_projection_mat * vec4f(relativeMousePos, -1, 1)
-  p1 /= p1.w
+  p1 /= p1.w # normalize extended coordinates
 
-  let xxx = mix(p0, p1, -p0.z / (p1.z - p0.z))
+  # project the mouse on the ground
+  let mousePosWs = mix(p0, p1, -p0.z / (p1.z - p0.z))
 
-  var tmpNode = newWorldNode(xxx)
+  var tmpNode = newWorldNode(mousePosWs)
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
 
@@ -333,7 +334,8 @@ while runGame:
 
   renderFloor(viewMat)
 
-  renderText( "axisMovement: " & $axisMovement, vec2i(22) )
-  renderText( "axisInput: " & $axisInput, vec2i(22,44) )
+  renderText( s"axisMovement: $axisMovement", vec2i(22) )
+  renderText( s"axisInput: $axisInput", vec2i(22,44) )
+  renderText( s"mouseInput: ${tmpNode.pos - playerNode.pos}", vec2i(22,66))
 
   glSwapWindow(window)

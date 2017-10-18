@@ -1,4 +1,4 @@
-import ../fancygl, sdl2/sdl_image as img, os, times
+import ../fancygl, sdl2/sdl_image as img, times
 
 let (window, context) = defaultSetup()
 
@@ -124,12 +124,15 @@ type
 const mapwidth  = 1024
 const mapFilename = "map.bmp"
 
+from os import getLastModificationTime
+
 proc newTileMap(tileSize: Vec2i, tileSizeLogical: Vec2i, scaling: int32, tileMapFilename: string, windowSize: Vec2i): TileMap =
   result.tileSize = tileSize
   result.tileSizeLogical = tileSizeLogical
   result.scaling = scaling
   result.tilePalette = newTexture2DArray(tileSize, numTiles, levels = 1)
-  result.tileMapPath = getAppDir() / "resources" / tileMapFilename
+  result.tileMapPath = getResourcePath(tileMapFilename)
+  echo result.tileMapPath
   result.tileMapModificationTime = getLastModificationTime(result.tileMapPath)
   result.tilePalette.updateTilePaletteFromFile(result.tileMapPath, result.tileSize)
   result.tilePalette.parameter(GL_TEXTURE_MIN_FILTER, GL_NEAREST)
@@ -254,8 +257,8 @@ var dragRightStartPos: Vec2i
 
 setup()
 
-var tileMapA = newTileMap(vec2i(16), vec2i(16), 2, "tiles.gif", window.size, )
-var tileMapB = newTileMap(vec2i(8,12), vec2i(8,4), 4, "pixelfont2.png", window.size)
+var tileMapA = newTileMap(vec2i(16), vec2i(16), 2, "tiles.gif", window.size)
+var tileMapB = newTileMap(vec2i(8,12), vec2i(8,4), 4, "pixelfont.png", window.size)
 
 tileMapA.map = noiseTextureRectangle(vec2i(mapwidth), false)
 tileMapA.mapSize = vec2i(mapwidth)

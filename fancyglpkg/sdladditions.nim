@@ -128,3 +128,10 @@ iterator events*(): sdl.Event =
   while pollEvent(event.addr) != 0:
     yield event
 ]#
+
+import os
+
+proc getResourcePath*(path: string): string =
+  ## Returns an absolute path to a resource
+  # After installation this should use ``getBasePath`` from SDL.
+  getAppDir() / "resources" / path

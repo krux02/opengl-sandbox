@@ -1,4 +1,4 @@
-import memfiles, ../fancygl, sdl2/sdl_ttf as ttf, os, strutils, sequtils, AntTweakBar, macros
+import memfiles, ../fancygl, sdl2/sdl_ttf as ttf, strutils, sequtils, AntTweakBar, macros
 
 const WindowSize = vec2i(1024, 768)
 
@@ -45,7 +45,7 @@ proc main() =
     panic "from example: could not load font: ", ttf.getError(),
         "\nfrom example: sorry system font locations are hard coded into the program, change that to fix this problem"
 
-  var file = memfiles.open(getAppDir() / "resources/mrfixit.iqm")
+  var file = memfiles.open(getResourcePath("mrfixit.iqm"))
   defer:
     close(file)
 
@@ -141,7 +141,7 @@ proc main() =
     echo "got iqm mesh:"
     echo "  name:           ", text(mesh.name)
     echo "  material:       ", text(mesh.material)
-    meshTextures[i] = loadTexture2DFromFile(getAppDir() / "resources" / $text(mesh.material))
+    meshTextures[i] = loadTexture2DFromFile(getResourcePath($text(mesh.material)))
 
   echo "=========================================================================="
 

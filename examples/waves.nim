@@ -1,4 +1,4 @@
-import ../fancygl, os
+import ../fancygl
 
 var windowsize = vec2i(1024,768)
 let (window, context) = defaultSetup(windowsize)
@@ -8,7 +8,7 @@ var hm = newHeightMap(128,128)
 hm.DiamondSquare(64)
 
 let
-  crateTexture   = loadTexture2DFromFile(getAppDir() / "resources/crate.png")
+  crateTexture   = loadTexture2DFromFile(getResourcePath("crate.png"))
 
   hmVertices  = arrayBuffer(hm.vertices, GL_STATIC_DRAW)
   hmNormals   = arrayBuffer(hm.normals, GL_STATIC_DRAW)

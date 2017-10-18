@@ -141,6 +141,7 @@ proc loadSurfaceFromFile*(filename: string): Surface =
 
 proc size*(tex: Texture2D): Vec2i =
   var w,h: GLint
+
   glGetTextureLevelParameteriv(tex.handle, 0, GL_TEXTURE_WIDTH, w.addr)
   glGetTextureLevelParameteriv(tex.handle, 0, GL_TEXTURE_HEIGHT, h.addr)
   result = vec2i(w, h)
