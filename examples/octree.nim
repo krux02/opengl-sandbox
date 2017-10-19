@@ -1,5 +1,7 @@
 import ../fancygl, sequtils
 
+# not read yet te be part of the nimble build system
+
 const enableChecks = false
 
 proc sq(arg: float32): float32 =
@@ -426,7 +428,7 @@ var runGame: bool = true
 
 let timer = newStopWatch(true)
 
-let aspect = float32(window.size.x / window.size.y)
+let aspect = window.aspectRatio.float32
 let proj : Mat4f = frustum(-aspect * 0.01f, aspect * 0.01f, -0.01f, 0.01f, 0.01f, 100.0)
 
 # AABB box rendering
@@ -532,7 +534,6 @@ proc drawNeighborhood(proj,modelView: Mat4f): void =
       """
 
 import gifh
-
 var animation: GifAnimation
 var remainingFrames = 0
 
@@ -549,7 +550,7 @@ while runGame:
       of SCANCODE_F10:
         window.screenshot
       of SCANCODE_S:
-        animation = window.startGifAnimation(delay = 1, dither = false)
+        #animation = window.startGifAnimation(delay = 1, dither = false)
         remainingFrames = 100
       else:
         discard
@@ -633,7 +634,7 @@ while runGame:
   #  let mesh = meshes[i]
   let modelMat = mat4f(1).scale(0.05)
 
-  let cylinderPositionsSeq = newSeq[Vec3f](0)
+  var cylinderPositionsSeq = newSeq[Vec3f](0)
 
   for i, data in objectDataSeq:
     if data.kind == IdCylinder

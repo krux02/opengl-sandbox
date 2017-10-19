@@ -46,8 +46,8 @@ proc render() =
   var view_mat = mat4d()
 
   view_mat = view_mat.translate( position )
-  view_mat = view_mat.rotate( vec3d(0,0,1), rotation.y )
-  view_mat = view_mat.rotate( vec3d(1,0,0), rotation.x )
+  view_mat = view_mat.rotateZ( rotation.y )
+  view_mat = view_mat.rotateX( rotation.x )
 
   let movement_ws = (view_mat * vec4d(movement, 0)).xyz
   position = position + movement_ws
@@ -240,8 +240,8 @@ proc mainLoopFunc(): void =
 
   var state = getKeyboardState(nil)
 
-  movement.z = (state[SCANCODE_D.int].float - state[SCANCODE_E.int].float) * 0.4
-  movement.x = (state[SCANCODE_F.int].float - state[SCANCODE_S.int].float) * 0.4
+  movement.z = (state[SCANCODE_D].float - state[SCANCODE_E].float) * 0.4
+  movement.x = (state[SCANCODE_F].float - state[SCANCODE_S].float) * 0.4
 
   if fpsTimer.time >= 1:
     echo "FPS: ", fpsFrameCounter

@@ -219,9 +219,9 @@ proc createTextObject(this: TextRenderer; arg: string): TextObject =
   distanceTransform(pixeldata, signedDistancePixels, size, size, 8)
 
   #result.texture = texture2D(surface)
-  discard surface.savePng(arg & "_a.png")
+  #discard surface.savePng(arg & "_a.png")
   copyMem(surface.pixels, signedDistancePixels[0].addr, pixelData.len)
-  discard surface.savePng(arg & "_b.png")
+  #discard surface.savePng(arg & "_b.png")
 
   surface.flipY
   result.texture = texture2D(surface)

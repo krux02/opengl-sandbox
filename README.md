@@ -364,9 +364,17 @@ On __Mac OS X__, install SDL2 via [Homebrew](http://brew.sh) like so:
 
 
 To compile the examples, use nimble, it should take care about all
-dependencies.
+dependencies. Currently though I depend on a few additions to glm that
+I wrote, so you have to install that version manually until the pull
+request has been merged.
 
 ```
+git clone git@github.com:krux02/opengl-sandbox.git
+git clone git@github.com:krux02/nim-glm.git
+
+cd nim-glm
+nimble install -y
+cd ../opengl-sandbox
 nimble build
 ```
 

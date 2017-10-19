@@ -1,5 +1,7 @@
 import ../fancygl
 
+# Warning this is not really a useful example
+
 let (window, context) = defaultSetup()
 let windowsize = window.size
 
@@ -27,11 +29,11 @@ while runGame:
       runGame = false
 
   var state = getKeyboardState(nil)
-  offset.x += (state[SCANCODE_S.int].float - state[SCANCODE_F.int].float) * 0.1f
-  offset.y += (state[SCANCODE_D.int].float - state[SCANCODE_E.int].float) * 0.1f
-  if state[SCANCODE_KP_PLUS.int] != 0:
+  offset.x += (state[SCANCODE_S].float - state[SCANCODE_F].float) * 0.1f
+  offset.y += (state[SCANCODE_D].float - state[SCANCODE_E].float) * 0.1f
+  if state[SCANCODE_KP_PLUS] != 0:
     scaler *= 1.1
-  if state[SCANCODE_KP_MINUS.int] != 0:
+  if state[SCANCODE_KP_MINUS] != 0:
     scaler *= 0.9
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)

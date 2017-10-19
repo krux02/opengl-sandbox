@@ -22,7 +22,7 @@ var runGame: bool = true
 
 let timer = newStopWatch(true)
 
-let aspect = float32(window.size.x / window.size.y)
+let aspect = window.aspectRatio.float32
 let proj : Mat4f = frustum(-aspect * 0.01f, aspect * 0.01f, -0.01f, 0.01f, 0.01f, 100.0)
 
 while runGame:

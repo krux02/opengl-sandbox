@@ -345,9 +345,8 @@ proc main() =
 
     view_mat = view_mat.translate( vec3d(0, -1.5f, -17) + vec3d(0, offset.y, offset.x) )
     view_mat = view_mat.translate( vec3d(0, 0, 3) )
-
-    view_mat = view_mat.rotate( vec3d(1,0,0), rotation.y-0.5f )
-    view_mat = view_mat.rotate( vec3d(0,0,1), rotation.x )
+    view_mat = view_mat.rotateX(rotation.y-0.5f )
+    view_mat = view_mat.rotateZ(rotation.x )
     view_mat = view_mat * obj_quat.mat4(vec4f(0,0,0,1)).mat4d
 
     view_mat = view_mat.translate( vec3d(0, 0, -3) )

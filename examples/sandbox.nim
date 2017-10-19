@@ -75,9 +75,9 @@ proc render() =
 
     var modelview_mat = mat4f()
     modelview_mat = modelview_mat.translate( vec3f(sin(time)*2, cos(time)*2, -7) )
-    modelview_mat = modelview_mat.rotate( vec3f(0,0,1), time )
-    modelview_mat = modelview_mat.rotate( vec3f(0,1,0), time )
-    modelview_mat = modelview_mat.rotate( vec3f(1,0,0), time )
+    modelview_mat = modelview_mat.rotateZ(time)
+    modelview_mat = modelview_mat.rotateY(time)
+    modelview_mat = modelview_mat.rotateX(time)
 
     blockBindFramebuffer(fb1):
       glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)

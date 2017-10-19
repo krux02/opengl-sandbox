@@ -13,8 +13,8 @@ proc update*(node: var WorldNode, control: CameraControls): void =
   var movement = vec3f(0,0,0)
   var i: cint
   var state = getKeyboardState(i.addr)
-  movement.z = (state[SCANCODE_D.int].float - state[SCANCODE_E.int].float) * control.speed
-  movement.x = (state[SCANCODE_F.int].float - state[SCANCODE_S.int].float) * control.speed
+  movement.z = (state[SCANCODE_D].float - state[SCANCODE_E].float) * control.speed
+  movement.x = (state[SCANCODE_F].float - state[SCANCODE_S].float) * control.speed
 
   node.dir = quatf(0,0,0,1)
   node.turnRelativeX(control.rotation.x)

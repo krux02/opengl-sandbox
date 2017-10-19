@@ -19,6 +19,10 @@ proc title*(window: Window): string =
 proc `title=`*(window: Window; title: string): void =
   setWindowTitle(window, title)
 
+proc aspectRatio*(window: Window): float =
+  let s = window.size
+  result = s.x / s.y
+
 proc size*(surface: Surface): Vec2i =
   vec2i(surface.w, surface.h)
 
