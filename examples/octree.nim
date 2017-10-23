@@ -534,6 +534,7 @@ proc drawNeighborhood(proj,modelView: Mat4f): void =
       """
 
 import gifh
+
 var animation: GifAnimation
 var remainingFrames = 0
 

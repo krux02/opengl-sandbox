@@ -41,5 +41,5 @@ requires @[
   "AntTweakBar >= 1.0.0",
   #"fftw3       >= 0.1.0", # add this if you want audiotest to work
   "sdl2_nim#head",
-  "glm" # glm#head
+  "glm#head"
 ]

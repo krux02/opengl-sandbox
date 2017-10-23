@@ -5,7 +5,7 @@ import sequtils
 let (window, context) = defaultSetup()
 let windowsize = window.size
 
-let projection_mat : Mat4f = perspective(45'f32, windowsize.x / windowsize.y, 0.1, 100.0)
+let projection_mat : Mat4f = perspective(45'f32, window.aspectRatio, 0.1, 100.0)
 
 type
   IdMesh = enum

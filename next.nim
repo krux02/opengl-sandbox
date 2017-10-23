@@ -18,7 +18,7 @@ proc extractUniforms(arg: NimNode): NimNode =
       for identDefs in stmt:
         if identDefs[2].kind == nnkCall:
           let call = identDefs[2]
-          echo call[0].lisprRepr
+          echo call[0].lispRepr
           echo call[1].getTypeInst.lispRepr
 
   discard
