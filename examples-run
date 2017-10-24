@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# always change into the directory of the script so that it doesn't
+# matter for where the script is called
+cd "$( dirname "${BASH_SOURCE[0]}" )"
+
+if nimble build; then
+  fails = ""
+  # run all executables in the examples folder
+  for example in $(find ./examples/ -executable); do
+    # log if an executable failed
+    $example || fails = "$fails $example"
+  done
+  echo "failed tests:"
+  echo $fails
+else
+  echo "build failed"
+fi
