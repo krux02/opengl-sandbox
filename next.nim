@@ -67,6 +67,9 @@ let colors = arrayBuffer([
 let n = vec4f(normalize(vec3f(1)), 0)
 let normals = arrayBuffer([n,n,n])
 
+## lightweight MeshView object
+
+
 shadingDsl2:
   primitiveMode = GL_TRIANGLES
   numVertices = mesh.numVertices
