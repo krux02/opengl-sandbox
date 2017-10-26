@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# always change into the directory of the script so that it doesn't
-# matter for where the script is called
+# Always change into the directory of the script so that it doesn't
+# matter for the script from where is called.
 cd "$( dirname "${BASH_SOURCE[0]}" )"
 
 if nimble build; then

@@ -376,16 +376,10 @@ proc validBlockPos(pos: Vec2i, rot,typ: int): bool =
 
   return true
 
-
-
 proc getPrefPath(): string =
-  var cstr = getPrefPath("Arne Döring GmbH", "Tetris")
+  var cstr: cstring = getPrefPath("Arne Döring GmbH", "Tetris")
   result = $cstr
-  when compiles(free(cstr)):
-    free(cstr) # from sdl2
-  else:
-    warning("memory leak detected")
-  echo result
+  free(cstr) # free from sdl not the free equivalent in system
 
 let prefPath = getPrefPath()
 

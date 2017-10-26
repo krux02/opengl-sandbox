@@ -1,6 +1,6 @@
 #[ Package ]#
 
-version       = "0.2.1"
+version       = "0.3.1"
 author        = "Arne Döring"
 description   = "nice way of handling render code"
 license       = "MIT"
@@ -26,11 +26,6 @@ bin           = @[
   "examples/waves"
 ]
 
-#kdtree
-#octree
-#openmesh
-#test_animation_code.nim
-
 skipDirs = @["tests"]
 
 #[ Dependencies ]#
@@ -39,7 +34,7 @@ requires @[
   "nim         >= 0.17.3",
   "opengl      >= 1.1.0",
   "AntTweakBar >= 1.0.0",
+  "sdl2_nim >= 2.0.6.1",
+  "glm      >= 1.0.1"
   #"fftw3       >= 0.1.0", # add this if you want audiotest to work
-  "sdl2_nim#head",
-  "glm#head"
 ]
