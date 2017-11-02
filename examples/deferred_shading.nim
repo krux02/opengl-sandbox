@@ -25,10 +25,16 @@ let
 
 var hideNormals, hideDeferredShading, flatShading, wireframe: bool
 
+
+## TODO:
+##  erweitere Framebuffer makro um glsl typen for den Fragmentshader
+##  constructor argumente
+
+
 declareFramebuffer(FirstFramebuffer):
   depth = newDepthTexture2D(windowsize)
-  color = newTexture2D(windowsize, GL_RGBA8)
-  normal = newTexture2D(windowsize, GL_RGBA16F)
+  color: Vec4f = newTexture2D(windowsize, GL_RGBA8)
+  normal: Vec4f = newTexture2D(windowsize, GL_RGBA16F)
 
 let fb1 = newFirstFramebuffer()
 
