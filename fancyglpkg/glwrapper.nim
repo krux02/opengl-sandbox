@@ -27,6 +27,9 @@ proc len*(mb : ReadView | WriteView | DataView) : int {.inline.} =
 proc `[]`*[T](mb : ReadView[T], index: int) : T {.inline.} =
   mb.data[index]
 
+proc `[]`*[T](mb : WriteView[T], index: int) : var T {.inline.} =
+  mb.data[index]
+
 proc `[]=`*[T](mb : WriteView[T], index: int, val: T) : void {.inline.} =
   mb.data[index] = val
 
@@ -414,6 +417,9 @@ proc newElementArrayBuffer*[T](length: int, usage: GLenum = GL_STATIC_DRAW): Ele
 proc newUniformBuffer*[T](usage: GLenum = GL_STATIC_DRAW): UniformBuffer[T] =
   result.new
   glNamedBufferData(result.handle, GLsizeiptr(sizeof(T)), nil, usage)
+
+proc delete*[T](arg: var AnyBuffer[T]): void =
+  glDeleteBuffers(1, arg.handle.addr)
 
 proc glGetInteger(name: GLenum): GLint =
   glGetIntegerv(name, result.addr)

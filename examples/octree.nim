@@ -44,7 +44,8 @@ type
 
   Value = object
     pos: Vec3f
-    id : uint32  ## after ``init`` ``srcPositions[id] == pos`` should be true
+    kind: IdMesh
+    color: Vec4f
 
   Node = object
     a,b: int32
@@ -57,8 +58,7 @@ type
 
 
 
-type
-  IdMesh = enum
+  IdMesh {.size: 4.} = enum
     IdCone,
     IdCylinder,
     IdIcosphere,
@@ -172,7 +172,6 @@ proc initMeshes(): void =
   colors = arrayBuffer(colorsSeq)
   indices = elementArrayBuffer(indicesSeq)
 
-
 proc catchUpOrder[T](this: var Tree; data: var seq[T]): void =
   ## the tree changes the order of the nodes,
   ## catch Up order also applies that permutation to data that is associated with the tree data
@@ -187,7 +186,7 @@ proc catchUpOrder[T](this: var Tree; data: var seq[T]): void =
     else:
       this.data[dst].id = this.data[dst].id and 0xffff or uint32(i shl 16)
     this.data[i].id = this.data[i].id shr 16
-    i += 1
+  i += 1
   # reorder
   assert data.len == this.data.len, "Illegal Argument"
   i = 0
@@ -390,7 +389,6 @@ proc spiralOctree(length: int): Tree =
   result.data = newSeq[Value](length)
   for i, d in result.data.mpairs:
     d.pos = randomSpiralPosition()
-    d.id = uint32(i)
   result.init
 
 var tree = spiralOctree(1000)
@@ -403,26 +401,17 @@ glPointSize(20)
 
 var treeDataBuffer = arrayBuffer(tree.data, GL_STREAM_DRAW)
 
-type
-  ObjectData = object
-    color: Color
-    kind: IdMesh
-
 let posBuffer      = treeDataBuffer.view(pos)
 
-var objectDataSeq = newSeq[ObjectData](tree.data.len)
-
-for value in objectDataSeq.mitems:
-  value.color.r = rand_u8()
-  value.color.g = rand_u8()
-  value.color.b = rand_u8()
-  value.color.a = 255
+for value in tree.data.mitems:
+  value.color.r = rand_f32()
+  value.color.g = rand_f32()
+  value.color.b = rand_f32()
+  value.color.a = 1
   value.kind = IdMesh rand(IdMesh.high.int + 1)
 
-let objectDataBuffer = arrayBuffer(objectDataSeq)
-
-let colorsBuffer = objectDataBuffer.view(color)
-let kindsBuffer = objectDataBuffer.view(kind)
+let colorsBuffer = treeDataBuffer.view(color)
+let kindsBuffer = treeDataBuffer.view(kind)
 
 var runGame: bool = true
 
@@ -587,11 +576,10 @@ while runGame:
   #let time = timer.time.float32
 
   let viewMat = mat4f(1)
+    .translate(0,-1,-5)
     .rotateX(rotationX)
     .rotateY(rotationY)
     .scale(scale)
-    .translate(0,-1,-5)
-
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
@@ -604,11 +592,12 @@ while runGame:
 
   tree.init
   treeDataBuffer.setData(tree.data)
-  tree.catchUpOrder(objectDataSeq)
-  objectDataBuffer.setData(objectDataSeq)
+  #tree.catchUpOrder(objectDataSeq)
+  #objectDataBuffer.setData(objectDataSeq)
 
   drawNeighborhood(proj, viewMat)
 
+  #[
   shadingDsl:
     primitiveMode = GL_POINTS
     numVertices = tree.data.len
@@ -630,23 +619,28 @@ while runGame:
       """
       color = v_color;
       """
+  ]#
 
   #for i, node in worldNodes:
   #  let mesh = meshes[i]
-  let modelMat = mat4f(1).scale(0.05)
+  let meshDeform = mat4f(1).scale(0.05)
+  var buffer = newArrayBuffer[tuple[offset: Vec4f, color: Vec4f]](tree.data.len)
+  defer:
+    buffer.delete
 
-  var cylinderPositionsSeq = newSeq[Vec3f](0)
-
-  for i, data in objectDataSeq:
-    if data.kind == IdCylinder
-       ## bla bla continue this stuff
-       cylinderPositionsSeq.add mesh.data[i].pos
-
-  block foobar:
+  for meshId in IdMesh:
     ## TODO: render each object with a Mesh acconding to it's kind.
     ## important for flocking.
 
-    let mesh = meshes[IdCylinder]
+    let mesh = meshes[meshId]
+
+    var i = 0
+    mapWriteBlock(buffer):
+      for value in tree.data:
+        if value.kind == meshId:
+          buffer[i].offset = vec4f(value.pos, 0)
+          buffer[i].color  = value.color
+          i += 1
 
     shadingDsl:
       debug
@@ -655,25 +649,27 @@ while runGame:
       vertexOffset = mesh.vertexOffset
       baseVertex = mesh.baseVertex
       indices = indices
+      numInstances = i
 
       uniforms:
         proj
-        modelView = viewMat * modelMat
+        view = viewMat
+        meshDeform
 
       attributes:
         a_vertex = vertices
         a_normal = normals
         a_color  = colors
+        instancePos = buffer.view(offset) {.divisor: 1.}
+        instanceColor = buffer.view(color) {.divisor: 1.}
 
       vertexMain:
         """
-        gl_Position = proj * modelView * a_vertex;
-        v_vertex = a_vertex;
-        v_normal = normalize(modelView * a_normal);
+        gl_Position = proj * view * (meshDeform * a_vertex + instancePos);
+        v_normal = normalize(view * a_normal);
         v_color = a_color;
         """
       vertexOut:
-        "out vec4 v_vertex"
         "out vec4 v_normal"
         "out vec4 v_color"
 
