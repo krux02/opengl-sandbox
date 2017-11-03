@@ -1,6 +1,22 @@
-import ../fancygl, sequtils
+import ../fancygl, sequtils, AntTweakBar
 
 # not read yet te be part of the nimble build system
+
+template addVarRW(bar: ptr TwBar; value: var float32, stuff: string= ""): void =
+  discard TwAddVarRW(bar,astToStr(value), TW_TYPE_FLOAT, value.addr, stuff)
+
+template addVarRW(bar: ptr TwBar; value: var bool, stuff: string = ""): void =
+  discard TwAddVarRW(bar,astToStr(value), TW_TYPE_BOOL8, value.addr, stuff)
+
+template addVarRW(bar: ptr TwBar; value: var Quatf, stuff: string = ""): void =
+  discard TwAddVarRW(bar,astToStr(value), TW_TYPE_QUAT4F, value.addr, stuff)
+
+iterator twFilteredSdl2Events(): Event =
+  ## same as the default sdl2 event iterator, it just consumes events in AntTweakBar
+  var event: Event
+  while pollEvent(event.addr) != 0:
+    if TwEventSDL(cast[pointer](event.addr), 2.cuchar, 0.cuchar) == 0:
+      yield event
 
 const enableChecks = false
 
@@ -44,8 +60,10 @@ type
 
   Value = object
     pos: Vec3f
+    color: Color
+    vel: Vec3f
     kind: IdMesh
-    color: Vec4f
+
 
   Node = object
     a,b: int32
@@ -379,39 +397,57 @@ proc neighborSearch(tree: Tree; radius: float32; dst: var seq[(int32,int32)]): v
     neighborSearch(tree, tree.nodes[0], tree.aabb, query, i, dst)
 
 proc randomSpiralPosition(): Vec3f =
-  let x = float32(randNormal() * 2)
+  template rn: untyped =
+    float32(randNormal())
+  let x = rn * 2
   let spiralPos = vec3f(sin(x), cos(x), x * 0.35)
-  let offset = vec3f(vec3(randNormal(), randNormal(), randNormal()) * 0.01)
-  return spiralPos + offset
+  let offset = vec3f(rn, rn, rn)
+  return spiralPos * 200 + offset * 2
+
+proc randomSpiralVelocity(): Vec3f =
+  template rn: untyped =
+    float32(randNormal())
+  vec3f(rn, rn, rn)
 
 proc spiralOctree(length: int): Tree =
   ## creates a new octree with data distributed on a spiral
   result.data = newSeq[Value](length)
   for i, d in result.data.mpairs:
     d.pos = randomSpiralPosition()
+    d.vel = randomSpiralVelocity()
   result.init
 
 var tree = spiralOctree(1000)
 
 let (window, context) = defaultSetup()
 
+if TwInit(TW_OPENGL_CORE, nil) == 0:
+  quit("could not initialize AntTweakBar: " & $TwGetLastError())
+
+discard TwWindowSize(window.size.x, window.size.y)
+
+var obj_quat : Quatf
+var scale = 1'f32
+
+var searchRadius = 10'f32
+
+var bar = TwNewBar("TwBar")
+
+bar.addVarRW scale, " precision=5 step=0.001"
+bar.addVarRW searchRadius, " precision=5 step=0.002"
+bar.addVarRW obj_quat, " label='Object rotation' opened=true help='Change the object orientation.' "
+
 initMeshes()
 
-glPointSize(20)
-
 var treeDataBuffer = arrayBuffer(tree.data, GL_STREAM_DRAW)
-
 let posBuffer      = treeDataBuffer.view(pos)
 
 for value in tree.data.mitems:
-  value.color.r = rand_f32()
-  value.color.g = rand_f32()
-  value.color.b = rand_f32()
-  value.color.a = 1
+  value.color.r = rand_u8()
+  value.color.g = rand_u8()
+  value.color.b = rand_u8()
+  value.color.a = 255
   value.kind = IdMesh rand(IdMesh.high.int + 1)
-
-let colorsBuffer = treeDataBuffer.view(color)
-let kindsBuffer = treeDataBuffer.view(kind)
 
 var runGame: bool = true
 
@@ -490,14 +526,13 @@ var rotationX, rotationY: float32
 var mouse1 = false
 var mouse2 = false
 var mouse3 = false
-var scale = 1.0f
 
 
 var neighborSearchResult: seq[(int32,int32)]
 var neighborSearchResultBuffer = newElementArrayBuffer[int32](40000, GL_STREAM_DRAW)
 
 proc drawNeighborhood(proj,modelView: Mat4f): void =
-  tree.neighborSearch(0.1f, neighborSearchResult)
+  tree.neighborSearch(searchRadius, neighborSearchResult)
 
   let sizeArg = GLsizeiptr(neighborSearchResult.len * sizeof(int32) * 2)
   let handleArg = neighborSearchResultBuffer.handle
@@ -529,7 +564,7 @@ var remainingFrames = 0
 
 while runGame:
 
-  for evt in events():
+  for evt in twFilteredSdl2Events():
     if evt.kind == QUIT:
       runGame = false
       break
@@ -568,30 +603,35 @@ while runGame:
 
     if evt.kind == MouseMotion:
       if mouse1:
-        rotationY += float32(evt.motion.xrel) * 0.001f
-        rotationX += float32(evt.motion.yrel) * 0.001f
+        obj_quat *= quatf(vec3f(0,1,0), float32(evt.motion.xrel) * 0.001f)
+        obj_quat *= quatf(vec3f(0,0,1), float32(evt.motion.yrel) * 0.001f)
       if mouse3:
-        scale += float32(evt.motion.xrel) * 0.001f
+        scale *= 1'f32 + float32(evt.motion.xrel) * 0.003f
 
   #let time = timer.time.float32
 
-  let viewMat = mat4f(1)
-    .translate(0,-1,-5)
+
+  let tmp = mat4f(obj_quat)
+
+  let viewMat = tmp * mat4f(1)
+    .translate(vec3f(0,-1,-5) * scale)
     .rotateX(rotationX)
     .rotateY(rotationY)
-    .scale(scale)
+    .scale(0.01)
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
   block:
-    let s = sin(2 * Pi * 0.001'f32)
-    let c = cos(2 * Pi * 0.001'f32)
+    let s = sin(2 * Pi * 0.0001'f32)
+    let c = cos(2 * Pi * 0.0001'f32)
     let mat = mat2(vec2(c,s), vec2(-s,c))
     for node in tree.data.mitems:
       node.pos.xy = mat * node.pos.xy
 
   tree.init
   treeDataBuffer.setData(tree.data)
+
+
   #tree.catchUpOrder(objectDataSeq)
   #objectDataBuffer.setData(objectDataSeq)
 
@@ -623,8 +663,8 @@ while runGame:
 
   #for i, node in worldNodes:
   #  let mesh = meshes[i]
-  let meshDeform = mat4f(1).scale(0.05)
-  var buffer = newArrayBuffer[tuple[offset: Vec4f, color: Vec4f]](tree.data.len)
+  let meshDeform = mat4f(1)
+  var buffer = newArrayBuffer[tuple[offset: Vec3f, color: Color]](tree.data.len)
   defer:
     buffer.delete
 
@@ -638,7 +678,7 @@ while runGame:
     mapWriteBlock(buffer):
       for value in tree.data:
         if value.kind == meshId:
-          buffer[i].offset = vec4f(value.pos, 0)
+          buffer[i].offset = value.pos
           buffer[i].color  = value.color
           i += 1
 
@@ -665,9 +705,9 @@ while runGame:
 
       vertexMain:
         """
-        gl_Position = proj * view * (meshDeform * a_vertex + instancePos);
+        gl_Position = proj * view * (meshDeform * a_vertex + vec4(instancePos,0));
         v_normal = normalize(view * a_normal);
-        v_color = a_color;
+        v_color = a_color * instanceColor;
         """
       vertexOut:
         "out vec4 v_normal"
@@ -681,6 +721,7 @@ while runGame:
 
 
   drawBoxes(proj, viewMat)
+  discard TwDraw()
   glSwapWindow(window)
 
   if remainingFrames > 0:
