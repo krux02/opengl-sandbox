@@ -1,4 +1,4 @@
-import macros, opengl, sdl2
+import macros, opengl, sdl2/sdl
 import glm
 
 include "typeinfo.nim"
@@ -63,14 +63,8 @@ macro stringIdent(arg: static[string]): string =
 static:
   echo glslTypeRepr(Vec2f)
 
-macro memberTypeNames[T](t: typedesc[T]): string =
-  #result = head quote do:
-  #  (var `ident`: `t`; "")
-
-  #let typeSym =
-
-  var typeSym = t.getTypeInst
-
+macro memberTypeNames[T](t: typed): string =
+  let typeSym = t.getTypeInst
 
   # yea sometimes I do not get a bracket expression but just a symbol, yaya inconsistency!!! yeaaaa!!!
   if typeSym.kind == nnkBracketExpr:
@@ -95,9 +89,6 @@ macro memberTypeNames[T](t: typedesc[T]): string =
       #str.add "stdout.write offsetof(" & name & ", " & $memberSym & "), ' '\n"
 
 # echo memberTypeNames(ParticleData)
-
-dumpTree:
-  getAst(type(MyData))
 
 macro glslOutSection[T](self: TransformFeedback[T]): string =
   let typeSym = self.getTypeInst[1]
