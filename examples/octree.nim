@@ -61,9 +61,10 @@ type
   Value = object
     pos: Vec3f
     color: Color
-    vel: Vec3f
+    velocity: Vec3f
     kind: IdMesh
-
+    acceleration: Vec3f
+    align: float32
 
   Node = object
     a,b: int32
@@ -72,9 +73,6 @@ type
       children: array[8, int32]
     else:
       discard
-
-
-
 
   IdMesh {.size: 4.} = enum
     IdCone,
@@ -95,6 +93,18 @@ type
     baseVertex: int
 
 var meshes: array[IdMesh, SimpleMesh]
+
+
+var separationFactor           = 1.5f
+var alignFactor                = 1.0f
+var cohesionFactor             = 1.0f
+var desiredseparation          = 25.0f
+var neighbordist               = 50.0f
+var r                          = 2.0f
+var maxspeed                   = 2.0f
+var maxforce                   = 0.03f
+var enableBoxDrawing           = true
+var enableNeighbourhoodDrawing = true
 
 proc initMeshes(): void =
   const numSegments = 32
@@ -396,6 +406,7 @@ proc neighborSearch(tree: Tree; radius: float32; dst: var seq[(int32,int32)]): v
     let query = Sphere(center: value.pos, radius: radius)
     neighborSearch(tree, tree.nodes[0], tree.aabb, query, i, dst)
 
+
 proc randomSpiralPosition(): Vec3f =
   template rn: untyped =
     float32(randNormal())
@@ -414,28 +425,151 @@ proc spiralOctree(length: int): Tree =
   result.data = newSeq[Value](length)
   for i, d in result.data.mpairs:
     d.pos = randomSpiralPosition()
-    d.vel = randomSpiralVelocity()
+    d.velocity = randomSpiralVelocity()
   result.init
 
 var tree = spiralOctree(1000)
 
 let (window, context) = defaultSetup()
 
+discard setRelativeMouseMode(true)
+
 if TwInit(TW_OPENGL_CORE, nil) == 0:
   quit("could not initialize AntTweakBar: " & $TwGetLastError())
 
 discard TwWindowSize(window.size.x, window.size.y)
 
-var obj_quat : Quatf
-var scale = 1'f32
-
 var searchRadius = 10'f32
 
 var bar = TwNewBar("TwBar")
 
-bar.addVarRW scale, " precision=5 step=0.001"
 bar.addVarRW searchRadius, " precision=5 step=0.002"
-bar.addVarRW obj_quat, " label='Object rotation' opened=true help='Change the object orientation.' "
+bar.addVarRW separationFactor
+bar.addVarRW alignFactor
+bar.addVarRW cohesionFactor
+bar.addVarRW desiredseparation
+bar.addVarRW neighbordist
+bar.addVarRW r
+bar.addVarRW maxspeed
+bar.addVarRW maxforce
+bar.addVarRW enableBoxDrawing
+bar.addVarRW enableNeighbourhoodDrawing
+
+proc limit(arg: Vec3f; maxlength: float32): Vec3f =
+  let len2 = arg.length2
+  if len2 > maxlength * maxlength:
+    arg / len2
+  else:
+    arg
+
+proc dist(a,b: Vec3f): float32 =
+  length(a - b)
+
+######################
+# Flocking Behiviour #
+######################
+
+
+proc flock(tree: var Tree): void =
+  var neighborSearchResult: seq[(int32,int32)] # TODO does it need init
+
+
+  # Separation
+  # Method checks for nearby boids and steers away
+  tree.neighborSearch(desiredseparation, neighborSearchResult)
+  var separation = newSeq[tuple[steer: Vec3f; count: int32]](tree.data.len)
+
+  for i,j in neighborSearchResult.items:
+    var diff = tree.data[i].pos - tree.data[j].pos
+
+    let length2 = diff.length2
+
+    if length2 > 0:
+      diff *= 1 / length2
+
+      separation[i].steer += diff
+      separation[i].count += 1
+      separation[j].steer -= diff
+      separation[j].count += 1
+
+  for i, it in separation.mpairs:
+    assert it.steer == it.steer
+
+    if it.count > 0:
+      it.steer /= float32(it.count)
+
+    assert it.steer == it.steer
+
+  for i, it in separation.mpairs:
+    #template velocity(): untyped = tree.data[i].velocity
+    if it.steer.length2 > 0:
+      it.steer *= maxspeed / it.steer.length
+      it.steer -= tree.data[i].velocity
+      it.steer = it.steer.limit(maxforce)
+
+    assert it.steer == it.steer
+
+  tree.neighborSearch(neighbordist, neighborSearchResult)
+
+  # Alignment
+  # For every nearby boid in the system, calculate the average velocity
+
+  var align = newSeq[tuple[steer: Vec3f; count: int32; sum: Vec3f]](tree.data.len)
+
+  for i,j in neighborSearchResult.items:
+    var diff: float32 = dist(tree.data[i].pos, tree.data[j].pos)
+    align[i].sum += tree.data[j].velocity
+    align[i].count += 1
+    align[j].sum += tree.data[i].velocity
+    align[j].count += 1
+
+  for i, it in align.mpairs:
+    if it.count > 0:
+      it.sum /= float32(it.count)
+      it.sum *= maxspeed / it.sum.length
+      it.steer = limit(it.sum - tree.data[i].velocity, maxforce)
+
+    assert it.steer == it.steer
+
+
+  # Cohesion
+  # For the average position (i.e. center) of all nearby boids, calculate steering vector towards that position
+
+  var cohesion = newSeq[tuple[steer: Vec3f; count: int32; sum: Vec3f]](tree.data.len)
+
+  for i,j in neighborSearchResult.items:
+    cohesion[i].sum += tree.data[j].pos
+    cohesion[i].count += 1
+    cohesion[j].sum += tree.data[i].pos
+    cohesion[j].count += 1
+
+  for i, it in cohesion.mpairs:
+    if it.count > 0:
+      assert it.sum == it.sum
+      # seek
+      let target = it.sum / float32(it.count)
+      # A vector pointing from the position to the target
+      var desired = target - tree.data[i].pos
+      assert desired == desired
+
+      # Scale to maximum speed
+      if desired.length2 > 0:
+        desired *= maxspeed / desired.length
+        # Steering = Desired minus Velocity
+        it.steer = limit(desired - tree.data[i].velocity, maxforce)
+
+    assert it.steer == it.steer
+
+  for i, tup in separation:
+    tree.data[i].acceleration += tup.steer * separationFactor
+  for i, tup in align:
+    tree.data[i].acceleration += tup.steer * alignFactor
+  for i, tup in cohesion:
+    tree.data[i].acceleration += tup.steer * cohesionFactor
+
+##########################
+# End Flocking Behiviour #
+##########################
 
 initMeshes()
 
@@ -454,7 +588,7 @@ var runGame: bool = true
 let timer = newStopWatch(true)
 
 let aspect = window.aspectRatio.float32
-let proj : Mat4f = frustum(-aspect * 0.01f, aspect * 0.01f, -0.01f, 0.01f, 0.01f, 100.0)
+let proj : Mat4f = frustum(-aspect * 0.01f, aspect * 0.01f, -0.01f, 0.01f, 0.01f, 10000.0)
 
 # AABB box rendering
 
@@ -521,12 +655,10 @@ proc drawBoxes(proj,modelView: Mat4f): void =
       color = vec4(0,0,1,1);
       """
 
-var rotationX, rotationY: float32
-
-var mouse1 = false
-var mouse2 = false
-var mouse3 = false
-
+var camera = newWorldNode()
+var cameraControls: CameraControls
+cameraControls.speed = 5
+addEventWatch(cameraControlEventWatch, cast[pointer](cameraControls.addr))
 
 var neighborSearchResult: seq[(int32,int32)]
 var neighborSearchResultBuffer = newElementArrayBuffer[int32](40000, GL_STREAM_DRAW)
@@ -575,59 +707,52 @@ while runGame:
       of SCANCODE_F10:
         window.screenshot
       of SCANCODE_S:
+        discard
         #animation = window.startGifAnimation(delay = 1, dither = false)
-        remainingFrames = 100
+        #remainingFrames = 100
       else:
         discard
 
-    if evt.kind == MouseButtonDown:
+    if evt.kind == MOUSE_BUTTON_DOWN:
       case evt.button.button
-      of 1:
-        mouse1 = true
-      of 2:
-        mouse2 = true
       of 3:
-        mouse3 = true
+        var toggle {. global .} = false
+        toggle = not toggle
+        discard setRelativeMouseMode(toggle)
       else:
         discard
-    if evt.kind == MouseButtonUp:
-      case evt.button.button
-      of 1:
-        mouse1 = false
-      of 2:
-        mouse2 = false
-      of 3:
-        mouse3 = false
-      else:
-        discard
-
-    if evt.kind == MouseMotion:
-      if mouse1:
-        obj_quat *= quatf(vec3f(0,1,0), float32(evt.motion.xrel) * 0.001f)
-        obj_quat *= quatf(vec3f(0,0,1), float32(evt.motion.yrel) * 0.001f)
-      if mouse3:
-        scale *= 1'f32 + float32(evt.motion.xrel) * 0.003f
 
   #let time = timer.time.float32
 
+  camera.update(cameraControls)
 
-  let tmp = mat4f(obj_quat)
+  #let viewMat = tmp * mat4f(1)
+  #  .translate(vec3f(0,-1,-5) * scale)
+  #  #.rotateX(rotationX)
+  #  #.rotateY(rotationY)
+  #  .scale(0.01)
 
-  let viewMat = tmp * mat4f(1)
-    .translate(vec3f(0,-1,-5) * scale)
-    .rotateX(rotationX)
-    .rotateY(rotationY)
-    .scale(0.01)
 
-  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+  block update:
+    tree.flock()
 
-  block:
-    let s = sin(2 * Pi * 0.0001'f32)
-    let c = cos(2 * Pi * 0.0001'f32)
-    let mat = mat2(vec2(c,s), vec2(-s,c))
     for node in tree.data.mitems:
-      node.pos.xy = mat * node.pos.xy
+      # Update velocity
+      node.velocity += node.acceleration
 
+      # Limit speed
+      node.velocity = limit(node.velocity, maxspeed);
+      node.pos += node.velocity;
+      # Reset accelertion to 0 each cycle
+      node.acceleration = vec3f(0)
+      #[
+
+    #let s = sin(2 * Pi * 0.0001'f32)
+    #let c = cos(2 * Pi * 0.0001'f32)
+    #let mat = mat2(vec2(c,s), vec2(-s,c))
+    #for node in tree.data.mitems:
+    #  node.pos.xy = mat * node.pos.xy
+  ]#
   tree.init
   treeDataBuffer.setData(tree.data)
 
@@ -635,7 +760,11 @@ while runGame:
   #tree.catchUpOrder(objectDataSeq)
   #objectDataBuffer.setData(objectDataSeq)
 
-  drawNeighborhood(proj, viewMat)
+  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+  let viewMat = camera.viewMat
+
+  if enableNeighbourhoodDrawing:
+    drawNeighborhood(proj, viewMat)
 
   #[
   shadingDsl:
@@ -720,9 +849,12 @@ while runGame:
         """
 
 
-  drawBoxes(proj, viewMat)
+  if enableBoxDrawing:
+    drawBoxes(proj, viewMat)
+
   discard TwDraw()
   glSwapWindow(window)
+
 
   if remainingFrames > 0:
     animation.frameGifAnimationGl()
