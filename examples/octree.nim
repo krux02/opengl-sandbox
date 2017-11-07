@@ -13,9 +13,6 @@ template addVarRW(bar: ptr TwBar; value: var Quatf, stuff: string = ""): void =
 
 var mouseModeToggle = true
 
-
-
-
 const enableChecks = false
 
 proc sq(arg: float32): float32 =
@@ -57,7 +54,7 @@ type
     aabb: AABB
 
   Value = object
-    pos: Vec3f
+    position: Vec3f
     color: Color
     velocity: Vec3f
     kind: IdMesh
@@ -286,10 +283,10 @@ proc divide_by_mid(t: var Tree, a,b: int32, mid: Vec3f, dim: 0..2): int32 =
 
   while true:
     # find first element from the left that should be on the right
-    while i < b and t.data[i].pos.arr[dim] < mid.arr[dim]:
+    while i < b and t.data[i].position.arr[dim] < mid.arr[dim]:
       i += 1
     # find first ellement from the right thet shuld be on the left
-    while j >= a and t.data[j].pos.arr[dim] >= mid.arr[dim]:
+    while j >= a and t.data[j].position.arr[dim] >= mid.arr[dim]:
       j -= 1
 
     if i < j:
@@ -305,14 +302,14 @@ proc divide_by_mid(t: var Tree, a,b: int32, mid: Vec3f, dim: 0..2): int32 =
 
   var fail = false
   for k in a ..< b:
-    let v1 = t.data[k].pos.arr[dim]
+    let v1 = t.data[k].position.arr[dim]
     let v2 = mid.arr[dim]
     if (v1 < v2) != (k < result):
       fail = true
   if fail:
     echo s"a $a res $result b $b"
     for k in a ..< b:
-      let v1 = t.data[k].pos.arr[dim]
+      let v1 = t.data[k].position.arr[dim]
       let v2 = mid.arr[dim]
       echo k, " ", v1 < v2
     assert(false)
@@ -340,7 +337,7 @@ proc octreeSort(this: var Tree; boundingBox: AABB; a,b: int32): array[0..8, int3
     for i in 0 ..< 8:
       let childBB = boundingBox.octreeChild(i)
       for j in result[i] ..< result[i+1]:
-        assert(childBB.contains(this.data[j].pos))
+        assert(childBB.contains(this.data[j].position))
 
 proc subtreeInit(t: var Tree; boundingBox: AABB; a,b: int32): int32 =
   result = int32(t.nodes.len)
@@ -359,14 +356,14 @@ proc init(tree: var Tree): void =
   ## expects ``data`` to be filled, the rest will be initialized
   tree.aabb = AABB(min: vec3f(Inf), max: vec3f(-Inf))
   for d in tree.data:
-    tree.aabb.incl(d.pos)
+    tree.aabb.incl(d.position)
 
   tree.nodes.reset
   discard tree.subtreeInit(tree.aabb, 0, int32(tree.data.len))
 
-proc squaredDist(box: AABB; pos: Vec3f): float32 =
+proc squaredDist(box: AABB; position: Vec3f): float32 =
   for i in 0 ..< 3:
-    let v = pos.arr[i]
+    let v = position.arr[i]
     let min = box.min.arr[i]
     let max = box.max.arr[i]
 
@@ -378,8 +375,8 @@ proc squaredDist(box: AABB; pos: Vec3f): float32 =
 proc intersect(a: AABB; b: Sphere): bool =
   squaredDist(a, b.center) < b.radius * b.radius
 
-proc intersect(a: Sphere; pos: Vec3f): bool =
-  length2(a.center - pos) <= a.radius * a.radius
+proc intersect(a: Sphere; position: Vec3f): bool =
+  length2(a.center - position) <= a.radius * a.radius
 
 proc neighborSearch(tree: Tree; node: Node; aabb: AABB; query: Sphere; skipIndex: int; dst: var seq[(int32,int32)]): void =
   if node.b <= skipIndex:
@@ -391,7 +388,7 @@ proc neighborSearch(tree: Tree; node: Node; aabb: AABB; query: Sphere; skipIndex
   if node.isLeaf:
     for i in node.a ..< node.b:
       let data = tree.data[i]
-      if intersect(query, data.pos):
+      if intersect(query, data.position):
         dst.add((int32(skipIndex), int32(i)))
   else:
     for i, idx in node.children:
@@ -402,7 +399,7 @@ proc neighborSearch(tree: Tree; node: Node; aabb: AABB; query: Sphere; skipIndex
 proc neighborSearch(tree: Tree; radius: float32; dst: var seq[(int32,int32)]): void =
   dst.reset
   for i, value in tree.data:
-    let query = Sphere(center: value.pos, radius: radius)
+    let query = Sphere(center: value.position, radius: radius)
     neighborSearch(tree, tree.nodes[0], tree.aabb, query, i, dst)
 
 
@@ -423,7 +420,7 @@ proc spiralOctree(length: int): Tree =
   ## creates a new octree with data distributed on a spiral
   result.data = newSeq[Value](length)
   for i, d in result.data.mpairs:
-    d.pos = randomSpiralPosition()
+    d.position = randomSpiralPosition()
     d.velocity = randomSpiralVelocity()
   result.init
 
@@ -449,7 +446,7 @@ bar.addVarRW cohesionFactor
 bar.addVarRW desiredseparation
 bar.addVarRW neighbordist
 bar.addVarRW maxspeed
-bar.addVarRW maxforce
+bar.addVarRW maxforce, " step = 0.01"
 bar.addVarRW enableBoxDrawing
 bar.addVarRW enableNeighbourhoodDrawing
 bar.addVarRW enableDrawForces
@@ -470,7 +467,7 @@ proc dist(a,b: Vec3f): float32 =
 ######################
 
 
-var drawForcesBuffer: ArrayBuffer[tuple[pos: Vec3f; color: Color]]
+var drawForcesBuffer: ArrayBuffer[tuple[position: Vec3f; color: Color]]
 
 proc flock(tree: var Tree): void =
   var neighborSearchResult: seq[(int32,int32)] # TODO does it need init
@@ -482,7 +479,7 @@ proc flock(tree: var Tree): void =
   var separation = newSeq[tuple[steer: Vec3f; count: int32]](tree.data.len)
 
   for i,j in neighborSearchResult.items:
-    var diff = tree.data[i].pos - tree.data[j].pos
+    var diff = tree.data[i].position - tree.data[j].position
 
     let length2 = diff.length2
 
@@ -519,20 +516,25 @@ proc flock(tree: var Tree): void =
   var align = newSeq[tuple[steer: Vec3f; count: int32; sum: Vec3f]](tree.data.len)
 
   for i,j in neighborSearchResult.items:
-    var diff: float32 = dist(tree.data[i].pos, tree.data[j].pos)
-    align[i].sum += tree.data[j].velocity
+    let position_i = tree.data[i].position
+    let v_i = tree.data[i].velocity
+    let position_j = tree.data[j].position
+    let v_j = tree.data[j].velocity
+
+    let d = dist(position_i, position_j)
+
+    align[i].sum   += v_j
     align[i].count += 1
-    align[j].sum += tree.data[i].velocity
+    align[j].sum   += v_i
     align[j].count += 1
 
   for i, it in align.mpairs:
-    if it.count > 0:
-      it.sum /= float32(it.count)
-      it.sum *= maxspeed / it.sum.length
-      it.steer = limit(it.sum - tree.data[i].velocity, maxforce)
-
+    if it.count > 0 and it.sum.length2 > 0:
+      #it.sum /= float32(it.count)
+      let tmp = normalize(it.sum) * maxspeed
+      let velocity = tree.data[i].velocity
+      it.steer = limit(tmp - velocity, maxforce)
     assert it.steer == it.steer
-
 
   # Cohesion
   # For the average position (i.e. center) of all nearby boids, calculate steering vector towards that position
@@ -540,9 +542,9 @@ proc flock(tree: var Tree): void =
   var cohesion = newSeq[tuple[steer: Vec3f; count: int32; sum: Vec3f]](tree.data.len)
 
   for i,j in neighborSearchResult.items:
-    cohesion[i].sum += tree.data[j].pos
+    cohesion[i].sum += tree.data[j].position
     cohesion[i].count += 1
-    cohesion[j].sum += tree.data[i].pos
+    cohesion[j].sum += tree.data[i].position
     cohesion[j].count += 1
 
   for i, it in cohesion.mpairs:
@@ -551,7 +553,7 @@ proc flock(tree: var Tree): void =
       # seek
       let target = it.sum / float32(it.count)
       # A vector pointing from the position to the target
-      var desired = target - tree.data[i].pos
+      var desired = target - tree.data[i].position
       assert desired == desired
 
       # Scale to maximum speed
@@ -570,10 +572,10 @@ proc flock(tree: var Tree): void =
     tree.data[i].acceleration += tup.steer * cohesionFactor
 
   if enableDrawForces:
-    var data = newSeqOfCap[tuple[pos: Vec3f; color: Color]](tree.data.len * 2 * 3)
+    var data = newSeqOfCap[tuple[position: Vec3f; color: Color]](tree.data.len * 2 * 3)
 
     for i, it in tree.data:
-      let center = it.pos
+      let center = it.position
       let colors = [
         Color(r: 255, g: 0, b: 0),
         Color(r: 0, g: 255, b: 0),
@@ -581,12 +583,12 @@ proc flock(tree: var Tree): void =
       ]
 
 
-      data.add( (pos: center, color: colors[0]) )
-      data.add( (pos: center + separation[i].steer, color: colors[0]) )
-      data.add( (pos: center, color: colors[1]) )
-      data.add( (pos: center + align[i].steer, color: colors[1]) )
-      data.add( (pos: center, color: colors[2]) )
-      data.add( (pos: center + cohesion[i].steer, color: colors[2]) )
+      data.add( (position: center, color: colors[0]) )
+      data.add( (position: center + separation[i].steer, color: colors[0]) )
+      data.add( (position: center, color: colors[1]) )
+      data.add( (position: center + align[i].steer, color: colors[1]) )
+      data.add( (position: center, color: colors[2]) )
+      data.add( (position: center + cohesion[i].steer, color: colors[2]) )
 
 
     if drawForcesBuffer.handle == 0:
@@ -601,7 +603,7 @@ proc flock(tree: var Tree): void =
 
     # Limit speed
     node.velocity = limit(node.velocity, maxspeed);
-    node.pos += node.velocity;
+    node.position += node.velocity;
     # Reset accelertion to 0 each cycle
     node.acceleration = vec3f(0)
 
@@ -615,7 +617,7 @@ proc flock(tree: var Tree): void =
 initMeshes()
 
 var treeDataBuffer = arrayBuffer(tree.data, GL_STREAM_DRAW)
-let posBuffer      = treeDataBuffer.view(pos)
+let posBuffer      = treeDataBuffer.view(position)
 
 for value in tree.data.mitems:
   value.color.r = rand_u8()
@@ -688,8 +690,8 @@ proc drawBoxes(proj,modelView: Mat4f): void =
       a_min = boxesMinView {.divisor: 1.}
     vertexMain:
       """
-      vec4 pos_ws = vec4(mix(a_min, a_max, a_vertex.xyz), 1);
-      gl_Position = modelViewProj * pos_ws;
+      vec4 position_ws = vec4(mix(a_min, a_max, a_vertex.xyz), 1);
+      gl_Position = modelViewProj * position_ws;
       """
     fragmentMain:
       """
@@ -817,12 +819,11 @@ while runGame:
     mapWriteBlock(buffer):
       for value in tree.data:
         if value.kind == meshId:
-          buffer[i].offset = value.pos
+          buffer[i].offset = value.position
           buffer[i].color  = value.color
           i += 1
 
     shadingDsl:
-      debug
       primitiveMode = GL_TRIANGLES
       numVertices = mesh.numVertices
       vertexOffset = mesh.vertexOffset
@@ -870,7 +871,7 @@ while runGame:
       uniforms:
         modelViewProj = proj * modelView
       attributes:
-        a_vertex = drawForcesBuffer.view(pos)
+        a_vertex = drawForcesBuffer.view(position)
         a_color = drawForcesBuffer.view(color)
       vertexMain:
         """
