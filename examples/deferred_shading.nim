@@ -60,7 +60,7 @@ var
 camera.pos.z   = hm[0,0] + 10
 cameraControls.speed = 0.4'f32
 
-addEventWatch(cameraControlEventWatch, cast[pointer](cameraControls.addr))
+addEventWatch(cameraControlEventWatch, cameraControls.addr)
 
 for color in lightColors.mitems:
   color = vec3f(rand_f32(), rand_f32(), rand_f32())

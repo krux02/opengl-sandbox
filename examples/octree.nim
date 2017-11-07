@@ -11,12 +11,10 @@ template addVarRW(bar: ptr TwBar; value: var bool, stuff: string = ""): void =
 template addVarRW(bar: ptr TwBar; value: var Quatf, stuff: string = ""): void =
   discard TwAddVarRW(bar,astToStr(value), TW_TYPE_QUAT4F, value.addr, stuff)
 
-iterator twFilteredSdl2Events(): Event =
-  ## same as the default sdl2 event iterator, it just consumes events in AntTweakBar
-  var event: Event
-  while pollEvent(event.addr) != 0:
-    if TwEventSDL(cast[pointer](event.addr), 2.cuchar, 0.cuchar) == 0:
-      yield event
+var mouseModeToggle = true
+
+
+
 
 const enableChecks = false
 
@@ -100,11 +98,12 @@ var alignFactor                = 1.0f
 var cohesionFactor             = 1.0f
 var desiredseparation          = 25.0f
 var neighbordist               = 50.0f
-var r                          = 2.0f
 var maxspeed                   = 2.0f
 var maxforce                   = 0.03f
-var enableBoxDrawing           = true
-var enableNeighbourhoodDrawing = true
+var enableBoxDrawing           = false
+var enableNeighbourhoodDrawing = false
+var enableDrawForces           = false
+var stepSimulation             = false
 
 proc initMeshes(): void =
   const numSegments = 32
@@ -431,8 +430,8 @@ proc spiralOctree(length: int): Tree =
 var tree = spiralOctree(1000)
 
 let (window, context) = defaultSetup()
+discard setRelativeMouseMode(mouseModeToggle)
 
-discard setRelativeMouseMode(true)
 
 if TwInit(TW_OPENGL_CORE, nil) == 0:
   quit("could not initialize AntTweakBar: " & $TwGetLastError())
@@ -449,11 +448,12 @@ bar.addVarRW alignFactor
 bar.addVarRW cohesionFactor
 bar.addVarRW desiredseparation
 bar.addVarRW neighbordist
-bar.addVarRW r
 bar.addVarRW maxspeed
 bar.addVarRW maxforce
 bar.addVarRW enableBoxDrawing
 bar.addVarRW enableNeighbourhoodDrawing
+bar.addVarRW enableDrawForces
+bar.addVarRW stepSimulation
 
 proc limit(arg: Vec3f; maxlength: float32): Vec3f =
   let len2 = arg.length2
@@ -469,6 +469,8 @@ proc dist(a,b: Vec3f): float32 =
 # Flocking Behiviour #
 ######################
 
+
+var drawForcesBuffer: ArrayBuffer[tuple[pos: Vec3f; color: Color]]
 
 proc flock(tree: var Tree): void =
   var neighborSearchResult: seq[(int32,int32)] # TODO does it need init
@@ -566,6 +568,45 @@ proc flock(tree: var Tree): void =
     tree.data[i].acceleration += tup.steer * alignFactor
   for i, tup in cohesion:
     tree.data[i].acceleration += tup.steer * cohesionFactor
+
+  if enableDrawForces:
+    var data = newSeqOfCap[tuple[pos: Vec3f; color: Color]](tree.data.len * 2 * 3)
+
+    for i, it in tree.data:
+      let center = it.pos
+      let colors = [
+        Color(r: 255, g: 0, b: 0),
+        Color(r: 0, g: 255, b: 0),
+        Color(r: 0, g: 0, b: 255)
+      ]
+
+
+      data.add( (pos: center, color: colors[0]) )
+      data.add( (pos: center + separation[i].steer, color: colors[0]) )
+      data.add( (pos: center, color: colors[1]) )
+      data.add( (pos: center + align[i].steer, color: colors[1]) )
+      data.add( (pos: center, color: colors[2]) )
+      data.add( (pos: center + cohesion[i].steer, color: colors[2]) )
+
+
+    if drawForcesBuffer.handle == 0:
+      drawForcesBuffer = arrayBuffer(data)
+    else:
+      drawForcesBuffer.setData(data)
+
+  # apply flocking forces to velocity and velocity to position
+  for node in tree.data.mitems:
+    # Update velocity
+    node.velocity += node.acceleration
+
+    # Limit speed
+    node.velocity = limit(node.velocity, maxspeed);
+    node.pos += node.velocity;
+    # Reset accelertion to 0 each cycle
+    node.acceleration = vec3f(0)
+
+  # when the positions update the tree needs to be rebuild
+  tree.init
 
 ##########################
 # End Flocking Behiviour #
@@ -693,10 +734,16 @@ import gifh
 
 var animation: GifAnimation
 var remainingFrames = 0
+var remainingSimulationSteps = 0
 
 while runGame:
 
-  for evt in twFilteredSdl2Events():
+  discard showCursor(if mouseModeToggle: 1 else: 0)
+  var evt: Event
+  while pollEvent(evt.addr) != 0:
+    if not mouseModeToggle and TwEventSDL(cast[pointer](evt.addr), 2.cuchar, 0.cuchar) != 0:
+      continue
+
     if evt.kind == QUIT:
       runGame = false
       break
@@ -710,50 +757,40 @@ while runGame:
         discard
         #animation = window.startGifAnimation(delay = 1, dither = false)
         #remainingFrames = 100
+      of SCANCODE_1:
+        enableBoxDrawing           = not enableBoxDrawing
+      of SCANCODE_2:
+        enableNeighbourhoodDrawing = not enableNeighbourhoodDrawing
+      of SCANCODE_3:
+        enableDrawForces           = not enableDrawForces
+      of SCANCODE_4:
+        stepSimulation             = not stepSimulation
+      of SCANCODE_SPACE:
+        if stepSimulation:
+          remainingSimulationSteps += 1
       else:
         discard
 
     if evt.kind == MOUSE_BUTTON_DOWN:
       case evt.button.button
       of 3:
-        var toggle {. global .} = false
-        toggle = not toggle
-        discard setRelativeMouseMode(toggle)
+        mouseModeToggle = not mouseModeToggle
+        discard setRelativeMouseMode(mouseModeToggle)
       else:
         discard
 
   #let time = timer.time.float32
 
-  camera.update(cameraControls)
+  if mouseModeToggle:
+    camera.update(cameraControls)
 
-  #let viewMat = tmp * mat4f(1)
-  #  .translate(vec3f(0,-1,-5) * scale)
-  #  #.rotateX(rotationX)
-  #  #.rotateY(rotationY)
-  #  .scale(0.01)
-
-
-  block update:
+  if stepSimulation:
+    while remainingSimulationSteps > 0:
+      remainingSimulationSteps -= 1
+      tree.flock()
+  else:
     tree.flock()
 
-    for node in tree.data.mitems:
-      # Update velocity
-      node.velocity += node.acceleration
-
-      # Limit speed
-      node.velocity = limit(node.velocity, maxspeed);
-      node.pos += node.velocity;
-      # Reset accelertion to 0 each cycle
-      node.acceleration = vec3f(0)
-      #[
-
-    #let s = sin(2 * Pi * 0.0001'f32)
-    #let c = cos(2 * Pi * 0.0001'f32)
-    #let mat = mat2(vec2(c,s), vec2(-s,c))
-    #for node in tree.data.mitems:
-    #  node.pos.xy = mat * node.pos.xy
-  ]#
-  tree.init
   treeDataBuffer.setData(tree.data)
 
 
@@ -761,38 +798,11 @@ while runGame:
   #objectDataBuffer.setData(objectDataSeq)
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
-  let viewMat = camera.viewMat
+  let modelView = camera.viewMat
 
   if enableNeighbourhoodDrawing:
-    drawNeighborhood(proj, viewMat)
+    drawNeighborhood(proj, modelView)
 
-  #[
-  shadingDsl:
-    primitiveMode = GL_POINTS
-    numVertices = tree.data.len
-    uniforms:
-      modelView = viewMat
-      proj
-    attributes:
-      a_vertex = posBuffer
-      a_color  = colorsBuffer
-    vertexMain:
-      """
-      gl_Position = proj * modelView * vec4(a_vertex, 1);
-      //gl_Position = a_vertex;
-      v_color = a_color;
-      """
-    vertexOut:
-      "out vec4 v_color"
-    fragmentMain:
-      """
-      color = v_color;
-      """
-  ]#
-
-  #for i, node in worldNodes:
-  #  let mesh = meshes[i]
-  let meshDeform = mat4f(1)
   var buffer = newArrayBuffer[tuple[offset: Vec3f, color: Color]](tree.data.len)
   defer:
     buffer.delete
@@ -822,8 +832,7 @@ while runGame:
 
       uniforms:
         proj
-        view = viewMat
-        meshDeform
+        view = modelView
 
       attributes:
         a_vertex = vertices
@@ -834,7 +843,7 @@ while runGame:
 
       vertexMain:
         """
-        gl_Position = proj * view * (meshDeform * a_vertex + vec4(instancePos,0));
+        gl_Position = proj * view * (a_vertex + vec4(instancePos,0));
         v_normal = normalize(view * a_normal);
         v_color = a_color * instanceColor;
         """
@@ -850,11 +859,34 @@ while runGame:
 
 
   if enableBoxDrawing:
-    drawBoxes(proj, viewMat)
+    drawBoxes(proj, modelView)
+
+  if enableDrawForces:
+    glDisable(GL_DEPTH_TEST)
+
+    shadingDsl:
+      primitiveMode = GL_LINES
+      numVertices = drawForcesBuffer.len
+      uniforms:
+        modelViewProj = proj * modelView
+      attributes:
+        a_vertex = drawForcesBuffer.view(pos)
+        a_color = drawForcesBuffer.view(color)
+      vertexMain:
+        """
+        gl_Position = modelViewProj * vec4(a_vertex, 1);
+        v_color = a_color;
+        """
+      vertexOut:
+        "out vec4 v_color"
+      fragmentMain:
+        """
+        color = v_color;
+        """
+    glEnable(GL_DEPTH_TEST)
 
   discard TwDraw()
   glSwapWindow(window)
-
 
   if remainingFrames > 0:
     animation.frameGifAnimationGl()

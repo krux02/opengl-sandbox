@@ -494,8 +494,9 @@ proc setData*[T](buffer: UniformBuffer[T], data: T) =
 
 proc len*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]) : int =
   var size: GLint
-  glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_SIZE, size.addr)
-  return size.int div sizeof(T).int
+  if buffer.handle != 0:
+    glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_SIZE, size.addr)
+    result = int(size) div int(sizeof(T))
 
 proc access*[T](buffer: ArrayBuffer[T]) : GLenum =
   var tmp: GLint
