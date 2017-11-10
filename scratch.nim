@@ -1,4 +1,4 @@
-import glm, future, algorithm, macros
+import glm, future, algorithm, macros, strutils
 
 type
   Mesh[VertexType] = object
@@ -13,9 +13,9 @@ type
     color: Vec4f
 
   GlslConstraint = enum
-    gcCPU
-    gcVS
     gcFS
+    gcVS
+    gcCPU
 
 
 proc newLit(arg: GlslConstraint): NimNode {.compileTime.} =
@@ -26,6 +26,17 @@ proc newLit(arg: GlslConstraint): NimNode {.compileTime.} =
     return bindSym"gcVS"
   of gcFS:
     return bindSym"gcFS"
+
+proc enumVal(arg: NimNode): GlslConstraint {.compileTime.} =
+  if arg == bindSym("gcCPU"):
+    return gcCPU
+  if arg == bindSym("gcVS"):
+    return gcVS
+  if arg == bindSym("gcFS"):
+    return gcFS
+  error("cannot find the correct value in GlslConstraint", arg)
+
+
 
 proc transform_to_single_static_assignment(arg: NimNode): NimNode =
   ## Transforms the argument AST into a list of assignments. The
@@ -57,28 +68,27 @@ proc transform_to_single_static_assignment(arg: NimNode): NimNode =
   return assignments
 
 proc withConstraint(node:NimNode; min, max: GlslConstraint): NimNode =
-  if node.kind == nnkLetSection:
-    node.expectLen(1)
-    node[0].expectKind(nnkIdentDefs)
-    result = node
-    result[0][0] = node[0][0].withConstraint(min,max)
-    return
-  if node.kind == nnkAsgn:
-    node.expectLen(2)
-    result = node
-    result[0] = result[0].withConstraint(min,max)
-    return
-  if node.kind in {nnkDotExpr, nnkSym, nnkIdent}:
-    return nnkPragmaExpr.newTree(
-      node,
-      nnkPragma.newTree(newLit(min), newLit(max))
-    )
   if node.kind == nnkPragmaExpr:
     # there is already a given constraint.
     # check if it is valid.
     node.expectLen(2)
-    node[1].expectLen(2)
-    return node
+    let pragma = node[1]
+    pragma.expectLen(2)
+
+    ## TODO do some math here
+    let oldMin: GlslConstraint = pragma[0].enumVal
+    let oldMax: GlslConstraint = pragma[1].enumVal
+
+    return nnkPragmaExpr.newTree(
+      node[0],
+      nnkPragma.newTree(newLit( max(min, oldMin)), newLit(min(max, oldMax)))
+    )
+  else:
+    return nnkPragmaExpr.newTree(
+      node,
+      nnkPragma.newTree(newLit(min), newLit(max))
+    )
+
 
 proc inject_constraints(arg: NimNode): NimNode {.compileTime.} =
   ## expects an ast in single static assignment form and adds to each
@@ -91,18 +101,69 @@ proc inject_constraints(arg: NimNode): NimNode {.compileTime.} =
     result.add withConstraint(asgn, gcFS, gcCPU)
 
 
-proc resolve_constraints(arg: NimNode): NimNode {.compileTime.} =
-  ## TODO resolve constraints on each nodes
-  error("not implemented")
+proc resolve_constraints(arg, glSym, resultSym: NimNode): NimNode {.compileTime.} =
+  arg.expectKind(nnkStmtList)
+  result = newStmtList()
+  for pragmaExpr in arg:
+    pragmaExpr.expectKind nnkPragmaExpr
+    let asgn = pragmaExpr[0]
+    asgn.expectKind({nnkAsgn, nnkLetSection})
+    if asgn.kind == nnkAsgn:
+      let dotExpr = asgn[0]
+      dotExpr.expectKind nnkDotExpr
+      let lhsSym = if dotExpr[0].kind == nnkHiddenDeref: dotExpr[0][0] else: dotExpr[0]
+      lhsSym.expectKind nnkSym
+      if cmpIgnoreStyle($lhsSym, $glSym) == 0:
+        warning "no real symbol resolution of " & $glSym # , lhsSym
+        result.add pragmaExpr.withConstraint(gcVS, gcVS)
+      elif lhsSym == resultSym:
+        result.add pragmaExpr.withConstraint(gcFS, gcFS)
+      else:
+        error("needs to be result or gl", lhsSym)
+    else:
+      result.add pragmaExpr
+
+  ## TODO this is not resolving anything except setting basic constraints
+
+proc createGlslMain(arg: NimNode): string {.compileTime.} =
+  result = "void main() {\n"
+
+  for assignment in arg:
+    echo assignment.treeRepr
+
+    echo assignment[0].getTypeInst.treeRepr
+    echo assignment[0][0].getTypeInst.treeRepr
+    echo assignment[0][2].getTypeInst.repr
+
+
+proc strip_pragma_expressions(arg: NimNode): NimNode {.compileTime.} =
+  arg.expectKind nnkStmtList
+  result = newStmtList()
+  for pragmaExpr in arg:
+    pragmaExpr.expectKind  nnkPragmaExpr
+    result.add pragmaExpr[0]
+
+
+
+macro render_even_more_inner(arg: typed): untyped =
+  let stmtList = arg[6]
+  let glslMain = createGlslMain(stmtList)
+  echo glslMain
+
+
 
 macro render_inner(mesh, arg: typed): untyped =
   let ssaList1 = transform_to_single_static_assignment(arg[6])
   let ssaList2 = inject_constraints(ssaList1)
-  let ssaList3 = resolve_constraints(ssaList2)
+  let resultSym = arg.last
+  let glSym = arg[3][2][0]
+  let ssaList3 = resolve_constraints(ssaList2, glSym, resultSym)
+  echo ssaList3.repr
 
-  echo ssaList2.repr
+  let newArg = arg
+  newArg[6] = strip_pragma_expressions(ssaList3)
 
-  error("not implemented")
+  result = newCall(bindSym"render_even_more_inner", newArg)
 
 proc `or`(arg, alternative: NimNode): NimNode =
   if arg.kind != nnkEmpty:
@@ -195,25 +256,25 @@ type
     handle: uint32
 
 proc texture(sampler: Texture2D;            P: Vec2f; bias: float32 = 0): Vec4f =
-  quit("only implemented on gpu")
+  quit("only implemented in shader")
 
 proc texture(sampler: Texture3D;            P: Vec3f; bias: float32 = 0): Vec4f =
-  quit("only implemented on gpu")
+  quit("only implemented in shader")
 
 proc texture(sampler: TextureCube;          P: Vec3f; bias: float32 = 0): Vec4f =
-  quit("only implemented on gpu")
+  quit("only implemented in shader")
 
 proc texture(sampler: Texture2DShadow;      P: Vec3f; bias: float32 = 0): Vec4f =
-  quit("only implemented on gpu")
+  quit("only implemented in shader")
 
 proc texture(sampler: TextureCubeShadow;    P: Vec4f; bias: float32 = 0): Vec4f =
-  quit("only implemented on gpu")
+  quit("only implemented in shader")
 
 proc texture(sampler: Texture2DArray;       P: Vec3f; bias: float32 = 0): Vec4f =
-  quit("only implemented on gpu")
+  quit("only implemented in shader")
 
 proc texture(sampler: Texture2DArrayShadow; P: Vec4f): Vec4f =
-  quit("only implemented on gpu")
+  quit("only implemented in shader")
 
 ## user code ##
 
@@ -231,10 +292,7 @@ type
   MyMesh        = Mesh[MyVertexType]
   MyFramebuffer = Framebuffer[MyFragmentType]
 
-
-
 var myTexture: Texture2D
-
 
 var mesh: MyMesh
 
