@@ -1,4 +1,4 @@
-import glm, future, algorithm, macros, strutils
+import glm, future, algorithm, macros, strutils, tables
 
 type
   Mesh[VertexType] = object
@@ -8,7 +8,6 @@ type
   GlEnvironment = object
     Position: Vec4f
 
-
   DefaultFragmentType = object
     color: Vec4f
 
@@ -17,6 +16,7 @@ type
     gcVS
     gcCPU
 
+  ConstraintRange = tuple[min,max: GlslConstraint]
 
 proc newLit(arg: GlslConstraint): NimNode {.compileTime.} =
   case arg
@@ -37,6 +37,44 @@ proc enumVal(arg: NimNode): GlslConstraint {.compileTime.} =
   error("cannot find the correct value in GlslConstraint", arg)
 
 
+proc glslType(arg: NimNode): string {.compileTime.} =
+  if arg == bindSym"float32":
+    return "float"
+  if arg == bindSym"Vec2f":
+    return "vec2"
+  if arg == bindSym"Vec3f":
+    return "vec3"
+  if arg == bindSym"Vec4f":
+    return "vec4"
+  elif arg.kind == nnkBracketExpr:
+    if arg[0] == bindSym"Vec":
+      if arg[2] == bindSym"float32":
+        result = "vec"
+      elif arg[2] == bindSym"float64":
+        result = "dvec"
+      elif arg[2] == bindSym"int32":
+        result = "ivec"
+      elif arg[2] == bindSym"bool":
+        result = "bvec"
+
+      arg[1].expectKind nnkIntLit
+      let intVal = arg[1].intVal
+      if 4 < intVal or intVal < 2:
+        error "not compatible", arg
+
+      result.add intVal
+    else:
+      return "<error type 1>"
+  else:
+    echo arg.treeRepr
+    return "<error type 2>"
+
+
+proc newLetStmt(name, typ, value: NimNode): NimNode {.compiletime.} =
+  ## Create a new let stmt
+  return nnkLetSection.newTree(
+    nnkIdentDefs.newTree(name, typ, value)
+  )
 
 proc transform_to_single_static_assignment(arg: NimNode): NimNode =
   ## Transforms the argument AST into a list of assignments. The
@@ -48,12 +86,13 @@ proc transform_to_single_static_assignment(arg: NimNode): NimNode =
   var assignments = newStmtList()
 
   proc genSymForExpression(arg: NimNode): NimNode =
+    let typ = arg.getTypeInst
     if arg.kind in nnkCallKinds or arg.kind == nnkDotExpr:
       result = genSym(nskLet, "tmp")
       let call = arg.kind.newTree(arg[0])
       for i in 1 ..< arg.len:
         call.add(genSymForExpression(arg[i]))
-      assignments.add(newLetStmt(result, call))
+      assignments.add(newLetStmt(result, typ, call))
     else:
       result = arg
 
@@ -89,52 +128,60 @@ proc withConstraint(node:NimNode; min, max: GlslConstraint): NimNode =
       nnkPragma.newTree(newLit(min), newLit(max))
     )
 
-
-proc inject_constraints(arg: NimNode): NimNode {.compileTime.} =
-  ## expects an ast in single static assignment form and adds to each
-  ## nodes to store information about the constraint
-
-  arg.expectKind nnkStmtList
-
-  result = newStmtList()
-  for asgn in arg:
-    result.add withConstraint(asgn, gcFS, gcCPU)
-
-
-proc resolve_constraints(arg, glSym, resultSym: NimNode): NimNode {.compileTime.} =
-  arg.expectKind(nnkStmtList)
-  result = newStmtList()
-  for pragmaExpr in arg:
-    pragmaExpr.expectKind nnkPragmaExpr
-    let asgn = pragmaExpr[0]
-    asgn.expectKind({nnkAsgn, nnkLetSection})
-    if asgn.kind == nnkAsgn:
-      let dotExpr = asgn[0]
-      dotExpr.expectKind nnkDotExpr
-      let lhsSym = if dotExpr[0].kind == nnkHiddenDeref: dotExpr[0][0] else: dotExpr[0]
-      lhsSym.expectKind nnkSym
-      if cmpIgnoreStyle($lhsSym, $glSym) == 0:
-        warning "no real symbol resolution of " & $glSym # , lhsSym
-        result.add pragmaExpr.withConstraint(gcVS, gcVS)
-      elif lhsSym == resultSym:
-        result.add pragmaExpr.withConstraint(gcFS, gcFS)
-      else:
-        error("needs to be result or gl", lhsSym)
+proc withDefaultConstraint(asgn, glSym, resultSym:NimNode): NimNode {.compileTime.}=
+  if asgn.kind == nnkPragmaExpr:
+    result = asgn
+    result[1].expectKind nnkPragma
+    result[1].expectLen 2
+  elif asgn.kind == nnkAsgn:
+    let dotExpr = asgn[0]
+    dotExpr.expectKind nnkDotExpr
+    let lhsSym = if dotExpr[0].kind == nnkHiddenDeref: dotExpr[0][0] else: dotExpr[0]
+    lhsSym.expectKind nnkSym
+    if cmpIgnoreStyle($lhsSym, $glSym) == 0:
+      warning "no real symbol resolution of " & $glSym # , lhsSym
+      return asgn.withConstraint(gcVS, gcVS)
+    elif lhsSym == resultSym:
+      return asgn.withConstraint(gcFS, gcFS)
     else:
-      result.add pragmaExpr
+      error("needs to be result or gl", lhsSym)
 
-  ## TODO this is not resolving anything except setting basic constraints
+  else:
+    return nnkPragmaExpr.newTree(
+      asgn,
+      nnkPragma.newTree(newLit(gcFS), newLit(gcCPU))
+    )
 
 proc createGlslMain(arg: NimNode): string {.compileTime.} =
   result = "void main() {\n"
-
   for assignment in arg:
-    echo assignment.treeRepr
+    var line = "    "
+    if assignment.kind == nnkLetSection:
+      line.add assignment[0][1].glslType
+      line.add " "
+      line.add assignment[0][0].repr
+      line.add " = "
+      line.add assignment[0][2].repr
+    elif assignment.kind == nnkAsgn:
+      assignment[0].expectKind nnkDotExpr
+      let dotExpr = assignment[0]
+      let lhsSym = dotExpr[0]
+      if cmpIgnoreStyle(lhsSym.repr, "result") == 0:
+        line.add dotExpr[1].repr
+      elif cmpIgnoreStyle(lhsSym.repr, "gl") == 0:
+        line.add "gl_" & dotExpr[1].repr
+      line.add " = "
+      line.add assignment[1].repr
+    else:
+      error "Achim", assignment
+    line.add ";\n"
+    result.add line
+  result.add "}\n"
 
-    echo assignment[0].getTypeInst.treeRepr
-    echo assignment[0][0].getTypeInst.treeRepr
-    echo assignment[0][2].getTypeInst.repr
-
+macro render_even_more_inner(arg: typed): untyped =
+  let stmtList = arg[6]
+  let glslMain = createGlslMain(stmtList)
+  echo glslMain
 
 proc strip_pragma_expressions(arg: NimNode): NimNode {.compileTime.} =
   arg.expectKind nnkStmtList
@@ -145,25 +192,39 @@ proc strip_pragma_expressions(arg: NimNode): NimNode {.compileTime.} =
 
 
 
-macro render_even_more_inner(arg: typed): untyped =
-  let stmtList = arg[6]
-  let glslMain = createGlslMain(stmtList)
-  echo glslMain
+#framebuffer.render(mesh) do (v, gl):
+#  gl.Position = mvp * v.position
+#  result.color = texture(myTexture, v.texCoord)
 
+static:
+  # not really great, software design.
+  # this table is creater in each call to the render macro and used used to store the constraints of symbols.
+  var constraintsTable = initTable[NimNode,ConstraintRange]()
+  constraintsTable.clear
 
 
 macro render_inner(mesh, arg: typed): untyped =
   let ssaList1 = transform_to_single_static_assignment(arg[6])
-  let ssaList2 = inject_constraints(ssaList1)
+
   let resultSym = arg.last
   let glSym = arg[3][2][0]
-  let ssaList3 = resolve_constraints(ssaList2, glSym, resultSym)
-  echo ssaList3.repr
 
+  # make each assingnment into an assignment that has constraint
+  # attached to it
+  ssaList1.expectKind nnkStmtList
+  let ssaList2 = newStmtList()
+
+
+  for asgn in ssaList1:
+    ssaList2.add withDefaultConstraint(asgn, glSym, resultSym)
+
+  #let ssaList3 = resolve_constraints(ssaList2, glSym, resultSym)
   let newArg = arg
-  newArg[6] = strip_pragma_expressions(ssaList3)
+  newArg[6] = strip_pragma_expressions(ssaList2)
 
   result = newCall(bindSym"render_even_more_inner", newArg)
+
+  #echo result.repr
 
 proc `or`(arg, alternative: NimNode): NimNode =
   if arg.kind != nnkEmpty:
@@ -186,8 +247,6 @@ proc injectTypes(framebuffer, mesh, arg: NimNode): NimNode =
   let resultType = formalParams[0] or fragmentTypeExpr
 
   var vertexArg, vertexType, envArg, envType: NimNode
-
-
 
   case formalParams.len
   of 2:
@@ -255,31 +314,30 @@ type
   Texture2DArrayShadow = object
     handle: uint32
 
-proc texture(sampler: Texture2D;            P: Vec2f; bias: float32 = 0): Vec4f =
+proc texture*(sampler: Texture2D;            P: Vec2f; bias: float32 = 0): Vec4f =
   quit("only implemented in shader")
 
-proc texture(sampler: Texture3D;            P: Vec3f; bias: float32 = 0): Vec4f =
+proc texture*(sampler: Texture3D;            P: Vec3f; bias: float32 = 0): Vec4f =
   quit("only implemented in shader")
 
-proc texture(sampler: TextureCube;          P: Vec3f; bias: float32 = 0): Vec4f =
+proc texture*(sampler: TextureCube;          P: Vec3f; bias: float32 = 0): Vec4f =
   quit("only implemented in shader")
 
-proc texture(sampler: Texture2DShadow;      P: Vec3f; bias: float32 = 0): Vec4f =
+proc texture*(sampler: Texture2DShadow;      P: Vec3f; bias: float32 = 0): Vec4f =
   quit("only implemented in shader")
 
-proc texture(sampler: TextureCubeShadow;    P: Vec4f; bias: float32 = 0): Vec4f =
+proc texture*(sampler: TextureCubeShadow;    P: Vec4f; bias: float32 = 0): Vec4f =
   quit("only implemented in shader")
 
-proc texture(sampler: Texture2DArray;       P: Vec3f; bias: float32 = 0): Vec4f =
+proc texture*(sampler: Texture2DArray;       P: Vec3f; bias: float32 = 0): Vec4f =
   quit("only implemented in shader")
 
-proc texture(sampler: Texture2DArrayShadow; P: Vec4f): Vec4f =
+proc texture*(sampler: Texture2DArrayShadow; P: Vec4f): Vec4f =
   quit("only implemented in shader")
 
 ## user code ##
 
 type
-
   MyFragmentType = object
     color: Vec4f
 
@@ -299,6 +357,14 @@ var mesh: MyMesh
 var framebuffer: MyFramebuffer
 
 var mvp: Mat4f
+
+render_even_more_inner do (v: type(mesh).VertexType; gl: var GlEnvironment) -> type(framebuffer).FragmentType:
+  let tmp232475: Vec4f = v.position
+  let tmp232474: Vec[4, float32] = mvp * tmp232475
+  let tmp232473: Vec[4, float32] = normalize(tmp232474)
+  let tmp232472: Vec[4, float32] = normalize(tmp232473)
+  gl.Position = normalize(tmp232472)
+  result.color = v.color
 
 framebuffer.render(mesh) do (v, gl):
   gl.Position = (mvp * v.position).normalize.normalize.normalize
