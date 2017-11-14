@@ -1,0 +1,21 @@
+
+
+
+# Work on ast transformation to single static assignments
+
+
+notes from before. The AST from the macro shoulld be transformed into
+a list of single static assingments. Each assingment/identifier should
+a have constraint that declares, wher the value can be calculated.
+
+a value can be calculated on the CPU, the Fragment-Shader, or the
+Vertex-Shader.
+
+2017-11-14
+
+The AST can be transformed to single static assignments. Typechecking
+the AST removes pragma expressions, that means I can't use pragma
+expressions to store the constraints. My solution to this problem is
+to create a table that maps from symbols of the ast to the
+constraints. The table needs to be cleared each time the macro is
+called.
