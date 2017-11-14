@@ -38,15 +38,7 @@ proc enumVal(arg: NimNode): GlslConstraint {.compileTime.} =
 
 
 proc glslType(arg: NimNode): string {.compileTime.} =
-  if arg == bindSym"float32":
-    return "float"
-  if arg == bindSym"Vec2f":
-    return "vec2"
-  if arg == bindSym"Vec3f":
-    return "vec3"
-  if arg == bindSym"Vec4f":
-    return "vec4"
-  elif arg.kind == nnkBracketExpr:
+  if arg.kind == nnkBracketExpr:
     if arg[0] == bindSym"Vec":
       if arg[2] == bindSym"float32":
         result = "vec"
@@ -61,14 +53,45 @@ proc glslType(arg: NimNode): string {.compileTime.} =
       let intVal = arg[1].intVal
       if 4 < intVal or intVal < 2:
         error "not compatible", arg
-
       result.add intVal
+
+    elif arg[0] == bindSym"Mat":
+      if arg[2] == bindSym"float32":
+        result = "mat"
+      elif arg[2] == bindSym"float64":
+        result = "dmat"
+      elif arg[2] == bindSym"int32":
+        result = "imat"
+      elif arg[2] == bindSym"bool":
+        result = "bmat"
+
+      arg[1].expectKind nnkIntLit
+      arg[2].expectKind nnkIntLit
+
+      let intVal1 = arg[1].intVal
+      let intVal2 = arg[2].intVal
+
+      if 4 < intVal1 or intVal1 < 2:
+        error "not compatible", arg
+      if 4 < intVal2 or intVal2 < 2:
+        error "not compatible", arg
+
+      result.add intVal1
+      result.add "x"
+      result.add intVal2
     else:
       return "<error type 1>"
+  elif arg == bindSym"float32":
+    return "float"
+  elif arg == bindSym"Vec2f":
+    return "vec2"
+  elif arg == bindSym"Vec3f":
+    return "vec3"
+  elif arg == bindSym"Vec4f":
+    return "vec4"
   else:
     echo arg.treeRepr
     return "<error type 2>"
-
 
 proc newLetStmt(name, typ, value: NimNode): NimNode {.compiletime.} =
   ## Create a new let stmt
@@ -106,6 +129,38 @@ proc transform_to_single_static_assignment(arg: NimNode): NimNode =
 
   return assignments
 
+
+static:
+  # not really great, software design.
+  # this table is creater in each call to the render macro and used used to store the constraints of symbols.
+  var constraintsTable = initTable[NimNode,ConstraintRange]()
+  constraintsTable.clear
+
+import hashes
+proc hash(arg: NimNode): Hash =
+  result = result !& arg.kind.int
+  case arg.kind
+  of nnkCharLit..nnkUInt64Lit:
+    result = result !& hash(arg.intVal)
+  of nnkFloatLit..nnkFloat64Lit:
+    result = result !& hash(arg.floatVal)
+  of nnkStrLit..nnkTripleStrLit:
+    result = result !& hash(arg.strVal)
+  of nnkSym, nnkIdent:
+    result = result !& hashIgnoreStyle(arg.repr)
+  else:
+    for child in arg.children:
+      result = result !& hash(child)
+    result = !$result
+
+
+proc `constraint=`(arg:NimNode, constraint: ConstraintRange): void =
+  constraintsTable[arg] = constraint
+
+proc constraint(arg:NimNode): ConstraintRange =
+  constraintsTable[arg]
+
+#[
 proc withConstraint(node:NimNode; min, max: GlslConstraint): NimNode =
   if node.kind == nnkPragmaExpr:
     # there is already a given constraint.
@@ -127,30 +182,33 @@ proc withConstraint(node:NimNode; min, max: GlslConstraint): NimNode =
       node,
       nnkPragma.newTree(newLit(min), newLit(max))
     )
+]#
 
-proc withDefaultConstraint(asgn, glSym, resultSym:NimNode): NimNode {.compileTime.}=
+proc withDefaultConstraint(asgn, glSym, resultSym: NimNode): NimNode {.compileTime.} =
+  result = asgn
   if asgn.kind == nnkPragmaExpr:
-    result = asgn
-    result[1].expectKind nnkPragma
-    result[1].expectLen 2
+    asgn[1].expectKind nnkPragma
+    asgn[1].expectLen 2
   elif asgn.kind == nnkAsgn:
     let dotExpr = asgn[0]
     dotExpr.expectKind nnkDotExpr
     let lhsSym = if dotExpr[0].kind == nnkHiddenDeref: dotExpr[0][0] else: dotExpr[0]
     lhsSym.expectKind nnkSym
     if cmpIgnoreStyle($lhsSym, $glSym) == 0:
-      warning "no real symbol resolution of " & $glSym # , lhsSym
-      return asgn.withConstraint(gcVS, gcVS)
+      #warning "no real symbol resolution of " & $glSym # , lhsSym
+      lhsSym.constraint = (min: gcVS, max: gcVS)
     elif lhsSym == resultSym:
-      return asgn.withConstraint(gcFS, gcFS)
+      lhsSym.constraint = (min: gcFS, max: gcFS)
     else:
       error("needs to be result or gl", lhsSym)
-
+  elif asgn.kind == nnkLetSection:
+    asgn.expectLen 1
+    let identDefs = asgn[0]
+    identDefs.expectLen(3)
+    let lhsSym = identDefs[0]
+    lhsSym.constraint = (min: gcFS, max: gcCPU)
   else:
-    return nnkPragmaExpr.newTree(
-      asgn,
-      nnkPragma.newTree(newLit(gcFS), newLit(gcCPU))
-    )
+    error("Bernhardt", asgn)
 
 proc createGlslMain(arg: NimNode): string {.compileTime.} =
   result = "void main() {\n"
@@ -162,17 +220,22 @@ proc createGlslMain(arg: NimNode): string {.compileTime.} =
       line.add assignment[0][0].repr
       line.add " = "
       line.add assignment[0][2].repr
+      line.add "   // "
+      line.add $assignment[0][0].constraint
     elif assignment.kind == nnkAsgn:
       assignment[0].expectKind nnkDotExpr
       let dotExpr = assignment[0]
-      let lhsSym = dotExpr[0]
+      let lhsSym = if dotExpr[0].kind == nnkHiddenDeref: dotExpr[0][0] else: dotExpr[0]
       if cmpIgnoreStyle(lhsSym.repr, "result") == 0:
         line.add dotExpr[1].repr
       elif cmpIgnoreStyle(lhsSym.repr, "gl") == 0:
         line.add "gl_" & dotExpr[1].repr
       line.add " = "
       line.add assignment[1].repr
+      line.add "   // "
+      line.add $lhsSym.constraint
     else:
+      echo assignment.treerepr
       error "Achim", assignment
     line.add ";\n"
     result.add line
@@ -196,13 +259,6 @@ proc strip_pragma_expressions(arg: NimNode): NimNode {.compileTime.} =
 #  gl.Position = mvp * v.position
 #  result.color = texture(myTexture, v.texCoord)
 
-static:
-  # not really great, software design.
-  # this table is creater in each call to the render macro and used used to store the constraints of symbols.
-  var constraintsTable = initTable[NimNode,ConstraintRange]()
-  constraintsTable.clear
-
-
 macro render_inner(mesh, arg: typed): untyped =
   let ssaList1 = transform_to_single_static_assignment(arg[6])
 
@@ -215,12 +271,14 @@ macro render_inner(mesh, arg: typed): untyped =
   let ssaList2 = newStmtList()
 
 
+  constraintsTable.clear
   for asgn in ssaList1:
     ssaList2.add withDefaultConstraint(asgn, glSym, resultSym)
 
   #let ssaList3 = resolve_constraints(ssaList2, glSym, resultSym)
   let newArg = arg
-  newArg[6] = strip_pragma_expressions(ssaList2)
+  newArg[6] = ssaList2
+  #newArg[6] = strip_pragma_expressions(ssaList2)
 
   result = newCall(bindSym"render_even_more_inner", newArg)
 
@@ -259,6 +317,7 @@ proc injectTypes(framebuffer, mesh, arg: NimNode): NimNode =
     vertexType = vertexTypeExpr
     envArg = identDefs[1]
     envType = nnkVarTy.newTree(bindSym"GlEnvironment")
+
   of 3:
     formalParams[1].expectKind nnkIdentDefs
     formalParams[2].expectKind nnkIdentDefs
@@ -293,24 +352,18 @@ macro render(framebuffer, mesh: typed; arg: untyped): untyped =
 ## gl wrapper ##
 
 type
-  Texture2D = object
+  Texture2D            = object
     handle: uint32
-
-  Texture3D = object
+  Texture3D            = object
     handle: uint32
-
-  TextureCube = object
+  TextureCube          = object
     handle: uint32
-
-  Texture2DShadow = object
+  Texture2DShadow      = object
     handle: uint32
-
-  TextureCubeShadow = object
+  TextureCubeShadow    = object
     handle: uint32
-
-  Texture2DArray = object
+  Texture2DArray       = object
     handle: uint32
-
   Texture2DArrayShadow = object
     handle: uint32
 
@@ -351,20 +404,9 @@ type
   MyFramebuffer = Framebuffer[MyFragmentType]
 
 var myTexture: Texture2D
-
 var mesh: MyMesh
-
 var framebuffer: MyFramebuffer
-
 var mvp: Mat4f
-
-render_even_more_inner do (v: type(mesh).VertexType; gl: var GlEnvironment) -> type(framebuffer).FragmentType:
-  let tmp232475: Vec4f = v.position
-  let tmp232474: Vec[4, float32] = mvp * tmp232475
-  let tmp232473: Vec[4, float32] = normalize(tmp232474)
-  let tmp232472: Vec[4, float32] = normalize(tmp232473)
-  gl.Position = normalize(tmp232472)
-  result.color = v.color
 
 framebuffer.render(mesh) do (v, gl):
   gl.Position = (mvp * v.position).normalize.normalize.normalize

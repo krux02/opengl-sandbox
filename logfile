@@ -11,6 +11,19 @@ a have constraint that declares, wher the value can be calculated.
 a value can be calculated on the CPU, the Fragment-Shader, or the
 Vertex-Shader.
 
+
+a constrait can be defined explicitly:
+
+let a {.VS.} = ...
+let b {.FS.} = ...
+
+a constraint can be defined implicitly:
+
+let a = foo(vertex.position)
+# this forces a to be calculated in the vertex-shader.
+gl.Position = bar(a)
+
+
 2017-11-14
 
 The AST can be transformed to single static assignments. Typechecking
