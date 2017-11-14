@@ -338,8 +338,12 @@ The name is not fix yet, these are valid naming ideas:
 
 # Getting Started
 
+You need git lfs to fetch all the resources. Most examples should run even 
+without resources, but they will be very ugly.
 
-you need following dependencies:
+https://git-lfs.github.com/
+
+You need following Nim dependencies:
 
 ```
 nimble install glm sdl2_nim
