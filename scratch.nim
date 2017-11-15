@@ -1,5 +1,49 @@
 import glm, future, algorithm, macros, strutils, tables
 
+
+## gl wrapper ##
+
+type
+  Texture1D            = object
+    handle: uint32
+  Texture2D            = object
+    handle: uint32
+  Texture3D            = object
+    handle: uint32
+  TextureCube          = object
+    handle: uint32
+  Texture2DShadow      = object
+    handle: uint32
+  TextureCubeShadow    = object
+    handle: uint32
+  Texture2DArray       = object
+    handle: uint32
+  Texture2DArrayShadow = object
+    handle: uint32
+
+proc texture*(sampler: Texture2D;            P: Vec2f; bias: float32 = 0): Vec4f =
+  quit("only implemented in shader")
+
+proc texture*(sampler: Texture3D;            P: Vec3f; bias: float32 = 0): Vec4f =
+  quit("only implemented in shader")
+
+proc texture*(sampler: TextureCube;          P: Vec3f; bias: float32 = 0): Vec4f =
+  quit("only implemented in shader")
+
+proc texture*(sampler: Texture2DShadow;      P: Vec3f; bias: float32 = 0): Vec4f =
+  quit("only implemented in shader")
+
+proc texture*(sampler: TextureCubeShadow;    P: Vec4f; bias: float32 = 0): Vec4f =
+  quit("only implemented in shader")
+
+proc texture*(sampler: Texture2DArray;       P: Vec3f; bias: float32 = 0): Vec4f =
+  quit("only implemented in shader")
+
+proc texture*(sampler: Texture2DArrayShadow; P: Vec4f): Vec4f =
+  quit("only implemented in shader")
+
+# other types
+
 type
   Mesh[VertexType] = object
 
@@ -7,6 +51,8 @@ type
 
   GlEnvironment = object
     Position: Vec4f
+    PointSize: float32
+    ClipDistance: UncheckedArray[float32]
 
   DefaultFragmentType = object
     color: Vec4f
@@ -17,25 +63,6 @@ type
     gcCPU
 
   ConstraintRange = tuple[min,max: GlslConstraint]
-
-proc newLit(arg: GlslConstraint): NimNode {.compileTime.} =
-  case arg
-  of gcCPU:
-    return bindSym"gcCPU"
-  of gcVS:
-    return bindSym"gcVS"
-  of gcFS:
-    return bindSym"gcFS"
-
-proc enumVal(arg: NimNode): GlslConstraint {.compileTime.} =
-  if arg == bindSym("gcCPU"):
-    return gcCPU
-  if arg == bindSym("gcVS"):
-    return gcVS
-  if arg == bindSym("gcFS"):
-    return gcFS
-  error("cannot find the correct value in GlslConstraint", arg)
-
 
 proc glslType(arg: NimNode): string {.compileTime.} =
   if arg.kind == nnkBracketExpr:
@@ -56,14 +83,18 @@ proc glslType(arg: NimNode): string {.compileTime.} =
       result.add intVal
 
     elif arg[0] == bindSym"Mat":
-      if arg[2] == bindSym"float32":
+      let Tsym = arg[3]
+      if Tsym == bindSym"float32":
         result = "mat"
-      elif arg[2] == bindSym"float64":
+      elif Tsym == bindSym"float64":
         result = "dmat"
-      elif arg[2] == bindSym"int32":
+      elif Tsym == bindSym"int32":
         result = "imat"
-      elif arg[2] == bindSym"bool":
+      elif Tsym == bindSym"bool":
         result = "bmat"
+      else:
+        echo arg.treeRepr
+        result = "<error type 4>"
 
       arg[1].expectKind nnkIntLit
       arg[2].expectKind nnkIntLit
@@ -76,28 +107,51 @@ proc glslType(arg: NimNode): string {.compileTime.} =
       if 4 < intVal2 or intVal2 < 2:
         error "not compatible", arg
 
+
       result.add intVal1
-      result.add "x"
-      result.add intVal2
+      if intVal2 != intVal1:
+        result.add "x"
+        result.add intVal2
     else:
+      echo arg.repr
       return "<error type 1>"
-  elif arg == bindSym"float32":
-    return "float"
-  elif arg == bindSym"Vec2f":
-    return "vec2"
-  elif arg == bindSym"Vec3f":
-    return "vec3"
-  elif arg == bindSym"Vec4f":
-    return "vec4"
+  elif arg.kind == nnkSym:
+    if arg == bindSym"float32":
+      return "float"
+    elif arg == bindSym"float64":
+      return "double"
+    elif arg == bindSym"int32":
+      return "int"
+    elif arg == bindSym"bool":
+      return "bool"
+
+    elif arg == bindSym"Texture1D":
+      return "sampler1D"
+    elif arg == bindSym"Texture2D":
+      return "sampler2D"
+    elif arg == bindSym"Texture3D":
+      return "sampler3D"
+    elif arg == bindSym"TextureCube":
+      return "samplerCube"
+    elif arg == bindSym"Texture2DShadow":
+      return "sampler2DShadow"
+    elif arg == bindSym"TextureCubeShadow":
+      return "samplerCubeShadow"
+    elif arg == bindSym"Texture2DArray":
+      return "sampler2DArray"
+    elif arg == bindSym"Texture2DArrayShadow":
+      return "sampler2DArrayShadow"
+
+    else:
+      let typ2 = arg.getTypeImpl
+      if typ2.kind == nnkBracketExpr:
+        return typ2.glslType
+      else:
+        echo arg.treeRepr
+        return "<error type 3>"
   else:
     echo arg.treeRepr
     return "<error type 2>"
-
-proc newLetStmt(name, typ, value: NimNode): NimNode {.compiletime.} =
-  ## Create a new let stmt
-  return nnkLetSection.newTree(
-    nnkIdentDefs.newTree(name, typ, value)
-  )
 
 proc transform_to_single_static_assignment(arg: NimNode): NimNode =
   ## Transforms the argument AST into a list of assignments. The
@@ -105,7 +159,6 @@ proc transform_to_single_static_assignment(arg: NimNode): NimNode =
   ## foo(y,z)``, or they are assignments to already existing variables
   ## like ``gl.Position = foo(x,y)``
   arg.expectKind nnkStmtList
-
   var assignments = newStmtList()
 
   proc genSymForExpression(arg: NimNode): NimNode =
@@ -115,7 +168,9 @@ proc transform_to_single_static_assignment(arg: NimNode): NimNode =
       let call = arg.kind.newTree(arg[0])
       for i in 1 ..< arg.len:
         call.add(genSymForExpression(arg[i]))
-      assignments.add(newLetStmt(result, typ, call))
+      assignments.add(nnkLetSection.newTree(
+        nnkIdentDefs.newTree(result, typ, call))
+      )
     else:
       result = arg
 
@@ -160,30 +215,6 @@ proc `constraint=`(arg:NimNode, constraint: ConstraintRange): void =
 proc constraint(arg:NimNode): ConstraintRange =
   constraintsTable[arg]
 
-#[
-proc withConstraint(node:NimNode; min, max: GlslConstraint): NimNode =
-  if node.kind == nnkPragmaExpr:
-    # there is already a given constraint.
-    # check if it is valid.
-    node.expectLen(2)
-    let pragma = node[1]
-    pragma.expectLen(2)
-
-    ## TODO do some math here
-    let oldMin: GlslConstraint = pragma[0].enumVal
-    let oldMax: GlslConstraint = pragma[1].enumVal
-
-    return nnkPragmaExpr.newTree(
-      node[0],
-      nnkPragma.newTree(newLit( max(min, oldMin)), newLit(min(max, oldMax)))
-    )
-  else:
-    return nnkPragmaExpr.newTree(
-      node,
-      nnkPragma.newTree(newLit(min), newLit(max))
-    )
-]#
-
 proc withDefaultConstraint(asgn, glSym, resultSym: NimNode): NimNode {.compileTime.} =
   result = asgn
   if asgn.kind == nnkPragmaExpr:
@@ -210,6 +241,88 @@ proc withDefaultConstraint(asgn, glSym, resultSym: NimNode): NimNode {.compileTi
   else:
     error("Bernhardt", asgn)
 
+
+proc createGlslAttributesSection(arg: NimNode): string {.compileTime.} =
+  result = ""
+  let vertexName = arg[0].repr
+  let objectTy = arg[1].getTypeImpl
+  objectTy.expectKind nnkObjectTy
+  let recList = objectTy[2]
+  recList.expectKind nnkRecList
+  var i = 0
+  for identDefs in recList:
+    let typ = identDefs[^2]
+    for j in 0 ..< identDefs.len - 2:
+      let sym = identDefs[j]
+      result.add "layout(location = "
+      result.add i
+      result.add ") in "
+      result.add typ.glslType
+      result.add " "
+      result.add vertexName
+      result.add "_"
+      result.add sym.repr
+      result.add ";\n"
+      i += 1
+
+  discard
+
+proc createGlslFragmentTypeSection(arg: NimNode): string {.compileTime.} =
+  result = ""
+  let objectTy = arg.getTypeImpl
+  objectTy.expectKind nnkObjectTy
+  let recList = objectTy[2]
+  recList.expectKind nnkRecList
+
+  var i = 0
+  for identDefs in recList:
+    let typ = identDefs[^2].glslType
+    for j in 0 ..< identDefs.len - 2:
+      let sym = identDefs[j]
+      result.add "layout(location = "
+      result.add i
+      result.add ") out "
+      result.add typ
+      result.add " "
+      result.add sym.repr
+      result.add ";\n"
+      i += 1
+
+proc createGlslUniformsSection(stmtList: NimNode): string {.compileTime.} =
+  var localSymbols = newSeq[NimSym](0)
+  var externalSymbols = newSeq[NimNode](0)
+  stmtList.expectKind nnkStmtList
+  for letSection in stmtList:
+    if letSection.kind == nnkLetSection:
+      let identDefs = letSection[0]
+      identDefs.expectKind nnkIdentDefs
+      let lhsSym = identDefs[0]
+      lhsSym.expectKind nnkSym
+
+      let rhs = identDefs[2]
+      if rhs.kind in nnkCallKinds:
+        for i in 1 ..< rhs.len:
+          let argSym = rhs[i]
+          if argSym.kind == nnkSym and not localSymbols.contains argSym.symbol:
+            externalSymbols.add argSym
+
+      localSymbols.add lhsSym.symbol
+
+  result = ""
+
+  for sym in externalSymbols:
+    result.add "uniform "
+    result.add sym.getTypeInst.glslType
+    result.add " "
+    result.add sym.repr
+    result.add ";\n"
+
+proc flatDotExpr(arg: NimNode): string {.compileTime.} =
+  if arg.kind == nnkDotExpr:
+    result = arg[0].repr & "_" & arg[1].repr
+  else:
+    result = arg.repr
+
 proc createGlslMain(arg: NimNode): string {.compileTime.} =
   result = "void main() {\n"
   for assignment in arg:
@@ -219,7 +332,7 @@ proc createGlslMain(arg: NimNode): string {.compileTime.} =
       line.add " "
       line.add assignment[0][0].repr
       line.add " = "
-      line.add assignment[0][2].repr
+      line.add assignment[0][2].flatDotExpr
       line.add "   // "
       line.add $assignment[0][0].constraint
     elif assignment.kind == nnkAsgn:
@@ -231,7 +344,7 @@ proc createGlslMain(arg: NimNode): string {.compileTime.} =
       elif cmpIgnoreStyle(lhsSym.repr, "gl") == 0:
         line.add "gl_" & dotExpr[1].repr
       line.add " = "
-      line.add assignment[1].repr
+      line.add assignment[1].flatDotExpr
       line.add "   // "
       line.add $lhsSym.constraint
     else:
@@ -241,11 +354,6 @@ proc createGlslMain(arg: NimNode): string {.compileTime.} =
     result.add line
   result.add "}\n"
 
-macro render_even_more_inner(arg: typed): untyped =
-  let stmtList = arg[6]
-  let glslMain = createGlslMain(stmtList)
-  echo glslMain
-
 proc strip_pragma_expressions(arg: NimNode): NimNode {.compileTime.} =
   arg.expectKind nnkStmtList
   result = newStmtList()
@@ -253,11 +361,6 @@ proc strip_pragma_expressions(arg: NimNode): NimNode {.compileTime.} =
     pragmaExpr.expectKind  nnkPragmaExpr
     result.add pragmaExpr[0]
 
-
-
-#framebuffer.render(mesh) do (v, gl):
-#  gl.Position = mvp * v.position
-#  result.color = texture(myTexture, v.texCoord)
 
 macro render_inner(mesh, arg: typed): untyped =
   let ssaList1 = transform_to_single_static_assignment(arg[6])
@@ -270,19 +373,20 @@ macro render_inner(mesh, arg: typed): untyped =
   ssaList1.expectKind nnkStmtList
   let ssaList2 = newStmtList()
 
-
   constraintsTable.clear
   for asgn in ssaList1:
     ssaList2.add withDefaultConstraint(asgn, glSym, resultSym)
 
-  #let ssaList3 = resolve_constraints(ssaList2, glSym, resultSym)
-  let newArg = arg
-  newArg[6] = ssaList2
-  #newArg[6] = strip_pragma_expressions(ssaList2)
+  let formalParams = arg[3]
+  formalParams.expectKind nnkFormalParams
 
-  result = newCall(bindSym"render_even_more_inner", newArg)
+  let uniformsSection = ssaList2.createGlslUniformsSection
+  let vertexTypeSection = formalParams[1].createGlslAttributesSection
+  let fragmentTypeSection = formalParams[0].createGlslFragmentTypeSection
+  let glslMain = createGlslMain(ssaList2)
 
-  #echo result.repr
+  let shaderSource = uniformsSection & "\n" & vertexTypeSection & "\n" & fragmentTypeSection & "\n" & glslMain
+  echo shaderSource
 
 proc `or`(arg, alternative: NimNode): NimNode =
   if arg.kind != nnkEmpty:
@@ -348,46 +452,6 @@ proc injectTypes(framebuffer, mesh, arg: NimNode): NimNode =
 macro render(framebuffer, mesh: typed; arg: untyped): untyped =
   result = newCall(bindSym"render_inner", mesh, injectTypes(framebuffer, mesh, arg))
 
-
-## gl wrapper ##
-
-type
-  Texture2D            = object
-    handle: uint32
-  Texture3D            = object
-    handle: uint32
-  TextureCube          = object
-    handle: uint32
-  Texture2DShadow      = object
-    handle: uint32
-  TextureCubeShadow    = object
-    handle: uint32
-  Texture2DArray       = object
-    handle: uint32
-  Texture2DArrayShadow = object
-    handle: uint32
-
-proc texture*(sampler: Texture2D;            P: Vec2f; bias: float32 = 0): Vec4f =
-  quit("only implemented in shader")
-
-proc texture*(sampler: Texture3D;            P: Vec3f; bias: float32 = 0): Vec4f =
-  quit("only implemented in shader")
-
-proc texture*(sampler: TextureCube;          P: Vec3f; bias: float32 = 0): Vec4f =
-  quit("only implemented in shader")
-
-proc texture*(sampler: Texture2DShadow;      P: Vec3f; bias: float32 = 0): Vec4f =
-  quit("only implemented in shader")
-
-proc texture*(sampler: TextureCubeShadow;    P: Vec4f; bias: float32 = 0): Vec4f =
-  quit("only implemented in shader")
-
-proc texture*(sampler: Texture2DArray;       P: Vec3f; bias: float32 = 0): Vec4f =
-  quit("only implemented in shader")
-
-proc texture*(sampler: Texture2DArrayShadow; P: Vec4f): Vec4f =
-  quit("only implemented in shader")
-
 ## user code ##
 
 type
@@ -414,4 +478,4 @@ framebuffer.render(mesh) do (v, gl):
 
 framebuffer.render(mesh) do (v, gl):
   gl.Position = mvp * v.position
-  result.color = texture(myTexture, v.texCoord)
+  result.color = texture(myTexture, v.texCoord) + vec4(sin(float32(Pi)))
