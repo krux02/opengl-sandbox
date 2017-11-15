@@ -32,3 +32,11 @@ expressions to store the constraints. My solution to this problem is
 to create a table that maps from symbols of the ast to the
 constraints. The table needs to be cleared each time the macro is
 called.
+
+2017-11-15
+
+Enabling/disabling clipping planes should be handled somehow.  The
+Uniforms are extracted simply by iterating the single static
+assignments. Whenever a symbol is used that is not defined in the
+block of code it is assumed to be a uniform.  compile time constants
+are compiled as values, not uniforms into the glsl source code.
