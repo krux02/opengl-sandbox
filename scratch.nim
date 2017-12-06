@@ -64,6 +64,11 @@ type
 
   ConstraintRange = tuple[min,max: GlslConstraint]
 
+iterator arguments*(n: NimNode): NimNode {.inline.} =
+  ## Iterates over the arguments of a call ``n``.
+  for i in 1 ..< n.len:
+    yield n[i]
+
 proc glslType(arg: NimNode): string {.compileTime.} =
   if arg.kind == nnkBracketExpr:
     if arg[0] == bindSym"Vec":
@@ -153,28 +158,28 @@ proc glslType(arg: NimNode): string {.compileTime.} =
     echo arg.treeRepr
     return "<error type 2>"
 
-proc transform_to_single_static_assignment(arg: NimNode): NimNode {.compileTime.} =
+proc transform_to_single_static_assignment(stmtList: NimNode): NimNode {.compileTime.} =
   ## Transforms the argument AST into a list of assignments. The
   ## assignments are either declaring a new identifier, like ``let x =
   ## foo(y,z)``, or they are assignments to already existing variables
   ## like ``gl.Position = foo(x,y)``
-  arg.expectKind nnkStmtList
+  stmtList.expectKind nnkStmtList
   var assignments = newStmtList()
 
-  proc genSymForExpression(arg: NimNode): NimNode {.compileTime.}=
-    let typ = arg.getTypeInst
-    if arg.kind in nnkCallKinds or arg.kind == nnkDotExpr:
+  proc genSymForExpression(expr: NimNode): NimNode {.compileTime.}=
+    let typ = expr.getTypeInst
+    if expr.kind in nnkCallKinds or expr.kind == nnkDotExpr:
       result = genSym(nskLet, "tmp")
-      let call = arg.kind.newTree(arg[0])
-      for i in 1 ..< arg.len:
-        call.add(genSymForExpression(arg[i]))
+      let call = expr.kind.newTree(expr[0])
+      for i in 1 ..< expr.len:
+        call.add(genSymForExpression(expr[i]))
       assignments.add(nnkLetSection.newTree(
         nnkIdentDefs.newTree(result, typ, call))
       )
     else:
-      result = arg
+      result = expr
 
-  for asgn in arg:
+  for asgn in stmtList:
     asgn.expectKind nnkAsgn
     let sym = genSymForExpression(asgn[1])
     assert assignments[^1][0][0] == sym
@@ -187,7 +192,7 @@ proc transform_to_single_static_assignment(arg: NimNode): NimNode {.compileTime.
 
 static:
   # not really great, software design.
-  # this table is creater in each call to the render macro and used used to store the constraints of symbols.
+  # this table is created in each call to the render macro and used used to store the constraints of symbols.
   var constraintsTable = initTable[NimNode,ConstraintRange]()
   constraintsTable.clear
 
@@ -279,6 +284,7 @@ proc withDefaultConstraint(asgn, glSym, resultSym: NimNode): NimNode {.compileTi
 
 
 
+
 proc createGlslAttributesSection(arg: NimNode): string {.compileTime.} =
   result = ""
   let vertexName = arg[0].repr
@@ -304,28 +310,37 @@ proc createGlslAttributesSection(arg: NimNode): string {.compileTime.} =
 
   discard
 
+
+proc add[T](arg: var Table[T, seq[T]]; key, value: T): void =
+  if arg.hasKey(key):
+    let s: ptr seq[T] = arg[key].addr
+    if value notin s[]:
+      s[].add(value)
+  else:
+    arg[key] = @[value]
+
 proc resolveConstraints(arg: NimNode): void {.compileTime.} =
 
   # build dependency graph
   # let a = foo(b,c,d)  --> a depends on {b,c,d}
+  # and the inverse:    --> b,c,d all depend on a
 
   var dependencyGraph = initTable[NimNode, seq[NimNode]]()
+  var inverseDependencyGraph = initTable[NimNode, seq[NimNode]]()
+
   for kind, lhs, typ, rhs in arg.iterateSSAList:
     let lhs = lhs.firstSymbol
     let lhsConstraint = lhs.constraint
     if rhs.kind in nnkCallKinds:
       var dependencies = newSeq[NimNode](0)
-      for i in 1 ..< rhs.len:
-        let arg = rhs[i]
+      for arg in rhs.arguments:
         if arg.hasConstraint:
-          dependencies.add arg
-
-      if kind == nnkAsgn and dependencyGraph.hasKey(lhs):
-        dependencies.add dependencyGraph[lhs]
-      dependencyGraph[lhs] = dependencies
+          dependencyGraph.add(lhs,arg)
+          inverseDependencyGraph.add(arg,lhs)
 
     elif rhs.kind == nnkDotExpr:
-      echo "unhandled rhs dotExpr: ", rhs.repr
+      discard
+      # TODO maybe do something with this
     else:
       echo rhs.kind
       error("David")
@@ -336,11 +351,16 @@ proc resolveConstraints(arg: NimNode): void {.compileTime.} =
   ## done building dependency graph
 
   proc growMinConstraint(arg: NimNode; newMinConstraint: GlslConstraint): void
-
   proc updateDependentConstraints(arg: NimNode, newMinConstraint: GlslConstraint): void =
     if dependencyGraph.hasKey(arg):
       for dep in dependencyGraph[arg]:
         dep.growMinConstraint newMinConstraint
+
+  proc shrinkMaxConstraint(arg: NimNode; newMaxConstraint: GlslConstraint): void
+  proc updateDependentConstraints(arg: NimNode, newMaxConstraint: GlslConstraint): void =
+    if inverseDependencyGraph.hasKey(arg):
+      for dep in inverseDependencyGraph[arg]:
+        dep.shrinkMaxConstraint newMaxConstraint
 
   proc growMinConstraint(arg: NimNode; newMinConstraint: GlslConstraint): void =
     if arg.hasConstraint:
@@ -348,7 +368,16 @@ proc resolveConstraints(arg: NimNode): void {.compileTime.} =
       if argConstraint.min < newMinConstraint:
         argConstraint.min = newMinConstraint
         arg.constraint = argConstraint
-        arg.updateDependentConstraints newMinConstraint
+        arg.updateDependentConstraints(newMinConstraint = newMinConstraint)
+
+  proc shrinkMaxConstraint(arg: NimNode; newMaxConstraint: GlslConstraint): void =
+    if arg.hasConstraint:
+      var argConstraint = arg.constraint
+      if argConstraint.max > newMaxConstraint:
+        argConstraint.max = newMaxConstraint
+        arg.constraint = argConstraint
+        arg.updateDependentConstraints(newMaxConstraint = newMaxConstraint)
+        ## TODO update dependen Constraint maxima
 
 
   for _, lhs, _, rhs in arg.iterateSSAList:
@@ -357,6 +386,10 @@ proc resolveConstraints(arg: NimNode): void {.compileTime.} =
       for i in 1 ..< rhs.len:
         let arg = rhs[i]
         arg.growMinConstraint(lhsConstraint.min)
+    elif rhs.kind == nnkDotExpr:
+      echo "assuming ", rhs.lispRepr, " is an attribute, not tested"
+      shrinkMaxConstraint(lhs, gcVS)
+
 
 
 proc createGlslFragmentTypeSection(arg: NimNode): string {.compileTime.} =
@@ -415,9 +448,7 @@ proc flatDotExpr(arg: NimNode): string {.compileTime.} =
   else:
     result = arg.repr
 
-
 proc splitVertexFragmentShader(arg: NimNode): tuple[cpu,vs,fs: NimNode] {.compileTime.} =
-
   for asgn in arg:
     var lhs,rhs: NimNode
     if asgn.kind == nnkLetSection:
@@ -426,17 +457,9 @@ proc splitVertexFragmentShader(arg: NimNode): tuple[cpu,vs,fs: NimNode] {.compil
     elif asgn.kind == nnkAsgn:
       lhs = asgn[0]
       rhs = asgn[1]
-
       #let lhsSym = if dotExpr[0].kind == nnkHiddenDeref: dotExpr[0][0] else: dotExpr[0]
 
-
     echo lhs.repr, " ", lhs.constraint
-
-
-
-
-
-
 
   #[
   for assignment in arg:
