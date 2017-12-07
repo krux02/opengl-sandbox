@@ -732,9 +732,9 @@ proc drawNeighborhood(proj,modelView: Mat4f): void =
       color = vec4(1,1,0,1);
       """
 
-import gifh
+#import gifh
 
-var animation: GifAnimation
+#var animation: GifAnimation
 var remainingFrames = 0
 var remainingSimulationSteps = 0
 
@@ -889,11 +889,11 @@ while runGame:
   discard TwDraw()
   glSwapWindow(window)
 
-  if remainingFrames > 0:
-    animation.frameGifAnimationGl()
-    remainingFrames -= 1
-    if remainingFrames == 0:
-      animation.endGifAnimation()
+  #if remainingFrames > 0:
+  #  animation.frameGifAnimationGl()
+  #  remainingFrames -= 1
+  #  if remainingFrames == 0:
+  #    animation.endGifAnimation()
 
 
 

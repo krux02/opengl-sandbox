@@ -69,6 +69,20 @@ iterator arguments*(n: NimNode): NimNode {.inline.} =
   for i in 1 ..< n.len:
     yield n[i]
 
+iterator depthFirstTraversal*(n: NimNode): NimNode =
+  var stack = newSeq[tuple[n: NimNode,i: int]](0)
+  stack.add((n: n, i: 0))
+  yield stack[^1].n
+  while stack.len > 0:
+    template i: untyped = stack[^1].i
+    template n: untyped = stack[^1].n
+    while i < n.len:
+      let child = n[i]
+      i += 1
+      stack.add((n: child, i: 0))
+      yield stack[^1].n
+    discard stack.pop
+
 proc glslType(arg: NimNode): string {.compileTime.} =
   if arg.kind == nnkBracketExpr:
     if arg[0] == bindSym"Vec":
@@ -118,7 +132,7 @@ proc glslType(arg: NimNode): string {.compileTime.} =
         result.add "x"
         result.add intVal2
     else:
-      echo arg.repr
+      echo arg.treeRepr
       return "<error type 1>"
   elif arg.kind == nnkSym:
     if arg == bindSym"float32":
@@ -197,9 +211,10 @@ static:
   constraintsTable.clear
 
 
-iterator iterateSSAList(arg: NimNode): tuple[kind:NimNodeKind; lhs, typ, rhs: NimNode] {.inline.} =
+iterator iterateSSAList(arg: NimNode, backwards: bool = false): tuple[kind:NimNodeKind; lhs, typ, rhs: NimNode] {.inline.} =
   arg.expectKind nnkStmtList
-  for asgn in arg:
+  for i in 1 .. arg.len:
+    let asgn = if backwards: arg[^i] else: arg[i-1]
     asgn.expectKind {nnkLetSection,nnkAsgn}
     var lhs,typ,rhs: NimNode
     if asgn.kind == nnkLetSection:
@@ -319,7 +334,52 @@ proc add[T](arg: var Table[T, seq[T]]; key, value: T): void =
   else:
     arg[key] = @[value]
 
+
+#[
+two pass compilation
+
+ * pass 1: bottom up, increase lower bounds. Lower bounds are semantic meaning only.
+ * pass 2: top down, limit upper bounds. Upper boinds are allowed optimizations.
+
+
+# pass1
+
+let sym = foo(a,b,c)
+raise low(sym) to min(low(a),low(b),low(c))
+
+example:
+                                                         .
+    framebuffer.render(mesh) do (v, gl):                /|\ Pass1 min:   |  Pass2 max
+      result.color1  = texture(mytexture, v.texcoord)    |     FS        |    FS
+      gl.Position    = texture(mytexture, v.texcoord)    |     VS        |    VS
+      result.color2  = texture(mytexture, time)          |     FS       \|/   VS
+                                                                         '
+
+logic for `let s = texture(a,b)`:
+
+  if low(s) == gcFS:
+    if low(b) == gcCPU:  # result is constant over all vertices
+      high(s) = min(high(s), gcVS)
+    if low(s) < gcCPU:
+      high(s)  = min(high(s), gcFS)
+
+  if low(s) == gcVS:
+    if high(b) = gcVS
+
+logic for `let s = v1 + v2`:
+
+  high(s) = min(high(v1), high(v2))
+
+
+]#
+
+
 proc resolveConstraints(arg: NimNode): void {.compileTime.} =
+
+
+
+
+
 
   # build dependency graph
   # let a = foo(b,c,d)  --> a depends on {b,c,d}
@@ -350,17 +410,17 @@ proc resolveConstraints(arg: NimNode): void {.compileTime.} =
 
   ## done building dependency graph
 
-  proc growMinConstraint(arg: NimNode; newMinConstraint: GlslConstraint): void
-  proc updateDependentConstraints(arg: NimNode, newMinConstraint: GlslConstraint): void =
-    if dependencyGraph.hasKey(arg):
-      for dep in dependencyGraph[arg]:
-        dep.growMinConstraint newMinConstraint
+  #proc growMinConstraint(arg: NimNode; newMinConstraint: GlslConstraint): void
+  #proc updateDependentConstraints(arg: NimNode, newMinConstraint: GlslConstraint): void =
+  #  if dependencyGraph.hasKey(arg):
+  #    for dep in dependencyGraph[arg]:
+  #      dep.growMinConstraint newMinConstraint
 
-  proc shrinkMaxConstraint(arg: NimNode; newMaxConstraint: GlslConstraint): void
-  proc updateDependentConstraints(arg: NimNode, newMaxConstraint: GlslConstraint): void =
-    if inverseDependencyGraph.hasKey(arg):
-      for dep in inverseDependencyGraph[arg]:
-        dep.shrinkMaxConstraint newMaxConstraint
+  #proc shrinkMaxConstraint(arg: NimNode; newMaxConstraint: GlslConstraint): void
+  #proc updateDependentConstraints(arg: NimNode, newMaxConstraint: GlslConstraint): void =
+  #  if inverseDependencyGraph.hasKey(arg):
+  #    for dep in inverseDependencyGraph[arg]:
+  #      dep.shrinkMaxConstraint newMaxConstraint
 
   proc growMinConstraint(arg: NimNode; newMinConstraint: GlslConstraint): void =
     if arg.hasConstraint:
@@ -368,7 +428,7 @@ proc resolveConstraints(arg: NimNode): void {.compileTime.} =
       if argConstraint.min < newMinConstraint:
         argConstraint.min = newMinConstraint
         arg.constraint = argConstraint
-        arg.updateDependentConstraints(newMinConstraint = newMinConstraint)
+        #arg.updateDependentConstraints(newMinConstraint = newMinConstraint)
 
   proc shrinkMaxConstraint(arg: NimNode; newMaxConstraint: GlslConstraint): void =
     if arg.hasConstraint:
@@ -376,21 +436,41 @@ proc resolveConstraints(arg: NimNode): void {.compileTime.} =
       if argConstraint.max > newMaxConstraint:
         argConstraint.max = newMaxConstraint
         arg.constraint = argConstraint
-        arg.updateDependentConstraints(newMaxConstraint = newMaxConstraint)
-        ## TODO update dependen Constraint maxima
+        #arg.updateDependentConstraints(newMaxConstraint = newMaxConstraint)
 
 
-  for _, lhs, _, rhs in arg.iterateSSAList:
+  for _, lhs, _, rhs in arg.iterateSSAList(backwards = true):
     let lhsConstraint = lhs.constraint
     if rhs.kind in nnkCallKinds:
       for i in 1 ..< rhs.len:
         let arg = rhs[i]
         arg.growMinConstraint(lhsConstraint.min)
-    elif rhs.kind == nnkDotExpr:
+
+
+  for _, lhs, _, rhs in arg.iterateSSAList(backwards = false):
+    if rhs.kind == nnkDotExpr:
       echo "assuming ", rhs.lispRepr, " is an attribute, not tested"
       shrinkMaxConstraint(lhs, gcVS)
+    elif rhs.kind in nnkCallKinds:
+      if eqIdent(rhs[0], "texture"):
+        echo rhs.lispRepr
+        rhs.expectLen(4)
+        let sampler = rhs[1]
+        let P = rhs[2]
+        # let bias = rhs[3]
 
-
+        case lhs.constraint.min
+        of gcFS:
+          if P.constraint.max >= gcCPU:
+            shrinkMaxConstraint(lhs, gcVS)
+          else:
+            shrinkMaxConstraint(lhs, gcFS)
+        of gcVS:
+          shrinkMaxConstraint(lhs, gcVS)
+        of gcCPU:
+          error("texture sampling is not supported on the CPU", rhs)
+    else:
+      echo "call: ", rhs.repr
 
 proc createGlslFragmentTypeSection(arg: NimNode): string {.compileTime.} =
   result = ""
@@ -448,49 +528,42 @@ proc flatDotExpr(arg: NimNode): string {.compileTime.} =
   else:
     result = arg.repr
 
-proc splitVertexFragmentShader(arg: NimNode): tuple[cpu,vs,fs: NimNode] {.compileTime.} =
-  for asgn in arg:
-    var lhs,rhs: NimNode
-    if asgn.kind == nnkLetSection:
-      lhs = asgn[0][0]
-      rhs = asgn[0][2]
-    elif asgn.kind == nnkAsgn:
-      lhs = asgn[0]
-      rhs = asgn[1]
-      #let lhsSym = if dotExpr[0].kind == nnkHiddenDeref: dotExpr[0][0] else: dotExpr[0]
 
-    echo lhs.repr, " ", lhs.constraint
+macro blockTag(arg: untyped): untyped =
+  arg.expectKind nnkProcDef
+  arg[0].expectKind nnkIdent
 
-  #[
-  for assignment in arg:
-    var line = "    "
-    if assignment.kind == nnkLetSection:
-      line.add assignment[0][1].glslType
-      line.add " "
-      line.add assignment[0][0].repr
-      line.add " = "
-      line.add assignment[0][2].flatDotExpr
-      line.add "   // "
-      line.add $assignment[0][0].constraint.max
-    elif assignment.kind == nnkAsgn:
-      assignment[0].expectKind nnkDotExpr
-      let dotExpr = assignment[0]
-      let lhsSym = if dotExpr[0].kind == nnkHiddenDeref: dotExpr[0][0] else: dotExpr[0]
-      if cmpIgnoreStyle(lhsSym.repr, "result") == 0:
-        line.add dotExpr[1].repr
-      elif cmpIgnoreStyle(lhsSym.repr, "gl") == 0:
-        line.add "gl_" & dotExpr[1].repr
-      line.add " = "
-      line.add assignment[1].flatDotExpr
-      line.add "   // "
-      line.add $lhsSym.constraint
-    else:
-      echo assignment.treerepr
-      error "Achim", assignment
-    line.add ";\n"
-    result.add line
-  ]#
+  let name = $arg[0]
 
+  let lit1 = newLit("<" & name & ">")
+  let lit2 = newLit("<" & name & "/>")
+
+  result = arg
+
+
+  let stmtList = newStmtList(
+    newCall(bindSym"echo", lit1),
+    nnkDefer.newTree(
+      newCall(bindSym"echo", lit2)
+    )
+  )
+
+  result[6].insert(0, stmtList)
+
+
+proc lhs(arg: NimNode): NimNode {.compileTime.} =
+  arg.expectKind({nnkLetSection, nnkAsgn})
+  if arg.kind == nnkLetSection:
+    return arg[0][0]
+  else:
+    return arg[0]
+
+proc rhs(arg: NimNode): NimNode {.compileTime.} =
+  arg.expectKind({nnkLetSection, nnkAsgn})
+  if arg.kind == nnkLetSection:
+    return arg[0][2]
+  else:
+    return arg[1]
 
 proc createGlslMain(arg: NimNode): string {.compileTime.} =
   result = "void main() {\n"
@@ -523,6 +596,54 @@ proc createGlslMain(arg: NimNode): string {.compileTime.} =
     result.add line
   result.add "}\n"
 
+
+proc splitVertexFragmentShader(arg: NimNode): tuple[cpu,vs,fs: NimNode] {.compileTime, blockTag.} =
+
+  let cpu = newStmtList()
+  let vs = newStmtList()
+  let fs = newStmtList()
+
+  var uniforms = ""
+
+  echo "constraints:"
+
+  for asgn in arg:
+    let lhs = asgn.lhs
+    let rhs = asgn.rhs
+
+    let constraint = lhs.constraint
+
+    case constraint.max
+    of gcCPU:
+      cpu.add asgn
+    of gcVS:
+      vs.add asgn
+    of gcFS:
+      fs.add asgn
+
+    echo lhs.repr, " ", lhs.constraint
+
+  echo "CPU:\n"
+  # TODO filter out unnecessary intermediate results
+  let glUniformCalls = newStmtList()
+
+  for i, asgn in cpu:
+    asgn.expectKind nnkLetSection
+    let name = asgn[0][0].repr
+    uniforms.add("layout(location = " & $i & ") uniform " & asgn[0][1].glslType & " " & name & ";\n")
+
+    let call = newCall(ident"glUniform", newLit(i), asgn[0][0])
+    glUniformCalls.add call
+
+
+  echo cpu.repr
+  echo glUniformCalls.repr, "\n"
+  echo "VS:"
+  echo uniforms, "\n", vs.createGlslMain
+  echo "FS:"
+  echo uniforms, "\n", fs.createGlslMain
+
+
 proc strip_pragma_expressions(arg: NimNode): NimNode {.compileTime.} =
   arg.expectKind nnkStmtList
   result = newStmtList()
@@ -546,9 +667,7 @@ macro render_inner(mesh, arg: typed): untyped =
 
   let vSym = arg[3][1][0]
   let vSymUsage = arg[^2][1][1][0]
-  echo vSym.lispRepr, vSymUsage.lispRepr, vSym == vSymUsage
 
-  echo arg.treeRepr
   constraintsTable.clear
   for asgn in ssaList1:
     ssaList2.add withDefaultConstraint(asgn, glSym, resultSym)
@@ -653,10 +772,20 @@ var mesh: MyMesh
 var framebuffer: MyFramebuffer
 var mvp: Mat4f
 
+
+static:
+  echo "################################################################################\n"
+
 framebuffer.render(mesh) do (v, gl):
   gl.Position = (mvp * v.position).normalize.normalize.normalize
   result.color = v.color
 
+static:
+  echo "################################################################################\n"
+
 framebuffer.render(mesh) do (v, gl):
   gl.Position = mvp * v.position
   result.color = texture(myTexture, v.texCoord) + vec4(sin(float32(Pi)))
+
+static:
+  echo "################################################################################\n"
