@@ -40,3 +40,31 @@ Uniforms are extracted simply by iterating the single static
 assignments. Whenever a symbol is used that is not defined in the
 block of code it is assumed to be a uniform.  compile time constants
 are compiled as values, not uniforms into the glsl source code.
+
+2017-12-8
+
+The logic where parts of the shader should be evaluated is now implemented.
+First of all the shader needs to be in SSA form.
+When the shader is in SSA form, then there are two passes on the program.
+
+Pass1 from bottom to top, for each assignment it is decided, where
+each expression needs to be evaluated semantically. For example an
+assignment to gl_Position needs to be evaluated in the vertex shader,
+while the same expression assigned to the fragment color would be
+semantically in the fragment shader.
+
+In pass 2 from top to bottom, each assignment in raised as much as
+possible for optimization. The optimization is done in the assumption
+that CPU is fastest, then vertex shader, then fragment shader. an
+expression `foo(a,b)` can be optimized from FS to VS, when
+`interpolation(foo(a,b))` is mathematically indestinctable from
+`foo(interpolation(a), interpolation(b))`. The optimization from VS to
+CPU can be done, when the expression does not depend on any vertex
+attributes.
+
+When it is decided for each expression, where it seeds to be
+evalueted, the shader program is split into the different sections of
+CPU-instructions, VS and FS. And the communications channels between
+them. Each defined symbol in the CPU section that is used in eather
+the FS or the VS is a uniform. Symbols defined in the VS but accessed
+in the fragment shader are varyings.
