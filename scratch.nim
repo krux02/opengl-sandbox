@@ -1,6 +1,21 @@
 import glm, future, algorithm, macros, strutils, tables, sequtils
 
 
+proc makeUnique[T](s: var seq[T]): void =
+  if s.len > 2:
+    s.sort
+    var i = 0
+
+    proc write(j: int): void =
+      s[i] = s[j]
+      i += 1
+
+
+    var j = 0
+    while s.arg[j] == s.arg[j+1] and j < s.len:
+      j += 1
+
+
 ## gl wrapper ##
 
 type
@@ -204,12 +219,6 @@ proc transform_to_single_static_assignment(stmtList: NimNode): NimNode {.compile
   return assignments
 
 
-static:
-  # not really great, software design.
-  # this table is created in each call to the render macro and used used to store the constraints of symbols.
-  var constraintsTable = initTable[NimNode,ConstraintRange]()
-  constraintsTable.clear
-
 
 iterator iterateSSAList(arg: NimNode, backwards: bool = false): tuple[kind:NimNodeKind; lhs, typ, rhs: NimNode] {.inline.} =
   arg.expectKind nnkStmtList
@@ -245,6 +254,9 @@ proc hash(arg: NimNode): Hash {.compileTime.}=
       result = result !& hash(child)
     result = !$result
 
+
+
+
 proc firstSymbol(arg : NimNode; default:NimNode): NimNode {.compileTime.} =
   result = arg
   while result.kind != nnkSym:
@@ -257,6 +269,14 @@ proc firstSymbol(arg:NimNode): NimNode {.compileTime.} =
   result = firstSymbol(arg, nil)
   if result == nil:
     error("Cedrić " & arg.lispRepr)
+
+
+static:
+  # not really great, software design.
+  # this table is created in each call to the render macro and used used to store the constraints of symbols.
+  var constraintsTable = initTable[NimNode,ConstraintRange]()
+  constraintsTable.clear
+
 
 proc `constraint=`(arg:NimNode, constraint: ConstraintRange): void  {.compileTime.} =
   constraintsTable[arg.firstSymbol] = constraint
@@ -449,7 +469,7 @@ proc resolveConstraints(arg: NimNode): void {.compileTime.} =
 
   for _, lhs, _, rhs in arg.iterateSSAList(backwards = false):
     if rhs.kind == nnkDotExpr:
-      echo "assuming ", rhs.lispRepr, " is an attribute, not tested"
+      echo "assuming ", rhs.repr, " is an attribute, not tested"
       shrinkMaxConstraint(lhs, gcVS)
     elif rhs.kind in nnkCallKinds:
       if eqIdent(rhs[0], "texture"):
@@ -492,35 +512,6 @@ proc createGlslFragmentTypeSection(arg: NimNode): string {.compileTime.} =
       result.add sym.repr
       result.add ";\n"
       i += 1
-
-proc createGlslUniformsSection(stmtList: NimNode): string {.compileTime.} =
-  var localSymbols = newSeq[NimNode](0)
-  var externalSymbols = newSeq[NimNode](0)
-  stmtList.expectKind nnkStmtList
-  for letSection in stmtList:
-    if letSection.kind == nnkLetSection:
-      let identDefs = letSection[0]
-      identDefs.expectKind nnkIdentDefs
-      let lhsSym = identDefs[0]
-      lhsSym.expectKind nnkSym
-
-      let rhs = identDefs[2]
-      if rhs.kind in nnkCallKinds:
-        for i in 1 ..< rhs.len:
-          let argSym = rhs[i]
-          if argSym.kind == nnkSym and argSym notin localSymbols:
-            externalSymbols.add argSym
-
-      localSymbols.add lhsSym
-
-  result = ""
-
-  for sym in externalSymbols:
-    result.add "uniform "
-    result.add sym.getTypeInst.glslType
-    result.add " "
-    result.add sym.repr
-    result.add ";\n"
 
 proc flatDotExpr(arg: NimNode): string {.compileTime.} =
   if arg.kind == nnkDotExpr:
@@ -596,16 +587,12 @@ proc createGlslMain(arg: NimNode): string {.compileTime.} =
     result.add line
   result.add "}\n"
 
-
 proc splitVertexFragmentShader(arg: NimNode): tuple[cpu,vs,fs: NimNode] {.compileTime, blockTag.} =
 
   let cpu = newStmtList()
   let vs = newStmtList()
   let fs = newStmtList()
 
-  var uniforms = ""
-
-  echo "constraints:"
 
   for asgn in arg:
     let lhs = asgn.lhs
@@ -621,12 +608,22 @@ proc splitVertexFragmentShader(arg: NimNode): tuple[cpu,vs,fs: NimNode] {.compil
     of gcFS:
       fs.add asgn
 
-    echo lhs.repr, " ", lhs.constraint
 
-  echo "CPU:\n"
+  var attributeSymbols = newSeq[NimNode](0)
+  for _, lhs, _, rhs in arg.iterateSSAList(backwards = false):
+    if rhs.kind == nnkDotExpr:
+      echo "assuming ", rhs.repr, " is an attribute, not tested"
+      attributeSymbols.add rhs
+
+  attributeSymbols.makeUnique
+  var attributes = ""
+  for attrib in attributeSymbols:
+    let typ = attrib[1].getTypeInst.glslType
+    attributes.add("in " & typ & " " & attrib[0].repr & "_" & attrib[1].repr & ";\n")
+
   # TODO filter out unnecessary intermediate results
-  let glUniformCalls = newStmtList()
 
+  #[
   for i, asgn in cpu:
     asgn.expectKind nnkLetSection
     let name = asgn[0][0].repr
@@ -634,14 +631,72 @@ proc splitVertexFragmentShader(arg: NimNode): tuple[cpu,vs,fs: NimNode] {.compil
 
     let call = newCall(ident"glUniform", newLit(i), asgn[0][0])
     glUniformCalls.add call
+  ]#
 
 
+  var uniformSymbols = newSeq[NimNode](0)
+  var vsSymbols = newSeq[NimNode](0)
+  var varyingSymbols = newSeq[NimNode](0)
+  var fsSymbols = newSeq[NimNode](0)
+
+  for cmd in vs:
+    let rhs = cmd.rhs
+
+    if rhs.kind in nnkCallKinds:
+      for arg in rhs.arguments:
+        if arg.kind == nnkSym:
+          if arg notin vsSymbols:
+            uniformSymbols.add arg
+
+    let lhs = cmd.lhs
+    if lhs.kind == nnkSym:
+      vsSymbols.add lhs
+
+
+  for cmd in fs:
+    let rhs = cmd.rhs
+
+    if rhs.kind in nnkCallKinds:
+      for arg in rhs.arguments:
+        if arg.kind == nnkSym:
+          if arg in vsSymbols:
+            varyingSymbols.add arg
+          elif arg notin fsSymbols:
+            uniformSymbols.add arg
+
+    let lhs = cmd.lhs
+    if lhs.kind == nnkSym:
+      fsSymbols.add lhs
+
+
+
+
+  echo "uniforms:   ", uniformSymbols
+  echo "attributes: ", attributeSymbols.map(proc (x: NimNode): NimNode = x[1])
+  echo "varyings:   ", varyingSymbols
+
+
+  var glslUniforms = ""
+  for i, uniform in uniformSymbols:
+    let call = newCall(ident"glUniform", newLit(i), uniform)
+    cpu.add call
+
+    let name = uniform.repr
+    let glslType = "<NA>" #arg.getTypeInst.glslType
+    glslUniforms.add("layout(location = " & $i & ") uniform " & glslType & " " & name & ";\n")
+
+  echo "CPU:"
   echo cpu.repr
-  echo glUniformCalls.repr, "\n"
   echo "VS:"
-  echo uniforms, "\n", vs.createGlslMain
+  echo glsluniforms, attributes, "\n", vs.createGlslMain
+  for varying in varyingSymbols:
+    echo "out <NA> " & varying.repr
   echo "FS:"
-  echo uniforms, "\n", fs.createGlslMain
+  echo glslUniforms
+  for varying in varyingSymbols:
+    echo "in <NA> " & varying.repr
+  echo "\n", fs.createGlslMain
+
 
 
 proc strip_pragma_expressions(arg: NimNode): NimNode {.compileTime.} =
@@ -678,15 +733,15 @@ macro render_inner(mesh, arg: typed): untyped =
 
   ssaList2.resolveConstraints
 
-  let uniformsSection = ssaList2.createGlslUniformsSection
-  let vertexTypeSection = formalParams[1].createGlslAttributesSection
-  let fragmentTypeSection = formalParams[0].createGlslFragmentTypeSection
-  let glslMain = createGlslMain(ssaList2)
+  #let uniformsSection = ssaList2.createGlslUniformsSection
+  #let vertexTypeSection = formalParams[1].createGlslAttributesSection
+  #let fragmentTypeSection = formalParams[0].createGlslFragmentTypeSection
+  #let glslMain = createGlslMain(ssaList2)
 
   let (_,_,_) = ssaList2.splitVertexFragmentShader
 
-  let shaderSource = uniformsSection & "\n" & vertexTypeSection & "\n" & fragmentTypeSection & "\n" & glslMain
-  echo shaderSource
+  #let shaderSource = uniformsSection & "\n" & vertexTypeSection & "\n" & fragmentTypeSection & "\n" & glslMain
+  #echo shaderSource
 
 proc `or`(arg, alternative: NimNode): NimNode {.compileTime.} =
   if arg.kind != nnkEmpty:

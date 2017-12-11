@@ -71,14 +71,12 @@ while runGame:
   float tempreal, tempimag, Creal, Cimag;
   float r2;
   vec2 pos = centerScale.xy + (texCoord - 0.5) * vec2(aspectRatio, 1) * centerScale.z;
-  //pos.y /= aspectRatio;
   float real = (pos.s * 3.0 );
   float imag = (pos.t * 3.0 );
   Creal = real;
   Cimag = imag;
   int iter = 0;
   for (; iter < maxIterations; iter++) {
-    // z = z^2 + c
     tempreal = real;
     tempimag = imag;
     real = (tempreal * tempreal) - (tempimag * tempimag);

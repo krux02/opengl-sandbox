@@ -14,16 +14,12 @@ let colors   = arrayBuffer([
   vec4f(0,0,1,1)
 ])
 
-let indices = elementArrayBuffer([
-  0'u16, 1, 2
-])
-
 var runGame: bool = true
 
 let timer = newStopWatch(true)
 
 let aspect = window.aspectRatio.float32
-let proj : Mat4f = frustum(-aspect * 0.01f, aspect * 0.01f, -0.01f, 0.01f, 0.01f, 100.0)
+let projMat : Mat4f = frustum(-aspect * 0.01f, aspect * 0.01f, -0.01f, 0.01f, 0.01f, 100.0)
 
 while runGame:
 
@@ -48,22 +44,22 @@ while runGame:
     .rotateY(time)               # rotate the triangle
     .scale(3)                    # scale the triangle to be big enough on screen
 
+  let mvp = projMat * viewMat * modelMat
+
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
   shadingDsl:
     debug
     primitiveMode = GL_TRIANGLES
     numVertices = 3
-    indices = indices
     uniforms:
-      modelView = viewMat * modelMat
-      proj
+      mvp
     attributes:
       a_vertex = vertices
       a_color  = colors
     vertexMain:
       """
-      gl_Position = proj * modelView * a_vertex;
+      gl_Position = mvp * a_vertex;
       v_color = a_color;
       """
     vertexOut:
