@@ -1,6 +1,6 @@
 import glm, future, algorithm, macros, strutils, tables, sequtils
 
-
+#[
 proc makeUnique[T](s: var seq[T]): void =
   if s.len > 2:
     s.sort
@@ -10,13 +10,14 @@ proc makeUnique[T](s: var seq[T]): void =
       s[i] = s[j]
       i += 1
 
-
     var j = 0
     while s.arg[j] == s.arg[j+1] and j < s.len:
       j += 1
-
+]#
 
 ## gl wrapper ##
+
+## TODO output in fragment shader
 
 type
   Texture1D            = object
@@ -78,6 +79,19 @@ type
     gcCPU
 
   ConstraintRange = tuple[min,max: GlslConstraint]
+
+iterator typeFields(typeAst: NimNode): tuple[memberSym, typeSym: NimNode] =
+  let parent =
+    if typeAst.kind == nnkObjectTy:
+      typeAst[2]
+    else:
+      typeAst
+
+  for identDefs in parent:
+    let typeSym = identDefs[^2]
+    for i in 0 ..< identDefs.len-2:
+      let memberSym = identDefs[i]
+      yield((memberSym: memberSym, typeSym: typeSym))
 
 iterator arguments*(n: NimNode): NimNode {.inline.} =
   ## Iterates over the arguments of a call ``n``.
@@ -301,8 +315,7 @@ proc withDefaultConstraint(asgn, glSym, resultSym: NimNode): NimNode {.compileTi
     dotExpr.expectKind nnkDotExpr
     let lhsSym = if dotExpr[0].kind == nnkHiddenDeref: dotExpr[0][0] else: dotExpr[0]
     lhsSym.expectKind nnkSym
-    if cmpIgnoreStyle($lhsSym, $glSym) == 0:
-      #warning "no real symbol resolution of " & $glSym # , lhsSym
+    if lhsSym == glSym:
       lhsSym.constraint = (min: gcVS, max: gcVS)
     elif lhsSym == resultSym:
       lhsSym.constraint = (min: gcFS, max: gcFS)
@@ -394,13 +407,7 @@ logic for `let s = v1 + v2`:
 ]#
 
 
-proc resolveConstraints(arg: NimNode): void {.compileTime.} =
-
-
-
-
-
-
+proc resolveConstraints(arg, vertexSym: NimNode): void {.compileTime.} =
   # build dependency graph
   # let a = foo(b,c,d)  --> a depends on {b,c,d}
   # and the inverse:    --> b,c,d all depend on a
@@ -469,11 +476,12 @@ proc resolveConstraints(arg: NimNode): void {.compileTime.} =
 
   for _, lhs, _, rhs in arg.iterateSSAList(backwards = false):
     if rhs.kind == nnkDotExpr:
-      echo "assuming ", rhs.repr, " is an attribute, not tested"
-      shrinkMaxConstraint(lhs, gcVS)
+      if rhs[0] == vertexSym:
+        shrinkMaxConstraint(lhs, gcVS)
+      else:
+        error("can't do anything with this dot expr ", rhs)
     elif rhs.kind in nnkCallKinds:
       if eqIdent(rhs[0], "texture"):
-        echo rhs.lispRepr
         rhs.expectLen(4)
         let sampler = rhs[1]
         let P = rhs[2]
@@ -587,12 +595,21 @@ proc createGlslMain(arg: NimNode): string {.compileTime.} =
     result.add line
   result.add "}\n"
 
-proc splitVertexFragmentShader(arg: NimNode): tuple[cpu,vs,fs: NimNode] {.compileTime, blockTag.} =
+proc splitVertexFragmentShader(arg, vertexSym, resultSym: NimNode): tuple[cpu,vs,fs: NimNode] {.compileTime, blockTag.} =
+  var symbolTypeMap = newTable[NimNode,NimNode]()
+  for _, lhs, typ, rhs in arg.iterateSSAList(backwards = false):
+    symbolTypeMap[lhs] = typ
+
+  proc getGlslType(arg: NimNode): string =
+    if symbolTypeMap.hasKey(arg):
+      symbolTypeMap[arg].glslType
+    else:
+      arg.getTypeInst.glslType
+
 
   let cpu = newStmtList()
   let vs = newStmtList()
   let fs = newStmtList()
-
 
   for asgn in arg:
     let lhs = asgn.lhs
@@ -608,17 +625,18 @@ proc splitVertexFragmentShader(arg: NimNode): tuple[cpu,vs,fs: NimNode] {.compil
     of gcFS:
       fs.add asgn
 
-
   var attributeSymbols = newSeq[NimNode](0)
   for _, lhs, _, rhs in arg.iterateSSAList(backwards = false):
     if rhs.kind == nnkDotExpr:
-      echo "assuming ", rhs.repr, " is an attribute, not tested"
-      attributeSymbols.add rhs
+      if rhs[0] == vertexSym:
+        attributeSymbols.add rhs
+      else:
+        error("can't do anything with this dot expression", rhs)
 
-  attributeSymbols.makeUnique
+  #attributeSymbols.makeUnique
   var attributes = ""
   for attrib in attributeSymbols:
-    let typ = attrib[1].getTypeInst.glslType
+    let typ = attrib[1].getGlslType
     attributes.add("in " & typ & " " & attrib[0].repr & "_" & attrib[1].repr & ";\n")
 
   # TODO filter out unnecessary intermediate results
@@ -669,32 +687,37 @@ proc splitVertexFragmentShader(arg: NimNode): tuple[cpu,vs,fs: NimNode] {.compil
       fsSymbols.add lhs
 
 
-
-
-  echo "uniforms:   ", uniformSymbols
-  echo "attributes: ", attributeSymbols.map(proc (x: NimNode): NimNode = x[1])
-  echo "varyings:   ", varyingSymbols
-
-
   var glslUniforms = ""
   for i, uniform in uniformSymbols:
     let call = newCall(ident"glUniform", newLit(i), uniform)
     cpu.add call
 
     let name = uniform.repr
-    let glslType = "<NA>" #arg.getTypeInst.glslType
+
+    let glslType = uniform.getGlslType
+
     glslUniforms.add("layout(location = " & $i & ") uniform " & glslType & " " & name & ";\n")
+
+
+  var fragmentOutputs = ""
+  ## calculate fragment output section
+  block:
+    var i = 0
+    for sym, typ in  resultSym.getTypeImpl.typeFields:
+      fragmentOutputs.add("layout(location = " & $i & ") out " & typ.glslType & " " & $sym & ";\n")
+      i += 1
 
   echo "CPU:"
   echo cpu.repr
   echo "VS:"
   echo glsluniforms, attributes, "\n", vs.createGlslMain
   for varying in varyingSymbols:
-    echo "out <NA> " & varying.repr
+    echo "out " & varying.getGlslType & " " & varying.repr
   echo "FS:"
   echo glslUniforms
   for varying in varyingSymbols:
-    echo "in <NA> " & varying.repr
+    echo "in " & varying.getGlslType & " " & varying.repr
+  echo fragmentOutputs
   echo "\n", fs.createGlslMain
 
 
@@ -712,7 +735,7 @@ macro render_inner(mesh, arg: typed): untyped =
   let ssaList1 = transform_to_single_static_assignment(arg[6])
 
   let resultSym = arg.last
-  let glSym = arg[3][2][0]
+
 
   # make each assingnment into an assignment that has constraint
   # attached to it
@@ -720,8 +743,31 @@ macro render_inner(mesh, arg: typed): untyped =
   let ssaList2 = newStmtList()
 
 
-  let vSym = arg[3][1][0]
-  let vSymUsage = arg[^2][1][1][0]
+  var vertexSym = arg[3][1][0]
+  if vertexSym.kind == nnkIdent:
+    echo "TODO: patch the compiler and make vertexSym a symbol in the compiler"
+    let symName = $vertexSym
+    for node in arg.depthFirstTraversal:
+      if node.kind == nnkSym and eqIdent(node, symName):
+        echo "replacing vertexSym `", vertexSym.lispRepr, "` with `", node.lispRepr, "` this could be wrong"
+        vertexSym = node
+        break
+  else:
+    echo "TODO: delete dead code path"
+
+  var glSym = arg[3][2][0]
+  if glSym.kind == nnkIdent:
+    echo "TODO: patch the compiler and make vertexSym a symbol in the compiler"
+    let symName = $glSym
+    for node in arg.depthFirstTraversal:
+      if node.kind == nnkSym and eqIdent(node, symName):
+        echo "replacing glSym `", glSym.lispRepr, "` with `", node.lispRepr, "` this could be wrong"
+        glSym = node
+        break
+  else:
+    echo "TODO: delete dead code path"
+
+
 
   constraintsTable.clear
   for asgn in ssaList1:
@@ -731,14 +777,14 @@ macro render_inner(mesh, arg: typed): untyped =
   formalParams.expectKind nnkFormalParams
 
 
-  ssaList2.resolveConstraints
+  ssaList2.resolveConstraints(vertexSym)
 
   #let uniformsSection = ssaList2.createGlslUniformsSection
   #let vertexTypeSection = formalParams[1].createGlslAttributesSection
   #let fragmentTypeSection = formalParams[0].createGlslFragmentTypeSection
   #let glslMain = createGlslMain(ssaList2)
 
-  let (_,_,_) = ssaList2.splitVertexFragmentShader
+  let (_,_,_) = ssaList2.splitVertexFragmentShader(vertexSym, resultSym)
 
   #let shaderSource = uniformsSection & "\n" & vertexTypeSection & "\n" & fragmentTypeSection & "\n" & glslMain
   #echo shaderSource
@@ -826,7 +872,6 @@ var myTexture: Texture2D
 var mesh: MyMesh
 var framebuffer: MyFramebuffer
 var mvp: Mat4f
-
 
 static:
   echo "################################################################################\n"
