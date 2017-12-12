@@ -1,23 +1,25 @@
 import glm, future, algorithm, macros, strutils, tables, sequtils
 
-#[
-proc makeUnique[T](s: var seq[T]): void =
-  if s.len > 2:
-    s.sort
-    var i = 0
 
-    proc write(j: int): void =
-      s[i] = s[j]
-      i += 1
+proc makeUnique[T](arg: var seq[T]): void =
+  if arg.len < 2:
+    return
 
-    var j = 0
-    while s.arg[j] == s.arg[j+1] and j < s.len:
-      j += 1
-]#
+  let oldLen = arg.len
+  var newLen = 0
+  for i in 0 ..< arg.len:
+    if arg[newLen] != arg[i]:
+      newLen += 1
+      arg[newLen] = arg[i]
+
+  arg.setLen(newLen+1)
+
+
+proc sortAndUnique[T](arg: var seq[T]): void =
+  arg.sort(cmp)
+  arg.makeUnique
 
 ## gl wrapper ##
-
-## TODO output in fragment shader
 
 type
   Texture1D            = object
@@ -268,9 +270,6 @@ proc hash(arg: NimNode): Hash {.compileTime.}=
       result = result !& hash(child)
     result = !$result
 
-
-
-
 proc firstSymbol(arg : NimNode; default:NimNode): NimNode {.compileTime.} =
   result = arg
   while result.kind != nnkSym:
@@ -333,35 +332,9 @@ proc withDefaultConstraint(asgn, glSym, resultSym: NimNode): NimNode {.compileTi
 
 
 
-proc createGlslAttributesSection(arg: NimNode): string {.compileTime.} =
-  result = ""
-  let vertexName = arg[0].repr
-  let objectTy = arg[1].getTypeImpl
-  objectTy.expectKind nnkObjectTy
-  let recList = objectTy[2]
-  recList.expectKind nnkRecList
-  var i = 0
-  for identDefs in recList:
-    let typ = identDefs[^2]
-    for j in 0 ..< identDefs.len - 2:
-      let sym = identDefs[j]
-      result.add "layout(location = "
-      result.add i
-      result.add ") in "
-      result.add typ.glslType
-      result.add " "
-      result.add vertexName
-      result.add "_"
-      result.add sym.repr
-      result.add ";\n"
-      i += 1
-
-  discard
-
-
-proc add[T](arg: var Table[T, seq[T]]; key, value: T): void =
+proc add[T,U](arg: var Table[T, seq[U]]; key: T; value: U): void =
   if arg.hasKey(key):
-    let s: ptr seq[T] = arg[key].addr
+    let s: ptr seq[U] = arg[key].addr
     if value notin s[]:
       s[].add(value)
   else:
@@ -417,9 +390,7 @@ proc resolveConstraints(arg, vertexSym: NimNode): void {.compileTime.} =
 
   for kind, lhs, typ, rhs in arg.iterateSSAList:
     let lhs = lhs.firstSymbol
-    let lhsConstraint = lhs.constraint
     if rhs.kind in nnkCallKinds:
-      var dependencies = newSeq[NimNode](0)
       for arg in rhs.arguments:
         if arg.hasConstraint:
           dependencyGraph.add(lhs,arg)
@@ -483,7 +454,7 @@ proc resolveConstraints(arg, vertexSym: NimNode): void {.compileTime.} =
     elif rhs.kind in nnkCallKinds:
       if eqIdent(rhs[0], "texture"):
         rhs.expectLen(4)
-        let sampler = rhs[1]
+        #let sampler = rhs[1]
         let P = rhs[2]
         # let bias = rhs[3]
 
@@ -500,33 +471,11 @@ proc resolveConstraints(arg, vertexSym: NimNode): void {.compileTime.} =
     else:
       echo "call: ", rhs.repr
 
-proc createGlslFragmentTypeSection(arg: NimNode): string {.compileTime.} =
-  result = ""
-  let objectTy = arg.getTypeImpl
-  objectTy.expectKind nnkObjectTy
-  let recList = objectTy[2]
-  recList.expectKind nnkRecList
-
-  var i = 0
-  for identDefs in recList:
-    let typ = identDefs[^2].glslType
-    for j in 0 ..< identDefs.len - 2:
-      let sym = identDefs[j]
-      result.add "layout(location = "
-      result.add i
-      result.add ") out "
-      result.add typ
-      result.add " "
-      result.add sym.repr
-      result.add ";\n"
-      i += 1
-
 proc flatDotExpr(arg: NimNode): string {.compileTime.} =
   if arg.kind == nnkDotExpr:
     result = arg[0].repr & "_" & arg[1].repr
   else:
     result = arg.repr
-
 
 macro blockTag(arg: untyped): untyped =
   arg.expectKind nnkProcDef
@@ -564,13 +513,14 @@ proc rhs(arg: NimNode): NimNode {.compileTime.} =
   else:
     return arg[1]
 
-proc createGlslMain(arg: NimNode): string {.compileTime.} =
+proc createGlslMain(arg: NimNode; outputSymbols: seq[NimNode] = @[]): string {.compileTime.} =
   result = "void main() {\n"
   for assignment in arg:
     var line = "    "
     if assignment.kind == nnkLetSection:
-      line.add assignment[0][1].glslType
-      line.add " "
+      if assignment[0][0] notin outputSymbols:
+        line.add assignment[0][1].glslType
+        line.add " "
       line.add assignment[0][0].repr
       line.add " = "
       line.add assignment[0][2].flatDotExpr
@@ -613,8 +563,6 @@ proc splitVertexFragmentShader(arg, vertexSym, resultSym: NimNode): tuple[cpu,vs
 
   for asgn in arg:
     let lhs = asgn.lhs
-    let rhs = asgn.rhs
-
     let constraint = lhs.constraint
 
     case constraint.max
@@ -633,7 +581,7 @@ proc splitVertexFragmentShader(arg, vertexSym, resultSym: NimNode): tuple[cpu,vs
       else:
         error("can't do anything with this dot expression", rhs)
 
-  #attributeSymbols.makeUnique
+  attributeSymbols.sortAndUnique
   var attributes = ""
   for attrib in attributeSymbols:
     let typ = attrib[1].getGlslType
@@ -686,6 +634,9 @@ proc splitVertexFragmentShader(arg, vertexSym, resultSym: NimNode): tuple[cpu,vs
     if lhs.kind == nnkSym:
       fsSymbols.add lhs
 
+  uniformSymbols.sortAndUnique
+  varyingSymbols.sortAndUnique
+
 
   var glslUniforms = ""
   for i, uniform in uniformSymbols:
@@ -707,27 +658,26 @@ proc splitVertexFragmentShader(arg, vertexSym, resultSym: NimNode): tuple[cpu,vs
       fragmentOutputs.add("layout(location = " & $i & ") out " & typ.glslType & " " & $sym & ";\n")
       i += 1
 
+
+  var vertexShader = glsluniforms & attributes & "\n" & vs.createGlslMain(varyingSymbols)
+  for varying in varyingSymbols:
+    vertexShader.add("out " & varying.getGlslType & " " & varying.repr & ";\n")
+
+
+  var fragmentShader = glsluniforms
+  for varying in varyingSymbols:
+    fragmentShader.add("in " & varying.getGlslType & " " & varying.repr & ";\n")
+
+  fragmentShader.add fs.createGlslMain
+  fragmentShader.add fragmentOutputs
+
+
   echo "CPU:"
   echo cpu.repr
   echo "VS:"
-  echo glsluniforms, attributes, "\n", vs.createGlslMain
-  for varying in varyingSymbols:
-    echo "out " & varying.getGlslType & " " & varying.repr
+  echo vertexShader
   echo "FS:"
-  echo glslUniforms
-  for varying in varyingSymbols:
-    echo "in " & varying.getGlslType & " " & varying.repr
-  echo fragmentOutputs
-  echo "\n", fs.createGlslMain
-
-
-
-proc strip_pragma_expressions(arg: NimNode): NimNode {.compileTime.} =
-  arg.expectKind nnkStmtList
-  result = newStmtList()
-  for pragmaExpr in arg:
-    pragmaExpr.expectKind  nnkPragmaExpr
-    result.add pragmaExpr[0]
+  echo fragmentShader
 
 
 macro render_inner(mesh, arg: typed): untyped =
