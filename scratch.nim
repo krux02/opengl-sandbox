@@ -524,7 +524,7 @@ proc createGlslMain(arg: NimNode; outputSymbols: seq[NimNode] = @[]): string {.c
       line.add assignment[0][0].repr
       line.add " = "
       line.add assignment[0][2].flatDotExpr
-      line.add "   // "
+      line.add ";   // "
       line.add $assignment[0][0].constraint
     elif assignment.kind == nnkAsgn:
       assignment[0].expectKind nnkDotExpr
@@ -536,7 +536,7 @@ proc createGlslMain(arg: NimNode; outputSymbols: seq[NimNode] = @[]): string {.c
         line.add "gl_" & dotExpr[1].repr
       line.add " = "
       line.add assignment[1].flatDotExpr
-      line.add "   // "
+      line.add ";   // "
       line.add $lhsSym.constraint
     else:
       echo assignment.treerepr
@@ -544,6 +544,51 @@ proc createGlslMain(arg: NimNode; outputSymbols: seq[NimNode] = @[]): string {.c
     line.add ";\n"
     result.add line
   result.add "}\n"
+
+
+type
+  ShaderKind = enum
+    skVert = "vert"
+    skTesc = "tesc",
+    skTese = "tese",
+    skGeom = "geom",
+    skFrag = "frag",
+    skComp = "comp"
+
+
+import terminal
+
+proc validateShader(src: string, sk: ShaderKind): void {.compileTime.} =
+  let log = staticExec("glslangValidator --stdin -S " & $sk, src, "true")
+  if log.len > 0:
+    echo "#####  glsl errors:  ####"
+    var problems = newSeq[tuple[lineNr: int, message: string]](0)
+    for line in log.splitLines:
+      if line.startsWith("ERROR: 0:"):
+        var i = 9
+        while line[i].isDigit:
+          i += 1
+        let lineNr = parseInt(line[9 ..< i])
+        let message = line[i .. ^1]
+
+        problems.add((lineNr: lineNr, message: message))
+
+    echo("==== start Shader Problems =======================================")
+    var lineNr = 0
+    for line in src.splitLines:
+      lineNr += 1
+      echo(intToStr(lineNr, 4), " ", line)
+      for problem in problems:
+        if problem.lineNr == lineNr:
+          echo("     ", problem.message)
+    echo("------------------------------------------------------------------")
+    echo(log)
+    echo("==== end Shader Problems =========================================")
+
+  else:
+    echo "compile: OK"
+
+const shaderHeader = "#version 440\n"
 
 proc splitVertexFragmentShader(arg, vertexSym, resultSym: NimNode): tuple[cpu,vs,fs: NimNode] {.compileTime, blockTag.} =
   var symbolTypeMap = newTable[NimNode,NimNode]()
@@ -659,25 +704,28 @@ proc splitVertexFragmentShader(arg, vertexSym, resultSym: NimNode): tuple[cpu,vs
       i += 1
 
 
-  var vertexShader = glsluniforms & attributes & "\n" & vs.createGlslMain(varyingSymbols)
+  var vertexShader = shaderHeader & glsluniforms & attributes & "\n"
+  var fragmentShader = shaderHeader & glsluniforms & "\n"
+
+  echo "varyingSymbols: ", varyingSymbols
   for varying in varyingSymbols:
     vertexShader.add("out " & varying.getGlslType & " " & varying.repr & ";\n")
-
-
-  var fragmentShader = glsluniforms
-  for varying in varyingSymbols:
     fragmentShader.add("in " & varying.getGlslType & " " & varying.repr & ";\n")
 
-  fragmentShader.add fs.createGlslMain
+  vertexShader.add  vs.createGlslMain(varyingSymbols)
   fragmentShader.add fragmentOutputs
+  fragmentShader.add fs.createGlslMain
 
 
   echo "CPU:"
   echo cpu.repr
   echo "VS:"
   echo vertexShader
+  vertexShader.validateShader(skVert)
+
   echo "FS:"
   echo fragmentShader
+  fragmentShader.validateShader(skFrag)
 
 
 macro render_inner(mesh, arg: typed): untyped =
