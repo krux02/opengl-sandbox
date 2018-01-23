@@ -107,40 +107,40 @@ proc resolveAlias*(arg: NimNode): seq[NimNode] =
   let typeDef = arg.resolveAliasInternal
   typeDef.sequenceTransform
 
-type
-  Vec[N: static[int],T] = object
-    arr: array[N,T]
-  Vec4[T] = Vec[4,T]
-  Vec4f = Vec4[float32]
-  MyObject = object
-    a,b,c: int
-  MyObjectAlias = MyObject
-  MyObjectSubAlias = MyObjectAlias
-  MyTuple = tuple[a,b: int]
-  MyFloatAlias = float32
-  MyFloatSubAlias = MyFloatAlias
-  MyOtherFloat = distinct float32
+when isMainModule:
+  type
+    Vec[N: static[int],T] = object
+      arr: array[N,T]
+    Vec4[T] = Vec[4,T]
+    Vec4f = Vec4[float32]
+    MyObject = object
+      a,b,c: int
+    MyObjectAlias = MyObject
+    MyObjectSubAlias = MyObjectAlias
+    MyTuple = tuple[a,b: int]
+    MyFloatAlias = float32
+    MyFloatSubAlias = MyFloatAlias
+    MyOtherFloat = distinct float32
 
-import macros, future, sequtils, strutils
+  import macros, future, sequtils, strutils
 
-macro foobar(arg: typed): untyped =
-  let typeInst = arg.getTypeInst
-  let types = arg.getTypeInst.resolveAlias
-  echo "seq(`", types.map( x => x.repr).join("`, `"), "`)"
+  macro foobar(arg: typed): untyped =
+    let types = arg.getTypeInst.resolveAlias
+    echo "seq(`", types.map( x => x.repr).join("`, `"), "`)"
 
-var
-  a: MyObjectSubAlias
-  b: Vec4f
-  c: MyTuple
-  d: float32
-  e: MyFloatAlias
-  f: MyFloatSubAlias
-  g: MyOtherFloat
+  var
+    a: MyObjectSubAlias
+    b: Vec4f
+    c: MyTuple
+    d: float32
+    e: MyFloatAlias
+    f: MyFloatSubAlias
+    g: MyOtherFloat
 
-foobar(a) # prints: seq(`MyObjectSubAlias`, `MyObjectAlias`, `MyObject`)
-foobar(b) # prints: seq(`Vec4f`, `Vec4[float32]`, `Vec[4, float32]`)
-foobar(c) # prints: seq(`MyTuple`, `tuple[a, b: int]`)
-foobar(d) # prints: seq(`float32`)
-foobar(e) # prints: seq(`MyFloatAlias`, `float32`)
-foobar(f) # prints: seq(`MyFloatSubAlias`, `MyFloatAlias`, `float32`)
-foobar(g) # prints: seq(`MyOtherFloat`)
+  foobar(a) # prints: seq(`MyObjectSubAlias`, `MyObjectAlias`, `MyObject`)
+  foobar(b) # prints: seq(`Vec4f`, `Vec4[float32]`, `Vec[4, float32]`)
+  foobar(c) # prints: seq(`MyTuple`, `tuple[a, b: int]`)
+  foobar(d) # prints: seq(`float32`)
+  foobar(e) # prints: seq(`MyFloatAlias`, `float32`)
+  foobar(f) # prints: seq(`MyFloatSubAlias`, `MyFloatAlias`, `float32`)
+  foobar(g) # prints: seq(`MyOtherFloat`)

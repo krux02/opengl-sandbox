@@ -1,5 +1,6 @@
 import glm, future, algorithm, macros, strutils, tables, sequtils
 
+import resolveAlias
 
 proc makeUnique[T](arg: var seq[T]): void =
   if arg.len < 2:
@@ -13,7 +14,6 @@ proc makeUnique[T](arg: var seq[T]): void =
       arg[newLen] = arg[i]
 
   arg.setLen(newLen+1)
-
 
 proc sortAndUnique[T](arg: var seq[T]): void =
   arg.sort(cmp)
@@ -114,58 +114,25 @@ iterator depthFirstTraversal*(n: NimNode): NimNode =
       yield stack[^1].n
     discard stack.pop
 
+proc expectIdent(arg: NimNode; identName: string): void =
+  if not arg.eqIdent(identName):
+    error("expect identifier or symbol of name " & identName, arg)
+
+proc expectInt(arg: NimNode; value: int): void =
+  if arg.intVal != value:
+    error("expect integer literal of value " & $value, arg)
+
+proc expectIntIn(arg: NimNode; slice: Slice[int]): void =
+  if arg.intVal notin slice:
+    error("expect integer literal in range: " & $slice.a & " .. " & $slice.b & " but got " & $arg.intVal, arg)
+
+
+import future, strutils, sequtils
+
 proc glslType(arg: NimNode): string {.compileTime.} =
-  if arg.kind == nnkBracketExpr:
-    if arg[0] == bindSym"Vec":
-      if arg[2] == bindSym"float32":
-        result = "vec"
-      elif arg[2] == bindSym"float64":
-        result = "dvec"
-      elif arg[2] == bindSym"int32":
-        result = "ivec"
-      elif arg[2] == bindSym"bool":
-        result = "bvec"
+  let arg = arg.resolveAlias[^1]
 
-      arg[1].expectKind nnkIntLit
-      let intVal = arg[1].intVal
-      if 4 < intVal or intVal < 2:
-        error "not compatible", arg
-      result.add intVal
-
-    elif arg[0] == bindSym"Mat":
-      let Tsym = arg[3]
-      if Tsym == bindSym"float32":
-        result = "mat"
-      elif Tsym == bindSym"float64":
-        result = "dmat"
-      elif Tsym == bindSym"int32":
-        result = "imat"
-      elif Tsym == bindSym"bool":
-        result = "bmat"
-      else:
-        echo arg.treeRepr
-        result = "<error type 4>"
-
-      arg[1].expectKind nnkIntLit
-      arg[2].expectKind nnkIntLit
-
-      let intVal1 = arg[1].intVal
-      let intVal2 = arg[2].intVal
-
-      if 4 < intVal1 or intVal1 < 2:
-        error "not compatible", arg
-      if 4 < intVal2 or intVal2 < 2:
-        error "not compatible", arg
-
-
-      result.add intVal1
-      if intVal2 != intVal1:
-        result.add "x"
-        result.add intVal2
-    else:
-      echo arg.treeRepr
-      return "<error type 1>"
-  elif arg.kind == nnkSym:
+  if arg.kind == nnkSym:
     if arg == bindSym"float32":
       return "float"
     elif arg == bindSym"float64":
@@ -174,7 +141,6 @@ proc glslType(arg: NimNode): string {.compileTime.} =
       return "int"
     elif arg == bindSym"bool":
       return "bool"
-
     elif arg == bindSym"Texture1D":
       return "sampler1D"
     elif arg == bindSym"Texture2D":
@@ -191,17 +157,81 @@ proc glslType(arg: NimNode): string {.compileTime.} =
       return "sampler2DArray"
     elif arg == bindSym"Texture2DArrayShadow":
       return "sampler2DArrayShadow"
-
     else:
-      let typ2 = arg.getTypeImpl
-      if typ2.kind == nnkBracketExpr:
-        return typ2.glslType
+      error("symbol not handled yet: " & arg.repr, arg)
+
+  if arg.kind == nnkBracketExpr:
+    if arg[0] == bindSym"Vec":
+      if arg[2] == bindSym"float32":
+        result = "vec"
+      elif arg[2] == bindSym"float64":
+        result = "dvec"
+      elif arg[2] == bindSym"int32":
+        result = "ivec"
+      elif arg[2] == bindSym"bool":
+        result = "bvec"
+
+      arg[1].expectIntIn 2..4
+      result.add arg[1].intVal
+
+    elif arg[0] == bindSym"Mat":
+      let Tsym = arg[3]
+      if Tsym == bindSym"float32":
+        result = "mat"
+      elif Tsym == bindSym"float64":
+        result = "dmat"
+      elif Tsym == bindSym"int32":
+        result = "imat"
+      elif Tsym == bindSym"bool":
+        result = "bmat"
       else:
         echo arg.treeRepr
-        return "<error type 3>"
+        result = "<error type 4>"
+
+      arg[1].expectIntIn 2..4
+      arg[2].expectIntIn 2..4
+
+      let intVal1 = arg[1].intVal
+      let intVal2 = arg[2].intVal
+
+      result.add intVal1
+      if intVal2 != intVal1:
+        result.add "x"
+        result.add intVal2
+    else:
+      error("incompatible type for glsl " & arg.repr, arg)
   else:
-    echo arg.treeRepr
-    return "<error type 2>"
+    error("don't know what to do with " & arg.repr, arg)
+
+macro testGlslType(arg: typed): untyped =
+  var expected: string
+  for varSection in arg:
+    if varSection.kind == nnkVarSection:
+      let identDefs = varSection[0]
+      let sym = identDefs[0]
+
+      let glslType = sym.getTypeInst.glslType
+      assert glslType == expected
+    else:
+      expected = varSection.strVal
+
+testGlslType:
+  ## vec4
+  var a: Vec4f
+  ## vec4
+  var b: Vec4[float32]
+  ## vec4
+  var c: Vec[4,float32]
+  ## mat4
+  var d: Mat4f
+  ## mat4
+  var e: Mat4[float32]
+  ## mat4
+  var f: Mat[4,4,float32]
+  ## float
+  var g: float32
+  ## mat3x5
+  var h: Mat[3,4, float32]
 
 proc transform_to_single_static_assignment(stmtList: NimNode): NimNode {.compileTime.} =
   ## Transforms the argument AST into a list of assignments. The
@@ -234,8 +264,6 @@ proc transform_to_single_static_assignment(stmtList: NimNode): NimNode {.compile
 
   return assignments
 
-
-
 iterator iterateSSAList(arg: NimNode, backwards: bool = false): tuple[kind:NimNodeKind; lhs, typ, rhs: NimNode] {.inline.} =
   arg.expectKind nnkStmtList
   for i in 1 .. arg.len:
@@ -254,7 +282,7 @@ iterator iterateSSAList(arg: NimNode, backwards: bool = false): tuple[kind:NimNo
     yield((asgn.kind, lhs, typ, rhs))
 
 import hashes
-proc hash(arg: NimNode): Hash {.compileTime.}=
+proc hash(arg: NimNode): Hash {.compileTime.} =
   result = result !& arg.kind.int
   case arg.kind
   of nnkCharLit..nnkUInt64Lit:
