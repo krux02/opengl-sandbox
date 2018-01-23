@@ -5,6 +5,9 @@ proc substitute(arg, symbol, replacement: NimNode): NimNode =
     if symbol == arg:
       return replacement
     elif arg.kind == nnkIdent and eqIdent(symbol, $arg):
+      # with identifier substitution it is enough when the identifier
+      # looks the same. It is kind of manual symbol resolution.
+      # ¯\_(ツ)_/¯
       return replacement
     else:
       return arg
@@ -17,7 +20,10 @@ proc resolveAliasInternal(typ: NimNode): NimNode =
 
   case typ.kind
   of nnkSym:
-    result = typ.symbol.getImpl.resolveAliasInternal
+    let impl = typ.symbol.getImpl
+    if impl.kind == nnkNilLit:
+      return typ
+    result = impl.resolveAliasInternal
 
   of nnkTypeDef:
     result = typ
@@ -34,17 +40,17 @@ proc resolveAliasInternal(typ: NimNode): NimNode =
       let arg = typ[i+1]
       result = result.substitute(sym, arg)
 
-  of nnkObjectTy:
+  of nnkObjectTy, nnkTupleTy, nnkDistinctTy:
     result = typ
 
   else:
-    error("illegal argument", typ)
+    echo typ.treeRepr
+    error("illegal argument: " & typ.repr, typ)
 
 proc sequenceTransform(arg: NimNode): seq[NimNode] =
   ## `resolveAliasInternal` will return a recursive datastructure of
   ## nnkTypeDef nodes. This ast is as an AST illegal. This
   ## transformation so that each ast is legal again.
-
   var arg = arg
 
   result.newSeq(0)
@@ -64,6 +70,9 @@ proc sequenceTransform(arg: NimNode): seq[NimNode] =
     else:
       error("")
     arg = arg[2] # this is almost end recursion
+
+  if arg.kind notin {nnkObjectTy,   nnkDistinctTy}:
+    result.add arg
 
 proc resolveAlias*(arg: NimNode): seq[NimNode] =
   ## Will return a list of type trees. All element of the list will
@@ -95,8 +104,8 @@ proc resolveAlias*(arg: NimNode): seq[NimNode] =
   ##     foobar(a) # prints: seq(MyObjectSubAlias, MyObjectAlias, MyObject)
   ##     foobar(d) # prints: seq(Vec4f, Vec4[float32], Vec[4, float32])
 
-  arg.resolveAliasInternal.sequenceTransform
-
+  let typeDef = arg.resolveAliasInternal
+  typeDef.sequenceTransform
 
 type
   Vec[N: static[int],T] = object
@@ -107,16 +116,31 @@ type
     a,b,c: int
   MyObjectAlias = MyObject
   MyObjectSubAlias = MyObjectAlias
-
-var
-  a: MyObjectSubAlias
-  d: Vec4f
+  MyTuple = tuple[a,b: int]
+  MyFloatAlias = float32
+  MyFloatSubAlias = MyFloatAlias
+  MyOtherFloat = distinct float32
 
 import macros, future, sequtils, strutils
 
 macro foobar(arg: typed): untyped =
+  let typeInst = arg.getTypeInst
   let types = arg.getTypeInst.resolveAlias
-  echo "seq(", types.map( x => x.repr).join(", "), ")"
+  echo "seq(`", types.map( x => x.repr).join("`, `"), "`)"
 
-foobar(a) # prints: seq(MyObjectSubAlias, MyObjectAlias, MyObject)
-foobar(d) # prints: seq(Vec4f, Vec4[float32], Vec[4, float32])
+var
+  a: MyObjectSubAlias
+  b: Vec4f
+  c: MyTuple
+  d: float32
+  e: MyFloatAlias
+  f: MyFloatSubAlias
+  g: MyOtherFloat
+
+foobar(a) # prints: seq(`MyObjectSubAlias`, `MyObjectAlias`, `MyObject`)
+foobar(b) # prints: seq(`Vec4f`, `Vec4[float32]`, `Vec[4, float32]`)
+foobar(c) # prints: seq(`MyTuple`, `tuple[a, b: int]`)
+foobar(d) # prints: seq(`float32`)
+foobar(e) # prints: seq(`MyFloatAlias`, `float32`)
+foobar(f) # prints: seq(`MyFloatSubAlias`, `MyFloatAlias`, `float32`)
+foobar(g) # prints: seq(`MyOtherFloat`)
