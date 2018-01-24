@@ -114,15 +114,15 @@ iterator depthFirstTraversal*(n: NimNode): NimNode =
       yield stack[^1].n
     discard stack.pop
 
-proc expectIdent(arg: NimNode; identName: string): void =
+proc expectIdent*(arg: NimNode; identName: string): void =
   if not arg.eqIdent(identName):
     error("expect identifier or symbol of name " & identName, arg)
 
-proc expectInt(arg: NimNode; value: int): void =
+proc expectInt*(arg: NimNode; value: int): void =
   if arg.intVal != value:
     error("expect integer literal of value " & $value, arg)
 
-proc expectIntIn(arg: NimNode; slice: Slice[int]): void =
+proc expectIntIn*(arg: NimNode; slice: Slice[int]): void =
   if arg.intVal notin slice:
     error("expect integer literal in range: " & $slice.a & " .. " & $slice.b & " but got " & $arg.intVal, arg)
 
@@ -203,35 +203,39 @@ proc glslType(arg: NimNode): string {.compileTime.} =
   else:
     error("don't know what to do with " & arg.repr, arg)
 
-macro testGlslType(arg: typed): untyped =
-  var expected: string
-  for varSection in arg:
-    if varSection.kind == nnkVarSection:
-      let identDefs = varSection[0]
-      let sym = identDefs[0]
 
-      let glslType = sym.getTypeInst.glslType
-      assert glslType == expected
-    else:
-      expected = varSection.strVal
+when defined(testGlslTypes):
+  macro testGlslType(arg: typed): untyped =
+    var expected: string
+    for varSection in arg:
+      if varSection.kind == nnkVarSection:
+        let identDefs = varSection[0]
+        let sym = identDefs[0]
 
-testGlslType:
-  ## vec4
-  var a: Vec4f
-  ## vec4
-  var b: Vec4[float32]
-  ## vec4
-  var c: Vec[4,float32]
-  ## mat4
-  var d: Mat4f
-  ## mat4
-  var e: Mat4[float32]
-  ## mat4
-  var f: Mat[4,4,float32]
-  ## float
-  var g: float32
-  ## mat3x5
-  var h: Mat[3,4, float32]
+        let glslType = sym.getTypeInst.glslType
+        assert glslType == expected
+      else:
+        expected = varSection.strVal
+
+  testGlslType:
+    ## vec4
+    var a: Vec4f
+    ## vec4
+    var b: Vec4[float32]
+    ## vec4
+    var c: Vec[4,float32]
+    ## mat4
+    var d: Mat4f
+    ## mat4
+    var e: Mat4[float32]
+    ## mat4
+    var f: Mat[4,4,float32]
+    ## float
+    var g: float32
+    ## mat3x4
+    var h: Mat[3,4, float32]
+    ## mat4x2
+    var i: Mat[4,2, float32]
 
 proc transform_to_single_static_assignment(stmtList: NimNode): NimNode {.compileTime.} =
   ## Transforms the argument AST into a list of assignments. The
@@ -434,19 +438,7 @@ proc resolveConstraints(arg, vertexSym: NimNode): void {.compileTime.} =
   for key, dependencies in dependencyGraph:
     dependencyGraph[key] = deduplicate(dependencyGraph[key])
 
-  ## done building dependency graph
-
-  #proc growMinConstraint(arg: NimNode; newMinConstraint: GlslConstraint): void
-  #proc updateDependentConstraints(arg: NimNode, newMinConstraint: GlslConstraint): void =
-  #  if dependencyGraph.hasKey(arg):
-  #    for dep in dependencyGraph[arg]:
-  #      dep.growMinConstraint newMinConstraint
-
-  #proc shrinkMaxConstraint(arg: NimNode; newMaxConstraint: GlslConstraint): void
-  #proc updateDependentConstraints(arg: NimNode, newMaxConstraint: GlslConstraint): void =
-  #  if inverseDependencyGraph.hasKey(arg):
-  #    for dep in inverseDependencyGraph[arg]:
-  #      dep.shrinkMaxConstraint newMaxConstraint
+  # done building dependency graph
 
   proc growMinConstraint(arg: NimNode; newMinConstraint: GlslConstraint): void =
     if arg.hasConstraint:
@@ -586,6 +578,13 @@ type
 
 import terminal
 
+const
+  ColorReset = "\e[0m" # background and foreground to default
+  ErrorStyle = "\e[31m" # Red
+  ErrorStyle2 = "\e[91m" # LightRed
+  LineNumberStyle = "\e[33m" # Yellow
+  BarStyle = "\e[30m\e[43m" # Black and Yellow
+
 proc validateShader(src: string, sk: ShaderKind): void {.compileTime.} =
   let log = staticExec("glslangValidator --stdin -S " & $sk, src, "true")
   if log.len > 0:
@@ -601,17 +600,17 @@ proc validateShader(src: string, sk: ShaderKind): void {.compileTime.} =
 
         problems.add((lineNr: lineNr, message: message))
 
-    echo("==== start Shader Problems =======================================")
+    echo(BarStyle, "==== start Shader Problems =======================================", ColorReset)
     var lineNr = 0
     for line in src.splitLines:
       lineNr += 1
-      echo(intToStr(lineNr, 4), " ", line)
+      echo(LineNumberStyle, intToStr(lineNr, 4), " ", ColorReset, line)
       for problem in problems:
         if problem.lineNr == lineNr:
-          echo("     ", problem.message)
-    echo("------------------------------------------------------------------")
-    echo(log)
-    echo("==== end Shader Problems =========================================")
+          echo("     ", ErrorStyle, problem.message)
+    echo(BarStyle, "------------------------------------------------------------------", ColorReset)
+    echo(ErrorStyle2, log)
+    echo(BarStyle, "==== end Shader Problems =========================================", ColorReset)
 
   else:
     echo "compile: OK"
