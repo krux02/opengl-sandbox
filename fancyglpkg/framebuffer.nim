@@ -88,14 +88,14 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
     let lhs = asgn[0]
     let rhs = asgn[1]
 
-    if lhs.ident == !"depth":
+    if lhs.eqIdent "depth":
         rhs.expectKind(nnkCall)
         depthCreateExpr = rhs;
 
-        if rhs[0].ident == !"newDepthRenderBuffer":
+        if rhs[0].eqIdent "newDepthRenderBuffer":
           depthType = bindSym"DepthRenderbuffer"
           useDepthRenderbuffer = true
-        elif rhs[0].ident == !"newDepthTexture2D":
+        elif rhs[0].eqIdent "newDepthTexture2D":
           depthType = bindSym"Texture2D"
           useDepthRenderbuffer = false
         else:
@@ -112,7 +112,7 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
 
   for fragOut in fragmentOutputs:
 
-    result[^1][0][2][2].add newExpIdentDef(!fragOut, bindSym"Texture2D")
+    result[^1][0][2][2].add newExpIdentDef(fragOut, bindSym"Texture2D")
 
 
   let fragmentOutputsSeqNode = fragmentOutputs.toConstExpr
@@ -158,7 +158,7 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
     let lhs = asgn[0]
     let rhs = asgn[1]
 
-    if lhs.ident != !"depth":
+    if not lhs.eqIdent("depth"):
       let nameIdent = ident($lhs)
       let attachmentLit = ident("GL_COLOR_ATTACHMENT" & $i)
       branchStmtList.add(quote do:
@@ -192,7 +192,7 @@ template blockBindFramebuffer*(name, blok: untyped): untyped =
   glBindFramebuffer(GL_FRAMEBUFFER, name.handle.handle)
   block:
     let currentFramebuffer {. inject .} = name
-    const fragmentOutputs {.inject.} = name.type.fragmentOutputSeq
+    const fragmentOutputs {. inject .} = name.type.fragmentOutputSeq
     blok
 
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, drawfb.GLuint)

@@ -11,15 +11,15 @@ proc rand_i64*(): int64  = int64(rand_u64() and 0x7fffffffffffffff'u64)
 
 proc rand_u32*(): uint32 = mt.getNum
 
-proc rand_i32*(): int32  = mt.getNum  and 0x7fffffff
+proc rand_i32*(): int32  = int32(mt.getNum  and 0x7fffffff)
 
-proc rand_u16*(): uint16 = mt.getNum  and 0xffff
+proc rand_u16*(): uint16 = uint16(mt.getNum  and 0xffff)
 
-proc rand_i16*(): int16  = mt.getNum  and 0x7fff
+proc rand_i16*(): int16  = int16(mt.getNum  and 0x7fff)
 
-proc rand_u8*(): uint8   = mt.getNum  and 0xff
+proc rand_u8*(): uint8   = uint8(mt.getNum  and 0xff)
 
-proc rand_i8*(): int8    = mt.getNum  and 0x7f
+proc rand_i8*(): int8    = int8(mt.getNum  and 0x7f)
 
 proc rand_f64*(): float64 =
   rand_u64().float64 / pow(2'f64, 64'f64)

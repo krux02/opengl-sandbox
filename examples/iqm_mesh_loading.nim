@@ -109,7 +109,7 @@ proc main() =
     arrayBuffer(jointNameIndices, label ="jointNameIndices")
 
   var jointMatrices = newSeq[Mat4f](joints.len)
-  for i in 0 .. < joints.len:
+  for i in 0 ..< joints.len:
     var joint = joints[i]
     jointMatrices[i] = joint.matrix
     while joint.parent >= 0:
@@ -185,7 +185,7 @@ proc main() =
   let framedata_view = header.getFrames
   var framedata_idx  = 0
 
-  for i in 0 .. < framedata_view.len:
+  for i in 0 ..< framedata_view.len:
     for j, p in poses:
       var rawPose : array[10, float32]
       for k in 0 .. high(rawPose):
@@ -368,7 +368,7 @@ proc main() =
       frame2 = frames[(animFrame.floor.int + 1) mod header.num_frames.int]
       frameoffset = animFrame - animFrame.floor
 
-    for i in 0 .. < outframe.len:
+    for i in 0 ..< outframe.len:
       let mat = mix( frame1[i], frame2[i], frameoffset )
       outframe[i] = if joints[i].parent >= 0: outframe[joints[i].parent] * mat else: mat
 

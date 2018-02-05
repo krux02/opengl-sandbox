@@ -9,7 +9,7 @@ proc uvSphereVertices*(segments, rings: int): seq[Vec4f] =
       x = cos(beta).float32
       y = sin(beta).float32
 
-    for i in 0 .. < rings:
+    for i in 0 ..< rings:
       let
         alpha = (i / (rings-1)) * PI
         h = cos(alpha).float32
@@ -26,7 +26,7 @@ proc uvSphereNormals*(segments, rings: int): seq[Vec4f] =
       x = cos(beta).float32
       y = sin(beta).float32
 
-    for i in 0 .. < rings:
+    for i in 0 ..< rings:
       let
         alpha = (i / (rings-1)) * PI
         h = cos(alpha).float32
@@ -40,7 +40,7 @@ proc uvSphereTexCoords*(segments, rings: int): seq[Vec2f] =
   for j in 0 .. segments:
     let beta = (j / segments).float32
 
-    for i in 0 .. < rings:
+    for i in 0 ..< rings:
       let alpha = (i / (rings-1)).float32
 
       result.add( vec2f(beta, alpha) )
@@ -51,7 +51,7 @@ proc uvSphereColors*(segments, rings: int): seq[Vec4f] =
   for j in 0 .. segments:
     let beta = (j / segments).float32
 
-    for i in 0 .. < rings:
+    for i in 0 ..< rings:
       let alpha = (i / (rings-1)).float32
 
       result.add( vec4f(beta, alpha, 0, 1) )

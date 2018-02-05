@@ -208,7 +208,7 @@ proc getFrames*(header: ptr iqmheader): DataView[uint16] =
 # TODO document grouped
 proc grouped*[T](t : var seq[T]; groupSize : int) : seq[DataView[T]] =
   result.newSeq(t.len div groupSize + (if t.len mod groupSize == 0: 0 else: 1))
-  for i in 0 .. < result.len:
+  for i in 0 ..< result.len:
     result[i] = dataView[T]( t[i * groupSize].addr.pointer, min(groupSize, t.len - i * groupSize) )
 
 proc jointPose*(joint: iqmJoint) : JointPose =

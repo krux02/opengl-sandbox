@@ -288,7 +288,7 @@ proc render() =
 
     mapWriteBlock(lightPositions):
       let poslen = numLights
-      for i in 0 .. < poslen:
+      for i in 0 ..< poslen:
         let
           distance = time * 30
           r = float32(i)

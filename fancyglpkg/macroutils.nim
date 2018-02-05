@@ -44,7 +44,7 @@ proc newObjectTy*( name, recList: NimNode ): NimNode {.compileTime.} =
     nnkObjectTy.newTree(newEmptyNode(), newEmptyNode(), recList)
   )
 
-proc newExpIdentDef*(name: NimIdent, tpe: NimNode): NimNode {. compileTime .} =
+proc newExpIdentDef*(name: string, tpe: NimNode): NimNode {. compileTime .} =
   result = nnkIdentDefs.newTree(
     nnkPostfix.newTree( ident"*", newIdentNode(name)),
     tpe,

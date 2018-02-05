@@ -14,7 +14,7 @@ type
 
 const fontPaths = [
   "/usr/share/fonts/truetype/inconsolata/Inconsolata.otf",
-  "/usr/share/fonts/TTF/Inconsolata-Regular.ttf"
+  "/usr/share/fonts/TTF/Inconsolata-Regular.ttf",
 ]
 
 macro getSymbolLineinfo(arg: typed): string =
@@ -304,7 +304,6 @@ proc text(this: var TextRenderer; str: string; pixelPos: Vec2i): void =
 
     uniforms:
       rectPixelPos
-      rectPixelSize = textSize
       rectPos
       rectSize
       tex = this.texture
