@@ -1,5 +1,8 @@
-## not a graphical demo here, just a console in development that might get integrated with rendering and stuff.
+## A non-graphical demo here. It is just a command interpreter that
+## might get integrated at some point.
+
 import rdstdin, strutils, sequtils, parseutils, macros, typetraits
+import osproc
 
 proc parseArg[T](arg: string): tuple[couldParse: bool, value: T] =
   when T is int:
@@ -10,16 +13,21 @@ proc parseArg[T](arg: string): tuple[couldParse: bool, value: T] =
     result.couldParse = true
     result.value = arg
 
-macro parseArgument(argsIdent: untyped; argIdent: untyped; typ: typed; argId: static[int]): untyped =
+macro parseArgument(argsIdent: untyped; argIdent: untyped; typ: typed;
+                    argId: static[int]): untyped =
   let idLit      = newLit(argId)
   let typeStrLit = newLit(typ.repr)
   result = quote do:
     let (parseOk, `argIdent`) = parseArg[`typ`](`argsIdent`[`idLit`])
     if not parseOk:
-      stderr.writeLine("argument ", `idLit`, " (", `argsIdent`[`idLit`], ") cannot be parsed as type ", `typeStrLit`)
+      stderr.writeLine(
+        "argument ", `idLit`, " (", `argsIdent`[`idLit`],
+        ") cannot be parsed as type ", `typeStrLit`
+      )
       return
 
-macro parseVarargs(argsIdent: untyped; argIdent; typ: typed; argId: static[int]): untyped =
+macro parseVarargs(argsIdent: untyped; argIdent;
+                   typ: typed; argId: static[int]): untyped =
   let idLit      = newLit(argId)
   let typeStrLit = newLit(typ.repr)
   result = quote do:
@@ -27,20 +35,41 @@ macro parseVarargs(argsIdent: untyped; argIdent; typ: typed; argId: static[int])
     for i in `argId` ..< `argsIdent`.len:
       let (parseOk, value) = parseArg[`typ`](`argsIdent`[i])
       if not parseOk:
-        stderr.writeLine("argument ", `idLit`, " (", `argsIdent`[`idLit`], ") cannot be parsed as type ", `typeStrLit`)
+        stderr.writeLine(
+          "argument ", `idLit`, " (", `argsIdent`[`idLit`],
+          ") cannot be parsed as type ", `typeStrLit`
+        )
         return
       `argIdent`.add value
 
 type CommandProc = proc(args: openarray[string]): void
 
-var registeredCommands = newSeq[tuple[name: string, callback: CommandProc, comment: string]]()
+var registeredCommands = newSeq[tuple[
+  name: string,
+  callback: CommandProc,
+  comment: string,
+  lineinfo: LineInfo
+]]()
 
-proc registerCommand(name: string; callback: CommandProc, comment: string): void =
-  registeredCommands.add((name: name, callback: callback, comment: comment))
+proc registerCommand(
+    name: string;
+    callback: CommandProc,
+    comment: string,
+    lineinfo: LineInfo): void =
 
-proc callCommand(cmdname: string; arguments: openarray[string]): void =
+  registeredCommands.add((
+    name: name,
+    callback: callback,
+    comment: comment,
+    lineinfo: lineinfo
+  ))
+
+proc callCommand(
+    cmdname: string;
+    arguments: openarray[string]): void =
+
   var cmdFound = false
-  for name, callback, _ in registeredCommands.items:
+  for name, callback, _, _ in registeredCommands.items:
     if name == cmdname:
       callback(arguments)
       cmdFound = true
@@ -56,10 +85,12 @@ proc stripPrefix(arg, prefix: string): string =
     result = arg
 
 macro interpreterCommand(impl: typed): untyped =
-  ## Inteded to be called as a pragma on a procedure.
-  ## Generates the wrapper code so that the procedure can be called from the interpreter
+  ## Inteded to be called as a pragma on a procedure.  Generates the
+  ## wrapper code so that the procedure can be called from the
+  ## interpreter
   let comment =
-    if impl.body.kind == nnkStmtList and impl.body[0].kind == nnkCommentStmt:
+    if impl.body.kind == nnkStmtList and
+       impl.body[0].kind == nnkCommentStmt:
       $impl.body[0]
     else:
       "<no comment>"
@@ -85,35 +116,53 @@ macro interpreterCommand(impl: typed): untyped =
 
   for i, paramType in paramTypes:
     # varargs
-    if paramType.kind == nnkBracketExpr and paramType[0] == bindSym"varargs":
+    if paramType.kind == nnkBracketExpr and
+       paramType[0] == bindSym"varargs":
       if i != paramTypes.high:
         error("varargs needs to be last", paramType)
       let paramIdent = genSym(nskVar, "arg" & $(i+1))
-      parseArgumentCalls.add newCall(bindSym"parseVarargs", argsIdent, paramIdent, paramType[1], newLit(i+1))
+      parseArgumentCalls.add newCall(
+        bindSym"parseVarargs", argsIdent,
+        paramIdent, paramType[1], newLit(i+1)
+      )
       commandCall.add paramIdent
       hasVarargs = newLit(true)
     else:
       let paramIdent = genSym(nskLet, "arg" & $(i+1))
-      parseArgumentCalls.add newCall(bindSym"parseArgument", argsIdent, paramIdent, paramType, newLit(i+1))
+      parseArgumentCalls.add newCall(
+        bindSym"parseArgument", argsIdent,
+        paramIdent, paramType, newLit(i+1)
+      )
       commandCall.add paramIdent
 
   let numParamsLit = newLit(paramTypes.len)
   let facadeSym = genSym(nskProc, name & "_facade")
+  let lineInfoLit = newLit(impl.lineinfoObj)
   result = quote do:
     proc `facadeSym`(`argsIdent`: openarray[string]): void =
       when `hasVarargs`:
         if `argsIdent`.len - 1  < `numParamsLit` - 1:
-          stderr.writeLine("expect at least ", `numParamsLit` - 1, " arguments, got ", `argsIdent`.len - 1, " arguments")
+          stderr.writeLine(
+            "expect at least ", `numParamsLit` - 1,
+            " arguments, got ", `argsIdent`.len - 1,
+            " arguments"
+          )
           return
       else:
         if `argsIdent`.len - 1 != `numParamsLit`:
-          stderr.writeLine("expect ", `numParamsLit`, " arguments, got ", `argsIdent`.len - 1, " arguments")
+          stderr.writeLine(
+            "expect ", `numParamsLit`, " arguments, got ",
+            `argsIdent`.len - 1, " arguments"
+          )
           return
 
       `parseArgumentCalls`
       `commandCall`
 
-    registerCommand(`commandNameLit`, `facadeSym`, `commentLit`)
+    registerCommand(
+      `commandNameLit`, `facadeSym`,
+      `commentLit`, `lineInfoLit`
+    )
 
   #echo result.repr
 
@@ -144,20 +193,58 @@ proc prod(args: varargs[int]): void {.interpreterCommand.} =
 
 proc commands(): void {.interpreterCommand.} =
   ## list all functions
-  for name, _, comment in registeredCommands.items:
+  for name, _, comment, _ in registeredCommands.items:
     echo name, "\t", comment
 
 proc help(arg: string): void {.interpreterCommand.} =
   ## prints documentation of a single function
-  for name, _, comment in registeredCommands.items:
+  for name, _, comment, lineinfo in registeredCommands.items:
     if name == arg:
+      echo "location: ", lineinfo
       echo comment
       return
   echo "ERROR: no such function found"
 
+
+proc edit(arg: string): void {.interpreterCommand.} =
+  ## Edit file in emacsclient
+  let processOptions = {poStdErrToStdOut, poUsePath}
+  for name, _, _, lineinfo in registeredCommands.items:
+    if name == arg:
+      let location = "+" & $lineinfo.line & ":" & $lineinfo.column
+      var filename: string = lineinfo.filename
+
+      try:
+        # if you don't know how emacsclient works, it connects to an
+        # already running instance of emacs that is tagged as a
+        # server. Then it brings this editor to the foreground and
+        # blocks until the use says from the editor that he/she is
+        # done editing the file. Then the emacsclient process
+        # terminates. For other editors the integration would of
+        # course look a bit different.
+        echo ["emacsclient", location, filename].join(" ")
+        let process = startProcess(
+          "emacsclient",
+          args = [location, filename],
+          options = processOptions,
+        )
+        discard process.waitForExit
+        # from here on we know, that editing from emacs has been
+        # done. In theory one could recompile and reload the nim
+        # functions for the interpreter now. But that is not supported
+        # yet.
+      except OSError:
+        let msg = getCurrentExceptionMsg()
+        echo "OSError: ", msg
+      return
+  echo "Error: could not find command ", arg
+
 block main:
-  echo "this is the command interpreter, to get a list of possible commands, type \"commands\""
-  echo "to get help for a specific command, type \"help <command>\""
+  echo(
+    "This is the command interpreter, to get a list of possible " &
+    "commands, type \"commands\". To get help for a specific " &
+    "command, type \"help <command>\"."
+  )
   var line: string = ""
 
   # if readPasswordFromStdin("gimme your password> ", line):
