@@ -1,4 +1,4 @@
-import glm, future, algorithm, macros, strutils, tables, sequtils
+import glm, future, algorithm, macros, strutils, tables, sequtils, strutils
 
 import resolveAlias
 
@@ -113,6 +113,13 @@ iterator depthFirstTraversal*(n: NimNode): NimNode =
       stack.add((n: child, i: 0))
       yield stack[^1].n
     discard stack.pop
+
+proc findSymbolWithName(arg: NimNode; symName: string): NimNode =
+  ## searches though a tree and returns the first symbol node with the
+  ## given identifier, on nil if no such symbol could be found.
+  for node in arg.depthFirstTraversal:
+    if node.kind == nnkSym and eqIdent(node, symName):
+      return node
 
 proc expectIdent*(arg: NimNode; identName: string): void =
   if not arg.eqIdent(identName):
@@ -259,12 +266,26 @@ proc transform_to_single_static_assignment(stmtList: NimNode): NimNode {.compile
       result = expr
 
   for asgn in stmtList:
-    asgn.expectKind nnkAsgn
-    let sym = genSymForExpression(asgn[1])
-    assert assignments[^1][0][0] == sym
+    asgn.expectKind({nnkAsgn, nnkLetSection})
 
-    let rhs = assignments[^1][0][2]
-    assignments[^1] = nnkAsgn.newTree(asgn[0], rhs)
+    if asgn.kind == nnkAsgn:
+      let sym = genSymForExpression(asgn[1])
+      assert assignments[^1][0][0] == sym
+
+      let rhs = assignments[^1][0][2]
+      assignments[^1] = nnkAsgn.newTree(asgn[0], rhs)
+
+    elif asgn.kind == nnkLetSection:
+      for identDefs in asgn:
+        identDefs.expectKind nnkIdentDefs
+        for i in 0 ..< identDefs.len - 2:
+          let sym = identDefs[i]
+          let value = identDefs[^1]
+
+          #asgn.kind == nnkLetSection
+          #asgn.kind == nnkLetsection
+
+
 
   return assignments
 
@@ -417,6 +438,7 @@ proc resolveConstraints(arg, vertexSym: NimNode): void {.compileTime.} =
   # let a = foo(b,c,d)  --> a depends on {b,c,d}
   # and the inverse:    --> b,c,d all depend on a
 
+  #[
   var dependencyGraph = initTable[NimNode, seq[NimNode]]()
   var inverseDependencyGraph = initTable[NimNode, seq[NimNode]]()
 
@@ -437,6 +459,7 @@ proc resolveConstraints(arg, vertexSym: NimNode): void {.compileTime.} =
 
   for key, dependencies in dependencyGraph:
     dependencyGraph[key] = deduplicate(dependencyGraph[key])
+  ]#
 
   # done building dependency graph
 
@@ -755,9 +778,30 @@ proc splitVertexFragmentShader(arg, vertexSym, resultSym: NimNode): tuple[cpu,vs
   fragmentShader.validateShader(skFrag)
 
 
-macro render_inner(mesh, arg: typed): untyped =
+proc indentCode(arg: string, indentation: string): string =
+  let N = arg.countLines
+  result = newStringOfCap(indentation.len * N + arg.len)
+  for line in splitLines(arg):
+    result.add indentation
+    result.add line
+
+macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
+
+  if debug:
+    echo "<render_inner>"
+    echo arg.repr
+  defer:
+    if debug:
+      echo "</render_inner>"
+
   arg.expectKind nnkDo
   let ssaList1 = transform_to_single_static_assignment(arg[6])
+
+
+  if debug:
+    echo "<ssaList1>"
+    echo ssaList1.repr.indentCode("  ")
+    echo "</ssaList1>"
 
   let resultSym = arg.last
 
@@ -767,31 +811,27 @@ macro render_inner(mesh, arg: typed): untyped =
   ssaList1.expectKind nnkStmtList
   let ssaList2 = newStmtList()
 
-
   var vertexSym = arg[3][1][0]
+
   if vertexSym.kind == nnkIdent:
     echo "TODO: patch the compiler and make vertexSym a symbol in the compiler"
-    let symName = $vertexSym
-    for node in arg.depthFirstTraversal:
-      if node.kind == nnkSym and eqIdent(node, symName):
-        echo "replacing vertexSym `", vertexSym.lispRepr, "` with `", node.lispRepr, "` this could be wrong"
-        vertexSym = node
-        break
+    let node = arg.findSymbolWithName($vertexSym)
+    if node != nil:
+      echo "replacing vertexSym `", vertexSym.lispRepr, "` with `", node.lispRepr, "` this could be wrong"
+      vertexSym = node
   else:
-    echo "TODO: delete dead code path"
+    echo "TODO: when you see this, the other code path is dead and can be removed"
 
   var glSym = arg[3][2][0]
   if glSym.kind == nnkIdent:
     echo "TODO: patch the compiler and make vertexSym a symbol in the compiler"
-    let symName = $glSym
-    for node in arg.depthFirstTraversal:
-      if node.kind == nnkSym and eqIdent(node, symName):
-        echo "replacing glSym `", glSym.lispRepr, "` with `", node.lispRepr, "` this could be wrong"
-        glSym = node
-        break
-  else:
-    echo "TODO: delete dead code path"
+    let node = arg.findSymbolWithName($glSym)
+    if node != nil:
+      echo "replacing glSym `", glSym.lispRepr, "` with `", node.lispRepr, "` this could be wrong"
+      glSym = node
 
+  else:
+    echo "TODO: when you see this, the other code path is dead and can be removed"
 
 
   constraintsTable.clear
@@ -803,6 +843,13 @@ macro render_inner(mesh, arg: typed): untyped =
 
 
   ssaList2.resolveConstraints(vertexSym)
+
+  if debug:
+    echo "<ssaList2>"
+    for asgn in ssaList2:
+      let constraint = constraintsTable[asgn.firstSymbol]
+      echo "  ", asgn.repr, " # ", constraint
+    echo "</ssaList2>"
 
   #let uniformsSection = ssaList2.createGlslUniformsSection
   #let vertexTypeSection = formalParams[1].createGlslAttributesSection
@@ -876,7 +923,11 @@ proc injectTypes(framebuffer, mesh, arg: NimNode): NimNode {.compileTime.} =
   result[3] = newParams
 
 macro render(framebuffer, mesh: typed; arg: untyped): untyped =
-  result = newCall(bindSym"render_inner", mesh, injectTypes(framebuffer, mesh, arg))
+  result = newCall(bindSym"render_inner", newLit(false), mesh, injectTypes(framebuffer, mesh, arg))
+
+macro renderDebug(framebuffer, mesh: typed; arg: untyped): untyped =
+  result = newCall(bindSym"render_inner", newLit(true), mesh, injectTypes(framebuffer, mesh, arg))
+
 
 ## user code ##
 
@@ -898,12 +949,26 @@ var mesh: MyMesh
 var framebuffer: MyFramebuffer
 var mvp: Mat4f
 
+
+static:
+  echo "vertex colors"
+
+framebuffer.renderDebug(mesh) do (v, gl):
+  gl.Position = v.position
+  let v_color_varying = v.color
+  result.color = v_color_varying;
+
+static:
+  quit(0)
+
 static:
   echo "################################################################################\n"
 
 framebuffer.render(mesh) do (v, gl):
   gl.Position = (mvp * v.position).normalize.normalize.normalize
   result.color = v.color
+
+
 
 static:
   echo "################################################################################\n"
