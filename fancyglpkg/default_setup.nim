@@ -1,6 +1,13 @@
 # included from fancygl.nim
 
-proc debugCallback(source: GLenum, `type`: GLenum, id: GLuint, severity: GLenum, length: GLsizei, message: cstring, userParam: pointer): void {. cdecl .} =
+proc debugCallback(
+    source: GLenum,
+    `type`: GLenum,
+    id: GLuint,
+    severity: GLenum,
+    length: GLsizei,
+    message: cstring,
+    userParam: pointer): void {. cdecl .} =
   if severity == GL_DEBUG_SEVERITY_NOTIFICATION:
     return
 
@@ -57,24 +64,22 @@ proc debugCallback(source: GLenum, `type`: GLenum, id: GLuint, severity: GLenum,
     echo "medium"
   of GL_DEBUG_SEVERITY_HIGH:
     echo "high"
-  of GL_DEBUG_SEVERITY_NOTIFICATION:
-    echo "notification"
+  #of GL_DEBUG_SEVERITY_NOTIFICATION:
+  #  echo "notification"
   else:
     echo "¿ ", severity.int, " ?"
 
 proc enableDefaultDebugCallback*() =
-  glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB)
-  glDebugMessageCallbackARB(cast[GLdebugProcArb](debugCallback), nil);
+  glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS)
+  glDebugMessageCallback(cast[GLdebugProc](debugCallback), nil);
 
 proc defaultSetupInternal(windowsize: Vec2i; windowTitle: string): tuple[window: Window, context: GlContext] =
   discard sdl.init(INIT_EVERYTHING)
   if ttf.init() != 0:
     write stderr, ttf.getError()
 
-
-
-  doAssert 0 == glSetAttribute(GL_CONTEXT_MAJOR_VERSION, 3)
-  doAssert 0 == glSetAttribute(GL_CONTEXT_MINOR_VERSION, 3)
+  doAssert 0 == glSetAttribute(GL_CONTEXT_MAJOR_VERSION, 4)
+  doAssert 0 == glSetAttribute(GL_CONTEXT_MINOR_VERSION, 5)
   doAssert 0 == glSetAttribute(GLattr.GL_CONTEXT_FLAGS , GL_CONTEXT_FORWARD_COMPATIBLE_FLAG or GL_CONTEXT_DEBUG_FLAG)
   doAssert 0 == glSetAttribute(GLattr.GL_CONTEXT_PROFILE_MASK , GL_CONTEXT_PROFILE_CORE)
   doAssert 0 == glSetAttribute(GL_STENCIL_SIZE         , 8)
@@ -101,7 +106,7 @@ proc defaultSetupInternal(windowsize: Vec2i; windowTitle: string): tuple[window:
     panic sdl.getError()
 
   #Initialize OpenGL
-  loadExtensions()
+  doAssert gladLoadGL(glGetProcAddress)
 
   glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, 12, "defaultSetup");
   defer:

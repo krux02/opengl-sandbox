@@ -112,8 +112,8 @@ proc isValid*(texture: AnyTexture): bool =
 proc bindToUnit*(texture: AnyTexture, unit: int): void =
   glBindTextureUnit(unit.GLuint, texture.handle)
 
-proc parameter*(texture: AnyTexture, pname: GLenum, param: GLint): void =
-  glTextureParameteri(texture.handle, pname, param)
+proc parameter*(texture: AnyTexture, pname: GLenum, param: GLenum): void =
+  glTextureParameteri(texture.handle, pname, GLint(param))
 
 proc generateMipmap*(texture: AnyTexture): void =
   glGenerateTextureMipmap(texture.handle)

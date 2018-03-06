@@ -12,31 +12,20 @@ type
     textureWidth: int
     texture: Texture2D
 
-const fontPaths = [
-  "/usr/share/fonts/truetype/inconsolata/Inconsolata.otf",
-  "/usr/share/fonts/TTF/Inconsolata-Regular.ttf",
-]
-
 macro getSymbolLineinfo(arg: typed): string =
   result = newLit(arg.symbol.getImpl.lineinfo)
 
 proc init(self: ptr TextRenderer; textHeight: int): void =
   self.textHeight = textHeight
+  self.fontPath = getResourcePath("Inconsolata-Regular.ttf")
+  self.font = ttf.openFont(self.fontPath, self.textHeight.cint)
 
-  for path in fontPaths:
-    self.font = ttf.openFont(path, self.textHeight.cint)
-
-    if self.font.isNil:
-      echo ttf.getError()
-    else:
-      self.fontPath = path
-      break
+  self.fontPath = getResourcePath("Inconsolata-Regular.ttf")
 
   if self.font.isNil:
     var msg = newString(0)
-    msg.add "could not load font and font from hard coded font paths: \n"
-    msg.add getSymbolLineinfo(fontPaths)
-    msg.add "\nyou could add a path to a font that exists on your system."
+    msg.add "could not load font: \n"
+    msg.add ttf.getError()
     panic(msg)
 
   self.fg = Color(r: 255, g: 255, b:255, a:255)

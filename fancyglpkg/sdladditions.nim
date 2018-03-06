@@ -133,7 +133,7 @@ iterator events*(): sdl.Event =
     yield event
 ]#
 
-import os
+from os import getAppDir
 
 proc getResourcePath*(path: string): string =
   ## Returns an absolute path to a resource

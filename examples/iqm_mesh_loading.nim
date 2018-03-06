@@ -42,6 +42,8 @@ proc main() =
   if font.isNil:
     font = ttf.openFont("/usr/share/fonts/TTF/Inconsolata-Regular.ttf", textHeight.cint)
   if font.isNil:
+    font = ttf.openFont("/usr/share/fonts/truetype/freefont/FreeMono.ttf", textHeight.cint)
+  if font.isNil:
     panic "from example: could not load font: ", ttf.getError(),
         "\nfrom example: sorry system font locations are hard coded into the program, change that to fix this problem"
 

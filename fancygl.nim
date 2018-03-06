@@ -1,8 +1,11 @@
 ########################################################################
 ############################### fancy gl ###############################
 ########################################################################
-import opengl, glm, math, random, strutils, macros,
+import glad/gl, glm, math, random, strutils, macros,
        sdl2/sdl, sdl2/sdl_image as img, sdl2/sdl_ttf as ttf, os, terminal
+
+const
+  GL_VERTEX_ARRAY: GLenum = GLenum(32884)
 
 import fancyglpkg/[
   macroutils,
@@ -34,7 +37,7 @@ include fancyglpkg/cameraControls
 include fancyglpkg/shadingDsl
 include fancyglpkg/text
 
-export opengl, glm, sdl, basic_random, macroutils.s
+export gl, glm, sdl, basic_random, macroutils.s
 export math.arctan2
 
 when not defined(release) and not defined(windows) and not defined(nogdbsection):
