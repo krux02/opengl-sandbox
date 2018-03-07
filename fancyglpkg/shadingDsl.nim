@@ -726,7 +726,7 @@ macro shadingDsl*(statement: untyped) : untyped =
               error("foobar")
 
             #let nameLit = newLit(name)
-            let identNode = section
+            #let identNode = section
 
             #outCall.add head(quote do:
             #  transformFeedbackOutSection(`identNode`)

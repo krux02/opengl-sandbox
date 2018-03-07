@@ -2209,7 +2209,10 @@ proc hasExt(extname: string): bool =
         return true
 
 
-proc load_GL_VERSION_1_0(load: proc) =
+type
+  LoadProc = proc (name: cstring): pointer {.cdecl.}
+
+proc load_GL_VERSION_1_0(load: LoadProc) =
   if not GLAD_GL_VERSION_1_0: return
 
   glCullFace = cast[proc (mode: GLenum) {.cdecl.}](load("glCullFace"))
@@ -2262,7 +2265,7 @@ proc load_GL_VERSION_1_0(load: proc) =
   glViewport = cast[proc (x: GLint, y: GLint, width: GLsizei, height: GLsizei) {.cdecl.}](load("glViewport"))
 
 
-proc load_GL_VERSION_1_1(load: proc) =
+proc load_GL_VERSION_1_1(load: LoadProc) =
   if not GLAD_GL_VERSION_1_1: return
 
   glDrawArrays = cast[proc (mode: GLenum, first: GLint, count: GLsizei) {.cdecl.}](load("glDrawArrays"))
@@ -2280,7 +2283,7 @@ proc load_GL_VERSION_1_1(load: proc) =
   glIsTexture = cast[proc (texture: GLuint): GLboolean {.cdecl.}](load("glIsTexture"))
 
 
-proc load_GL_VERSION_1_2(load: proc) =
+proc load_GL_VERSION_1_2(load: LoadProc) =
   if not GLAD_GL_VERSION_1_2: return
 
   glDrawRangeElements = cast[proc (mode: GLenum, start: GLuint, `end`: GLuint, count: GLsizei, `type`: GLenum, indices: pointer) {.cdecl.}](load("glDrawRangeElements"))
@@ -2289,7 +2292,7 @@ proc load_GL_VERSION_1_2(load: proc) =
   glCopyTexSubImage3D = cast[proc (target: GLenum, level: GLint, xoffset: GLint, yoffset: GLint, zoffset: GLint, x: GLint, y: GLint, width: GLsizei, height: GLsizei) {.cdecl.}](load("glCopyTexSubImage3D"))
 
 
-proc load_GL_VERSION_1_3(load: proc) =
+proc load_GL_VERSION_1_3(load: LoadProc) =
   if not GLAD_GL_VERSION_1_3: return
 
   glActiveTexture = cast[proc (texture: GLenum) {.cdecl.}](load("glActiveTexture"))
@@ -2303,7 +2306,7 @@ proc load_GL_VERSION_1_3(load: proc) =
   glGetCompressedTexImage = cast[proc (target: GLenum, level: GLint, img: pointer) {.cdecl.}](load("glGetCompressedTexImage"))
 
 
-proc load_GL_VERSION_1_4(load: proc) =
+proc load_GL_VERSION_1_4(load: LoadProc) =
   if not GLAD_GL_VERSION_1_4: return
 
   glBlendFuncSeparate = cast[proc (sfactorRGB: GLenum, dfactorRGB: GLenum, sfactorAlpha: GLenum, dfactorAlpha: GLenum) {.cdecl.}](load("glBlendFuncSeparate"))
@@ -2317,7 +2320,7 @@ proc load_GL_VERSION_1_4(load: proc) =
   glBlendEquation = cast[proc (mode: GLenum) {.cdecl.}](load("glBlendEquation"))
 
 
-proc load_GL_VERSION_1_5(load: proc) =
+proc load_GL_VERSION_1_5(load: LoadProc) =
   if not GLAD_GL_VERSION_1_5: return
 
   glGenQueries = cast[proc (n: GLsizei, ids: ptr GLuint) {.cdecl.}](load("glGenQueries"))
@@ -2341,7 +2344,7 @@ proc load_GL_VERSION_1_5(load: proc) =
   glGetBufferPointerv = cast[proc (target: GLenum, pname: GLenum, params: ptr pointer) {.cdecl.}](load("glGetBufferPointerv"))
 
 
-proc load_GL_VERSION_2_0(load: proc) =
+proc load_GL_VERSION_2_0(load: LoadProc) =
   if not GLAD_GL_VERSION_2_0: return
 
   glBlendEquationSeparate = cast[proc (modeRGB: GLenum, modeAlpha: GLenum) {.cdecl.}](load("glBlendEquationSeparate"))
@@ -2439,7 +2442,7 @@ proc load_GL_VERSION_2_0(load: proc) =
   glVertexAttribPointer = cast[proc (index: GLuint, size: GLint, `type`: GLenum, normalized: GLboolean, stride: GLsizei, pointer: pointer) {.cdecl.}](load("glVertexAttribPointer"))
 
 
-proc load_GL_VERSION_2_1(load: proc) =
+proc load_GL_VERSION_2_1(load: LoadProc) =
   if not GLAD_GL_VERSION_2_1: return
 
   glUniformMatrix2x3fv = cast[proc (location: GLint, count: GLsizei, transpose: GLboolean, value: ptr GLfloat) {.cdecl.}](load("glUniformMatrix2x3fv"))
@@ -2450,7 +2453,7 @@ proc load_GL_VERSION_2_1(load: proc) =
   glUniformMatrix4x3fv = cast[proc (location: GLint, count: GLsizei, transpose: GLboolean, value: ptr GLfloat) {.cdecl.}](load("glUniformMatrix4x3fv"))
 
 
-proc load_GL_VERSION_3_0(load: proc) =
+proc load_GL_VERSION_3_0(load: LoadProc) =
   if not GLAD_GL_VERSION_3_0: return
 
   glColorMaski = cast[proc (index: GLuint, r: GLboolean, g: GLboolean, b: GLboolean, a: GLboolean) {.cdecl.}](load("glColorMaski"))
@@ -2539,7 +2542,7 @@ proc load_GL_VERSION_3_0(load: proc) =
   glIsVertexArray = cast[proc (array: GLuint): GLboolean {.cdecl.}](load("glIsVertexArray"))
 
 
-proc load_GL_VERSION_3_1(load: proc) =
+proc load_GL_VERSION_3_1(load: LoadProc) =
   if not GLAD_GL_VERSION_3_1: return
 
   glDrawArraysInstanced = cast[proc (mode: GLenum, first: GLint, count: GLsizei, instancecount: GLsizei) {.cdecl.}](load("glDrawArraysInstanced"))
@@ -2559,7 +2562,7 @@ proc load_GL_VERSION_3_1(load: proc) =
   glGetIntegeri_v = cast[proc (target: GLenum, index: GLuint, data: ptr GLint) {.cdecl.}](load("glGetIntegeri_v"))
 
 
-proc load_GL_VERSION_3_2(load: proc) =
+proc load_GL_VERSION_3_2(load: LoadProc) =
   if not GLAD_GL_VERSION_3_2: return
 
   glDrawElementsBaseVertex = cast[proc (mode: GLenum, count: GLsizei, `type`: GLenum, indices: pointer, basevertex: GLint) {.cdecl.}](load("glDrawElementsBaseVertex"))
@@ -2583,7 +2586,7 @@ proc load_GL_VERSION_3_2(load: proc) =
   glSampleMaski = cast[proc (maskNumber: GLuint, mask: GLbitfield) {.cdecl.}](load("glSampleMaski"))
 
 
-proc load_GL_VERSION_3_3(load: proc) =
+proc load_GL_VERSION_3_3(load: LoadProc) =
   if not GLAD_GL_VERSION_3_3: return
 
   glBindFragDataLocationIndexed = cast[proc (program: GLuint, colorNumber: GLuint, index: GLuint, name: cstring) {.cdecl.}](load("glBindFragDataLocationIndexed"))
@@ -2646,7 +2649,7 @@ proc load_GL_VERSION_3_3(load: proc) =
   glSecondaryColorP3uiv = cast[proc (`type`: GLenum, color: ptr GLuint) {.cdecl.}](load("glSecondaryColorP3uiv"))
 
 
-proc load_GL_VERSION_4_0(load: proc) =
+proc load_GL_VERSION_4_0(load: LoadProc) =
   if not GLAD_GL_VERSION_4_0: return
 
   glMinSampleShading = cast[proc (value: GLfloat) {.cdecl.}](load("glMinSampleShading"))
@@ -2697,7 +2700,7 @@ proc load_GL_VERSION_4_0(load: proc) =
   glGetQueryIndexediv = cast[proc (target: GLenum, index: GLuint, pname: GLenum, params: ptr GLint) {.cdecl.}](load("glGetQueryIndexediv"))
 
 
-proc load_GL_VERSION_4_1(load: proc) =
+proc load_GL_VERSION_4_1(load: LoadProc) =
   if not GLAD_GL_VERSION_4_1: return
 
   glReleaseShaderCompiler = cast[proc () {.cdecl.}](load("glReleaseShaderCompiler"))
@@ -2791,7 +2794,7 @@ proc load_GL_VERSION_4_1(load: proc) =
   glGetDoublei_v = cast[proc (target: GLenum, index: GLuint, data: ptr GLdouble) {.cdecl.}](load("glGetDoublei_v"))
 
 
-proc load_GL_VERSION_4_2(load: proc) =
+proc load_GL_VERSION_4_2(load: LoadProc) =
   if not GLAD_GL_VERSION_4_2: return
 
   glDrawArraysInstancedBaseInstance = cast[proc (mode: GLenum, first: GLint, count: GLsizei, instancecount: GLsizei, baseinstance: GLuint) {.cdecl.}](load("glDrawArraysInstancedBaseInstance"))
@@ -2808,7 +2811,7 @@ proc load_GL_VERSION_4_2(load: proc) =
   glDrawTransformFeedbackStreamInstanced = cast[proc (mode: GLenum, id: GLuint, stream: GLuint, instancecount: GLsizei) {.cdecl.}](load("glDrawTransformFeedbackStreamInstanced"))
 
 
-proc load_GL_VERSION_4_3(load: proc) =
+proc load_GL_VERSION_4_3(load: LoadProc) =
   if not GLAD_GL_VERSION_4_3: return
 
   glClearBufferData = cast[proc (target: GLenum, internalformat: GLenum, format: GLenum, `type`: GLenum, data: pointer) {.cdecl.}](load("glClearBufferData"))
@@ -2856,7 +2859,7 @@ proc load_GL_VERSION_4_3(load: proc) =
   glGetObjectPtrLabel = cast[proc (`ptr`: pointer, bufSize: GLsizei, length: ptr GLsizei, label: cstring) {.cdecl.}](load("glGetObjectPtrLabel"))
 
 
-proc load_GL_VERSION_4_4(load: proc) =
+proc load_GL_VERSION_4_4(load: LoadProc) =
   if not GLAD_GL_VERSION_4_4: return
 
   glBufferStorage = cast[proc (target: GLenum, size: GLsizeiptr, data: pointer, flags: GLbitfield) {.cdecl.}](load("glBufferStorage"))
@@ -2870,7 +2873,7 @@ proc load_GL_VERSION_4_4(load: proc) =
   glBindVertexBuffers = cast[proc (first: GLuint, count: GLsizei, buffers: ptr GLuint, offsets: ptr GLintptr, strides: ptr GLsizei) {.cdecl.}](load("glBindVertexBuffers"))
 
 
-proc load_GL_VERSION_4_5(load: proc) =
+proc load_GL_VERSION_4_5(load: LoadProc) =
   if not GLAD_GL_VERSION_4_5: return
 
   glClipControl = cast[proc (origin: GLenum, depth: GLenum) {.cdecl.}](load("glClipControl"))
@@ -3038,9 +3041,8 @@ proc findCoreGL(glVersion: string) =
   GLAD_GL_VERSION_4_4 = (major == 4 and minor >= 4) or major > 4
   GLAD_GL_VERSION_4_5 = (major == 4 and minor >= 5) or major > 4
 
-
-proc gladLoadGL*(load: proc): bool =
-  glGetString = cast[proc (name: GLenum): ptr GLubyte {.cdecl.}](load("glGetString"))
+proc gladLoadGL*(load: LoadProc): bool =
+  glGetString = cast[type(glGetString)](load("glGetString"))
   if glGetString == nil: return false
 
   var glVersion = cast[cstring](glGetString(GL_VERSION))

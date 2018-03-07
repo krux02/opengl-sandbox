@@ -83,19 +83,23 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
       else:
         error("unknow identifier: " & asgn.repr & " did you mean debugResult?", asgn)
 
+    if asgn.kind != nnkAsgn:
+      echo asgn.repr
+      echo asgn.lispRepr
+
     asgn.expectKind nnkAsgn
 
     let lhs = asgn[0]
     let rhs = asgn[1]
 
-    if lhs.eqIdent "depth":
+    if lhs.eqIdent("depth"):
         rhs.expectKind(nnkCall)
         depthCreateExpr = rhs;
 
-        if rhs[0].eqIdent "newDepthRenderBuffer":
+        if rhs[0].eqIdent("newDepthRenderBuffer"):
           depthType = bindSym"DepthRenderbuffer"
           useDepthRenderbuffer = true
-        elif rhs[0].eqIdent "newDepthTexture2D":
+        elif rhs[0].eqIdent("newDepthTexture2D"):
           depthType = bindSym"Texture2D"
           useDepthRenderbuffer = false
         else:

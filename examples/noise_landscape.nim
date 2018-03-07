@@ -508,10 +508,10 @@ proc drawPortal(viewMat: Mat4f, src,dst: WorldNode) =
     glEnable(GL_SCISSOR_TEST)
     glScissor(x.x, x.y,  s.x, s.y)
 
-    glEnable(GL_CLIP_PLANE0)
+    glEnable(GL_CLIP_DISTANCE0)
     glClear(GL_DEPTH_BUFFER_BIT)
     drawScene(viewPrime, dst.clipPlane)
-    glDisable(GL_CLIP_PLANE0)
+    glDisable(GL_CLIP_DISTANCE0)
 
     glDisable(GL_SCISSOR_TEST)
     glDisable(GL_STENCIL_TEST)
