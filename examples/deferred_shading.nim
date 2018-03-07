@@ -33,8 +33,8 @@ var hideNormals, hideDeferredShading, flatShading, wireframe: bool
 
 declareFramebuffer(FirstFramebuffer):
   depth = newDepthTexture2D(windowsize)
-  color: Vec4f = newTexture2D(windowsize, GL_RGBA8)
-  normal: Vec4f = newTexture2D(windowsize, GL_RGBA16F)
+  color = newTexture2D(windowsize, GL_RGBA8)
+  normal = newTexture2D(windowsize, GL_RGBA16F)
 
 let fb1 = newFirstFramebuffer()
 
