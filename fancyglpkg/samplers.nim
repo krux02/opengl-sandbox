@@ -25,12 +25,19 @@ template textureTypeTemplate(name: untyped, target: GLenum, shadername:string): 
   proc `$`*(texture: name): string =
     $texture.handle
 
-
 proc unbindTextures*(first,count: int): void =
-  glBindTextures(first.GLuint, count.GLsizei, nil)
+  if glBindTextures != nil:
+    glBindTextures(first.GLuint, count.GLsizei, nil)
+  else:
+    for i in 0 ..< count:
+      glBindTextureUnit(GLuint(first + i), 0)
 
 proc bindTextures*(first: int; handles: openarray[GLuint]): void =
-  glBindTextures(first.GLuint, handles.len.GLsizei, handles[0].unsafeaddr)
+  if glBindTextures != nil:
+    glBindTextures(first.GLuint, handles.len.GLsizei, handles[0].unsafeaddr)
+  else:
+    for i, texture in handles:
+      glBindTextureUnit(GLuint(first + i), texture)
 
 proc geometryNumVerts(mode: GLenum): int =
   case mode
@@ -45,7 +52,7 @@ proc geometryNumVerts(mode: GLenum): int =
   of GL_TRIANGLES:                3
   of GL_TRIANGLE_STRIP_ADJACENCY: 6
   of GL_TRIANGLES_ADJACENCY:      6
-  of GL_PATCHES: -                1
+  #of GL_PATCHES: -                1
   else: -                         1128
 
 proc geometryPrimitiveLayout(mode: GLenum): string =
@@ -77,8 +84,8 @@ textureTypeTemplate(TextureRectangle,
     GL_TEXTURE_RECTANGLE, "sampler2DRect")
 textureTypeTemplate(TextureCubeMap,
     GL_TEXTURE_CUBE_MAP, "samplerCube")
-textureTypeTemplate(TextureCubeMapArray,
-    GL_TEXTURE_CUBE_MAP_ARRAY , "samplerCubeArray")
+#textureTypeTemplate(TextureCubeMapArray,
+#    GL_TEXTURE_CUBE_MAP_ARRAY , "samplerCubeArray")
 textureTypeTemplate(TextureBuffer,
     GL_TEXTURE_BUFFER, "samplerBuffer")
 textureTypeTemplate(Texture2DMultisample,
@@ -93,18 +100,18 @@ textureTypeTemplate(TextureCubeShadow,      GL_TEXTURE_CUBE_MAP,       "samplerC
 textureTypeTemplate(Texture2DRectShadow,    GL_TEXTURE_RECTANGLE,      "sampler2DRectShadow​")
 textureTypeTemplate(Texture1DArrayShadow,   GL_TEXTURE_1D_ARRAY,       "sampler1DArrayShadow​")
 textureTypeTemplate(Texture2DArrayShadow,   GL_TEXTURE_2D_ARRAY,       "sampler2DArrayShadow​")
-textureTypeTemplate(TextureCubeArrayShadow, GL_TEXTURE_CUBE_MAP_ARRAY, "samplerCubeArrayShadow​")
+# textureTypeTemplate(TextureCubeArrayShadow, GL_TEXTURE_CUBE_MAP_ARRAY, "samplerCubeArrayShadow​")
 
 
 type
   AnyTexture =
     Texture1D | Texture2D | Texture3D |
     Texture1DArray | Texture2DArray |
-    TextureRectangle | TextureCubeMap | TextureCubeMapArray |
+    TextureRectangle | TextureCubeMap | # TextureCubeMapArray |
     TextureBuffer | Texture2DMultisample | Texture2DMultisampleArray |
     Texture1DShadow | Texture2DShadow | TextureCubeShadow |
-    Texture2DRectShadow | Texture1DArrayShadow | Texture2DArrayShadow |
-    TextureCubeArrayShadow
+    Texture2DRectShadow | Texture1DArrayShadow | Texture2DArrayShadow
+    #TextureCubeArrayShadow
 
 proc isValid*(texture: AnyTexture): bool =
   texture.handle.int > 0 and glIsTexture(texture.handle)
@@ -121,18 +128,6 @@ proc generateMipmap*(texture: AnyTexture): void =
 proc delete*(texture: AnyTexture): void =
   var id = texture.handle
   glDeleteTextures(1, id.addr)
-
-proc label*(arg: AnyTexture): string =
-  const bufsize = 255
-  result = newString(bufsize)
-  var length: GLsizei
-  glGetObjectLabel(GL_TEXTURE, arg.handle, bufsize, length.addr, result[0].addr)
-  result.setLen(length)
-
-proc `label=`*(arg: AnyTexture; label: string): void =
-    ## does nothing when label is nil
-    if not isNil label:
-      glObjectLabel(GL_TEXTURE, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
 
 proc loadSurfaceFromFile*(filename: string): Surface =
   let surface = img.load(filename)
@@ -245,6 +240,8 @@ proc textureRectangle*(surface: sdl.Surface): TextureRectangle =
   glTextureStorage2D(result.handle, 1, GL_RGBA8, surface2.w, surface2.h)
   glTextureSubImage2D(result.handle, 0, 0, 0, surface2.w, surface2.h, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, surface2.pixels)
 
+proc `label=`*[T](arg: T; label: string): void
+
 proc loadTextureRectangleFromFile*(filename: string): TextureRectangle =
   var surface = img.load(filename)
   if surface.isNil:
@@ -314,6 +311,7 @@ proc loadTexture2DFromFile*(filename: string): Texture2D =
   defer: freeSurface(surface)
   result = texture2D(surface)
   result.label = filename
+
 
 proc saveToBmpFile*(tex: Texture2D | TextureRectangle; filename: string): void =
   let s = tex.size

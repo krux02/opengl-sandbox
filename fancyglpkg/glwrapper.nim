@@ -121,229 +121,341 @@ proc isValid*(location: Location): bool =
 
 ## Matrix types
 
+template dataPtr[N,M,T](arg: Mat[N,M,T]): ptr T =
+  cast[ptr T](arg.unsafeAddr)
+
 # float32
 
 proc uniform*(program: Program; location: Location, mat: Mat4f) =
-  glProgramUniformMatrix4fv(program.handle, location.index, 1, false, cast[ptr float32](mat.unsafeAddr))
+  if glProgramUniformMatrix4fv != nil:
+    glProgramUniformMatrix4fv(program.handle, location.index, 1, false, mat.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniformMatrix4fv(location.index, 1, false, mat.dataPtr)
 
 proc uniform*(program: Program; location: Location, mat: Mat3f) =
-  glProgramUniformMatrix3fv(program.handle, location.index, 1, false, cast[ptr float32](mat.unsafeAddr))
+  if glProgramUniformMatrix3fv != nil:
+    glProgramUniformMatrix3fv(program.handle, location.index, 1, false, mat.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniformMatrix3fv(location.index, 1, false, mat.dataPtr)
 
 proc uniform*(program: Program; location: Location, mat: Mat2f) =
-  glProgramUniformMatrix2fv(program.handle, location.index, 1, false, cast[ptr float32](mat.unsafeAddr))
+  if glProgramUniformMatrix2fv != nil:
+    glProgramUniformMatrix2fv(program.handle, location.index, 1, false, mat.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniformMatrix2fv(location.index, 1, false, mat.dataPtr)
 
-when defined(Mat2x3f):
-  proc uniform*(program: Program; location: Location, mat: Mat2x3f) =
-    glProgramUniformMatrix2x3fv(program.handle, location.index, 1, false, cast[ptr float32](mat.unsafeAddr))
+proc uniform*(program: Program; location: Location, mat: Mat2x3f) =
+  if glProgramUniformMatrix2x3fv != nil:
+    glProgramUniformMatrix2x3fv(program.handle, location.index, 1, false, mat.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniformMatrix2x3fv(location.index, 1, false, mat.dataPtr)
 
-when defined(Mat3x2f):
-  proc uniform*(program: Program; location: Location, mat: Mat3x2f) =
-    glProgramUniformMatrix3x2fv(program.handle, location.index, 1, false, cast[ptr float32](mat.unsafeAddr))
+proc uniform*(program: Program; location: Location, mat: Mat3x2f) =
+  if glProgramUniformMatrix3x2fv != nil:
+    glProgramUniformMatrix3x2fv(program.handle, location.index, 1, false, mat.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniformMatrix3x2fv(location.index, 1, false, mat.dataPtr)
 
-when defined(Mat2x4f):
-  proc uniform*(program: Program; location: Location, mat: Mat2x4f) =
-    glProgramUniformMatrix2x4fv(program.handle, location.index, 1, false, cast[ptr float32](mat.unsafeAddr))
+proc uniform*(program: Program; location: Location, mat: Mat2x4f) =
+  if glProgramUniformMatrix2x4fv != nil:
+    glProgramUniformMatrix2x4fv(program.handle, location.index, 1, false, mat.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniformMatrix2x4fv(location.index, 1, false, mat.dataPtr)
 
-when defined(Mat4x2f):
-  proc uniform*(program: Program; location: Location, mat: Mat4x2f) =
-    glProgramUniformMatrix4x2fv(program.handle, location.index, 1, false, cast[ptr float32](mat.unsafeAddr))
+proc uniform*(program: Program; location: Location, mat: Mat4x2f) =
+  if glProgramUniformMatrix4x2fv != nil:
+    glProgramUniformMatrix4x2fv(program.handle, location.index, 1, false, mat.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniformMatrix4x2fv(location.index, 1, false, mat.dataPtr)
 
-when defined(Mat3x4f):
-  proc uniform*(program: Program; location: Location, mat: Mat3x4f) =
-    glProgramUniformMatrix3x4fv(program.handle, location.index, 1, false, cast[ptr float32](mat.unsafeAddr))
+proc uniform*(program: Program; location: Location, mat: Mat3x4f) =
+  if glProgramUniformMatrix3x4fv != nil:
+    glProgramUniformMatrix3x4fv(program.handle, location.index, 1, false, mat.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniformMatrix3x4fv(location.index, 1, false, mat.dataPtr)
 
-when defined(Mat4x3f):
-  proc uniform*(program: Program; location: Location, mat: Mat4x3f) =
-    glProgramUniformMatrix4x3fv(program.handle, location.index, 1, false, cast[ptr float32](mat.unsafeAddr))
+proc uniform*(program: Program; location: Location, mat: Mat4x3f) =
+  if glProgramUniformMatrix4x3fv != nil:
+    glProgramUniformMatrix4x3fv(program.handle, location.index, 1, false, mat.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniformMatrix4x3fv(location.index, 1, false, mat.dataPtr)
 
 # float64
 
 proc uniform*(program: Program; location: Location; mat: Mat4d) =
-  glProgramUniformMatrix4dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
+  if glProgramUniformMatrix4dv != nil:
+    glProgramUniformMatrix4dv(program.handle, location.index, 1, false, mat.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniformMatrix4dv(location.index, 1, false, mat.dataPtr)
 
 proc uniform*(program: Program; location: Location, mat: Mat3d) =
-  glProgramUniformMatrix3dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
+  if glProgramUniformMatrix3dv != nil:
+    glProgramUniformMatrix3dv(program.handle, location.index, 1, false, mat.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniformMatrix3dv(location.index, 1, false, mat.dataPtr)
 
 proc uniform*(program: Program; location: Location, mat: Mat2d) =
-  glProgramUniformMatrix2dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
+  if glProgramUniformMatrix2dv != nil:
+    glProgramUniformMatrix2dv(program.handle, location.index, 1, false, mat.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniformMatrix2dv(location.index, 1, false, mat.dataPtr)
 
-when defined(Mat2x3d):
-  proc uniform*(program: Program; location: Location, mat: Mat2x3d) =
-    glProgramUniformMatrix2x3dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
+proc uniform*(program: Program; location: Location, mat: Mat2x3d) =
+  if glProgramUniformMatrix2x3dv != nil:
+    glProgramUniformMatrix2x3dv(program.handle, location.index, 1, false, mat.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniformMatrix2x3dv(location.index, 1, false, mat.dataPtr)
 
-when defined(Mat3x2d):
-  proc uniform*(program: Program; location: Location, mat: Mat3x2d) =
-    glProgramUniformMatrix3x2dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
+proc uniform*(program: Program; location: Location, mat: Mat3x2d) =
+  if glProgramUniformMatrix3x2dv != nil:
+    glProgramUniformMatrix3x2dv(program.handle, location.index, 1, false, mat.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniformMatrix3x2dv(location.index, 1, false, mat.dataPtr)
 
-when defined(Mat2x4d):
-  proc uniform*(program: Program; location: Location, mat: Mat2x4d) =
-    glProgramUniformMatrix2x4dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
+proc uniform*(program: Program; location: Location, mat: Mat2x4d) =
+  if glProgramUniformMatrix2x4dv != nil:
+    glProgramUniformMatrix2x4dv(program.handle, location.index, 1, false, mat.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniformMatrix2x4dv(location.index, 1, false, mat.dataPtr)
 
-when defined(Mat4x2d):
-  proc uniform*(program: Program; location: Location, mat: Mat4x2d) =
-    glProgramUniformMatrix4x2dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
+proc uniform*(program: Program; location: Location, mat: Mat4x2d) =
+  if glProgramUniformMatrix4x2dv != nil:
+    glProgramUniformMatrix4x2dv(program.handle, location.index, 1, false, mat.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniformMatrix4x2dv(location.index, 1, false, mat.dataPtr)
 
-when defined(Mat3x4d):
-  proc uniform*(program: Program; location: Location, mat: Mat3x4d) =
-    glProgramUniformMatrix3x4dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
+proc uniform*(program: Program; location: Location, mat: Mat3x4d) =
+  if glProgramUniformMatrix3x4dv != nil:
+    glProgramUniformMatrix3x4dv(program.handle, location.index, 1, false, mat.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniformMatrix3x4dv(location.index, 1, false, mat.dataPtr)
 
-when defined(Mat4x3d):
-  proc uniform*(program: Program; location: Location, mat: Mat4x3d) =
-    glProgramUniformMatrix4x3dv(program.handle, location.index, 1, false, cast[ptr float64](mat.unsafeAddr))
-
+proc uniform*(program: Program; location: Location, mat: Mat4x3d) =
+  if glProgramUniformMatrix4x3dv != nil:
+    glProgramUniformMatrix4x3dv(program.handle, location.index, 1, false, mat.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniformMatrix4x3dv(location.index, 1, false, mat.dataPtr)
 
 #[
+
 # uint32
 
 proc uniform(program: Program; location: Location, mat: Mat4ui) =
-  glProgramUniformMatrix4uiv(program.handle, location.index, 1, false, cast[ptr uint32](mat.unsafeAddr))
+  glProgramUniformMatrix4uiv(program.handle, location.index, 1, false, mat.dataPtr)
 
 proc uniform(program: Program; location: Location, mat: Mat3ui) =
-  glProgramUniformMatrix3uiv(program.handle, location.index, 1, false, cast[ptr uint32](mat.unsafeAddr))
+  glProgramUniformMatrix3uiv(program.handle, location.index, 1, false, mat.dataPtr)
 
 proc uniform(program: Program; location: Location, mat: Mat2ui) =
-  glProgramUniformMatrix2uiv(program.handle, location.index, 1, false, cast[ptr uint32](mat.unsafeAddr))
+  glProgramUniformMatrix2uiv(program.handle, location.index, 1, false, mat.dataPtr)
 
 proc uniform(program: Program; location: Location, mat: Mat2x3ui) =
-  glProgramUniformMatrix2x3uiv(program.handle, location.index, 1, false, cast[ptr uint32](mat.unsafeAddr))
+  glProgramUniformMatrix2x3uiv(program.handle, location.index, 1, false, mat.dataPtr)
 
 proc uniform(program: Program; location: Location, mat: Mat3x2ui) =
-  glProgramUniformMatrix3x2uiv(program.handle, location.index, 1, false, cast[ptr uint32](mat.unsafeAddr))
+  glProgramUniformMatrix3x2uiv(program.handle, location.index, 1, false, mat.dataPtr)
 
 proc uniform(program: Program; location: Location, mat: Mat2x4ui) =
-  glProgramUniformMatrix2x4uiv(program.handle, location.index, 1, false, cast[ptr uint32](mat.unsafeAddr))
+  glProgramUniformMatrix2x4uiv(program.handle, location.index, 1, false, mat.dataPtr)
 
 proc uniform(program: Program; location: Location, mat: Mat4x2ui) =
-  glProgramUniformMatrix4x2uiv(program.handle, location.index, 1, false, cast[ptr uint32](mat.unsafeAddr))
+  glProgramUniformMatrix4x2uiv(program.handle, location.index, 1, false, mat.dataPtr)
 
 proc uniform(program: Program; location: Location, mat: Mat3x4ui) =
-  glProgramUniformMatrix3x4uiv(program.handle, location.index, 1, false, cast[ptr uint32](mat.unsafeAddr))
+  glProgramUniformMatrix3x4uiv(program.handle, location.index, 1, false, mat.dataPtr)
 
 proc uniform(program: Program; location: Location, mat: Mat4x3ui) =
-  glProgramUniformMatrix4x3uiv(program.handle, location.index, 1, false, cast[ptr uint32](mat.unsafeAddr))
+  glProgramUniformMatrix4x3uiv(program.handle, location.index, 1, false, mat.dataPtr)
 
 # int32
 
 proc uniform(program: Program; location: Location, mat: Mat4i) =
-  glProgramUniformMatrix4iv(program.handle, location.index, 1, false, cast[ptr int32](mat.unsafeAddr))
+  glProgramUniformMatrix4iv(program.handle, location.index, 1, false, mat.dataPtr)
 
 proc uniform(program: Program; location: Location, mat: Mat3i) =
-  glProgramUniformMatrix3iv(program.handle, location.index, 1, false, cast[ptr int32](mat.unsafeAddr))
+  glProgramUniformMatrix3iv(program.handle, location.index, 1, false, mat.dataPtr)
 
 proc uniform(program: Program; location: Location, mat: Mat2i) =
-  glProgramUniformMatrix2iv(program.handle, location.index, 1, false, cast[ptr int32](mat.unsafeAddr))
+  glProgramUniformMatrix2iv(program.handle, location.index, 1, false, mat.dataPtr)
 
 proc uniform(program: Program; location: Location, mat: Mat2x3i) =
-  glProgramUniformMatrix2x3iv(program.handle, location.index, 1, false, cast[ptr int32](mat.unsafeAddr))
+  glProgramUniformMatrix2x3iv(program.handle, location.index, 1, false, mat.dataPtr)
 
 proc uniform(program: Program; location: Location, mat: Mat3x2i) =
-  glProgramUniformMatrix3x2iv(program.handle, location.index, 1, false, cast[ptr int32](mat.unsafeAddr))
+  glProgramUniformMatrix3x2iv(program.handle, location.index, 1, false, mat.dataPtr)
 
 proc uniform(program: Program; location: Location, mat: Mat2x4i) =
-  glProgramUniformMatrix2x4iv(program.handle, location.index, 1, false, cast[ptr int32](mat.unsafeAddr))
+  glProgramUniformMatrix2x4iv(program.handle, location.index, 1, false, mat.dataPtr)
 
 proc uniform(program: Program; location: Location, mat: Mat4x2i) =
-  glProgramUniformMatrix4x2iv(program.handle, location.index, 1, false, cast[ptr int32](mat.unsafeAddr))
+  glProgramUniformMatrix4x2iv(program.handle, location.index, 1, false, mat.dataPtr)
 
 proc uniform(program: Program; location: Location, mat: Mat3x4i) =
-  glProgramUniformMatrix3x4iv(program.handle, location.index, 1, false, cast[ptr int32](mat.unsafeAddr))
+  glProgramUniformMatrix3x4iv(program.handle, location.index, 1, false, mat.dataPtr)
 
 proc uniform(program: Program; location: Location, mat: Mat4x3i) =
-  glProgramUniformMatrix4x3iv(program.handle, location.index, 1, false, cast[ptr int32](mat.unsafeAddr))
-
+  glProgramUniformMatrix4x3iv(program.handle, location.index, 1, false, mat.dataPtr)
 ]#
 
 # Vector types
 
+template dataPtr[N,T](arg: Vec[N,T]): ptr T =
+  cast[ptr T](arg.unsafeAddr)
+
 proc uniform*(program: Program; location: Location, value: Vec2f) =
-  glProgramUniform2f(program.handle, location.index, value[0], value[1])
+  if glProgramUniform2fv != nil:
+    glProgramUniform2fv(program.handle, location.index, 1, value.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniform2fv(location.index, 1, value.dataPtr)
 
 proc uniform*(program: Program; location: Location, value: Vec3f) =
-  glProgramUniform3f(program.handle, location.index, value[0], value[1], value[2])
+  if glProgramUniform3fv != nil:
+    glProgramUniform3fv(program.handle, location.index, 1, value.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniform3fv(location.index, 1, value.dataPtr)
 
 proc uniform*(program: Program; location: Location, value: Vec4f) =
-  glProgramUniform4f(program.handle, location.index, value[0], value[1], value[2], value[3])
-
+  if glProgramUniform4fv != nil:
+    glProgramUniform4fv(program.handle, location.index, 1, value.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniform4fv(location.index, 1, value.dataPtr)
 
 proc uniform*(program: Program; location: Location, value: Vec2d) =
-  glProgramUniform2d(program.handle, location.index, value[0], value[1])
+  if glProgramUniform2dv != nil:
+    glProgramUniform2dv(program.handle, location.index, 1, value.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniform2dv(location.index, 1, value.dataPtr)
 
 proc uniform*(program: Program; location: Location, value: Vec3d) =
-  glProgramUniform3d(program.handle, location.index, value[0], value[1], value[2])
+  if glProgramUniform3dv != nil:
+    glProgramUniform3dv(program.handle, location.index, 1, value.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniform3dv(location.index, 1, value.dataPtr)
 
 proc uniform*(program: Program; location: Location, value: Vec4d) =
-  glProgramUniform4d(program.handle, location.index, value[0], value[1], value[2], value[3])
+  if glProgramUniform4dv != nil:
+    glProgramUniform4dv(program.handle, location.index, 1, value.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniform4dv(location.index, 1, value.dataPtr)
 
 
 proc uniform*(program: Program; location: Location, value: Vec2i) =
-  glProgramUniform2i(program.handle, location.index, value[0], value[1])
+  if glProgramUniform2iv != nil:
+    glProgramUniform2iv(program.handle, location.index, 1, value.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniform2iv(location.index, 1, value.dataPtr)
 
 proc uniform*(program: Program; location: Location, value: Vec3i) =
-  glProgramUniform3i(program.handle, location.index, value[0], value[1], value[2])
+  if glProgramUniform3iv != nil:
+    glProgramUniform3iv(program.handle, location.index,  1, value.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniform3iv(location.index,  1, value.dataPtr)
 
 proc uniform*(program: Program; location: Location, value: Vec4i) =
-  glProgramUniform4i(program.handle, location.index, value[0], value[1], value[2], value[3])
+  if glProgramUniform4iv != nil:
+    glProgramUniform4iv(program.handle, location.index,  1, value.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniform4iv(location.index,  1, value.dataPtr)
 
 
-when defined(Vec2ui):
-  proc uniform*(program: Program; location: Location, value: Vec2ui) =
-    glProgramUniform2ui(program.handle, location.index, value[0], value[1])
+proc uniform*(program: Program; location: Location, value: Vec2ui) =
+  if glProgramUniform2uiv != nil:
+    glProgramUniform2uiv(program.handle, location.index,  1, value.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniform2uiv(location.index,  1, value.dataPtr)
 
-when defined(Vec3ui):
-  proc uniform*(program: Program; location: Location, value: Vec3ui) =
-    glProgramUniform3ui(program.handle, location.index, value[0], value[1], value[2])
+proc uniform*(program: Program; location: Location, value: Vec3ui) =
+  if glProgramUniform3uiv != nil:
+    glProgramUniform3uiv(program.handle, location.index,  1, value.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniform3uiv(location.index,  1, value.dataPtr)
 
-when defined(Vec4ui):
-  proc uniform*(program: Program; location: Location, value: Vec4ui) =
-    glProgramUniform4ui(program.handle, location.index, value[0], value[1], value[2], value[3])
+proc uniform*(program: Program; location: Location, value: Vec4ui) =
+  if glProgramUniform4uiv != nil:
+    glProgramUniform4uiv(program.handle, location.index,  1, value.dataPtr)
+  else:
+    glUseProgram(program.handle)
+    glUniform4uiv(location.index,  1, value.dataPtr)
 
 
 proc uniform*(program: Program; location: Location, value: Vec2b) =
-  glProgramUniform2i(program.handle, location.index, value[0].GLint, value[1].GLint)
+  if glProgramUniform2i != nil:
+    glProgramUniform2i(program.handle, location.index, value[0].GLint, value[1].GLint)
+  else:
+    glUseProgram(program.handle)
+    glUniform2i(location.index, value[0].GLint, value[1].GLint)
 
 proc uniform*(program: Program; location: Location, value: Vec3b) =
-  glProgramUniform3i(program.handle, location.index, value[0].GLint, value[1].GLint, value[2].GLint)
+  if glProgramUniform3i != nil:
+    glProgramUniform3i(program.handle, location.index, value[0].GLint, value[1].GLint, value[2].GLint)
+  else:
+    glUseProgram(program.handle)
+    glUniform3i(location.index, value[0].GLint, value[1].GLint, value[2].GLint)
 
 proc uniform*(program: Program; location: Location, value: Vec4b) =
-  glProgramUniform4i(program.handle, location.index, value[0].GLint, value[1].GLint, value[2].GLint, value[3].GLint)
+  if glProgramUniform4i != nil:
+    glProgramUniform4i(program.handle, location.index, value[0].GLint, value[1].GLint, value[2].GLint, value[3].GLint)
+  else:
+    glUseProgram(program.handle)
+    glUniform4i(location.index, value[0].GLint, value[1].GLint, value[2].GLint, value[3].GLint)
 
 # scalar types
-
 proc uniform*(program: Program; location: Location, value: float32) =
-  glProgramUniform1f(program.handle, location.index, value)
+  if glProgramUniform1f != nil:
+    glProgramUniform1f(program.handle, location.index, value)
+  else:
+    glUseProgram(program.handle)
+    glUniform1f(location.index, value)
 
 proc uniform*(program: Program; location: Location, value: float64) =
-  glProgramUniform1d(program.handle, location.index, value)
+  if glProgramUniform1d != nil:
+    glProgramUniform1d(program.handle, location.index, value)
+  else:
+    glUseProgram(program.handle)
+    glUniform1d(location.index, value)
 
 proc uniform*(program: Program; location: Location, value: int32) =
-  glProgramUniform1i(program.handle, location.index, value)
+  if glProgramUniform1i != nil:
+    glProgramUniform1i(program.handle, location.index, value)
+  else:
+    glUseProgram(program.handle)
+    glUniform1i(location.index, value)
 
 proc uniform*(program: Program; location: Location, value: bool) =
-  glProgramUniform1i(program.handle, location.index, value.GLint)
-
-proc label*(arg: Program): string =
-  const bufsize = 255
-  result = newString(bufsize)
-  var length: GLsizei
-  glGetObjectLabel(GL_PROGRAM, arg.handle, bufsize, length.addr, result[0].addr)
-  result.setLen(length)
-
-proc `label=`*(arg: Program; label: string): void =
-    ## does nothing when label is nil (allows nil checks on other places)
-    if not isNil label:
-      glObjectLabel(GL_PROGRAM, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
-
-proc label*(arg: Shader): string =
-  const bufsize = 255
-  result = newString(bufsize)
-  var length: GLsizei
-  glGetObjectLabel(GL_SHADER, arg.handle, bufsize, length.addr, result[0].addr)
-  result.setLen(length)
-
-proc `label=`*(arg: Shader; label: string): void =
-    ## does nothing when label is nil (allows nil checks on other places)
-    if not isNil label:
-      glObjectLabel(GL_SHADER, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
+  if glProgramUniform1i != nil:
+    glProgramUniform1i(program.handle, location.index, value.GLint)
+  else:
+    glUseProgram(program.handle)
+    glUniform1i(location.index, value.GLint)
 
 #### Vertex Array Object ####
 
@@ -353,18 +465,6 @@ type
 
   VertexArrayObjectBinding* = object
     index*: GLuint
-
-proc label*(arg: VertexArrayObject): string =
-  const bufsize = 255
-  result = newString(bufsize)
-  var length: GLsizei
-  glGetObjectLabel(GL_PROGRAM, arg.handle, bufsize, length.addr, result[0].addr)
-  result.setLen(length)
-
-proc `label=`*(arg: VertexArrayObject; label: string): void =
-    ## does nothing when label is nil (allows nil checks on other places)
-    if not isNil label:
-      glObjectLabel(GL_VERTEX_ARRAY, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
 
 proc newVertexArrayObject*(label: string = nil) : VertexArrayObject =
   glCreateVertexArrays(1, result.handle.addr)
@@ -432,18 +532,6 @@ proc currentElementArrayBuffer*[T](): ElementArrayBuffer[T] {. deprecated .} =
 
 proc currentUniformBuffer*[T](): UniformBuffer[T] {. deprecated .} =
   result.handle = GLuint(glGetInteger(GL_UNIFORM_BUFFER_BINDING))
-
-proc label*(arg: AnyBuffer): string =
-  const bufsize = 255
-  result = newString(bufsize)
-  var length: GLsizei
-  glGetObjectLabel(GL_BUFFER, arg.handle, bufsize, length.addr, result[0].addr)
-  result.setLen(length)
-
-proc `label=`*(arg: AnyBuffer; label: string): void =
-    ## does nothing when label is nil (allows nil checks on other places)
-    if not isNil label:
-      glObjectLabel(GL_BUFFER, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
 
 proc bindingKind*[T](buffer: ArrayBuffer[T]) : GLenum {. inline .} =
   GL_ARRAY_BUFFER_BINDING
@@ -965,3 +1053,27 @@ proc bufferRange*(tf: TransformFeedback; index: int; buffer: ArrayBuffer; offset
 
 proc draw*(tf: TransformFeedback; primitiveMode: GLenum): void =
   glDrawTransformFeedback(primitiveMode, tf.handle)
+
+type
+  LabelAble = Program | Shader | VertexArrayObject | AnyBuffer | AnyTexture
+
+template glNamespace(arg: typedesc[Program]): GLenum = GL_PROGRAM
+template glNamespace(arg: typedesc[Shader]): GLenum  = GL_SHADER
+template glNamespace(arg: typedesc[VertexArrayObject]): GLenum = GL_VERTEX_ARRAY
+template glNamespace(arg: typedesc[AnyBuffer]): GLenum = GL_BUFFER
+template glNamespace(arg: typedesc[AnyTexture]): GLenum = GL_TEXTURE
+
+proc label*[T](arg: T): string =
+  if glGetObjectLabel != nil:
+    const bufsize = 255
+    result = newString(bufsize)
+    var length: GLsizei
+    glGetObjectLabel(glNamespace(arg.type), arg.handle, bufsize, length.addr, result[0].addr)
+    result.setLen(length)
+  else:
+    result = "<object label not supported>"
+
+proc `label=`*[T](arg: T; label: string): void =
+  ## does nothing when label is empty/nil
+  if glObjectLabel != nil and label.len != 0:
+    glObjectLabel(glNamespace(arg.type), arg.handle, GLsizei(label.len), label[0].unsafeAddr)

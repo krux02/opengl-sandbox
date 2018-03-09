@@ -507,7 +507,9 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
     var `program` {.global.}: Program
     var `locations` {.global.}: array[`numLocationsLit`, Location]
 
-    glPushDebugGroup(GL_DEBUG_SOURCE_THIRD_PARTY, 1, 10, "shadingDsl");
+    if glPushDebugGroup != nil:
+       glPushDebugGroup(GL_DEBUG_SOURCE_THIRD_PARTY, 1, 10, "shadingDsl");
+
 
     if `program`.handle == 0:
       `program`.handle = glCreateProgram()
@@ -537,7 +539,8 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
     glBindVertexArray(0)
     glUseProgram(0);
 
-    glPopDebugGroup();
+    if glPopDebugGroup != nil:
+      glPopDebugGroup();
 
 
 

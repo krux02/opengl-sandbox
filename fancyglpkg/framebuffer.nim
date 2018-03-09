@@ -10,24 +10,28 @@ proc label*(arg: DepthRenderBuffer): string =
   const bufsize = 255
   result = newString(bufsize)
   var length: GLsizei
-  glGetObjectLabel(GL_RENDERBUFFER, arg.handle, bufsize, length.addr, result[0].addr)
+  glGetObjectLabelEXT(GL_RENDERBUFFER, arg.handle, bufsize, length.addr, result[0].addr)
+
   result.setLen(length)
 
 proc `label=`*(arg: DepthRenderBuffer; label: string): void =
     ## does nothing when label is nil (allows nil checks on other places)
     if not isNil label:
-      glObjectLabel(GL_FRAMEBUFFER, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
+      glLabelObjectEXT(GL_FRAMEBUFFER, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
 
 proc label*(arg: FrameBuffer): string =
-  const bufsize = 255
-  result = newString(bufsize)
-  var length: GLsizei
-  glGetObjectLabel(GL_FRAMEBUFFER, arg.handle, bufsize, length.addr, result[0].addr)
-  result.setLen(length)
+  if glGetObjectLabel != nil:
+    const bufsize = 255
+    result = newString(bufsize)
+    var length: GLsizei
+    glGetObjectLabel(GL_FRAMEBUFFER, arg.handle, bufsize, length.addr, result[0].addr)
+    result.setLen(length)
+  else:
+    result = "<object label not supported>"
 
 proc `label=`*(arg: FrameBuffer; label: string): void =
     ## does nothing when label is nil (allows nil checks on other places)
-    if not isNil label:
+    if label != nil and glObjectLabel != nil:
       glObjectLabel(GL_FRAMEBUFFER, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
 
 proc newDepthRenderBuffer*(size: Vec2i, label: string = nil) : DepthRenderbuffer =
