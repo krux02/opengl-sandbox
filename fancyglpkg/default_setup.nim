@@ -78,8 +78,8 @@ proc defaultSetupInternal(windowsize: Vec2i; windowTitle: string): tuple[window:
   if ttf.init() != 0:
     write stderr, ttf.getError()
 
-  doAssert 0 == glSetAttribute(GL_CONTEXT_MAJOR_VERSION, 3)
-  doAssert 0 == glSetAttribute(GL_CONTEXT_MINOR_VERSION, 3)
+  doAssert 0 == glSetAttribute(GL_CONTEXT_MAJOR_VERSION, 4)
+  doAssert 0 == glSetAttribute(GL_CONTEXT_MINOR_VERSION, 5)
   doAssert 0 == glSetAttribute(GLattr.GL_CONTEXT_FLAGS , GL_CONTEXT_FORWARD_COMPATIBLE_FLAG or GL_CONTEXT_DEBUG_FLAG)
   doAssert 0 == glSetAttribute(GLattr.GL_CONTEXT_PROFILE_MASK , GL_CONTEXT_PROFILE_CORE)
   doAssert 0 == glSetAttribute(GL_STENCIL_SIZE         , 8)

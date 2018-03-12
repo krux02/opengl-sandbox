@@ -957,22 +957,6 @@ type
     varyingOffsets*: seq[int]
     varyingNames*: seq[string]
 
-proc label*(arg: TransformFeedback): string =
-  const bufsize = 255
-  result = newString(bufsize)
-  var length: GLsizei
-  glGetObjectLabel(
-    GL_TRANSFORM_FEEDBACK,
-    arg.handle, bufsize, length.addr, result[0].addr)
-  result.setLen(length)
-
-proc `label=`*(arg: TransformFeedback; label: string): void =
-    ## does nothing when label is nil (allows nil checks on other places)
-    if not isNil label:
-      glObjectLabel(
-        GL_TRANSFORM_FEEDBACK,
-        arg.handle, GLsizei(label.len), label[0].unsafeAddr)
-
 macro typeName(t: typedesc): untyped =
   newLit($t.getTypeImpl[1])
 
@@ -1013,11 +997,45 @@ macro genVaryingOffsets[T](self: TransformFeedback[T]): untyped =
 template stride*[T](self: TransformFeedback[T]): int =
   sizeof(T)
 
+
+import typetraits
+
+proc glslLayoutSpecificationRuntime[T](name: string = nil): string =
+  let stride = sizeof(T)
+  let name = $T
+  var tmp: T
+
+  let baseAddr = cast[uint](tmp.addr)
+  result =  s"layout(xfb_buffer = 0, xfb_stride = $stride) out $name {"
+  result.add "\n"
+  for fieldName, field in tmp.fieldPairs:
+    result.add "  layout(xfb_offset = "
+    result.add $(cast[uint](field.addr) - baseAddr)
+    result.add ") "
+    result.add glslTypeRepr(field.type)
+    result.add " "
+    result.add fieldName
+    result.add ";\n"
+
+  result.add "};\n"
+
+
+template glslLayoutSpecification(arg: untyped): string = ""
+
 proc newTransformFeedback*[T]() : TransformFeedback[T] =
   glCreateTransformFeedbacks(GLsizei(1), result.handle.addr)
   result.label = typeName(T)
-  result.varyingNames = @(result.genVaryingNames)
-  result.varyingOffsets = @(result.genVaryingOffsets)
+
+  let layoutSpecRT = glslLayoutSpecificationRuntime[T]()
+  let layoutSpec   = glslLayoutSpecification(t)
+
+  if layoutSpecRT != layoutSpec:
+    echo "you will need the following template in your codebase, just copy paste it"
+    echo ""
+    echo "template glslLayoutSpecification*(arg: typedesc[", $T, "]): string = \"\"\"\n"
+    echo layoutSpecRT
+    echo "\"\"\""
+
 
 #[
 macro transformFeedbackOutSection(self: TransformFeedback): string =
@@ -1062,6 +1080,7 @@ template glNamespace(arg: typedesc[Shader]): GLenum  = GL_SHADER
 template glNamespace(arg: typedesc[VertexArrayObject]): GLenum = GL_VERTEX_ARRAY
 template glNamespace(arg: typedesc[AnyBuffer]): GLenum = GL_BUFFER
 template glNamespace(arg: typedesc[AnyTexture]): GLenum = GL_TEXTURE
+template glNamespace(arg: typedesc[TransformFeedback]): GLenum = GL_TRANSFORM_FEEDBACK
 
 proc label*[T](arg: T): string =
   if glGetObjectLabel != nil:

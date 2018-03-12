@@ -1,9 +1,6 @@
 import ../fancygl
 
-## WARNING THIS CODE DOES NOT WORK ##
-
-let (window, _) = defaultSetup()
-let windowsize = window.size.vec2f
+## Transform Feedback is net yet properly integrated yet.
 
 const
   numParticles   = 2000
@@ -17,35 +14,37 @@ type
     rot: float32
     birthday: float32
 
+type
+  TransformFeedback_ParticleData = object
+    handle*: GLuint
+    buffer*: ArrayBuffer[ParticleData]
+
+
+let (window, _) = defaultSetup()
+let windowsize = window.size.vec2f
+
 var cpuParticleData = newSeq[ParticleData](numParticles)
 
 for particle in cpuParticleData.mitems():
   particle.pos = vec2f(rand_f32(), rand_f32()) * windowsize
   particle.col = vec3f(rand_f32(), rand_f32(), rand_f32())
   particle.rot = randNormal().float32 + 2
-  particle.vel.x = randNormal().float32 * 32
-  particle.vel.y = randNormal().float32 * 32
+  particle.vel.x = randNormal().float32
+  particle.vel.y = randNormal().float32
   particle.birthday = - rand_f32() * maxParticleAge
 
 var particleData           = cpuParticleData.arrayBuffer(GL_STREAM_DRAW)
 var particleTarget         = cpuParticleData.arrayBuffer(GL_STREAM_DRAW)
 
-let
-  posView      = particleData.view(pos)
-  colView      = particleData.view(col)
-  rotView      = particleData.view(rot)
-  velView      = particleData.view(vel)
-  birthdayView = particleData.view(birthday)
-
-  posTargetView      = particleTarget.view(pos)
-  colTargetView      = particleTarget.view(col)
-  rotTargetView      = particleTarget.view(rot)
-  velTargetView      = particleTarget.view(vel)
-  birthdayTargetView = particleTarget.view(birthday)
+# this needs to be a template, because otherwise
+template  posView:untyped      = particleData.view(pos)
+template  colView:untyped      = particleData.view(col)
+template  rotView:untyped      = particleData.view(rot)
+template  velView:untyped      = particleData.view(vel)
+template  birthdayView:untyped = particleData.view(birthday)
 
 var running    = true
 var gameTimer  = newStopWatch(true)
-var frameTimer = newStopWatch(true)
 
 var mvp : Mat4f
 
@@ -67,42 +66,7 @@ var transformFeedback = newTransformFeedback[ParticleData]()
 echo transformFeedback
 echo transformFeedback.label
 
-proc glslLayoutSpecification[T](t: typedesc[T], buffer: int): string =
-  var tmp: T
-
-  let stride = sizeof(T)
-  let name = t.name
-
-  let baseAddr = cast[uint](tmp.addr)
-  result = s"layout(xfb_buffer = $buffer, xfb_stride = $stride) out $name {\n"
-  for fieldName, field in tmp.fieldPairs:
-    let offset = cast[uint](field.addr) - baseAddr
-
-
-
-  result.add "};\n"
-
-#[
-
-layout(xfb_buffer = 0, xfb_stride = 36) out ParticleData {
-  layout(xfb_offset = 0)  vec2 pos;
-  layout(xfb_offset = 8)  vec2 vel;
-  layout(xfb_offset = 16) vec3 col;
-  layout(xfb_offset = 28) float rot;
-  layout(xfb_offset = 32) float birthday;
-};
-
-  layout(xfb_offset = 0)  vec2 pos;
-  layout(xfb_offset = 8)  vec2 vel;
-  layout(xfb_offset = 16) vec3 col;
-  layout(xfb_offset = 28) float rot;
-  layout(xfb_offset = 32) float birthday;
-};
-]#
-
-
 while running:
-  let frameTime = frameTimer.reset
   let time = gameTimer.time.float32
 
   pmouseX = mouseX
@@ -110,28 +74,28 @@ while running:
   discard getMouseState(mouseX.addr, mouseY.addr)
   mouseY = windowsize.y.int32 - mouseY
 
-  let dirx = float32(cos(time * 5))
-  let diry = float32(sin(time * 5))
+  var dir: Vec2f
+  dir.x = float32(cos(time * 5))
+  dir.y = float32(sin(time * 5))
 
   glClear(GL_COLOR_BUFFER_BIT)
 
   transformFeedback.bufferBase(0, particleTarget)
 
   shadingDsl:
-    #debug
     primitiveMode = GL_POINTS
     numVertices   = numParticles
     programIdent  = tfProgram
     vaoIdent      = tfVao
 
     uniforms:
-      mouse      = vec2f(mouseX.float32,mouseY.float32)
-      pmouse     = vec2f(pmouseX.float32,pmouseY.float32)
-      frameTime  = frameTime.float32
+      mouse      = vec2f(mouseX.float32,  mouseY.float32)
+      pmouse     = vec2f(pmouseX.float32,  pmouseY.float32)
       windowsize = windowsize
       time
       maxParticleAge
-      dir        = vec2f(dirx,diry)
+      numParticles
+      dir
 
     attributes:
       a_pos = posView
@@ -141,7 +105,6 @@ while running:
       a_birthday = birthdayView
 
     afterSetup:
-      #tfProgram.transformFeedbackVaryings(["v_pos", "v_col", "v_rot", "v_vel", "v_birthday"], GL_INTERLEAVED_ATTRIBS)
       discard
 
     beforeRender:
@@ -150,57 +113,44 @@ while running:
       glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, transformFeedback.handle)
       glBeginTransformFeedback(GL_POINTS)
 
+    afterRender:
+
+      glEndTransformFeedback()
+      glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, 0)
+      glDisable(GL_RASTERIZER_DISCARD);
+
     vertexSrc:
       """
-
 layout(xfb_buffer = 0, xfb_stride = 36) out ParticleData {
-  layout(xfb_offset = 0)  vec2 pos;
-  layout(xfb_offset = 8)  vec2 vel;
+  layout(xfb_offset = 0) vec2 pos;
+  layout(xfb_offset = 8) vec2 vel;
   layout(xfb_offset = 16) vec3 col;
   layout(xfb_offset = 28) float rot;
   layout(xfb_offset = 32) float birthday;
 };
 
 void main() {
-  //v_pos = a_pos + a_vel * frameTime;
-  //v_pos = clamp(a_pos, vec2(0), windowsize);
-  //v_vel = a_vel * flip;
+  col = a_col;
+  rot = a_rot + length(a_vel) * 0.1;
+  birthday = a_birthday;
+  pos = a_pos + a_vel;
 
-  //if(a_birthday + maxParticleAge > time) {
-  //  v_birthday = time;
-  //  v_vel = 128 * dir;
-  //  v_pos = mix( pmouse, mouse, 0.5 );
-  //} else {
-  //  v_birthday = a_birthday;
-  //  v_vel = a_vel;
-  //}
+  vec2 flip;
+  flip.x = float(windowsize.x < pos.x || pos.x < 0) * -2 + 1;
+  flip.y = float(windowsize.y < pos.y || pos.y < 0) * -2 + 1;
+  vel = a_vel * flip;
 
-  pos = a_pos + a_vel * time;
-  //vel.x = 0 <= pos.x && pos.x <= windowsize.x ? a_vel.x : -a_vel.x;
-  //vel.y = 0 <= pos.y && pos.y <= windowsize.y ? a_vel.y : -a_vel.y;
-  vel = vec2(0);
   pos = clamp(pos, vec2(0), windowsize);
 
-  birthday = a_birthday;
-  col = a_col;
-  rot = a_rot * time;
+  if(a_birthday + maxParticleAge < time) {
+    birthday = time;
+    pos      = mix(pmouse,mouse, float(gl_VertexID) * (1.0 / float(numParticles)));
+    vel = dir;
+  }
 }
       """
 
-    vertexOut:
-      #v_pos      = posTargetView
-      #v_col      = colTargetView
-      #v_rot      = rotTargetView
-      #v_vel      = velTargetView
-      #v_birthday = birthdayTargetView
-      #transformFeedback
-      discard
-
-    afterRender:
-
-      glEndTransformFeedback()
-      glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, 0)
-      glDisable(GL_RASTERIZER_DISCARD);
+  swap particleData, particleTarget
 
   for evt in events():
     if evt.kind == QUIT:
@@ -230,9 +180,9 @@ void main() {
       particleSize = vec2f(16,4)
 
     attributes:
-      a_pos   = posTargetView
-      a_color = colTargetView
-      a_rot   = rotTargetView
+      a_pos   = posView
+      a_color = colView
+      a_rot   = rotView
 
     vertexMain:
       """
@@ -285,9 +235,9 @@ void main() {
       particleSize = vec2f(16,4)
 
     attributes:
-      a_pos   = posTargetView
-      a_color = colTargetView
-      a_rot   = rotTargetView
+      a_pos   = posView
+      a_color = colView
+      a_rot   = rotView
 
     vertexMain:
       """
