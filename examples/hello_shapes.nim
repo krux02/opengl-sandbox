@@ -151,8 +151,13 @@ var noiseArray: array[21, float32]
 for x in noiseArray.mitems:
   x = (rand_f32()*2-1) * 0.01f;
 
+
+var timer = newStopWatch(true)
+
 while runGame:
   frame += 1
+
+  let time = timer.time.float32
 
   # just some meaningless numbers to make the shapes rotate
   worldNodes[IdCone].turnRelativeZ(noiseArray[0])

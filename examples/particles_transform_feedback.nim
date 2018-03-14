@@ -1,47 +1,57 @@
 import ../fancygl
 
-## Transform Feedback is net yet properly integrated yet.
+
+proc printf(frmt: cstring): cint {.importc: "printf", header: "<stdio.h>", nodecl, varargs.}
+
+## Transform Feedback is not yet properly integrated
 
 const
   numParticles   = 2000
   maxParticleAge = 16.0'f32
 
 type
-  ParticleData = object
+  ParticleDataA = object
     pos: Vec2f
     vel: Vec2f
+    birthday: float32
+    padding: float32
+
+  ParticleDataB = object
     col: Vec3f
     rot: float32
-    birthday: float32
-
-type
-  TransformFeedback_ParticleData = object
-    handle*: GLuint
-    buffer*: ArrayBuffer[ParticleData]
-
 
 let (window, _) = defaultSetup()
 let windowsize = window.size.vec2f
 
-var cpuParticleData = newSeq[ParticleData](numParticles)
+var particleData, particleTarget: ArrayBuffer[ParticleDataA]
+var particleDataB: ArrayBuffer[ParticleDataB]
 
-for particle in cpuParticleData.mitems():
-  particle.pos = vec2f(rand_f32(), rand_f32()) * windowsize
-  particle.col = vec3f(rand_f32(), rand_f32(), rand_f32())
-  particle.rot = randNormal().float32 + 2
-  particle.vel.x = randNormal().float32
-  particle.vel.y = randNormal().float32
-  particle.birthday = - rand_f32() * maxParticleAge
+block:
+  var particlesSeq = newSeq[particleData.T](numParticles)
 
-var particleData           = cpuParticleData.arrayBuffer(GL_STREAM_DRAW)
-var particleTarget         = cpuParticleData.arrayBuffer(GL_STREAM_DRAW)
+  for particle in particlesSeq.mitems:
+    particle.pos = vec2f(rand_f32(), rand_f32()) * windowsize
+    particle.vel.x = randNormal().float32
+    particle.vel.y = randNormal().float32
+    particle.birthday = -rand_f32() * maxParticleAge
+
+  particleData = arrayBuffer(particlesSeq, GL_STATIC_COPY)
+  particleTarget = arrayBuffer(particlesSeq, GL_STATIC_COPY)
+
+  var particlesBSeq = newSeq[particleDataB.T](numParticles)
+  for particle in particlesBSeq.mitems:
+    particle.col = vec3f(rand_f32(), rand_f32(), rand_f32())
+    particle.rot = randNormal().float32 + 2
+
+  particleDataB = arrayBuffer(particlesBSeq, GL_STATIC_DRAW)
 
 # this needs to be a template, because otherwise
+
 template  posView:untyped      = particleData.view(pos)
-template  colView:untyped      = particleData.view(col)
-template  rotView:untyped      = particleData.view(rot)
 template  velView:untyped      = particleData.view(vel)
 template  birthdayView:untyped = particleData.view(birthday)
+template  colView:untyped      = particleDataB.view(col)
+template  rotView:untyped      = particleDataB.view(rot)
 
 var running    = true
 var gameTimer  = newStopWatch(true)
@@ -58,23 +68,34 @@ glBlendFunc(GL_SRC_ALPHA, GL_ONE)
 
 var mouseX  , mouseY  : int32
 var pmouseX , pmouseY : int32
+var transformFeedback = newTransformFeedback[ParticleDataA]()
 
-echo offsetOf(ParticleData, pos)
-
-var transformFeedback = newTransformFeedback[ParticleData]()
-
-echo transformFeedback
-echo transformFeedback.label
+var pdir, dir: Vec2f
 
 while running:
   let time = gameTimer.time.float32
+
+  for evt in events():
+    if evt.kind == QUIT:
+      running = false
+      break
+    if evt.kind == KEY_DOWN:
+      case evt.key.keysym.scancode
+      of SCANCODE_ESCAPE:
+        running = false
+        break
+      of SCANCODE_PAUSE:
+        gameTimer.toggle
+
+      else:
+        discard
 
   pmouseX = mouseX
   pmouseY = mouseY
   discard getMouseState(mouseX.addr, mouseY.addr)
   mouseY = windowsize.y.int32 - mouseY
 
-  var dir: Vec2f
+  pdir = dir
   dir.x = float32(cos(time * 5))
   dir.y = float32(sin(time * 5))
 
@@ -95,14 +116,19 @@ while running:
       time
       maxParticleAge
       numParticles
+      pdir
       dir
+
+
 
     attributes:
       a_pos = posView
-      a_col = colView
-      a_rot = rotView
       a_vel = velView
       a_birthday = birthdayView
+
+      #a_color = colView
+      #a_rot   = rotView
+
 
     afterSetup:
       discard
@@ -121,52 +147,37 @@ while running:
 
     vertexSrc:
       """
-layout(xfb_buffer = 0, xfb_stride = 36) out ParticleData {
+
+layout(xfb_buffer = 0, xfb_stride = 24) out ParticleDataA {
   layout(xfb_offset = 0) vec2 pos;
   layout(xfb_offset = 8) vec2 vel;
-  layout(xfb_offset = 16) vec3 col;
-  layout(xfb_offset = 28) float rot;
-  layout(xfb_offset = 32) float birthday;
+  layout(xfb_offset = 16) float birthday;
+  layout(xfb_offset = 20) float padding;
 };
 
 void main() {
-  col = a_col;
-  rot = a_rot + length(a_vel) * 0.1;
-  birthday = a_birthday;
-  pos = a_pos + a_vel;
-
-  vec2 flip;
-  flip.x = float(windowsize.x < pos.x || pos.x < 0) * -2 + 1;
-  flip.y = float(windowsize.y < pos.y || pos.y < 0) * -2 + 1;
-  vel = a_vel * flip;
-
-  pos = clamp(pos, vec2(0), windowsize);
 
   if(a_birthday + maxParticleAge < time) {
+    float a = float(gl_VertexID) * (1.0 / float(numParticles));
+    pos      = mix(pmouse,mouse, a);
+    vel = mix(pdir, dir, a);
     birthday = time;
-    pos      = mix(pmouse,mouse, float(gl_VertexID) * (1.0 / float(numParticles)));
-    vel = dir;
+  } else {
+    birthday = a_birthday;
+
+    pos = a_pos + a_vel;
+
+    vec2 flip;
+    flip.x = float(windowsize.x < pos.x || pos.x < 0) * -2 + 1;
+    flip.y = float(windowsize.y < pos.y || pos.y < 0) * -2 + 1;
+
+    pos = clamp(pos, vec2(0), windowsize);
+    vel = a_vel * flip;
   }
 }
       """
 
   swap particleData, particleTarget
-
-  for evt in events():
-    if evt.kind == QUIT:
-      running = false
-      break
-    if evt.kind == KEY_DOWN:
-      case evt.key.keysym.scancode
-      of SCANCODE_ESCAPE:
-        running = false
-        break
-      of SCANCODE_PAUSE:
-        gameTimer.toggle
-
-      else:
-        discard
-
 
   glEnable(GL_BLEND)
 

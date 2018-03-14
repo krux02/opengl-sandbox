@@ -507,6 +507,7 @@ proc new*[T](arrayBuffer: var UniformBuffer[T] ) : void =
 proc newArrayBuffer*[T](length: int, usage: GLenum = GL_STATIC_DRAW, label: string = nil): ArrayBuffer[T] =
   result.new
   glNamedBufferData(result.handle, length * GLsizeiptr(sizeof(T)), nil, usage)
+  #glNamedBufferStorage(result.handle, length * GLsizeiptr(sizeof(T)), nil, 0)
   if not label.isNil:
     result.label = label
 
