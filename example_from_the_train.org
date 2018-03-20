@@ -1,0 +1,173 @@
+* example from the train
+
+** source
+
+#+BEGIN_SRC nim
+
+import glm
+
+template render(arg: varargs[untyped]): untyped =
+  discard
+
+type
+  Light = object
+    position_ws: Vec4f
+    color: Vec4f
+
+  Vertex = object
+    position_os: Vec4f
+    normal_os: Vec4f
+    texCoord: Vec2f
+
+  FrameBuffer = object
+
+var fb: FrameBuffer
+
+
+var M,V,P: Mat4f
+var lights: Light
+var myTexture: Texture2D
+
+fb.render(mesh) do (v, gl):
+  gl.Position     = P * V * M * v.position_os
+  let position_cs = V*M*v.position_os
+  let normal_cs   = inverse(transpose(V*M)) * v.normal_os
+  var lighting: Vec4f
+
+  for light in lights:
+    let light_position_cs = V * light.position_ws
+    let light_direction_cs = light_position_cs-position_cs
+    let light_intensity = dot(light_direction_cs, normal_cs)
+    lighting += light_intensity * light.color
+
+  let textureSample = texture(myTexture, v.texCoord)
+  result.color = textureSample * lighting
+
+#+END_SRC
+
+** symbol table
+
+| symbol             | kind         | glsl repr        | type                    |
+|--------------------+--------------+------------------+-------------------------|
+| inversse           | BuiltinProc  | inversse         |                         |
+| transpose          | BuiltinProc  | transpose        |                         |
+| texture            | BuiltinProc  | texture          |                         |
+| dot                | BuiltinProc  | dot              |                         |
+| vec4f              | BuiltinProc  | vec4             |                         |
+| M                  | Uniform      | M                | Mat[4,float32]          |
+| V                  | Uniform      | V                | Mat[4,float32]          |
+| P                  | Uniform      | P                | Mat[4,float32]          |
+| lights             | Uniform      | lights           | array[3,Light]          |
+| v.position_os      | Attribute    | v_positionos     | Vec[4,float32]          |
+| v.normal_os        | Attribute    | v_normalos       | Vec[4,float32]          |
+| v.texCoord         | Attribute    | v_texCoord       | Vec[2,float32]          |
+| result.color       | Result       | result_color     | Vec[4,float32]          |
+| Vec4f              | Type         | vec4             | Vec[4,float32]          |
+| Mat4f              | Type         | mat4             | Mat[4,float32]          |
+| float32            | Type         | float            | float32                 |
+| light              | LoopIt       | ???              | ???                     |
+| position_ws        | Member       | positionws       | Light -> Vec[4,float32] |
+| color              | Member       | color            | Light -> Vec[4,float32] |
+| position_cs        | LocalVar     | positioncs       | Vec[4,float32]          |
+| normal_cs          | LocalVar     | normalcs         | Vec[4,float32]          |
+| lighting           | LocalVar     | lighting         | Vec[4,float32]          |
+| light_position_cs  | LocalVar     | lightpositioncs  | Vec[4,float32]          |
+| light_direction_cs | LocalVar     | lightdirectioncs | Vec[4,float32]          |
+| light_intensity    | LocalVar     | lightintensity   | float32                 |
+| textureSample      | LocalVar     | textureSample    | Vec[4,float32]          |
+| t1                 | Intermediate | temp_1           | Mat[4,float32]          |
+| t2                 | Intermediate | temp_2           | Mat[4,float32]          |
+| t3                 | Intermediate | temp_3           | Mat[4,float32]          |
+| t4                 | Intermediate | temp_4           | float32                 |
+| t5                 | Intermediate | temp_5           | Vec[4,float32]          |
+| t6                 | Intermediate | temp_6           | Vec[4,float32]          |
+| t7                 | Intermediate | temp_7           | Vec[4,float32]          |
+
+** intermediate representation
+
+#+BEGIN_SRC
+
+(Block
+  (Asgn `gl.Position` (Mult `P` `V` `M` `v.position_os`))
+  (Asgn `position_cs` (Mult `V` `M` `v.position_os`))
+  (Asgn `t1` (Mult `V` `M`))
+  (Asgn `t2` (Call `transpose` `t1`))
+  (Asgn `t3` (Call `inverse` `t2`))
+  (Asgn `normal_cs` (Mult `t3` `v.normal_os`))
+  (Asgn `lighting`  (Call `vec4f` 0))
+  (Loop `light` `lights`
+    (Asgn `t4` (Dot `light` `position_ws`))
+    (Asgn `light_position_cs` (Mult `V` `t4`))
+    (Asgn `t5` (Neg `position_cs`))
+    (Asgn `light_direction_cs` (Add `t5` `light_position_cs`))
+    (Asgn `light_intensity`  (Call `dot` `light_direction_cs` `normal_cs`))
+    (Asgn `t6` (dot `light` `color`))
+    (Asgn `t7` (Mult `light_intensity` `t6`))
+    (Asgn `lighting` (Add `lighting` `t7`))
+  )
+  (Asgn `textureSample` (Call `texture` `myTexture` `v.texCoord`))
+  (Asgn `result.color` (Mult `texturesample` `lighting`))
+)
+
+#+END_SRC
+
+
+all symbols in the loop body need to be in a group, because a variable
+in the loop body can't be passed down to the fragment shader.
+
+
+** all <= relations
+
+| `gl.Position`        | `P`                  |
+| `gl.Position`        | `V`                  |
+| `gl.Position`        | `M`                  |
+| `gl.Position`        | `v.position_os`      |
+| `position_cs`        | `V`                  |
+| `position_cs`        | `M`                  |
+| `position_cs`        | `v.position_os`      |
+| `t1`                 | `V`                  |
+| `t2`                 | `M`                  |
+| `t2`                 | `t1`                 |
+| `t3`                 | `t2`                 |
+| `normal_cs`          | `t3`                 |
+| `normal_cs`          | `v.normal_os`        |
+| `t4`                 | `light`              |
+| `t4`                 | `light`              |
+| `light_position_cs`  | `V`                  |
+| `light_position_cs`  | `t4`                 |
+| `t5`                 | `position_cs`        |
+| `light_direction_cs` | `t5`                 |
+| `light_direction_cs` | `light_position_cs`  |
+| `light_intensity`    | `light_direction_cs` |
+| `light_intensity`    | `normal_cs`          |
+| `t6`                 | `light`              |
+| `t6`                 | `color`              |
+| `t7`                 | `light_intensity`    |
+| `t7`                 | `t6`                 |
+| `lighting`           | `lighting`           |
+| `lighting`           | `t7`                 |
+| `textureSample`      | `myTexture`          |
+| `textureSample`      | `v.texCoord`         |
+| `result.color`       | `texturesample`      |
+| `result.color`       | `lighting`           |
+
+
+
+
+
+
+#+BEGIN_SRC nim
+
+type
+  IRNodeKinds = enum
+    irBlock
+    irAsgn
+    irDot
+    irMult
+    irAdd
+    irNeg
+    irCall
+    irDecl
+    irLoop
+
+#+END_SRC
