@@ -1,7 +1,6 @@
 # included from fancygl.nim
 
 type
-  UncheckedArray {.unchecked.} [t] = array[0,t]
 
   DataView*[T] = object
     data: ptr UncheckedArray[T]
@@ -127,6 +126,7 @@ template dataPtr[N,M,T](arg: Mat[N,M,T]): ptr T =
 # float32
 
 proc uniform*(program: Program; location: Location, mat: Mat4f) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniformMatrix4fv != nil:
     glProgramUniformMatrix4fv(program.handle, location.index, 1, false, mat.dataPtr)
   else:
@@ -134,6 +134,7 @@ proc uniform*(program: Program; location: Location, mat: Mat4f) =
     glUniformMatrix4fv(location.index, 1, false, mat.dataPtr)
 
 proc uniform*(program: Program; location: Location, mat: Mat3f) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniformMatrix3fv != nil:
     glProgramUniformMatrix3fv(program.handle, location.index, 1, false, mat.dataPtr)
   else:
@@ -141,6 +142,7 @@ proc uniform*(program: Program; location: Location, mat: Mat3f) =
     glUniformMatrix3fv(location.index, 1, false, mat.dataPtr)
 
 proc uniform*(program: Program; location: Location, mat: Mat2f) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniformMatrix2fv != nil:
     glProgramUniformMatrix2fv(program.handle, location.index, 1, false, mat.dataPtr)
   else:
@@ -148,6 +150,7 @@ proc uniform*(program: Program; location: Location, mat: Mat2f) =
     glUniformMatrix2fv(location.index, 1, false, mat.dataPtr)
 
 proc uniform*(program: Program; location: Location, mat: Mat2x3f) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniformMatrix2x3fv != nil:
     glProgramUniformMatrix2x3fv(program.handle, location.index, 1, false, mat.dataPtr)
   else:
@@ -155,6 +158,7 @@ proc uniform*(program: Program; location: Location, mat: Mat2x3f) =
     glUniformMatrix2x3fv(location.index, 1, false, mat.dataPtr)
 
 proc uniform*(program: Program; location: Location, mat: Mat3x2f) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniformMatrix3x2fv != nil:
     glProgramUniformMatrix3x2fv(program.handle, location.index, 1, false, mat.dataPtr)
   else:
@@ -162,6 +166,7 @@ proc uniform*(program: Program; location: Location, mat: Mat3x2f) =
     glUniformMatrix3x2fv(location.index, 1, false, mat.dataPtr)
 
 proc uniform*(program: Program; location: Location, mat: Mat2x4f) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniformMatrix2x4fv != nil:
     glProgramUniformMatrix2x4fv(program.handle, location.index, 1, false, mat.dataPtr)
   else:
@@ -169,6 +174,7 @@ proc uniform*(program: Program; location: Location, mat: Mat2x4f) =
     glUniformMatrix2x4fv(location.index, 1, false, mat.dataPtr)
 
 proc uniform*(program: Program; location: Location, mat: Mat4x2f) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniformMatrix4x2fv != nil:
     glProgramUniformMatrix4x2fv(program.handle, location.index, 1, false, mat.dataPtr)
   else:
@@ -176,6 +182,7 @@ proc uniform*(program: Program; location: Location, mat: Mat4x2f) =
     glUniformMatrix4x2fv(location.index, 1, false, mat.dataPtr)
 
 proc uniform*(program: Program; location: Location, mat: Mat3x4f) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniformMatrix3x4fv != nil:
     glProgramUniformMatrix3x4fv(program.handle, location.index, 1, false, mat.dataPtr)
   else:
@@ -183,6 +190,7 @@ proc uniform*(program: Program; location: Location, mat: Mat3x4f) =
     glUniformMatrix3x4fv(location.index, 1, false, mat.dataPtr)
 
 proc uniform*(program: Program; location: Location, mat: Mat4x3f) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniformMatrix4x3fv != nil:
     glProgramUniformMatrix4x3fv(program.handle, location.index, 1, false, mat.dataPtr)
   else:
@@ -335,6 +343,7 @@ proc uniform*(program: Program; location: Location, value: Vec3f) =
     glUniform3fv(location.index, 1, value.dataPtr)
 
 proc uniform*(program: Program; location: Location, value: Vec4f) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniform4fv != nil:
     glProgramUniform4fv(program.handle, location.index, 1, value.dataPtr)
   else:
@@ -342,6 +351,7 @@ proc uniform*(program: Program; location: Location, value: Vec4f) =
     glUniform4fv(location.index, 1, value.dataPtr)
 
 proc uniform*(program: Program; location: Location, value: Vec2d) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniform2dv != nil:
     glProgramUniform2dv(program.handle, location.index, 1, value.dataPtr)
   else:
@@ -349,6 +359,7 @@ proc uniform*(program: Program; location: Location, value: Vec2d) =
     glUniform2dv(location.index, 1, value.dataPtr)
 
 proc uniform*(program: Program; location: Location, value: Vec3d) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniform3dv != nil:
     glProgramUniform3dv(program.handle, location.index, 1, value.dataPtr)
   else:
@@ -356,6 +367,7 @@ proc uniform*(program: Program; location: Location, value: Vec3d) =
     glUniform3dv(location.index, 1, value.dataPtr)
 
 proc uniform*(program: Program; location: Location, value: Vec4d) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniform4dv != nil:
     glProgramUniform4dv(program.handle, location.index, 1, value.dataPtr)
   else:
@@ -364,6 +376,7 @@ proc uniform*(program: Program; location: Location, value: Vec4d) =
 
 
 proc uniform*(program: Program; location: Location, value: Vec2i) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniform2iv != nil:
     glProgramUniform2iv(program.handle, location.index, 1, value.dataPtr)
   else:
@@ -371,6 +384,7 @@ proc uniform*(program: Program; location: Location, value: Vec2i) =
     glUniform2iv(location.index, 1, value.dataPtr)
 
 proc uniform*(program: Program; location: Location, value: Vec3i) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniform3iv != nil:
     glProgramUniform3iv(program.handle, location.index,  1, value.dataPtr)
   else:
@@ -378,6 +392,7 @@ proc uniform*(program: Program; location: Location, value: Vec3i) =
     glUniform3iv(location.index,  1, value.dataPtr)
 
 proc uniform*(program: Program; location: Location, value: Vec4i) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniform4iv != nil:
     glProgramUniform4iv(program.handle, location.index,  1, value.dataPtr)
   else:
@@ -386,6 +401,7 @@ proc uniform*(program: Program; location: Location, value: Vec4i) =
 
 
 proc uniform*(program: Program; location: Location, value: Vec2ui) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniform2uiv != nil:
     glProgramUniform2uiv(program.handle, location.index,  1, value.dataPtr)
   else:
@@ -393,6 +409,7 @@ proc uniform*(program: Program; location: Location, value: Vec2ui) =
     glUniform2uiv(location.index,  1, value.dataPtr)
 
 proc uniform*(program: Program; location: Location, value: Vec3ui) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniform3uiv != nil:
     glProgramUniform3uiv(program.handle, location.index,  1, value.dataPtr)
   else:
@@ -400,6 +417,7 @@ proc uniform*(program: Program; location: Location, value: Vec3ui) =
     glUniform3uiv(location.index,  1, value.dataPtr)
 
 proc uniform*(program: Program; location: Location, value: Vec4ui) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniform4uiv != nil:
     glProgramUniform4uiv(program.handle, location.index,  1, value.dataPtr)
   else:
@@ -408,6 +426,7 @@ proc uniform*(program: Program; location: Location, value: Vec4ui) =
 
 
 proc uniform*(program: Program; location: Location, value: Vec2b) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniform2i != nil:
     glProgramUniform2i(program.handle, location.index, value[0].GLint, value[1].GLint)
   else:
@@ -415,6 +434,7 @@ proc uniform*(program: Program; location: Location, value: Vec2b) =
     glUniform2i(location.index, value[0].GLint, value[1].GLint)
 
 proc uniform*(program: Program; location: Location, value: Vec3b) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniform3i != nil:
     glProgramUniform3i(program.handle, location.index, value[0].GLint, value[1].GLint, value[2].GLint)
   else:
@@ -422,6 +442,7 @@ proc uniform*(program: Program; location: Location, value: Vec3b) =
     glUniform3i(location.index, value[0].GLint, value[1].GLint, value[2].GLint)
 
 proc uniform*(program: Program; location: Location, value: Vec4b) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniform4i != nil:
     glProgramUniform4i(program.handle, location.index, value[0].GLint, value[1].GLint, value[2].GLint, value[3].GLint)
   else:
@@ -430,6 +451,7 @@ proc uniform*(program: Program; location: Location, value: Vec4b) =
 
 # scalar types
 proc uniform*(program: Program; location: Location, value: float32) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniform1f != nil:
     glProgramUniform1f(program.handle, location.index, value)
   else:
@@ -437,6 +459,7 @@ proc uniform*(program: Program; location: Location, value: float32) =
     glUniform1f(location.index, value)
 
 proc uniform*(program: Program; location: Location, value: float64) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniform1d != nil:
     glProgramUniform1d(program.handle, location.index, value)
   else:
@@ -444,6 +467,7 @@ proc uniform*(program: Program; location: Location, value: float64) =
     glUniform1d(location.index, value)
 
 proc uniform*(program: Program; location: Location, value: int32) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniform1i != nil:
     glProgramUniform1i(program.handle, location.index, value)
   else:
@@ -451,6 +475,7 @@ proc uniform*(program: Program; location: Location, value: int32) =
     glUniform1i(location.index, value)
 
 proc uniform*(program: Program; location: Location, value: bool) =
+  ## Typed wrapper around `glProgramUniform`.
   if glProgramUniform1i != nil:
     glProgramUniform1i(program.handle, location.index, value.GLint)
   else:
@@ -467,16 +492,20 @@ type
     index*: GLuint
 
 proc newVertexArrayObject*(label: string = nil) : VertexArrayObject =
+  ## Typed wrapper around `glCreateVertexArrays`.
   glCreateVertexArrays(1, result.handle.addr)
   result.label = label
 
 proc delete*(vao: VertexArrayObject) =
+  ## Typed wrapper around `glDeleteVertexArrays`.
   glDeleteVertexArrays(1, vao.handle.unsafeAddr)
 
 proc divisor*(vao: VertexArrayObject; binding: VertexArrayObjectBinding; divisor: GLuint) : void =
+  ## Typed wrapper around `glVertexArrayBindingDivisor`.
   glVertexArrayBindingDivisor(vao.handle, binding.index, divisor)
 
 proc enableAttrib*(vao: VertexArrayObject, location: VertexArrayObjectBinding) : void =
+  ## Typed wrapper around `glEnableVertexArrayAttrib`.
   glEnableVertexArrayAttrib(vao.handle, location.index)
 
 ################################################################################
@@ -520,39 +549,55 @@ proc newUniformBuffer*[T](usage: GLenum = GL_STATIC_DRAW): UniformBuffer[T] =
   glNamedBufferData(result.handle, GLsizeiptr(sizeof(T)), nil, usage)
 
 proc delete*[T](arg: var AnyBuffer[T]): void =
+  ## Typed wrapper around `glDeletebuffers`.
   glDeleteBuffers(1, arg.handle.addr)
 
 proc glGetInteger(name: GLenum): GLint =
+  ## Typed wrapper around `glGetIntegerv`.
   glGetIntegerv(name, result.addr)
 
 proc currentArrayBuffer*[T](): ArrayBuffer[T] {. deprecated .} =
+  ## Typed wrapper around `glGetInteger(GL_ARRAY_BUFFER_BINDING)`.
   result.handle = GLuint(glGetInteger(GL_ARRAY_BUFFER_BINDING))
 
 proc currentElementArrayBuffer*[T](): ElementArrayBuffer[T] {. deprecated .} =
+  ## Typed wrapper around `glGetInteger(GL_ELEMENT_ARRAY_BUFFER_BINDING)`.
   result.handle = GLuint(glGetInteger(GL_ELEMENT_ARRAY_BUFFER_BINDING))
 
 proc currentUniformBuffer*[T](): UniformBuffer[T] {. deprecated .} =
+  ## Typed wrapper around `glGetInteger(GL_UNIFORM_BUFFER_BINDING)`.
   result.handle = GLuint(glGetInteger(GL_UNIFORM_BUFFER_BINDING))
 
-proc bindingKind*[T](buffer: ArrayBuffer[T]) : GLenum {. inline .} =
+
+template bindingKind*[T](buffer: ArrayBuffer[T]) : GLenum {. inline .} =
+  ## return `GL_ARRAY_BUFFER_BINDING`
   GL_ARRAY_BUFFER_BINDING
 
-proc bindingKind*[T](buffer: ElementArrayBuffer[T]) : GLenum {. inline .} =
+template bindingKind*[T](buffer: ElementArrayBuffer[T]) : GLenum {. inline .} =
+  ## return `GL_ELEMENT_ARRAY_BUFFER_BINDING`
   GL_ELEMENT_ARRAY_BUFFER_BINDING
 
-proc bindingKind*[T](buffer: UniformBuffer[T]) : GLenum {. inline .} =
+template bindingKind*[T](buffer: UniformBuffer[T]) : GLenum {. inline .} =
+  ## return `GL_UNIFORM_BUFFER_BINDING`
   GL_UNIFORM_BUFFER_BINDING
 
-proc bufferKind*[T](buffer: ArrayBuffer[T]) : GLenum {. inline .} =
+template bufferKind*[T](buffer: ArrayBuffer[T]) : GLenum {. inline .} =
+  ## return `GL_ARRAY_BUFFER`
   GL_ARRAY_BUFFER
 
-proc bufferKind*[T](buffer: ElementArrayBuffer[T]) : GLenum {. inline .} =
+template bufferKind*[T](buffer: ElementArrayBuffer[T]) : GLenum {. inline .} =
+  ## return `GL_ELEMENT_ARRAY_BUFFER`
   GL_ELEMENT_ARRAY_BUFFER
 
-proc bufferKind*[T](buffer: UniformBuffer[T]) : GLenum {. inline .} =
+template bufferKind*[T](buffer: UniformBuffer[T]) : GLenum {. inline .} =
+  ## return `GL_UNIFORM_BUFFER`
   GL_UNIFORM_BUFFER
 
-template blockBind*[T](buffer : AnyBuffer[T], blk:untyped) =
+template withBufferBinding*[T](buffer : AnyBuffer[T], blk:untyped) =
+  ## Apply the effect of `glBindBuffer` locally to `blk`. The
+  ## currently bound buffer is queried with
+  ## `glGetInteger(GL_..._BUFFER_BINDING, ...)` and restored after the
+  ## execution of `blk`.
   let buf = buffer
   var outer : GLint
   glGetIntegerv(buf.bindingKind, outer.addr)
@@ -561,14 +606,17 @@ template blockBind*[T](buffer : AnyBuffer[T], blk:untyped) =
   glBindBuffer(buf.bufferKind, GLuint(outer))
 
 proc bufferData*[T](buffer: SeqLikeBuffer[T], data: openarray[T], usage: GLenum) =
+  ## Wrapper for `glNamedBufferData`.
   if buffer.handle.int > 0:
     glNamedBufferData(buffer.handle, GLsizeiptr(data.len * sizeof(T)), unsafeAddr(data[0]), usage)
 
 proc bufferData*[T](buffer: SeqLikeBuffer[T], dataview: DataView[T], usage: GLenum) =
+  ## Wrapper for `glNamedBufferData`.
   if buffer.handle.int > 0:
     glNamedBufferData( buffer.handle, GLsizeiptr(dataview.len * sizeof(T)), dataview.data, usage)
 
 proc bufferData*[T](buffer: UniformBuffer[T], data: T, usage: GLenum) =
+  ## Wrapper for `glNamedBufferData`.
   if buffer.handle.int > 0:
     glNamedBufferData(buffer.handle, GLsizeiptr(sizeof(T)), unsafeAddr(data), usage)
 
@@ -580,60 +628,71 @@ proc setData*[T](buffer: UniformBuffer[T], data: T) =
   if buffer.handle.int > 0:
     glNamedBufferSubData(buffer.handle, 0, GLsizeiptr(sizeof(T)), unsafeAddr(data))
 
-
 proc len*[T](buffer: ArrayBuffer[T] | ElementArrayBuffer[T]) : int =
+  ## return the amount of elemets stored in the buffer.
   var size: GLint
   if buffer.handle != 0:
     glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_SIZE, size.addr)
     result = int(size) div int(sizeof(T))
 
 proc access*[T](buffer: ArrayBuffer[T]) : GLenum =
+  ## return buffer paremeter GL_BUFFER_ACCESS
   var tmp: GLint
   glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_ACCESS, tmp.addr)
   return tmp.GLenum
 
 proc accessFlags*[T](buffer: ArrayBuffer[T]) : GLenum =
+  ## return buffer parameter GL_BUFFER_ACCESS_FLAGS
   var tmp: GLint
   glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_ACCESS_FLAGS, tmp.addr)
   return tmp.GLenum
 
 proc immutableStorage*[T](buffer: ArrayBuffer[T]) : bool =
+  ## return buffer patameter GL_BUFFER_IMMUTABLE_STORAGE
   var tmp: GLint
   glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_IMMUTABLE_STORAGE, tmp.addr)
   return tmp != GL_FALSE
 
 proc mapped*[T](buffer: ArrayBuffer[T]) : bool =
+  ## return buffer patameter GL_BUFFER_MAPPED
   var tmp: GLint
   glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_MAPPED, tmp.addr)
 
   return tmp != GL_FALSE
 
 proc mapLength*[T](buffer: ArrayBuffer[T]) : int =
+  ## return buffer patameter GL_BUFFER_MAP_LENGTH
   var tmp: pointer
   glGetNamedBufferPointerv(buffer.handle, GL_BUFFER_MAP_LENGTH, tmp.addr)
   return int(tmp)
 
 proc mapOffset*[T](buffer: ArrayBuffer[T]) : int =
+  ## return buffer patameter GL_BUFFER_MAP_LENGTH
   var tmp: pointer
   glGetNamedBufferPointerv(buffer.handle, GL_BUFFER_MAP_LENGTH, tmp.addr)
   return int(tmp)
 
 proc byteSize*[T](buffer: ArrayBuffer[T]) : int =
+  ## return buffer patameter GL_BUFFER_SIZE
   var tmp: GLint
   glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_SIZE, tmp.addr)
   return int(tmp)
 
 proc storageFlags*[T](buffer: ArrayBuffer[T]) : GLenum =
+  ## return buffer patameter GL_BUFFER_STORAGE_FLAGS
   var tmp: GLint
   glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_STORAGE_FLAGS, tmp.addr)
   return tmp.GLenum
 
 proc usage*[T](buffer: ArrayBuffer[T]) : GLenum =
+  ## return buffer patameter GL_BUFFER_USAGE
   var tmp: GLint
   glGetNamedBufferParameteriv(buffer.handle, GL_BUFFER_USAGE, tmp.addr)
   return tmp.GLenum
 
 iterator items*[T](buffer: SeqLikeBuffer[T]) : T =
+  ## Map `buffer` with `GL_READ_ONLY` and iterate over the
+  ## members. The buffer will be unmapped after the iterations.
   let mappedBuffer = buffer.mapRead
   defer:
     discard buffer.unmap
@@ -641,6 +700,8 @@ iterator items*[T](buffer: SeqLikeBuffer[T]) : T =
     yield item
 
 iterator pairs*[T](buffer: SeqLikeBuffer[T]) : tuple[key: int, val: T] =
+  ## Map `buffer` with `GL_READ_ONLY` and iterate over the
+  ## members. The buffer will be unmapped after the iterations.
   let mappedBuffer = buffer.mapRead
   defer:
     discard buffer.unmap
@@ -648,6 +709,8 @@ iterator pairs*[T](buffer: SeqLikeBuffer[T]) : tuple[key: int, val: T] =
     yield (i, item)
 
 iterator mitems*[T](buffer: SeqLikeBuffer[T]) : var T =
+  ## Map `buffer` with `GL_READ_WRITE` and iterate over the
+  ## members. The buffer will be unmapped after the iterations.
   let mappedBuffer = buffer.mapReadWrite
   defer:
     discard buffer.unmap
@@ -655,6 +718,8 @@ iterator mitems*[T](buffer: SeqLikeBuffer[T]) : var T =
     yield item
 
 iterator mpairs*[T](buffer: SeqLikeBuffer[T]) : tuple[key: int, val: var T] =
+  ## Map `buffer` with `GL_READ_WRITE` and iterate over the
+  ## members. The buffer will be unmapped after the iterations.
   let mappedBuffer = buffer.mapReadWrite
   defer:
     discard buffer.unmap
@@ -662,6 +727,8 @@ iterator mpairs*[T](buffer: SeqLikeBuffer[T]) : tuple[key: int, val: var T] =
     yield (i, item)
 
 iterator witems*[T](buffer: SeqLikeBuffer[T]) : var T =
+  ## Map `buffer` with `GL_WRITE_ONLY` and iterate over the
+  ## members. The buffer will be unmapped after the iterations.
   let mappedBuffer = buffer.mapWrite
   defer:
     discard buffer.unmap
@@ -669,6 +736,8 @@ iterator witems*[T](buffer: SeqLikeBuffer[T]) : var T =
     yield item
 
 iterator wpairs*[T](buffer: SeqLikeBuffer[T]) : tuple[key: int, val: var T] =
+  ## Map `buffer` with `GL_WRITE_ONLY` and iterate over the
+  ## members. The buffer will be unmapped after the iterations.
   let mappedBuffer = buffer.mapWrite
   defer:
     discard buffer.unmap
@@ -1037,40 +1106,20 @@ proc newTransformFeedback*[T]() : TransformFeedback[T] =
     echo layoutSpecRT
     echo "\"\"\""
 
-
-#[
-macro transformFeedbackOutSection(self: TransformFeedback): string =
-  var res = newLit("""
-#extension GL_ARB_enhanced_layouts : enable
-layout(xfb_buffer = 0, xfb_stride = 36) out bananas {
-""")
-
-  let tpe = self.getTypeInst[1]
-  let typeImpl = tpe.getTypeImpl
-  typeImpl.expectKind(nnkObjectTy)
-  for identDef in typeImpl[2]:
-    for i in 0 ..< identDef.len-2:
-      let sym = identDef[i]
-      let symName = newLit($sym)
-
-      # glslTypeRepr
-      res = head quote do:
-        `res` & "layout(xfb_offset = " & $offsetOf(`tpe`, `sym`) & ") vec4 " & `symName` & ";"
-
-  let name = self.repr
-  result = res
-]#
-
 proc delete*(tf: TransformFeedback): void =
+  ## Typed wrapper around `glDeleteTransformFeedbacks`.
   glDeleteTransformFeedbacks(GLsizei(1), tf.handle.unsafeAddr)
 
 proc bufferBase*(tf: TransformFeedback; index: int; buffer: ArrayBuffer): void =
+  ## Typed wrapper around `glTransformFeedbackBufferBase`.
   glTransformFeedbackBufferBase(tf.handle, GLuint(index), buffer.handle)
 
 proc bufferRange*(tf: TransformFeedback; index: int; buffer: ArrayBuffer; offset: ptr int32; size: int): void =
+  ## Typed wrapper around `glTransformFeedbackBufferRange`.
   glTransformFeedbackBufferRange(tf.handle, GLuint(index), buffer.handle, offset, GLsizeiptr(size))
 
 proc draw*(tf: TransformFeedback; primitiveMode: GLenum): void =
+  ## Typed wrapper around `glDrawTransformFeedback`.
   glDrawTransformFeedback(primitiveMode, tf.handle)
 
 type
@@ -1084,6 +1133,7 @@ template glNamespace(arg: typedesc[AnyTexture]): GLenum = GL_TEXTURE
 template glNamespace(arg: typedesc[TransformFeedback]): GLenum = GL_TRANSFORM_FEEDBACK
 
 proc label*[T](arg: T): string =
+  ## Typed wraper around `glGetObjectLabel`.
   if glGetObjectLabel != nil:
     const bufsize = 255
     result = newString(bufsize)
@@ -1094,6 +1144,7 @@ proc label*[T](arg: T): string =
     result = "<object label not supported>"
 
 proc `label=`*[T](arg: T; label: string): void =
-  ## does nothing when label is empty/nil
+  ## Typed wraper around `glObjectLabel`.  does nothing when label is
+  ## empty/nil.
   if glObjectLabel != nil and label.len != 0:
     glObjectLabel(glNamespace(arg.type), arg.handle, GLsizei(label.len), label[0].unsafeAddr)

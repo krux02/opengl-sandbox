@@ -610,7 +610,6 @@ proc createGlslMain(arg: NimNode; outputSymbols: seq[NimNode] = @[]): string {.c
     result.add line
   result.add "}\n"
 
-
 type
   ShaderKind = enum
     skVert = "vert"
@@ -619,7 +618,6 @@ type
     skGeom = "geom",
     skFrag = "frag",
     skComp = "comp"
-
 
 import terminal
 
@@ -812,8 +810,10 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
   if debug:
     echo "<render_inner>"
     echo arg.repr
+
   defer:
     if debug:
+      echo result.lispRepr
       echo "</render_inner>"
 
   arg.expectKind nnkDo
@@ -861,7 +861,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
   let formalParams = arg[3]
   formalParams.expectKind nnkFormalParams
-
 
   ssaList2.resolveConstraints(vertexSym)
 
@@ -989,7 +988,6 @@ var myUniform = -0.123456
 proc foo(): int =
   result = 1
   result += 2
-
 
 framebuffer.renderDebug(mesh) do (v, gl):
   result.color.r = 0.0f                              #       | | | |
