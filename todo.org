@@ -1,11 +1,14 @@
 
 #+TODO: NEXT(n) TODO(t) PONSTPHONED(p) | DONE(d) CANCELED(c)
 
-* DSL [5/14]
 
+* Nim to GLSL
 ** NEXT nim to glsl compiler
+
+
+* DSL [5/12]
 ** PONSTPHONED Document user code sections for afterSetup, beforeRender, afterRender
-** PONSTPHONED transform feedback
+** transform feedback
 *** PONSTPHONED allow non-interleaved transform feedback attributes
 *** PONSTPHONED transform feedback type that contains attributes at compile time
 *** PONSTPHONED shadingDSl with transform feedback as source for the attributes, calls glDrawTransformfeedback(Instanced)
