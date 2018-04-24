@@ -569,27 +569,27 @@ proc currentUniformBuffer*[T](): UniformBuffer[T] {. deprecated .} =
   result.handle = GLuint(glGetInteger(GL_UNIFORM_BUFFER_BINDING))
 
 
-template bindingKind*[T](buffer: ArrayBuffer[T]) : GLenum {. inline .} =
+template bindingKind*[T](buffer: ArrayBuffer[T]) : GLenum =
   ## return `GL_ARRAY_BUFFER_BINDING`
   GL_ARRAY_BUFFER_BINDING
 
-template bindingKind*[T](buffer: ElementArrayBuffer[T]) : GLenum {. inline .} =
+template bindingKind*[T](buffer: ElementArrayBuffer[T]) : GLenum =
   ## return `GL_ELEMENT_ARRAY_BUFFER_BINDING`
   GL_ELEMENT_ARRAY_BUFFER_BINDING
 
-template bindingKind*[T](buffer: UniformBuffer[T]) : GLenum {. inline .} =
+template bindingKind*[T](buffer: UniformBuffer[T]) : GLenum =
   ## return `GL_UNIFORM_BUFFER_BINDING`
   GL_UNIFORM_BUFFER_BINDING
 
-template bufferKind*[T](buffer: ArrayBuffer[T]) : GLenum {. inline .} =
+template bufferKind*[T](buffer: ArrayBuffer[T]) : GLenum =
   ## return `GL_ARRAY_BUFFER`
   GL_ARRAY_BUFFER
 
-template bufferKind*[T](buffer: ElementArrayBuffer[T]) : GLenum {. inline .} =
+template bufferKind*[T](buffer: ElementArrayBuffer[T]) : GLenum =
   ## return `GL_ELEMENT_ARRAY_BUFFER`
   GL_ELEMENT_ARRAY_BUFFER
 
-template bufferKind*[T](buffer: UniformBuffer[T]) : GLenum {. inline .} =
+template bufferKind*[T](buffer: UniformBuffer[T]) : GLenum =
   ## return `GL_UNIFORM_BUFFER`
   GL_UNIFORM_BUFFER
 

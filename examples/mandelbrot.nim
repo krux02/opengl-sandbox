@@ -62,7 +62,6 @@ while runGame:
 
   shadingDsl:
     uniforms:
-      time = timer.time.float32
       maxIterations = 200
       aspectRatio
       centerScale
