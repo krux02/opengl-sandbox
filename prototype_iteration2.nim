@@ -1137,7 +1137,7 @@ framebuffer.render(mesh) do (v, gl):
         }
         // no forwarding section required anymore
       }
-    """
+
 """
 
 
@@ -1165,41 +1165,6 @@ framebuffer.render(mesh) do (v, gl):
 static:
   echo "################################################################################\n"
 
-discard """
-raw ast
-StmtList
-  IfStmt
-    ElifBranch
-      PragmaExpr
-        Par
-          Infix
-            Ident ident">"
-            DotExpr
-              Ident ident"gl"
-              Ident ident"Position"
-            Float32Lit 0.5
-        Pragma
-          Ident ident"VS"
-      StmtList
-        Asgn
-          DotExpr
-            Ident ident"result"
-            Ident ident"color"
-          Call
-            Ident ident"vec3f"
-            IntLit 1
-            IntLit 0
-            IntLit 0
-    Else
-      StmtList
-        Asgn
-          Ident ident"color"
-          Call
-            Ident ident"vec3"
-            IntLit 0
-            IntLit 1
-            IntLit 0
-"""
 # should generate
 
 

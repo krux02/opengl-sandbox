@@ -20,7 +20,7 @@ proc resolveAliasInternal(typ: NimNode): NimNode =
 
   case typ.kind
   of nnkSym:
-    let impl = typ.symbol.getImpl
+    let impl = typ.getImpl
     if impl.kind == nnkNilLit:
       return typ
     result = impl.resolveAliasInternal
@@ -122,7 +122,7 @@ when isMainModule:
     MyFloatSubAlias = MyFloatAlias
     MyOtherFloat = distinct float32
 
-  import macros, future, sequtils, strutils
+  import macros, sugar, sequtils, strutils
 
   macro foobar(arg: typed): untyped =
     let types = arg.getTypeInst.resolveAlias
