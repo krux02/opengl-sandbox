@@ -1,5 +1,5 @@
-import glm, future, algorithm, macros, strutils, tables, sequtils, strutils
-
+import glm, sugar, algorithm, macros, strutils, tables, sequtils, strutils
+import ast_pattern_matching
 import resolveAlias
 
 proc makeUniqueData[T](arg: var openarray[T]): int =
@@ -155,81 +155,73 @@ proc expectIntIn*(arg: NimNode; slice: Slice[int]): void =
     error("expect integer literal in range: " & $slice.a & " .. " & $slice.b & " but got " & $arg.intVal, arg)
 
 
-import future, strutils, sequtils
-
 proc glslType(arg: NimNode): string {.compileTime.} =
   let arg = arg.resolveAlias[^1]
 
-  if arg.kind == nnkSym:
-    if arg == bindSym"float32":
-      return "float"
-    elif arg == bindSym"float64":
-      return "double"
-    elif arg == bindSym"int32":
-      return "int"
-    elif arg == bindSym"bool":
-      return "bool"
-    elif arg == bindSym"Texture1D":
-      return "sampler1D"
-    elif arg == bindSym"Texture2D":
-      return "sampler2D"
-    elif arg == bindSym"Texture3D":
-      return "sampler3D"
-    elif arg == bindSym"TextureCube":
-      return "samplerCube"
-    elif arg == bindSym"Texture2DShadow":
-      return "sampler2DShadow"
-    elif arg == bindSym"TextureCubeShadow":
-      return "samplerCubeShadow"
-    elif arg == bindSym"Texture2DArray":
-      return "sampler2DArray"
-    elif arg == bindSym"Texture2DArrayShadow":
-      return "sampler2DArrayShadow"
-    else:
-      error("symbol not handled yet: " & arg.repr, arg)
 
-  if arg.kind == nnkBracketExpr:
-    if arg[0] == bindSym"Vec":
-      if arg[2] == bindSym"float32":
-        result = "vec"
-      elif arg[2] == bindSym"float64":
-        result = "dvec"
-      elif arg[2] == bindSym"int32":
-        result = "ivec"
-      elif arg[2] == bindSym"bool":
-        result = "bvec"
+  arg.matchAst:
+  of ident"float32":
+    return "float"
+  of ident"float64":
+    return "double"
+  of ident"int32":
+    return "int"
+  of ident"bool":
+    return "bool"
+  of ident"Texture1D":
+    return "sampler1D"
+  of ident"Texture2D":
+    return "sampler2D"
+  of ident"Texture3D":
+    return "sampler3D"
+  of ident"TextureCube":
+    return "samplerCube"
+  of ident"Texture2DShadow":
+    return "sampler2DShadow"
+  of ident"TextureCubeShadow":
+    return "samplerCubeShadow"
+  of ident"Texture2DArray":
+    return "sampler2DArray"
+  of ident"Texture2DArrayShadow":
+    return "sampler2DArrayShadow"
 
-      arg[1].expectIntIn 2..4
-      result.add arg[1].intVal
+  of nnkBracketExpr(ident"Vec", `sizeLit`, `Tsym`):
 
-    elif arg[0] == bindSym"Mat":
-      let Tsym = arg[3]
-      if Tsym == bindSym"float32":
-        result = "mat"
-      elif Tsym == bindSym"float64":
-        result = "dmat"
-      elif Tsym == bindSym"int32":
-        result = "imat"
-      elif Tsym == bindSym"bool":
-        result = "bmat"
-      else:
-        echo arg.treeRepr
-        result = "<error type 4>"
+    Tsym.matchAst:
+    of ident"float32":
+      result = "vec"
+    of ident"float64":
+      result = "dvec"
+    of ident"int32":
+      result = "ivec"
+    of ident"bool":
+      result = "bvec"
 
-      arg[1].expectIntIn 2..4
-      arg[2].expectIntIn 2..4
+    sizeLit.expectIntIn 2..4
+    result.add sizeLit.intVal
 
-      let intVal1 = arg[1].intVal
-      let intVal2 = arg[2].intVal
+  of nnkBracketExpr(ident"Mat", `sizeLit1`, `sizeLit2`, `Tsym`):
 
-      result.add intVal1
-      if intVal2 != intVal1:
-        result.add "x"
-        result.add intVal2
-    else:
-      error("incompatible type for glsl " & arg.repr, arg)
-  else:
-    error("don't know what to do with " & arg.repr, arg)
+    Tsym.matchAst:
+    of ident"float32":
+      result = "mat"
+    of ident"float64":
+      result = "dmat"
+    of ident"int32":
+      result = "imat"
+    of ident"bool":
+      result = "bmat"
+
+    sizeLit1.expectIntIn 2..4
+    sizeLit2.expectIntIn 2..4
+
+    let intVal1 = sizeLit1.intVal
+    let intVal2 = sizeLit2.intVal
+
+    result.add intVal1
+    if intVal2 != intVal1:
+      result.add "x"
+      result.add intVal2
 
 
 when defined(testGlslTypes):
@@ -287,10 +279,9 @@ proc transform_to_single_static_assignment(stmtList: NimNode): NimNode {.compile
       result = expr
 
   for asgn in stmtList:
-    asgn.expectKind({nnkAsgn, nnkLetSection})
-
-    if asgn.kind == nnkAsgn:
-      let sym = genSymForExpression(asgn[1])
+    asgn.matchAst:
+    of nnkAsgn(`lhs`, `expr`):
+      let sym = genSymForExpression(expr)
 
       if assignments[^1][0][0] != sym:
         echo "current assignment: ", asgn.repr
@@ -299,9 +290,9 @@ proc transform_to_single_static_assignment(stmtList: NimNode): NimNode {.compile
         error("foobar", assignments[^1][0][0])
 
       let rhs = assignments[^1][0][2]
-      assignments[^1] = nnkAsgn.newTree(asgn[0], rhs)
+      assignments[^1] = nnkAsgn.newTree(lhs, rhs)
 
-    elif asgn.kind == nnkLetSection:
+    of nnkLetSection:
       for identDefs in asgn:
         identDefs.expectKind nnkIdentDefs
         for i in 0 ..< identDefs.len - 2:
@@ -317,16 +308,16 @@ iterator iterateSSAList(arg: NimNode, backwards: bool = false): tuple[kind:NimNo
   arg.expectKind nnkStmtList
   for i in 1 .. arg.len:
     let asgn = if backwards: arg[^i] else: arg[i-1]
-    asgn.expectKind {nnkLetSection,nnkAsgn}
     var lhs,typ,rhs: NimNode
-    if asgn.kind == nnkLetSection:
-      lhs = asgn[0][0]
-      typ = asgn[0][1]
-      rhs = asgn[0][2]
-    elif asgn.kind == nnkAsgn:
-      lhs = asgn[0]
-      rhs = asgn[1]
-      typ = asgn[0].getTypeInst
+    matchAst asgn:
+    of nnkLetSection(_(`a`,`b`,`c`)):
+      lhs = a
+      typ = b
+      rhs = c
+    of nnkAsgn(`a`,`b`):
+      lhs = a
+      rhs = b
+      typ = a.getTypeInst
 
     yield((asgn.kind, lhs, typ, rhs))
 
