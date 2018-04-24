@@ -9,7 +9,6 @@ flycheck*
 #binaries
 fancygl
 .vscode
-next
 scratch
 /resolveAlias
 /prototype_iteration2
