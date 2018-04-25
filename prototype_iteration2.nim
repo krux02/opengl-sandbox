@@ -265,7 +265,9 @@ proc transform_to_single_static_assignment(stmtList: NimNode): NimNode {.compile
   stmtList.expectKind nnkStmtList
   var assignments = newStmtList()
 
-  proc genSymForExpression(expr: NimNode): NimNode {.compileTime.}=
+  proc genSymForExpression(expr: NimNode): NimNode {.compileTime.} =
+    ## creates a new assignment in `assignments` for expr, and returns
+    ## the generated symbol.
     let typ = expr.getTypeInst
     if expr.kind in nnkCallKinds or expr.kind == nnkDotExpr:
       result = genSym(nskLet, "tmp")
@@ -298,6 +300,8 @@ proc transform_to_single_static_assignment(stmtList: NimNode): NimNode {.compile
         for i in 0 ..< identDefs.len - 2:
           let sym = identDefs[i]
           let value = identDefs[^1]
+
+          warning("not doing anythng here")
 
           #asgn.kind == nnkLetSection
           #asgn.kind == nnkLetsection
@@ -395,8 +399,6 @@ proc withDefaultConstraint(asgn, glSym, resultSym: NimNode): NimNode {.compileTi
     lhsSym.constraint = (min: gcFS, max: gcCPU)
   else:
     error("Bernhardt", asgn)
-
-
 
 proc add[T,U](arg: var Table[T, seq[U]]; key: T; value: U): void =
   if arg.hasKey(key):
@@ -984,7 +986,7 @@ framebuffer.renderDebug(mesh) do (v, gl):
   result.color.r = 0.0f                              #       | | | |
   result.color.r += myConstant                       # const-' | | |
   result.color.r += myUniform                        #     CPU-' | |
-  result.color.r += v.position.x                     #        VS-' |  {.VS.}
+  result.color.r += v.position.x                     #        VS-' |
   result.color.r += texture(myTexture, v.texcoord).r #          FS-'
 
 
@@ -994,7 +996,7 @@ template glsl(arg: string): string = arg
 echo glsl"""  vec4 a = vec4(17);  attribute vec2 pos; """
 
 
-"""
+discard """
 
     const myConstant: float32 = 0.123456
 
@@ -1060,7 +1062,7 @@ echo glsl"""  vec4 a = vec4(17);  attribute vec2 pos; """
 
 
 framebuffer.render(mesh) do (v, gl):
-  gl.Position     = result.color.r
+  gl.Position     = result.color
   # OK
   # Should be OK, because vert_result_color can be introduced without creating any conflicts.
 
@@ -1077,21 +1079,20 @@ framebuffer.render(mesh) do (v, gl):
 var mvp: Mat4f
 
 framebuffer.render(mesh) do (v, gl):
-  result.color.r  = texture(myTexture, v.texcoord).r # assignment to frag_result_color
-  gl.Position     = mvp * v.position                 # OK even though
+  result.color = texture(myTexture, v.texcoord) # assignment to frag_result_color
+  gl.Position  = mvp * v.position               # OK even though
   # this statement is after a statement that has to be executed in the
   # fragment shader, it has no dependency on any value that has to be
   # executed in the fragment shader. Therefore the order can be
   # changed so that this line is evaluated in the vertex shader without breaking any semantic.
 
-
 # what would this thing generate?
 
 framebuffer.render(mesh) do (v, gl):
-  if (gl.Position > 0.5f){.VS.}:
-    result.color.rgb = vec3f(1,0,0)
+  if (gl.Position > 0.5f):
+    result.color = vec4f(1,0,0,1)
   else:
-    result.color.rgb = vec3f(0,1,0)
+    result.color = vec4f(0,1,0,1)
 
 """
     vertex shader:
