@@ -20,15 +20,15 @@ type
     texCoord: Vec2f
 
   FrameBuffer = object
+  Texture2D   = object
 
-var fb: FrameBuffer
-
+var framebuffer: FrameBuffer
 
 var M,V,P: Mat4f
 var lights: Light
 var myTexture: Texture2D
 
-fb.render(mesh) do (v, gl):
+framebuffer.render(mesh) do (v, gl):
   gl.Position     = P * V * M * v.position_os
   let position_cs = V*M*v.position_os
   let normal_cs   = inverse(transpose(V*M)) * v.normal_os
@@ -101,7 +101,7 @@ fb.render(mesh) do (v, gl):
     (Asgn `t5` (Neg `position_cs`))
     (Asgn `light_direction_cs` (Add `t5` `light_position_cs`))
     (Asgn `light_intensity`  (Call `dot` `light_direction_cs` `normal_cs`))
-    (Asgn `t6` (dot `light` `color`))
+    (Asgn `t6` (Dot `light` `color`))
     (Asgn `t7` (Mult `light_intensity` `t6`))
     (Asgn `lighting` (Add `lighting` `t7`))
   )
@@ -150,10 +150,6 @@ in the loop body can't be passed down to the fragment shader.
 | `textureSample`      | `v.texCoord`         |
 | `result.color`       | `texturesample`      |
 | `result.color`       | `lighting`           |
-
-
-
-
 
 
 #+BEGIN_SRC nim

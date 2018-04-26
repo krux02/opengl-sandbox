@@ -2,6 +2,7 @@ import glm, sugar, algorithm, macros, strutils, tables, sequtils, strutils
 import ast_pattern_matching
 import resolveAlias
 
+
 proc makeUniqueData[T](arg: var openarray[T]): int =
   ## removes consecutive duplicate elements from `arg`. Since this
   ## operates on an `openarray` elements are not really removed, but
@@ -942,16 +943,17 @@ macro renderDebug(framebuffer, mesh: typed; arg: untyped): untyped =
   result = newCall(bindSym"render_inner", newLit(true), mesh, injectTypes(framebuffer, mesh, arg))
 
 
-## user code ##
+################################################################################
+################################## user  code ##################################
+################################################################################
 
 type
   MyFragmentType = object
     color: Vec4f
 
   MyVertexType = object
-    position: Vec4f
-    color: Vec4f
-    normal: Vec4f
+    position_os: Vec4f
+    normal_os: Vec4f
     texCoord: Vec2f
 
   MyMesh        = Mesh[MyVertexType]
@@ -962,241 +964,21 @@ var mesh: MyMesh
 var framebuffer: MyFramebuffer
 var mvp: Mat4f
 
-
-static:
-  echo "vertex colors"
-
-#framebuffer.renderDebug(mesh) do (v, gl):
-#  gl.Position = v.position
-#  let tmp = v.color
-#  result.color = tmp
-#  ^ doesn.t work for some reason ???
-
-
-## Qustiones when not doing SSA anymore
-
-const myConstant = 0.123456
-var myUniform = -0.123456
-
-proc foo(): int =
-  result = 1
-  result += 2
-
-framebuffer.renderDebug(mesh) do (v, gl):
-  result.color.r = 0.0f                              #       | | | |
-  result.color.r += myConstant                       # const-' | | |
-  result.color.r += myUniform                        #     CPU-' | |
-  result.color.r += v.position.x                     #        VS-' |
-  result.color.r += texture(myTexture, v.texcoord).r #          FS-'
-
-
-template glsl(arg: string): string = arg
-
-
-echo glsl"""  vec4 a = vec4(17);  attribute vec2 pos; """
-
-
-discard """
-
-    const myConstant: float32 = 0.123456
-
-    const const_result_color = (block:
-      var const_result_color: Vec4f
-      const_result_color.r += myConstant
-      const_result_color
-    )
-
-    cpu:
-      var cpu_result_color = const_result_color
-      cpu_result_color.r += myUniform
-
-      glAttrib("attrib_position", ...)
-      glUniform("uniform_result_color", cpu_result_color)
-
-    vertex shader:
-
-      uniform vec4 uniform_result_color;
-      in vec4 attrib_position;
-      in vec2 attrib_texcoord;
-
-      out vec2 vert2frag_texcoord;
-      out vec4 vert2frag_result_color;
-
-      void main() {
-        // assign local names
-        vec4 vert_result_color = uniform_result_color;
-        vec4 vert_position = attrib_position;
-        vec2 vert_texcoord = attrib_texcoord;
-
-        // vertex shader body
-        vert_result_color.r += vert_position.x;
-
-        // forwarding for next shader stage:
-        // this section might look different when geometry or tesselation shader is present.
-        vert2frag_texcoord     = vert_texcoord;
-        vert2frag_result_color = vert_result_color;
-      }
-
-    fragment shader:
-      uniform sampler2D myTexture;
-
-      in vec2 vert2frag_texcoord;
-      in vec4 vert2frag_result_color;
-
-      // there is no next shader stage, so assignment to final variable names is possible
-      out vec4 frag_result_color;
-
-      void main() {
-        // assign local names
-        vec2 frag_texcoord = vert2frag_texcoord;
-        frag_result_color   = vert2frag_result_color;
-
-        // fragment shader body
-        frag_result_color.r +=  texture(myTexture, frag_texcoord).r;
-
-        // no forwarding section required anymore
-      }
-    """
-
-
-
+var M,V,P: Mat4f
+var lights: Light
+var myTexture: Texture2D
 
 framebuffer.render(mesh) do (v, gl):
-  gl.Position     = result.color
-  # OK
-  # Should be OK, because vert_result_color can be introduced without creating any conflicts.
+  gl.Position     = P * V * M * v.position_os
+  let position_cs = V*M*v.position_os
+  let normal_cs   = inverse(transpose(V*M)) * v.normal_os
+  var lighting: Vec4f
 
-framebuffer.render(mesh) do (v, gl):
-  gl.Position     = result.color.r                   # assignment from vert_result_color
-  result.color.r  = texture(myTexture, v.texcoord).r # assignment to frag_result_color
-  # Still ok, just forward result.color after it is used for gl.Position
+  for light in lights:
+    let light_position_cs = V * light.position_ws
+    let light_direction_cs = light_position_cs-position_cs
+    let light_intensity = dot(light_direction_cs, normal_cs)
+    lighting += light_intensity * light.color
 
-framebuffer.render(mesh) do (v, gl):
-  result.color.r  = texture(myTexture, v.texcoord).r # assignment to frag_result_color
-  gl.Position     = result.color.r                   # error
-  # gl.Position needs to be assigned to from the vertex shader, but vert_result_color is invalid now.
-
-var mvp: Mat4f
-
-framebuffer.render(mesh) do (v, gl):
-  result.color = texture(myTexture, v.texcoord) # assignment to frag_result_color
-  gl.Position  = mvp * v.position               # OK even though
-  # this statement is after a statement that has to be executed in the
-  # fragment shader, it has no dependency on any value that has to be
-  # executed in the fragment shader. Therefore the order can be
-  # changed so that this line is evaluated in the vertex shader without breaking any semantic.
-
-# what would this thing generate?
-
-framebuffer.render(mesh) do (v, gl):
-  if (gl.Position > 0.5f):
-    result.color = vec4f(1,0,0,1)
-  else:
-    result.color = vec4f(0,1,0,1)
-
-"""
-    vertex shader:
-
-      out flat int vert2frag_tmp0;
-
-      void main() {
-        // assign local names
-        bool vert_tmp0;
-
-        // vertex shader body
-        vert_tmp0 = gl_Position.z > 0.5f;
-
-        // forwarding for next shader stage:
-        // this section might look different when geometry or tesselation shader is present.
-        vert2frag_tmp0 = vert_tmp0 ? 1 : 0;
-      }
-
-    fragment shader:
-      flat in int vert2frag_tmp0;
-
-      // there is no next shader stage, so assignment to final variable names is possible
-      out vec4 frag_result_color;
-
-      void main() {
-        // assign local names
-        bool frag_tmp0 = vert2frag_tmp0 != 0;
-
-        // fragment shader body
-        if ( frag_tmp0 ) {
-          frag_result_color.rgb = vec3(1,0,0);
-        } else {
-          frag_result_color.rgb = vec3(0,1,0);
-        }
-        // no forwarding section required anymore
-      }
-
-"""
-
-
-
-framebuffer.render(mesh) do (v, gl):
-
-
-
-static:
-  echo "################################################################################\n"
-
-framebuffer.render(mesh) do (v, gl):
-  gl.Position = (mvp * v.position).normalize.normalize.normalize
-  result.color = v.color
-
-
-
-static:
-  echo "################################################################################\n"
-
-framebuffer.render(mesh) do (v, gl):
-  gl.Position = mvp * v.position
-  result.color = texture(myTexture, v.texCoord) + vec4(sin(float32(Pi)))
-
-static:
-  echo "################################################################################\n"
-
-# should generate
-
-
-
-discard """
-// vertex shader
-#version 410
-
-flat out int vs_f3;
-
-void main() {
-  bool f3;
-  f3 = gl_Position.z > 0.5;
-  vs_f3 = f3 ? 1 : 0;
-}
-
-// fragment shader
-
-#version 410
-
-flat in int vs_f3;
-
-void main() {
-  vec3 f1;
-  vec3 f2;
-  bool f3;
-  vec3 f4;
-
-  f1 = vec3(1,0,0);
-  f2 = vec3(0,1,0);
-  f3 = vs_f3 != 0;
-  if(f3)
-    f4 = f1;
-  else
-    f4 = f2;
-}
-
-
-"""
-
-
-static:
-  echo "################################################################################\n"
+  let textureSample = texture(myTexture, v.texCoord)
+  result.color = textureSample * lighting
