@@ -2,7 +2,6 @@ import glm, sugar, algorithm, macros, strutils, tables, sequtils, strutils
 import ast_pattern_matching
 import resolveAlias
 
-
 proc makeUniqueData[T](arg: var openarray[T]): int =
   ## removes consecutive duplicate elements from `arg`. Since this
   ## operates on an `openarray` elements are not really removed, but
