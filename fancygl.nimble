@@ -9,7 +9,6 @@ bin           = @[
   #"examples/audiotest",
   "examples/console",
   "examples/deferred_shading",
-  "examples/font_rendering",
   "examples/forward_vertex_shader",
   "examples/hello_shapes",
   "examples/hello_triangle",
@@ -31,7 +30,7 @@ skipDirs = @["tests"]
 #[ Dependencies ]#
 
 requires @[
-  "nim         >= 0.17.3",
+  "nim         >= 0.18.1",
   "AntTweakBar >= 1.0.0",
   "sdl2_nim    >= 2.0.6.1",
   "glm         >= 1.0.1"

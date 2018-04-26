@@ -330,7 +330,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
       for innerCall in call[1][1].items:
         if innerCall[1].kind == nnkSym:
-          let sym = innerCall[1].symbol
+          let sym = innerCall[1]
           includesSection.add(sym.getImpl.strVal)
         if innerCall[1].kind in {nnkStrLit, nnkTripleStrLit}:
           includesSection.add(innerCall[1].strVal)
@@ -564,13 +564,13 @@ macro shadingDsl*(statement: untyped) : untyped =
       if section == ident("debug"):
         wrapWithDebugResult = true
       else:
-        error("unknown identifier: " & $section.ident & " did you mean debug?")
+        error("unknown identifier: " & $section & " did you mean debug?")
     elif section.kind == nnkAsgn:
       section.expectLen(2)
       let ident = section[0]
       let value = section[1]
       ident.expectKind nnkIdent
-      case $ident.ident
+      case $ident
       of "numVertices":
         result.add( newCall(bindSym"numVertices", value ) )
       of "numInstances":

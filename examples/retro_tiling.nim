@@ -150,7 +150,7 @@ proc newTileMap(tileSize: Vec2i, tileSizeLogical: Vec2i, scaling: int32, tileMap
 
 proc resourceReloading(this: var TileMap): void =
   let newTileMapModificationTime = getLastModificationTime(this.tileMapPath)
-  if int64(this.tileMapModificationTime) < int64(newTileMapModificationTime):
+  if this.tileMapModificationTime < newTileMapModificationTime:
     this.tilePalette.updateTilePaletteFromFile(this.tileMapPath, this.tileSize)
 
 #proc saveMap(this: TileMap): void {.noconv.} =
