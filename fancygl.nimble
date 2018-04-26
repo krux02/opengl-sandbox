@@ -21,7 +21,7 @@ bin           = @[
   "examples/retro_tiling",
   "examples/sandbox",
   "examples/tetris",
-  "examples/waves"
+  "examples/waves",
   "examples/console",
 ]
 

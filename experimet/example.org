@@ -1,6 +1,5 @@
-* example from the train
 
-** source
+* source
 
 #+BEGIN_SRC nim
 import glm
@@ -56,7 +55,7 @@ framebuffer.render(mesh) do (v, gl):
 
 #+RESULTS:
 
-** symbol table
+* symbol table
 
 | symbol             | kind         | glsl repr        | type                    |
 |--------------------+--------------+------------------+-------------------------|
@@ -94,7 +93,7 @@ framebuffer.render(mesh) do (v, gl):
 | t6                 | Intermediate | temp_6           | Vec[4,float32]          |
 | t7                 | Intermediate | temp_7           | Vec[4,float32]          |
 
-** intermediate representation
+* intermediate representation
 
 #+BEGIN_SRC
 
@@ -126,8 +125,7 @@ framebuffer.render(mesh) do (v, gl):
 all symbols in the loop body need to be in a group, because a variable
 in the loop body can't be passed down to the fragment shader.
 
-
-** all <= relations
+* all <= relations
 
 | `gl.Position`        | `P`                  |
 | `gl.Position`        | `V`                  |
