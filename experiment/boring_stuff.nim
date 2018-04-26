@@ -1,3 +1,5 @@
+import glm, macros
+
 proc makeUniqueData[T](arg: var openarray[T]): int =
   ## removes consecutive duplicate elements from `arg`. Since this
   ## operates on an `openarray` elements are not really removed, but
@@ -32,7 +34,7 @@ proc makeUnique[T](arg: var seq[T]): void =
   arg.setLen(arg.makeUniqueData)
 
 
-proc sortAndUnique[T](arg: var seq[T]): void =
+proc sortAndUnique*[T](arg: var seq[T]): void =
   arg.sort(cmp)
   arg.makeUnique
 
@@ -75,21 +77,21 @@ iterator fields*(typeAst: NimNode): tuple[memberSym, typeSym: NimNode] =
 ## gl wrapper ##
 
 type
-  Texture1D            = object
+  Texture1D*            = object
     handle: uint32
-  Texture2D            = object
+  Texture2D*            = object
     handle: uint32
-  Texture3D            = object
+  Texture3D*            = object
     handle: uint32
-  TextureCube          = object
+  TextureCube*          = object
     handle: uint32
-  Texture2DShadow      = object
+  Texture2DShadow*      = object
     handle: uint32
-  TextureCubeShadow    = object
+  TextureCubeShadow*    = object
     handle: uint32
-  Texture2DArray       = object
+  Texture2DArray*       = object
     handle: uint32
-  Texture2DArrayShadow = object
+  Texture2DArrayShadow* = object
     handle: uint32
 
 proc texture*(sampler: Texture2D;            P: Vec2f; bias: float32 = 0): Vec4f =

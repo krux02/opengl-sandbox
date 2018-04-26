@@ -1,12 +1,9 @@
 # stdlib
-import sugar, algorithm, macros, strutils, tables, sequtils, terminal
+import sugar, algorithm, macros, strutils, tables, sequtils
 # packages
 import glm, ast_pattern_matching
 # local stuff
-import normalizeType, glslTranslate
-
-include boring_stuff
-
+import normalizeType, glslTranslate, boring_stuff
 
 #[ IR:
 (Block
@@ -78,13 +75,25 @@ proc expectInt*(arg: NimNode; value: int): void =
   if arg.intVal != value:
     error("expect integer literal of value " & $value, arg)
 
+
+## the following function does generate symbols for each
+## subexpression, but this is not true SSA form. The name should be
+## changed.
+
 proc transform_to_single_static_assignment(stmtList: NimNode): NimNode {.compileTime.} =
   ## Transforms the argument AST into a list of assignments. The
   ## assignments are either declaring a new identifier, like ``let x =
   ## foo(y,z)``, or they are assignments to already existing variables
   ## like ``gl.Position = foo(x,y)``
-  stmtList.expectKind nnkStmtList
-  var assignments = newStmtList()
+
+
+  let stmtList =
+    if stmtList.kind != nnkStmtList:
+      nnkStmtList.newTree(stmtList)
+    else:
+      stmtList
+
+  var assignments: NimNode = newStmtList()
 
   proc genSymForExpression(expr: NimNode): NimNode {.compileTime.} =
     ## creates a new assignment in `assignments` for expr, and returns
@@ -102,8 +111,9 @@ proc transform_to_single_static_assignment(stmtList: NimNode): NimNode {.compile
       result = expr
 
   for asgn in stmtList:
+    echo asgn.treeRepr
     asgn.matchAst:
-    of nnkAsgn(`lhs`, `expr`):
+    of {nnkAsgn,nnkFastAsgn}(`lhs`, `expr`):
       let sym = genSymForExpression(expr)
 
       if assignments[^1][0][0] != sym:
@@ -115,17 +125,44 @@ proc transform_to_single_static_assignment(stmtList: NimNode): NimNode {.compile
       let rhs = assignments[^1][0][2]
       assignments[^1] = nnkAsgn.newTree(lhs, rhs)
 
-    of nnkLetSection:
+    of {nnkLetSection, nnkVarSection}:
       for identDefs in asgn:
         identDefs.expectKind nnkIdentDefs
         for i in 0 ..< identDefs.len - 2:
-          let sym = identDefs[i]
-          let value = identDefs[^1]
+          #let sym = identDefs[i]
+          #let value = identDefs[^1]
 
           warning("not doing anythng here")
 
           #asgn.kind == nnkLetSection
           #asgn.kind == nnkLetsection
+    of nnkBlockStmt(`sym`, `body`):
+      let transformedBody = transform_to_single_static_assignment(body)
+      assignments.add nnkBlockStmt.newTree(sym, transformedBody)
+    of `body` @ nnkStmtList:
+      let transformedBody = transform_to_single_static_assignment(body)
+      assignments.add transformedBody
+    of `comment` @ nnkCommentStmt:
+      assignments.add comment
+    of `ifStmt` @ nnkIfStmt:
+      let transformedIfStmt = nnkIfStmt.newTree
+      for branch in ifStmt:
+        branch.matchAst:
+        of nnkElifBranch(`cond`, `body`):
+          transformedIfStmt.add nnkElifBranch.newTree(
+            cond,
+            transform_to_single_static_assignment(body)
+          )
+    of nnkWhileStmt(`cond`,`body`):
+      let transformedBody = transform_to_single_static_assignment(body)
+      assignments.add nnkWhileStmt.newTree(cond, transformedBody)
+
+
+        #of nnkElse(`body`):
+
+
+  while assignments.len == 1 and assignments.kind == nnkStmtList:
+    assignments = assignments[0]
 
   return assignments
 
@@ -789,7 +826,7 @@ var mvp: Mat4f
 var M,V,P: Mat4f
 var lights: array[10,Light]
 
-framebuffer.render(mesh) do (v, gl):
+framebuffer.renderDebug(mesh) do (v, gl):
   gl.Position     = P * V * M * v.position_os
   let position_cs = V*M*v.position_os
   let normal_cs   = inverse(transpose(V*M)) * v.normal_os
