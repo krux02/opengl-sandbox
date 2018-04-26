@@ -1,5 +1,9 @@
 import macros
 
+## this package here is just to provide a function so that glm alias
+## types such as ``Vec4f`` or ``Mat4f`` can be normalized to bracket
+## expressions such as ``Vec[4,float32]``, ``Mat[4,4,float32]``.
+
 proc substitute(arg, symbol, replacement: NimNode): NimNode =
   if arg.len == 0:
     if symbol == arg:
@@ -49,7 +53,7 @@ proc resolveAliasInternal(typ: NimNode): NimNode =
 
 proc sequenceTransform(arg: NimNode): seq[NimNode] =
   ## `resolveAliasInternal` will return a recursive datastructure of
-  ## nnkTypeDef nodes. This ast is as an AST illegal. This
+  ## nnkTypeDef nodes. This ast is as an illegal AST. This
   ## transformation so that each ast is legal again.
   var arg = arg
 
@@ -74,11 +78,10 @@ proc sequenceTransform(arg: NimNode): seq[NimNode] =
   if arg.kind notin {nnkObjectTy,   nnkDistinctTy}:
     result.add arg
 
-proc resolveAlias*(arg: NimNode): seq[NimNode] =
-  ## Will return a list of type trees. All element of the list will
-  ## represent the same type. The last element of this list should be
-  ## some normalized version of the type. Just look at the example to
-  ## get an idea what this function does.
+proc normalizeType*(arg: NimNode): NimNode =
+  ## Returns a normalized form of the types. This can be used for type
+  ## equality comparison. But it is developed to translate types
+  ## reliably to glsl.
   ##
   ## .. code-block:: nim
   ##     type
@@ -101,11 +104,10 @@ proc resolveAlias*(arg: NimNode): seq[NimNode] =
   ##       let types = arg.getTypeInst.resolveAlias
   ##       echo "seq(", types.map( x => x.repr).join(", "), ")"
   ##
-  ##     foobar(a) # prints: seq(MyObjectSubAlias, MyObjectAlias, MyObject)
-  ##     foobar(d) # prints: seq(Vec4f, Vec4[float32], Vec[4, float32])
+  ##     foobar(a) # prints: MyObject
+  ##     foobar(d) # prints: Vec[4, float32]
 
-  let typeDef = arg.resolveAliasInternal
-  typeDef.sequenceTransform
+  arg.resolveAliasInternal.sequenceTransform[^1]
 
 when isMainModule:
   type
@@ -125,8 +127,8 @@ when isMainModule:
   import macros, sugar, sequtils, strutils
 
   macro foobar(arg: typed): untyped =
-    let types = arg.getTypeInst.resolveAlias
-    echo "seq(`", types.map( x => x.repr).join("`, `"), "`)"
+    let typ = arg.getTypeInst.normalizeType
+    echo typ.repr
 
   var
     a: MyObjectSubAlias
@@ -137,10 +139,10 @@ when isMainModule:
     f: MyFloatSubAlias
     g: MyOtherFloat
 
-  foobar(a) # prints: seq(`MyObjectSubAlias`, `MyObjectAlias`, `MyObject`)
-  foobar(b) # prints: seq(`Vec4f`, `Vec4[float32]`, `Vec[4, float32]`)
-  foobar(c) # prints: seq(`MyTuple`, `tuple[a, b: int]`)
-  foobar(d) # prints: seq(`float32`)
-  foobar(e) # prints: seq(`MyFloatAlias`, `float32`)
-  foobar(f) # prints: seq(`MyFloatSubAlias`, `MyFloatAlias`, `float32`)
-  foobar(g) # prints: seq(`MyOtherFloat`)
+  foobar(a) # prints: MyObject
+  foobar(b) # prints: Vec[4, float32]
+  foobar(c) # prints: tuple[a, b: int]
+  foobar(d) # prints: float32
+  foobar(e) # prints: float32
+  foobar(f) # prints: float32
+  foobar(g) # prints: MyOtherFloat

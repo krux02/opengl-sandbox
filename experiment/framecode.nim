@@ -1,91 +1,54 @@
-import glm, sugar, algorithm, macros, strutils, tables, sequtils, strutils
-import ast_pattern_matching
-import resolveAlias
+# stdlib
+import sugar, algorithm, macros, strutils, tables, sequtils, terminal
+# packages
+import glm, ast_pattern_matching
+# local stuff
+import normalizeType, glslTranslate
 
-proc makeUniqueData[T](arg: var openarray[T]): int =
-  ## removes consecutive duplicate elements from `arg`. Since this
-  ## operates on an `openarray` elements are not really removed, but
-  ## rearranged, so that all the non-unique elements are at the end,
-  ## and the the elements in the range `0 ..< result` will be
-  ## unique. This functions expects ordered input. `result` will
-  ## contain the amount of unique elements in arg.
-
-  if arg.len <= 1:
-    # sequentces with one or less elements can never have duplicates
-    return
-
-  var i,j : int
-  while i < arg.len:
-    template a: var T = arg[i]
-    template b: var T = arg[j]
-    if arg[j] != arg[i]:
-      # found an element that is different than the previeous element
-      j += 1
-      # this increment before the swap is correct, because arg[0]
-      # should not be changed. Neither should the last written element
-      # be overwritten.
-      swap(arg[i], arg[j])
-
-  # plus 1 because j is the index of the last elemnt, not the length
-  j + 1
-
-proc makeUnique[T](arg: var seq[T]): void =
-  ## removes consecutive duplicate elements from `arg`. This works
-  ## like `makeUniqueData`, but it changes the length of `arg`
-  ## the amount of unique elements.
-  arg.setLen(arg.makeUniqueData)
+include boring_stuff
 
 
-proc sortAndUnique[T](arg: var seq[T]): void =
-  arg.sort(cmp)
-  arg.makeUnique
-
-## gl wrapper ##
+#[ IR:
+(Block
+  (Asgn `gl.Position` (Mult `P` `V` `M` `v.position_os`))
+  (Asgn `position_cs` (Mult `V` `M` `v.position_os`))
+  (Asgn `t1` (Mult `V` `M`))
+  (Asgn `t2` (Call `transpose` `t1`))
+  (Asgn `t3` (Call `inverse` `t2`))
+  (Asgn `normal_cs` (Mult `t3` `v.normal_os`))
+  (Asgn `lighting`  (Call `vec4f` 0))
+  (Loop `light` `lights`
+    (Asgn `t4` (Dot `light` `position_ws`))
+    (Asgn `light_position_cs` (Mult `V` `t4`))
+    (Asgn `t5` (Neg `position_cs`))
+    (Asgn `light_direction_cs` (Add `t5` `light_position_cs`))
+    (Asgn `light_intensity`  (Call `dot` `light_direction_cs` `normal_cs`))
+    (Asgn `t6` (Dot `light` `color`))
+    (Asgn `t7` (Mult `light_intensity` `t6`))
+    (Asgn `lighting` (Add `lighting` `t7`))
+  )
+  (Asgn `textureSample` (Call `texture` `myTexture` `v.texCoord`))
+  (Asgn `result.color` (Mult `texturesample` `lighting`))
+)
+]#
 
 type
-  Texture1D            = object
-    handle: uint32
-  Texture2D            = object
-    handle: uint32
-  Texture3D            = object
-    handle: uint32
-  TextureCube          = object
-    handle: uint32
-  Texture2DShadow      = object
-    handle: uint32
-  TextureCubeShadow    = object
-    handle: uint32
-  Texture2DArray       = object
-    handle: uint32
-  Texture2DArrayShadow = object
-    handle: uint32
+  IRNodeKinds = enum
+    irBlock
+    irAsgn
+    irDot
+    irMult
+    irAdd
+    irNeg
+    irCall
+    irDecl
+    irLoop
 
-proc texture*(sampler: Texture2D;            P: Vec2f; bias: float32 = 0): Vec4f =
-  quit("only implemented in shader")
-
-proc texture*(sampler: Texture3D;            P: Vec3f; bias: float32 = 0): Vec4f =
-  quit("only implemented in shader")
-
-proc texture*(sampler: TextureCube;          P: Vec3f; bias: float32 = 0): Vec4f =
-  quit("only implemented in shader")
-
-proc texture*(sampler: Texture2DShadow;      P: Vec3f; bias: float32 = 0): Vec4f =
-  quit("only implemented in shader")
-
-proc texture*(sampler: TextureCubeShadow;    P: Vec4f; bias: float32 = 0): Vec4f =
-  quit("only implemented in shader")
-
-proc texture*(sampler: Texture2DArray;       P: Vec3f; bias: float32 = 0): Vec4f =
-  quit("only implemented in shader")
-
-proc texture*(sampler: Texture2DArrayShadow; P: Vec4f): Vec4f =
-  quit("only implemented in shader")
 
 # other types
 
 type
   Mesh[VertexType] = object
-
   Framebuffer[FragmentType] = object
 
   GlEnvironment = object
@@ -93,47 +56,12 @@ type
     PointSize: float32
     ClipDistance: UncheckedArray[float32]
 
-  DefaultFragmentType = object
-    color: Vec4f
-
   GlslConstraint = enum
     gcFS
     gcVS
     gcCPU
 
   ConstraintRange = tuple[min,max: GlslConstraint]
-
-iterator typeFields(typeAst: NimNode): tuple[memberSym, typeSym: NimNode] =
-  let parent =
-    if typeAst.kind == nnkObjectTy:
-      typeAst[2]
-    else:
-      typeAst
-
-  for identDefs in parent:
-    let typeSym = identDefs[^2]
-    for i in 0 ..< identDefs.len-2:
-      let memberSym = identDefs[i]
-      yield((memberSym: memberSym, typeSym: typeSym))
-
-iterator arguments*(n: NimNode): NimNode {.inline.} =
-  ## Iterates over the arguments of a call ``n``.
-  for i in 1 ..< n.len:
-    yield n[i]
-
-iterator depthFirstTraversal*(n: NimNode): NimNode =
-  var stack = newSeq[tuple[n: NimNode,i: int]](0)
-  stack.add((n: n, i: 0))
-  yield stack[^1].n
-  while stack.len > 0:
-    template i: untyped = stack[^1].i
-    template n: untyped = stack[^1].n
-    while i < n.len:
-      let child = n[i]
-      i += 1
-      stack.add((n: child, i: 0))
-      yield stack[^1].n
-    discard stack.pop
 
 proc findSymbolWithName(arg: NimNode; symName: string): NimNode =
   ## searches though a tree and returns the first symbol node with the
@@ -149,113 +77,6 @@ proc expectIdent*(arg: NimNode; identName: string): void =
 proc expectInt*(arg: NimNode; value: int): void =
   if arg.intVal != value:
     error("expect integer literal of value " & $value, arg)
-
-proc expectIntIn*(arg: NimNode; slice: Slice[int]): void =
-  if arg.intVal notin slice:
-    error("expect integer literal in range: " & $slice.a & " .. " & $slice.b & " but got " & $arg.intVal, arg)
-
-
-proc glslType(arg: NimNode): string {.compileTime.} =
-  let arg = arg.resolveAlias[^1]
-
-
-  arg.matchAst:
-  of ident"float32":
-    return "float"
-  of ident"float64":
-    return "double"
-  of ident"int32":
-    return "int"
-  of ident"bool":
-    return "bool"
-  of ident"Texture1D":
-    return "sampler1D"
-  of ident"Texture2D":
-    return "sampler2D"
-  of ident"Texture3D":
-    return "sampler3D"
-  of ident"TextureCube":
-    return "samplerCube"
-  of ident"Texture2DShadow":
-    return "sampler2DShadow"
-  of ident"TextureCubeShadow":
-    return "samplerCubeShadow"
-  of ident"Texture2DArray":
-    return "sampler2DArray"
-  of ident"Texture2DArrayShadow":
-    return "sampler2DArrayShadow"
-
-  of nnkBracketExpr(ident"Vec", `sizeLit`, `Tsym`):
-
-    Tsym.matchAst:
-    of ident"float32":
-      result = "vec"
-    of ident"float64":
-      result = "dvec"
-    of ident"int32":
-      result = "ivec"
-    of ident"bool":
-      result = "bvec"
-
-    sizeLit.expectIntIn 2..4
-    result.add sizeLit.intVal
-
-  of nnkBracketExpr(ident"Mat", `sizeLit1`, `sizeLit2`, `Tsym`):
-
-    Tsym.matchAst:
-    of ident"float32":
-      result = "mat"
-    of ident"float64":
-      result = "dmat"
-    of ident"int32":
-      result = "imat"
-    of ident"bool":
-      result = "bmat"
-
-    sizeLit1.expectIntIn 2..4
-    sizeLit2.expectIntIn 2..4
-
-    let intVal1 = sizeLit1.intVal
-    let intVal2 = sizeLit2.intVal
-
-    result.add intVal1
-    if intVal2 != intVal1:
-      result.add "x"
-      result.add intVal2
-
-
-when defined(testGlslTypes):
-  macro testGlslType(arg: typed): untyped =
-    var expected: string
-    for varSection in arg:
-      if varSection.kind == nnkVarSection:
-        let identDefs = varSection[0]
-        let sym = identDefs[0]
-
-        let glslType = sym.getTypeInst.glslType
-        assert glslType == expected
-      else:
-        expected = varSection.strVal
-
-  testGlslType:
-    ## vec4
-    var a: Vec4f
-    ## vec4
-    var b: Vec4[float32]
-    ## vec4
-    var c: Vec[4,float32]
-    ## mat4
-    var d: Mat4f
-    ## mat4
-    var e: Mat4[float32]
-    ## mat4
-    var f: Mat[4,4,float32]
-    ## float
-    var g: float32
-    ## mat3x4
-    var h: Mat[3,4, float32]
-    ## mat4x2
-    var i: Mat[4,2, float32]
 
 proc transform_to_single_static_assignment(stmtList: NimNode): NimNode {.compileTime.} =
   ## Transforms the argument AST into a list of assignments. The
@@ -612,8 +433,6 @@ type
     skFrag = "frag",
     skComp = "comp"
 
-import terminal
-
 const
   ColorReset = "\e[0m" # background and foreground to default
   ErrorStyle = "\e[31m" # Red
@@ -762,7 +581,7 @@ proc splitVertexFragmentShader(arg, vertexSym, resultSym: NimNode): tuple[cpu,vs
   ## calculate fragment output section
   block:
     var i = 0
-    for sym, typ in  resultSym.getTypeImpl.typeFields:
+    for sym, typ in  resultSym.getTypeImpl.fields:
       fragmentOutputs.add("layout(location = " & $i & ") out " & typ.glslType & " " & $sym & ";\n")
       i += 1
 
