@@ -7,7 +7,6 @@ license       = "MIT"
 
 bin           = @[
   #"examples/audiotest",
-  "examples/console",
   "examples/deferred_shading",
   "examples/forward_vertex_shader",
   "examples/hello_shapes",
@@ -23,6 +22,7 @@ bin           = @[
   "examples/sandbox",
   "examples/tetris",
   "examples/waves"
+  "examples/console",
 ]
 
 skipDirs = @["tests"]
@@ -36,3 +36,7 @@ requires @[
   "glm         >= 1.0.1"
   #"fftw3       >= 0.1.0", # add this if you want audiotest to work
 ]
+
+task run, "run all examples":
+  for binary in bin:
+    exec(binary)

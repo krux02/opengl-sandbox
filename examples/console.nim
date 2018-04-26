@@ -191,6 +191,16 @@ proc prod(args: varargs[int]): void {.interpreterCommand.} =
     accum *= arg
   echo "prod: ", accum
 
+proc exit(): void {.interpreterCommand.} =
+  ## exit command interpreter (alias to quit)
+  echo "Bye!"
+  system.quit()
+
+proc quit(): void {.interpreterCommand.} =
+  ## quit command interpreter (alias to exit)
+  echo "Ciao!"
+  system.quit()
+
 proc commands(): void {.interpreterCommand.} =
   ## list all functions
   for name, _, comment, _ in registeredCommands.items:
@@ -205,8 +215,7 @@ proc help(arg: string): void {.interpreterCommand.} =
       return
   echo "ERROR: no such function found"
 
-
-proc edit(arg: string): void {.interpreterCommand.} =
+proc ecedit(arg: string): void {.interpreterCommand.} =
   ## Edit file in emacsclient
   let processOptions = {poStdErrToStdOut, poUsePath}
   for name, _, _, lineinfo in registeredCommands.items:
@@ -218,10 +227,10 @@ proc edit(arg: string): void {.interpreterCommand.} =
         # if you don't know how emacsclient works, it connects to an
         # already running instance of emacs that is tagged as a
         # server. Then it brings this editor to the foreground and
-        # blocks until the use says from the editor that he/she is
+        # blocks until the user says from the editor that he/she is
         # done editing the file. Then the emacsclient process
         # terminates. For other editors the integration would of
-        # course look a bit different.
+        # course look a bit different but similar.
         echo ["emacsclient", location, filename].join(" ")
         let process = startProcess(
           "emacsclient",

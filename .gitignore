@@ -6,6 +6,9 @@ nimcache/
 
 flycheck*
 
+#stuff from the lab
+.nfs*
+
 #binaries
 fancygl
 .vscode
