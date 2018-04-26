@@ -3,30 +3,39 @@
 ** source
 
 #+BEGIN_SRC nim
-
 import glm
 
 template render(arg: varargs[untyped]): untyped =
   discard
 
 type
-  Light = object
-    position_ws: Vec4f
+  Mesh[T] = object
+  Framebuffer[T] = object
+  Texture2D = object
+
+type
+  MyFragmentType = object
     color: Vec4f
 
-  Vertex = object
+  MyVertexType = object
     position_os: Vec4f
     normal_os: Vec4f
     texCoord: Vec2f
 
-  FrameBuffer = object
-  Texture2D   = object
+  Light = object
+    position_ws : Vec4f
+    color : Vec4f
 
-var framebuffer: FrameBuffer
+  MyMesh        = Mesh[MyVertexType]
+  MyFramebuffer = Framebuffer[MyFragmentType]
+
+var myTexture: Texture2D
+var mesh: MyMesh
+var framebuffer: MyFramebuffer
+var mvp: Mat4f
 
 var M,V,P: Mat4f
-var lights: Light
-var myTexture: Texture2D
+var lights: array[10,Light]
 
 framebuffer.render(mesh) do (v, gl):
   gl.Position     = P * V * M * v.position_os
@@ -44,6 +53,8 @@ framebuffer.render(mesh) do (v, gl):
   result.color = textureSample * lighting
 
 #+END_SRC
+
+#+RESULTS:
 
 ** symbol table
 

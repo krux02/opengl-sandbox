@@ -956,6 +956,10 @@ type
     normal_os: Vec4f
     texCoord: Vec2f
 
+  Light = object
+    position_ws : Vec4f
+    color : Vec4f
+
   MyMesh        = Mesh[MyVertexType]
   MyFramebuffer = Framebuffer[MyFragmentType]
 
@@ -965,8 +969,7 @@ var framebuffer: MyFramebuffer
 var mvp: Mat4f
 
 var M,V,P: Mat4f
-var lights: Light
-var myTexture: Texture2D
+var lights: array[10,Light]
 
 framebuffer.render(mesh) do (v, gl):
   gl.Position     = P * V * M * v.position_os
