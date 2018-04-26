@@ -338,7 +338,7 @@ The name is not fix yet, these are valid naming ideas:
 
 # Getting Started
 
-You need git lfs to fetch all the resources. Most examples should run even 
+You need git lfs to fetch all the resources. Most examples should run even
 without resources, but they will be very ugly.
 
 https://git-lfs.github.com/
@@ -387,3 +387,51 @@ a comment and they are not build with ``nimble build``. Eventually I
 plan to reactivate all examples. If you have problems running any of
 the other examples, please get me informed about it and create an
 issue. Maybe you can also see me in the Nim chat.
+
+# future direction
+
+Currently I am working to make it possible to write all shading code
+in Nim. Then code like this should valid.
+
+```nim
+
+type
+  MyFragmentType = object
+    color: Vec4f
+
+  MyVertexType = object
+    position_os: Vec4f
+    normal_os: Vec4f
+    texCoord: Vec2f
+
+  Light = object
+    position_ws : Vec4f
+    color : Vec4f
+
+  MyMesh        = Mesh[MyVertexType]
+  MyFramebuffer = Framebuffer[MyFragmentType]
+
+var myTexture: Texture2D
+var mesh: MyMesh
+var framebuffer: MyFramebuffer
+var mvp: Mat4f
+
+var M,V,P: Mat4f
+var lights: array[10,Light]
+
+framebuffer.render(mesh) do (v, gl):
+  gl.Position     = P * V * M * v.position_os
+  let position_cs = V*M*v.position_os
+  let normal_cs   = inverse(transpose(V*M)) * v.normal_os
+  var lighting: Vec4f
+
+  for light in lights:
+    let light_position_cs = V * light.position_ws
+    let light_direction_cs = light_position_cs-position_cs
+    let light_intensity = dot(light_direction_cs, normal_cs)
+    lighting += light_intensity * light.color
+
+  let textureSample = texture(myTexture, v.texCoord)
+  result.color = textureSample * lighting
+
+```
