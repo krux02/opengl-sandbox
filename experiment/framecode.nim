@@ -97,21 +97,20 @@ proc transform_to_single_static_assignment(stmtList: NimNode): NimNode {.compile
     ## creates a new assignment in `assignments` for expr, and returns
     ## the generated symbol.
     let typ = expr.getTypeInst
-    if expr.kind in nnkCallKinds or expr.kind == nnkDotExpr:
-      result = genSym(nskLet, "tmp")
-      let call = expr.kind.newTree(expr[0])
-      for i in 1 ..< expr.len:
-        call.add(genSymForExpression(expr[i]))
-      assignments.add(nnkLetSection.newTree(
-        nnkIdentDefs.newTree(result, typ, call))
-      )
-    else:
-      result = expr
+    expr.expectKind(nnkCallKinds + {nnkDotExpr})
+    result = genSym(nskLet, "tmp")
+    let call = expr.kind.newTree(expr[0])
+    for i in 1 ..< expr.len:
+      call.add(genSymForExpression(expr[i]))
+    assignments.add(nnkLetSection.newTree(
+      nnkIdentDefs.newTree(result, typ, call))
+    )
 
   for asgn in stmtList:
     echo asgn.treeRepr
     asgn.matchAst:
     of {nnkAsgn,nnkFastAsgn}(`lhs`, `expr`):
+
       let sym = genSymForExpression(expr)
 
       if assignments[^1][0][0] != sym:
