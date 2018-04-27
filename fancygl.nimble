@@ -6,7 +6,6 @@ description   = "nice way of handling render code"
 license       = "MIT"
 
 bin           = @[
-  #"examples/audiotest",
   "examples/deferred_shading",
   "examples/forward_vertex_shader",
   "examples/hello_shapes",
@@ -30,11 +29,12 @@ skipDirs = @["tests"]
 #[ Dependencies ]#
 
 requires @[
-  "nim         >= 0.18.1",
-  "AntTweakBar >= 1.0.0",
-  "sdl2_nim    >= 2.0.6.1",
-  "glm         >= 1.0.1"
-  #"fftw3       >= 0.1.0", # add this if you want audiotest to work
+  "nim                  >= 0.18.1  ",
+  "AntTweakBar          >= 1.0.0   ",
+  "sdl2_nim             >= 2.0.6.1 ",
+  "glm                  >= 1.0.1   ",
+  "ast_pattern_matching >= 1.0.0   ",
+  #"fftw3               >= 0.1.0   ", # add this if you want audiotest to work
 ]
 
 task run, "run all examples":

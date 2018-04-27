@@ -1,8 +1,13 @@
 import ../fancygl, fftw3
 
-################################################################################
-# WARNING this test is incomplete and has not yet been updatad for a long time #
-################################################################################
+######################################################################
+## WARNING: this code is just for me to play around with the fftw   ##
+## library.  It has no intended educational value and has not been  ##
+## updated for a long time, and doesn't even utilize this library   ##
+## properly.  Honestly there is no reason this is even part of this ##
+## codebase.  Just continue somewhere else, there is nothing to see ##
+## here.                                                            ##
+######################################################################
 
 discard init(INIT_EVERYTHING)
 

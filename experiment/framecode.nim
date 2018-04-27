@@ -75,7 +75,6 @@ proc expectInt*(arg: NimNode; value: int): void =
   if arg.intVal != value:
     error("expect integer literal of value " & $value, arg)
 
-
 ## the following function does generate symbols for each
 ## subexpression, but this is not true SSA form. The name should be
 ## changed.
@@ -85,7 +84,6 @@ proc transform_to_single_static_assignment(stmtList: NimNode): NimNode {.compile
   ## assignments are either declaring a new identifier, like ``let x =
   ## foo(y,z)``, or they are assignments to already existing variables
   ## like ``gl.Position = foo(x,y)``
-
 
   let stmtList =
     if stmtList.kind != nnkStmtList:
