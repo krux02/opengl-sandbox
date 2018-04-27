@@ -54,7 +54,9 @@ proc resolveAliasInternal(typ: NimNode): NimNode =
 proc sequenceTransform(arg: NimNode): seq[NimNode] =
   ## `resolveAliasInternal` will return a recursive datastructure of
   ## nnkTypeDef nodes. This ast is as an illegal AST. This
-  ## transformation so that each ast is legal again.
+  ## transformation so that each ast is legal again.  You ask yourself
+  ## why I return the entire list instead of just the last element
+  ## that?  Well I don't know anymore  ¯\_(ツ)_/¯
   var arg = arg
 
   result.newSeq(0)

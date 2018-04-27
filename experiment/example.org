@@ -53,7 +53,67 @@ framebuffer.render(mesh) do (v, gl):
 
 #+END_SRC
 
-#+RESULTS:
+The outer most macro will inject types into the statement. This is
+just aiding the Nim compiler, because Nim can infer these types
+automatically.  It is best visualized with an example:
+
+#+BEGIN_SRC nim
+framebuffer.render(mesh) do (v, gl):
+  #[ ... ]#
+  discard
+#+END_SRC
+
+This will be transformed into the following statement:
+
+#+BEGIN_SRC nim
+framebuffer.render(mesh) do (v: MyVertexType; gl: var GlShaderContext) -> MyFragmentType:
+  #[ ... ]#
+  discard
+#+END_SRC
+
+
+Now the type checker can resolve all symbols from the inner body of
+the macro.  A body with resolved symbols is printed here.  It is not
+obvious from this representation that now the identifier are resolved
+as symbols with type information, but it is visible that some things
+actually haves changed.
+
+#+BEGIN_SRC nim
+
+do (v: MyVertexType; gl: var GlShaderContext)-> MyFragmentType:
+  gl.Position = P * V * M * v.position_os
+  let position_cs = V * M * v.position_os
+  let normal_cs = inverse(transpose(V * M)) * v.normal_os
+  var lighting: Vec4f
+  block tmp346054:
+      var light: Light
+      var i = 0
+      if i <= 9:
+        block tmp346055:
+            while true:
+              light = lights[i]
+              let light_position_cs = V * light.position_ws
+              let light_direction_cs = light_position_cs - position_cs
+              let light_intensity = dot(light_direction_cs, normal_cs)
+              lighting += light_intensity * light.color
+              if 9 <= i:
+                break tmp346055
+              inc(i, 1)
+  let textureSample = texture(myTexture, v.texCoord, 0.0)
+  result.color = textureSample * lighting
+
+#+END_SRC
+
+I don't know what to do to prevent that the for loop becomes a while
+loop.  Should I filter for this while loop and translate it back to a
+for loop in glsl? Or should I just translate into a while loop and
+hope the glsl compiler will be able to unroll it anyway?  Glsl
+performance might really suffer from dynamically sized arrays, but
+this should really be tested,  I did not test it at all yet.
+
+From here on the Nim code should be translated directly into
+GLSL. Even though I haven't talked at all about the shader stage
+separation at all, and this is important.
 
 * symbol table
 
@@ -176,6 +236,98 @@ type
     irLoop
 
 #+END_SRC
+
+* generated shader source
+
+This is how the generated shader source could/should look like. This
+code is hand translated, so it is not guaranteed that the final
+compiler will generate exactly this shader code, but at the current
+state of development it looks like this could be done.
+
+** TODO talk about shader stage separation
+
+#+BEGIN_SRC glsl
+#version 450
+uniform mat4 P;
+uniform mat4 V;
+uniform mat4 M;
+
+in layout(location = 0) vec4 in_v_positionos;
+in layout(location = 1) vec4 in_v_normalos;
+in layout(location = 2) vec2 in_v_texCoord;
+
+out layout(location = 0) vec4 out_positioncs;
+out layout(location = 1) vec4 out_normalcs;
+out layout(location = 2) vec2 out_v_texCoord;
+
+void main() {
+  vec4 v_positionos = in_v_positionos;
+  vec4 v_normalos = in_v_positionos;
+  vec2 v_texCoord = in_v_texCoord;
+
+  gl_Position = P * V * M * v_positionos;
+  vec4 positioncs = V * M * v_positionos;
+  vec4 normalcs   = inverse(transpose(V * M)) * v_normalos;
+
+  out_positioncs = positioncs;
+  out_normalcs = normalcs;
+  out_v_texCoord = v_texCoord;
+}
+#+END_SRC
+
+#+BEGIN_SRC glsl
+#version 450
+
+uniform mat4 P;
+uniform mat4 V;
+uniform mat4 M;
+uniform sampler2D myTexture;
+
+struct Light {
+  vec4 positionws;
+  vec4 color;
+};
+
+uniform Light lights[10];
+
+in layout(location = 0) vec4 in_positioncs;
+in layout(location = 1) vec4 in_normalcs;
+in layout(location = 2) vec2 in_v_texCoord;
+
+out layout(location = 0) vec4 result_color;
+
+void main() {
+  vec4 positioncs = in_positioncs;
+  vec4 normalcs = in_normalcs;
+  vec2 v_texCoord = in_v_texCoord;
+
+  vec4 lighting = vec4(0);
+
+  for(int i = 0; i < 10; ++i) {
+    Light light = lights[i];
+    vec4 lightpositioncs = V * light.positionws;
+    vec4 lightdirectioncs = lightpositioncs - positioncs;
+    float light_intensity = dot(lightdirectioncs, normalcs);
+    lighting += light_intensity * light.color;
+  }
+
+  vec4 textureSample = texture(myTexture, v_texCoord, 0.0);
+  result_color = textureSample * lighting;
+}
+#+END_SRC
+
+additionally to the shader code, the following OpenGL commands should be
+generated:
+
+ * glCompileShader
+ * glLinkShader
+ * glUninform
+ * glAttribute
+ * glDraw
+ * etc (details you don't wanna know, but I have to fill pages, maybe
+   you will get to know them even if you don't want to)
+
+
 * other example
 
 #+BEGIN_SRC nim
