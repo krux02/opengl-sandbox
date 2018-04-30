@@ -60,10 +60,16 @@ proc indentCode(arg: string, indentation: string): string =
     result.add line
 
 
-
-
 proc compileToGlsl(result: var string; arg: NimNode): void =
-  arg.matchAst:
+  arg.matchAst(errorSym):
+  of nnkFloatLit:
+    result.add arg.floatVal
+  of nnkEmpty:
+    result.add "/* empty */"
+  of nnkCommentStmt:
+    result.add "/// "
+    result.add arg.strVal
+    result.add "\n"
   of nnkStmtList:
     for stmt in arg:
       result.compileToGlsl(stmt)
@@ -80,6 +86,114 @@ proc compileToGlsl(result: var string; arg: NimNode): void =
     result.compileToGlsl(lhs)
     result.add " = "
     result.compileToGlsl(rhs)
+  of {nnkHiddenDeref, nnkHiddenAddr}(`sym`):
+    result.compileToGlsl(sym)
+  of nnkInfix(`op`, `lhs`, `rhs`):
+    result.add "("
+    result.compileToGlsl(lhs)
+    result.add " "
+    result.add op.strVal
+    result.add " "
+    result.compileToGlsl(rhs)
+    result.add ")"
+  of {nnkLetSection, nnkVarSection}:
+    for memberSym, value in arg.fieldValuePairs:
+      let typeStr = memberSym.getTypeInst.glslType
+      result.add typeStr
+      result.add ' '
+      result.compileToGlsl(memberSym)
+      result.add " = "
+      if value.kind != nnkEmpty:
+        result.compileToGlsl(value)
+      else:
+        result.add typeStr
+        result.add "(0)"
+
+  of nnkCall:
+    arg[0].expectKind nnkSym
+    # TODO, do something about also translating not builtin functions
+
+    result.add arg[0].strVal
+    result.add "("
+    for arg in arg.args:
+      result.compileToGlsl(arg)
+      result.add ", "
+
+    result[^2] = ')'
+
+  of nnkBracketExpr(`syma`, `symb`):
+    result.compileToGlsl(syma)
+    result.add '['
+    result.compileToGlsl(symb)
+    result.add ']'
+
+  of nnkBlockStmt(
+    `sym1` @ nnkSym,
+    nnkStmtList(
+      nnkVarSection(
+        nnkIdentDefs( `loopVar` @ nnkSym, nnkEmpty, nnkEmpty)
+      ),
+      nnkStmtList(
+        nnkCommentStmt,
+        nnkVarSection( nnkIdentDefs( `loopIndex` @ nnkSym, nnkEmpty, 0)),
+        nnkIfStmt(
+          nnkElifBranch(
+            nnkInfix( ident"<=", _ #[ `loopIndex` ]#, `upperBound` @ nnkIntLit),
+            nnkBlockStmt(
+              `blockSym2`,
+              nnkWhileStmt(
+                1,
+                nnkStmtList(
+                  nnkStmtList(
+                    nnkFastAsgn(_ #[`loopVar`]#, `loopVarExpr`),
+                    `body` @ nnkStmtList
+                  ),
+                  nnkIfStmt(
+                    nnkElifBranch(
+                      nnkStmtListExpr(
+                        nnkCommentStmt,
+                        nnkInfix(ident"<=", _ #[`upperBound`]#, _ #[`loopIndex`]#)
+                      ),
+                      nnkBreakStmt( _ #[`sym1`]#)
+                    ),
+                  ),
+                  nnkCall( ident"inc", _ #[`loopIndex`]# , 1 )
+                )
+              )
+            )
+          )
+        )
+      )
+    )
+  ):
+    let irepr = loopIndex.repr
+
+    result.add "for(int "
+    result.add irepr
+    result.add " = 0; "
+    result.add irepr
+    result.add " < "
+    result.add(upperBound.intVal+1)
+    result.add "; ++"
+    result.add irepr
+    result.add ") {\n"
+
+    # TODO this is actually correct, but for now I cheat around fixing it
+    # result.add loopVar.getTypeInst.glslType
+    result.add loopVar.getTypeInst.strVal
+    result.add ' '
+    result.compileToGlsl(loopVar)
+    result.add " = "
+    result.compileToGlsl(loopVarExpr)
+    result.add ";\n"
+
+
+    result.compileToGlsl body
+    result.add "\n}"
+
+
+
+
 
 
 
@@ -95,12 +209,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       echo result.lispRepr
       echo "</render_inner>"
 
-
-
-
   arg.expectKind nnkDo
-
-  echo arg.treeRepr
 
   let vertexPart = nnkStmtList.newTree
   let fragmentPart = nnkStmtList.newTree
@@ -108,8 +217,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
   block:
     var currentNode = vertexPart
     for stmt in arg[6]:
-      if stmt.kind == nnkCommentStmt:
-        echo stmt
+      if stmt.kind == nnkCommentStmt and stmt.strVal == "rasterize":
         currentNode = fragmentPart
 
       currentNode.add stmt
@@ -117,23 +225,16 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
   var vertexShader = ""
   vertexShader.compileToGlsl(vertexPart)
-
-  #let fragmentShader = compileToGlsl(fragmentPart)
-
-  echo vertexShader
-
+  var fragmentShader = ""
+  fragmentShader.compileToGlsl(fragmentPart)
 
   echo "=".repeat(80)
   echo "vertex part"
-  echo vertexPart.repr
+  echo vertexShader
   echo "-".repeat(80)
   echo "fragment part"
-  echo fragmentPart.repr
+  echo fragmentShader
   echo "=".repeat(80)
-
-
-
-
 
 
   #echo compileToGlsl(arg);

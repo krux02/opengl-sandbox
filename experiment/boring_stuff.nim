@@ -63,15 +63,35 @@ iterator fields*(typeAst: NimNode): tuple[memberSym, typeSym: NimNode] =
   let parent: NimNode =
     if typeAst.kind == nnkObjectTy:
       typeAst[2]
+    elif typeAst.kind == nnkLetSection:
+      typeAst
     else:
+      warning("just a guessing game here")
       echo typeAst.treeRepr
       typeAst
 
   for identDefs in parent:
+    identDefs.expectKind nnkIdentDefs
     let typeSym = identDefs[^2]
     for i in 0 ..< identDefs.len-2:
       let memberSym = identDefs[i]
       yield((memberSym: memberSym, typeSym: typeSym))
+
+iterator fieldValuePairs*(arg: NimNode): tuple[memberSym, valueSym: NimNode] =
+  arg.expectkind({nnkLetSection, nnkVarSection})
+  for identDefs in arg:
+    identDefs.expectKind nnkIdentDefs
+    let valueSym = identDefs[^1]
+    for i in 0 ..< identDefs.len-2:
+      let memberSym = identDefs[i]
+      yield((memberSym: memberSym, valueSym: valueSym))
+
+
+iterator args*(arg: NimNode): NimNode =
+  arg.expectKind nnkCallKinds
+  for i in 1 ..< arg.len:
+    yield arg[i]
+
 
 
 ## gl wrapper ##
