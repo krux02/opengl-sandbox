@@ -1,0 +1,109 @@
+just some things I would like to change in the Nim programming
+language.
+
+* Remove the range type.
+
+Well just use type range[low,high: static[int]] = distinct int No need
+for this to be a language feature arrays with a size that is not an
+integer.  Generics in Nim are (almost?) powerful enough to implement
+an array type that emulates this behavior. This is not about removing
+the `range` feature it is about removing it as a language feature and
+making it a library feature in system.  (slightly improves Nim
+portability)
+
+* Join int64 and int.
+
+They are distinct types in overloading, where float64 and float are
+just alias types. This is unnecessary.
+
+* Remove nil-state for seq and string.
+
+Even if the nil-state can't be removed from the language, by default
+they should be empty, not nil.
+
+
+* Remove GC dependenly for seq and string.
+
+They currently rely a GC. This is totally unnecessary.
+
+* Inverse the `cmp` and `<=` dependency.
+
+It is much simpler if the default implementation of all comparison
+operators `<` `<=` `!=` `==` `>=` `>` is based on a single
+function. Then library implementors just have to implement `cmp` and
+all operations are provided. This change should not break any library
+that already defines some comparison operators and relies on already
+defined templates from system.nim.
+
+* `sort` with single argument.
+
+Sort should not require a comparison argument. By default it should
+just look for an overloaded `cmp`. Passing a λ-expresison for
+comparison isn't wrong though, it just should be expected all the
+time.
+
+* Manual typecheck invocation.
+
+For example it could be called `proc typecheck(arg: NimNode):
+NimNode`.  This has been asked by a lot of people already, and it
+would provide the most control over how much nodes are typechecked and
+templates are expanded.  It would also simplify a lot of macros where
+the first macro generates a second macro call with a typed argument.
+
+* Remove concepts in their current form.
+
+I like the idea of concepts, but i don't like the current
+implementation/syntax. The current syntax confuses type expressions
+with value expressions. Changing the syntax in a non-ambiguous one
+will break a lot if now all code that uses concepts in the current
+state. It should be declared highly experimental to use concepts in
+the current state.
+
+* Generic `it` lambdas.
+
+There are a lot of templates that allow to pass a lambda expression
+via it-expression (expression that contains `it`-symbol).  But these
+templates are only sometimes there. Most of the time there are just
+not there. It should be generalized somehow, so that it expressions
+can be used anywhere, where an unary function is expected. Or the
+usage of λ-expressions should be so awesome, that it-expressions won't
+be needed anymore. But then all it-templates should be declared
+deprecated.
+
+
+* unicode (low priority)
+
+The world is utf8. Text can be expected to be UTF8. Programming
+languages can benefit from utilizing UTF8 (but should not rely on it
+because qwerty keyboards can't type it). When introducing new UTF8
+symbols into the language, one should be careful not to overdo
+it. Symbols are harder to look up than functions with a proper name,
+so I would only recommend to support symbols that are actually taught
+in schools, not those that only university math students know about.
+
+| and          | ∧ | tokenizer alias                         |
+| or           | ∨ | tokenizer alias                         |
+| not          | ¬ | tokenizer alias                         |
+| in           | ∈ | tokenizer alias                         |
+| notit        | ∉ | tokenizer alias                         |
+| contains     | ∋ | new infix operator plus alias in system |
+| not contains | ∌ | new infix operator plus alias in system |
+| * (for set)  | ∩ | new infix operator plus alias in system |
+| + (for set)  | ∪ | new infix operator plus alias in system |
+| !=           | ≠ | tokenizer alias                         |
+| <=           | ≤ | tokenizer alias                         |
+| >=           | ≥ | tokenizer alias                         |
+| sqrt         | √ | new prefix operator                     |
+| inf          | ∞ | ???                                     |
+
+The downside of introducing these symbols is that it will introduce
+discussions about weather to use tho symbol representation or the
+ascii (workaround-)name.  Those discussions are as useful as
+tabs vs spaces. Everybody will have an opinion about it.
+
+* etc
+
+  * `smartBinarySearch`, really? just remove it. There is nothing
+    smart in a binary Search.
+
+  * there is `sortedByIt`, but no `sortByIt`, `sortBy`, `sortIt`.

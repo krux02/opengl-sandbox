@@ -111,6 +111,10 @@ hope the glsl compiler will be able to unroll it anyway?  Glsl
 performance might really suffer from dynamically sized arrays, but
 this should really be tested,  I did not test it at all yet.
 
+
+** preventing the `iterator items` expansion, or matching against it?
+
+
 From here on the Nim code should be translated directly into
 GLSL. Even though I haven't talked at all about the shader stage
 separation at all, and this is important.
@@ -315,6 +319,13 @@ void main() {
   result_color = textureSample * lighting;
 }
 #+END_SRC
+
+ * how do I map symbols/identifiers.
+
+I take out all the _ underscore charactors. They do not have any
+meaning in Nim anyway. Then I can use it for my own personal
+separation in glsl.
+
 
 additionally to the shader code, the following OpenGL commands should be
 generated:
