@@ -182,7 +182,6 @@ framebuffer is bound, and rendering is done to textures, the names of
 the output variables are inferred from the targets of the currently
 active framebuffer. More on that in the future (or read the code).
 
-
 ## Examples
 
 from here on are just some onld examples and screenshots. They are not all up to date.
@@ -435,3 +434,16 @@ framebuffer.render(mesh) do (v, gl):
   result.color = textureSample * lighting
 
 ```
+
+## How do I run it?
+
+That is all nice and stuff, but how do I get to run the examples? Well
+it should be quite easy, just use nimble for building:
+
+```
+nimble build
+nimble run
+```
+
+Nimble build should build all examples, and run should execute them
+all in order. Have fun

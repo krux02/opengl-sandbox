@@ -1,5 +1,8 @@
 import ../fancygl, sdl2/sdl_mixer as mix, strutils
 
+# TODO, there is a bug where lighting is over saturated (sometimes). I
+# haven't really figured that out yet.
+
 import sequtils, algorithm
 
 let (window, _) = defaultSetup()
