@@ -24,7 +24,7 @@ bin           = @[
   "examples/console",
 ]
 
-skipDirs = @["tests"]
+skipDirs = @["unittests", "experiment"]
 
 #[ Dependencies ]#
 

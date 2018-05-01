@@ -191,10 +191,28 @@ proc compileToGlsl(result: var string; arg: NimNode): void =
     result.compileToGlsl body
     result.add "\n}"
 
+proc extractVaryingSymbols(vertexPart, fragmentPart: NimNode): seq[NimNode] =
+
+  # collect all symbols that have been declared in the vertex shader
+  var vSymbols: seq[NimNode] = @[]
+  vertexPart.matchAstRecursive:
+  of `section` @ {nnkVarSection, nnkLetSection}:
+    for sym, _ in section.fieldValuePairs:
+      vSymbols.add sym
 
 
+  var vUsedSymbols: seq[NimNode] = @[]
+  # TODO optimization skip symbols declarations
+  fragmentPart.matchAstRecursive:
+  of `sym` @ nnkSym:
+    if sym in vSymbols:
+      vUsedSymbols.add sym
+  #of nnkDotExpr(`lhs`, `rhs`):
+  #  discard
 
-
+  echo vSymbols
+  echo vUsedSymbols
+  # now look for all usages of symbols from the vertex shader in the fragment shader
 
 
 
@@ -202,7 +220,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
   if debug:
     echo "<render_inner>"
-    echo arg.repr
+    echo arg.treeRepr
 
   defer:
     if debug:
@@ -223,10 +241,13 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       currentNode.add stmt
 
 
-  var vertexShader = ""
+  var vertexShader = "void main() {\n"
   vertexShader.compileToGlsl(vertexPart)
-  var fragmentShader = ""
+  vertexShader.add "}\n"
+  var fragmentShader = "void main() {\n"
   fragmentShader.compileToGlsl(fragmentPart)
+  fragmentShader.add "}\n"
+  let varyings = extractVaryingSymbols(vertexPart, fragmentPart)
 
   echo "=".repeat(80)
   echo "vertex part"
@@ -240,60 +261,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
   #echo compileToGlsl(arg);
 
 #[
-
-
-  let ssaList1 = transform_to_single_static_assignment(arg[6])
-
-  if debug:
-    echo "<ssaList1>"
-    echo ssaList1.repr.indentCode("  ")
-    echo "</ssaList1>"
-
-  let resultSym = arg.last
-
-  # make each assingnment into an assignment that has constraint
-  # attached to it
-  ssaList1.expectKind nnkStmtList
-  let ssaList2 = newStmtList()
-
-  var vertexSym = arg[3][1][0]
-
-  if vertexSym.kind == nnkIdent:
-    echo "TODO: patch the compiler and make vertexSym a symbol in the compiler"
-    let node = arg.findSymbolWithName($vertexSym)
-    if node != nil:
-      echo "replacing vertexSym `", vertexSym.lispRepr, "` with `", node.lispRepr, "` this could be wrong"
-      vertexSym = node
-  else:
-    echo "TODO: when you see this, the other code path is dead and can be removed"
-
-  var glSym = arg[3][2][0]
-  if glSym.kind == nnkIdent:
-    echo "TODO: patch the compiler and make vertexSym a symbol in the compiler"
-    let node = arg.findSymbolWithName($glSym)
-    if node != nil:
-      echo "replacing glSym `", glSym.lispRepr, "` with `", node.lispRepr, "` this could be wrong"
-      glSym = node
-
-  else:
-    echo "TODO: when you see this, the other code path is dead and can be removed"
-
-
-  constraintsTable.clear
-  for asgn in ssaList1:
-    ssaList2.add withDefaultConstraint(asgn, glSym, resultSym)
-
-  let formalParams = arg[3]
-  formalParams.expectKind nnkFormalParams
-
-  ssaList2.resolveConstraints(vertexSym)
-
-  if debug:
-    echo "<ssaList2>"
-    for asgn in ssaList2:
-      let constraint = constraintsTable[asgn.firstSymbol]
-      echo "  ", asgn.repr, " # ", constraint
-    echo "</ssaList2>"
 
   #let uniformsSection = ssaList2.createGlslUniformsSection
   #let vertexTypeSection = formalParams[1].createGlslAttributesSection

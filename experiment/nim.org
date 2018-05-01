@@ -1,3 +1,5 @@
+#+TITLE: My todos for the Nim programming language.
+
 just some things I would like to change in the Nim programming
 language.
 
@@ -59,6 +61,12 @@ would provide the most control over how much nodes are typechecked and
 templates are expanded.  It would also simplify a lot of macros where
 the first macro generates a second macro call with a typed argument.
 
+* ~if~ condition in ~of~ branch.
+
+For pattern matching it is very useful to add arbitrary conditions for
+a pattern to match. This works best if the syntax ~of <pattern> if
+<condition>:~ is valid.
+
 * Remove concepts in their current form.
 
 I like the idea of concepts, but i don't like the current
@@ -79,6 +87,9 @@ usage of λ-expressions should be so awesome, that it-expressions won't
 be needed anymore. But then all it-templates should be declared
 deprecated.
 
+* removal of code duplication.
+The project has for unknown reasons unnecessary code duplication. This
+just introduces bugs because of lost updates like in `cmpIgnoreStyle`.
 
 * unicode (low priority)
 
