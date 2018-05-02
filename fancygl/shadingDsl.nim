@@ -597,7 +597,7 @@ macro shadingDsl*(statement: untyped) : untyped =
           error("double declaration of vaoIdent", section)
 
       else:
-        error("unknown named parameter " & $ident.ident)
+        error("unknown named parameter " & ident.strVal)
 
     elif section.kind == nnkCall:
       let ident = section[0]

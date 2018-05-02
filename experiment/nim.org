@@ -26,8 +26,7 @@ language.
 
 ** Remove nil-state for seq and string.
 
- Even if the nil-state can't be removed from the language, by default
- they should be empty, not nil.
+ Still doesn't work properly in VM
 
 ** one iterator for everything
  There should be a way to define all iterators at once such as: ~items~
@@ -88,6 +87,11 @@ language.
  usage of λ-expressions should be so awesome, that it-expressions won't
  be needed anymore.  But then all it-templates should be declared
  deprecated.
+
+** Hygenic ~result~ in macros.
+
+The result variable is a constant source of problems. Especially in
+quote do it often binds to the wrong thing.
 
 ** removal of code duplication.
  The project has for unknown reasons unnecessary code duplication.  This
@@ -164,6 +168,12 @@ general tool, but people either already know how to use ~grep~,
 ~git grep~, or ~ag~ (silver searcher).  They just don't want to
 change the tool that already works and is integrated in their
 workflow/editor.
+** editor should just work without any setup necessary.
+Especially in the Nim project itself it is very hard to get the editor
+configured correctly, so that errors can be highlighted correctly.
+This should not be necessary.  from opening a file in Nim it should be
+possible to get all configurations automatically.  No setup should be
+necessary at all in any editor at all, never.
 *** preview macro expansions in editor
 I have seen this feature for C/C++ macros and it is really helpful to
 be able to see what a macro actually expands into.  This should become
