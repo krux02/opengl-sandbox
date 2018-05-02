@@ -103,20 +103,20 @@ language.
  so I would only recommend to support symbols that are actually taught
  in schools, not those that only university math students know about.
 
- | and          | ∧ | tokenizer alias                         |
- | or           | ∨ | tokenizer alias                         |
- | not          | ¬ | tokenizer alias                         |
- | in           | ∈ | tokenizer alias                         |
- | notit        | ∉ | tokenizer alias                         |
- | contains     | ∋ | new infix operator plus alias in system |
- | not contains | ∌ | new infix operator plus alias in system |
- | * (for set)  | ∩ | new infix operator plus alias in system |
- | + (for set)  | ∪ | new infix operator plus alias in system |
- | !=           | ≠ | tokenizer alias                         |
- | <=           | ≤ | tokenizer alias                         |
- | >=           | ≥ | tokenizer alias                         |
- | sqrt         | √ | new prefix operator                     |
- | inf          | ∞ | ???                                     |
+ | ∧ | tokenizer alias for ~and~                           |
+ | ∨ | tokenizer alias for ~or~                            |
+ | ¬ | tokenizer alias for ~not~                           |
+ | ∈ | tokenizer alias for ~in~                            |
+ | ∉ | tokenizer alias for ~notin~                         |
+ | ≠ | tokenizer alias for ~!=~                            |
+ | ≤ | tokenizer alias for ~<=~                            |
+ | ≥ | tokenizer alias for ~>=~                            |
+ | ∋ | new operator token and alias for ~contains~         |
+ | ∌ | new operator token and alias for ~not ... contains~ |
+ | ∩ | new operator token and alias for ~`*`(a,b: set)~    |
+ | ∪ | new operator token and alias for ~`+`(a,b: set)~    |
+ | √ | new operator token and alias for ~sqrt~             |
+ | ∞ | new literal token and alias for ~inf~               |
 
  The downside of introducing these symbols is that it will introduce
  discussions about weather to use tho symbol representation or the
