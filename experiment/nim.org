@@ -1,129 +1,170 @@
-#+TITLE: My todos for the Nim programming language.
+#+TITLE: My todos for Nim
 
 just some things I would like to change in the Nim programming
 language.
 
-* Generic backwards index should come back.
-Don't get used to the fact that the geric backwards index is not there
-and all libraries start to fix it manually. The longer this does not
-exist, the longer the average code quality of nim libraries becomes
-worse.
-* Remove the range type.
+* language
+** Generic backwards index should come back.
+ Don't get used to the fact that the geric backwards index is not there
+ and all libraries start to fix it manually.  The longer this does not
+ exist, the longer the average code quality of nim libraries becomes
+ worse.
+** Remove the range type.
 
-Well just use type ~range[low,high: static[int]] = distinct int~ No need
-for this to be a language feature arrays with a size that is not an
-integer.  Generics in Nim are (almost?) powerful enough to implement
-an array type that emulates this behavior. This is not about removing
-the ~range~ feature it is about removing it as a language feature and
-making it a library feature in system.  (slightly improves Nim
-portability)
+ Well just use type ~range[low,high: static[int]] = distinct int~ No need
+ for this to be a language feature arrays with a size that is not an
+ integer.  Generics in Nim are (almost?) powerful enough to implement
+ an array type that emulates this behavior.  This is not about removing
+ the ~range~ feature it is about removing it as a language feature and
+ making it a library feature in system.  (slightly improves Nim
+ portability)
 
-* Join int64 and int.
+** Join int64 and int.
 
-They are distinct types in overloading, where float64 and float are
-just alias types. This is unnecessary.
+ They are distinct types in overloading, where float64 and float are
+ just alias types.  This is unnecessary.
 
-* Remove nil-state for seq and string.
+** Remove nil-state for seq and string.
 
-Even if the nil-state can't be removed from the language, by default
-they should be empty, not nil.
+ Even if the nil-state can't be removed from the language, by default
+ they should be empty, not nil.
 
-* one iterator for everything
-There should be a way to define all iterators at once such as: ~items~
-~mitems~ ~pairs~ ~mparis~. Might it be that you just define one
-iterator and the others are inferred or a very different system. But
-the current system that you have to provide all of them manually is annoying.
-* Remove GC dependenly for seq and string.
+** one iterator for everything
+ There should be a way to define all iterators at once such as: ~items~
+ ~mitems~ ~pairs~ ~mparis~.  Might it be that you just define one
+ iterator and the others are inferred or a very different system.  But
+ the current system that you have to provide all of them manually is annoying.
+** Remove GC dependenly for seq and string.
 
-They currently rely a GC. This is totally unnecessary.
+ They currently rely a GC.  This is totally unnecessary.
 
-* Inverse the ~cmp~ and ~<=~ dependency.
+** Inverse the ~cmp~ and ~<=~ dependency.
 
-It is much simpler if the default implementation of all comparison
-operators ~<~ ~<=~ ~!=~ ~==~ ~>=~ ~>~ is based on a single
-function. Then library implementors just have to implement ~cmp~ and
-all operations are provided. This change should not break any library
-that already defines some comparison operators and relies on already
-defined templates from system.nim.
+ It is much simpler if the default implementation of all comparison
+ operators ~<~ ~<=~ ~!=~ ~==~ ~>=~ ~>~ is based on a single
+ function.  Then library implementors just have to implement ~cmp~ and
+ all operations are provided.  This change should not break any library
+ that already defines some comparison operators and relies on already
+ defined templates from system.nim.
 
-* ~sort~ with single argument.
+** ~sort~ with single argument.
 
-Sort should not require a comparison argument. By default it should
-just look for an overloaded ~cmp~. Passing a λ-expresison for
-comparison isn't wrong though, it just should be expected all the
-time.
+ Sort should not require a comparison argument.  By default it should
+ just look for an overloaded ~cmp~.  Passing a λ-expresison for
+ comparison isn't wrong though, it just should be expected all the
+ time.
 
-* Manual typecheck invocation.
+** Manual typecheck invocation.
 
-For example it could be called ~proc typecheck(arg: NimNode):
-NimNode~.  This has been asked by a lot of people already, and it
-would provide the most control over how much nodes are typechecked and
-templates are expanded.  It would also simplify a lot of macros where
-the first macro generates a second macro call with a typed argument.
+ This would be a more general solution to what ~bindSym~ does already.
+ It could be called ~proc typecheck(arg: NimNode): NimNode~.  This has
+ been asked by a lot of people already, and it would provide the most
+ control over how much nodes are type checked and templates are
+ expanded.  It would also simplify a lot of macros where the first
+ macro generates a second macro call with a typed argument.
 
-* ~if~ condition in ~of~ branch.
+** ~if~ condition in ~of~ branch.
 
-For pattern matching it is very useful to add arbitrary conditions for
-a pattern to match. This works best if the syntax ~of <pattern> if
-<condition>:~ is valid.
+ For pattern matching it is very useful to add arbitrary conditions for
+ a pattern to match.  This works best if the syntax ~of <pattern> if
+ <condition>:~ is valid.
 
-* Remove concepts in their current form.
+** Remove concepts in their current form.
 
-I like the idea of concepts, but i don't like the current
-implementation/syntax. The current syntax confuses type expressions
-with value expressions. Changing the syntax in a non-ambiguous one
-will break a lot if now all code that uses concepts in the current
-state. It should be declared highly experimental to use concepts in
-the current state.
+ I like the idea of concepts, but i don't like the current
+ implementation/syntax.  The current syntax confuses type expressions
+ with value expressions.  Changing the syntax in a non-ambiguous one
+ will break a lot if now all code that uses concepts in the current
+ state.  It should be declared highly experimental to use concepts in
+ the current state.
 
-* Generic ~it~ lambdas.
+** Generic ~it~ lambdas.
 
-There are a lot of templates that allow to pass a lambda expression
-via it-expression (expression that contains ~it~-symbol).  But these
-templates are only sometimes there. Most of the time there are just
-not there. It should be generalized somehow, so that it expressions
-can be used anywhere, where an unary function is expected. Or the
-usage of λ-expressions should be so awesome, that it-expressions won't
-be needed anymore. But then all it-templates should be declared
-deprecated.
+ There are a lot of templates that allow to pass a lambda expression
+ via it-expression (expression that contains ~it~-symbol).  But these
+ templates are only sometimes there.  Most of the time there are just
+ not there.  It should be generalized somehow, so that it expressions
+ can be used anywhere, where an unary function is expected.  Or the
+ usage of λ-expressions should be so awesome, that it-expressions won't
+ be needed anymore.  But then all it-templates should be declared
+ deprecated.
 
-* removal of code duplication.
-The project has for unknown reasons unnecessary code duplication. This
-just introduces bugs because of lost updates like in `cmpIgnoreStyle`.
+** removal of code duplication.
+ The project has for unknown reasons unnecessary code duplication.  This
+ just introduces bugs because of lost updates like in `cmpIgnoreStyle`.
 
-* unicode (low priority)
+** unicode (low priority)
 
-The world is utf8. Text can be expected to be UTF8. Programming
-languages can benefit from utilizing UTF8 (but should not rely on it
-because qwerty keyboards can't type it). When introducing new UTF8
-symbols into the language, one should be careful not to overdo
-it. Symbols are harder to look up than functions with a proper name,
-so I would only recommend to support symbols that are actually taught
-in schools, not those that only university math students know about.
+ The world is utf8.  Text can be expected to be UTF8.  Programming
+ languages can benefit from utilizing UTF8 (but should not rely on it
+ because qwerty keyboards can't type it).  When introducing new UTF8
+ symbols into the language, one should be careful not to overdo
+ it.  Symbols are harder to look up than functions with a proper name,
+ so I would only recommend to support symbols that are actually taught
+ in schools, not those that only university math students know about.
 
-| and          | ∧ | tokenizer alias                         |
-| or           | ∨ | tokenizer alias                         |
-| not          | ¬ | tokenizer alias                         |
-| in           | ∈ | tokenizer alias                         |
-| notit        | ∉ | tokenizer alias                         |
-| contains     | ∋ | new infix operator plus alias in system |
-| not contains | ∌ | new infix operator plus alias in system |
-| * (for set)  | ∩ | new infix operator plus alias in system |
-| + (for set)  | ∪ | new infix operator plus alias in system |
-| !=           | ≠ | tokenizer alias                         |
-| <=           | ≤ | tokenizer alias                         |
-| >=           | ≥ | tokenizer alias                         |
-| sqrt         | √ | new prefix operator                     |
-| inf          | ∞ | ???                                     |
+ | and          | ∧ | tokenizer alias                         |
+ | or           | ∨ | tokenizer alias                         |
+ | not          | ¬ | tokenizer alias                         |
+ | in           | ∈ | tokenizer alias                         |
+ | notit        | ∉ | tokenizer alias                         |
+ | contains     | ∋ | new infix operator plus alias in system |
+ | not contains | ∌ | new infix operator plus alias in system |
+ | * (for set)  | ∩ | new infix operator plus alias in system |
+ | + (for set)  | ∪ | new infix operator plus alias in system |
+ | !=           | ≠ | tokenizer alias                         |
+ | <=           | ≤ | tokenizer alias                         |
+ | >=           | ≥ | tokenizer alias                         |
+ | sqrt         | √ | new prefix operator                     |
+ | inf          | ∞ | ???                                     |
 
-The downside of introducing these symbols is that it will introduce
-discussions about weather to use tho symbol representation or the
-ascii (workaround-)name.  Those discussions are as useful as
-tabs vs spaces. Everybody will have an opinion about it.
+ The downside of introducing these symbols is that it will introduce
+ discussions about weather to use tho symbol representation or the
+ ascii (workaround-)name.  Those discussions are as useful as
+ tabs vs spaces.  Everybody will have an opinion about it.
 
-* etc
+** etc
 
-  * ~smartBinarySearch~, really? just remove it. There is nothing
-    smart in a binary Search.
+   * ~smartBinarySearch~, really? just remove it.  There is nothing
+     smart in a binary Search.
 
-  * there is ~sortedByIt~, but no ~sortByIt~, ~sortBy~, ~sortIt~.
+   * there is ~sortedByIt~, but no ~sortByIt~, ~sortBy~, ~sortIt~.
+* environment
+** review tutorials
+The tutorials are already showing a lot of potential for Nim
+development, but I highly disagree with the many examples that use a
+ref types for basically everything as the default.  It should be the
+opposite.  Non ref types should be the default.  Also make real user
+studies on people who try to learn the language.  See what they have
+problems with, and improve the documentation where it actually
+helps.  You never know how good a documentation is, until you see how
+people struggle with it.
+*** macros
+The tutorial about macros really needs to be overhauled.  I made a lot
+of experience writing macros, I should write about the patterns that I
+learned to solve problems.  Writing macros should be the
+exception.  Macros should not be all over the code, they should be the
+exception, and if writing a macro is really necessary, then it should
+be explained in detail what it does.  Because it is never obvious what
+a macro does, unlike what a procedure does.
+** editor support.
+I am using emacs as my text editor of choice.  I would not want to
+convince anybody that this is a good editor or a better editor than
+others, but I think its support should be as good as possible.  Same
+goes for vim and vscode.  I don't think that nimedit has a bright
+future.  I have used far too many IDEs that worked quite nice for one
+language, but everything else they failed and I had to relearn
+basically everything.  People who come to Nim probably tried out many
+programming languages as I did, and they might have settled with an
+editor that really supports a lot of languages, so that they do not
+need to relearn everything when they want to try out something new.
+Nimedit feels like it is yet again one of these editors for just one
+language.  Same goes for nimgrep.  It might have been developed to be a
+general tool, but people either already know how to use ~grep~,
+~git grep~, or ~ag~ (silver searcher).  They just don't want to
+change the tool that already works and is integrated in their
+workflow/editor.
+*** preview macro expansions in editor
+I have seen this feature for C/C++ macros and it is really helpful to
+be able to see what a macro actually expands into.  This should become
+a very well supported nimsuggest feature.
