@@ -191,84 +191,177 @@ proc compileToGlsl(result: var string; arg: NimNode): void =
     result.compileToGlsl body
     result.add "\n}"
 
-proc extractVaryingSymbols(vertexPart, fragmentPart: NimNode): seq[NimNode] =
 
-  # collect all symbols that have been declared in the vertex shader
-  var vSymbols: seq[NimNode] = @[]
-  vertexPart.matchAstRecursive:
-  of `section` @ {nnkVarSection, nnkLetSection}:
-    for sym, _ in section.fieldValuePairs:
-      vSymbols.add sym
+proc mergeUnique[T](a,b: seq[T]): seq[T] =
+  ## merge two sorted sequences into a single seq.
+  result = @[]
+  var i,j = 0
 
+  while i < a.len and j < b.len:
+    if a[i] < b[j]:
+      result.add a[i]
+      i += 1
+    elif b[j] < a[i]:
+      result.add b[j]
+      j += 1
+    else:
+      result.add a[i]
+      i += 1
+      j += 1
 
-  var vUsedSymbols: seq[NimNode] = @[]
-  # TODO optimization skip symbols declarations
-  fragmentPart.matchAstRecursive:
-  of `sym` @ nnkSym:
-    if sym in vSymbols:
-      vUsedSymbols.add sym
-  #of nnkDotExpr(`lhs`, `rhs`):
-  #  discard
+  # append rest
+  while i < a.len:
+    result.add a[i]
+    i += 1
 
-  echo vSymbols
-  echo vUsedSymbols
-  # now look for all usages of symbols from the vertex shader in the fragment shader
+  while j < b.len:
+    result.add b[j]
+    j += 1
 
-
+  #echo a[0].repr
+  #echo b[0].repr
+  #echo result[0].repr
 
 macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
-  if debug:
-    echo "<render_inner>"
-    echo arg.treeRepr
-
-  defer:
-    if debug:
-      echo result.lispRepr
-      echo "</render_inner>"
-
   arg.expectKind nnkDo
+  arg.matchAst:
+  of nnkDo(
+    _,_,_,
+    nnkFormalParams(
+      _, `vertexDef` @ nnkIdentDefs, `glDef` @ nnkIdentDefs
+    ),
+    _,_,
+    `body` @ nnkStmtList,
+    `resultSym`
+  ):
+    if debug:
+      echo "<render_inner>"
+      #echo body.treeRepr
+    defer:
+      if debug:
+        echo result.lispRepr
+        echo "</render_inner>"
 
-  let vertexPart = nnkStmtList.newTree
-  let fragmentPart = nnkStmtList.newTree
+    # this is really a hack because arguments are not symbols for some reason
+    let vertexSym = body.findSymbolWithName(vertexDef[0].strVal)
+    let glSym     = body.findSymbolWithName(glDef[0].strVal)
 
-  block:
-    var currentNode = vertexPart
-    for stmt in arg[6]:
-      if stmt.kind == nnkCommentStmt and stmt.strVal == "rasterize":
-        currentNode = fragmentPart
+    let vertexPart = nnkStmtList.newTree
+    let fragmentPart = nnkStmtList.newTree
 
-      currentNode.add stmt
+    block:
+      var currentNode = vertexPart
+      for stmt in body:
+        if stmt.kind == nnkCommentStmt and stmt.strVal == "rasterize":
+          currentNode = fragmentPart
+
+        currentNode.add stmt
+
+    # collect all symbols that have been declared in the vertex shader
+
+    var localSymbolsVS: seq[NimNode] = @[]
+    vertexPart.matchAstRecursive:
+    of `section` @ {nnkVarSection, nnkLetSection}:
+      for sym, _ in section.fieldValuePairs:
+        localSymbolsVS.add sym
+
+    var uniformsFromVS = newSeq[NimNode](0)
+    var attributesFromVS = newSeq[NimNode](0)
+    vertexPart.matchAstRecursive:
+    of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == vertexSym:
+      attributesFromVS.add attribAccess
+    of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == glSym:
+      discard
+    of `sym` @ nnkSym |= sym.symKind in {nskLet, nskVar} and sym notin localSymbolsVS:
+      uniformsFromVS.add sym
+    # TODO this is O(n^2), why does sortAndUnique fail?
+    attributesFromVS = attributesFromVS.deduplicate
+    uniformsFromVS = uniformsFromVS.deduplicate
+
+    # now look for all usages of symbols from the vertex shader in the fragment shader
+    # TODO optimization skip symbols declarations
+    var simpleVaryings = newSeq[Nimnode](0)
+    var attributesFromFS = newSeq[Nimnode](0)
+    fragmentPart.matchAstRecursive:
+    of `sym` @ nnkSym |= sym in localSymbolsVS:
+      simpleVaryings.add sym
+    of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == vertexSym:
+      attributesFromFS.add attribAccess
+    simpleVaryings.sortAndUnique
+    # TODO this is O(n^2), why does sortAndUnique fail?
+    attributesFromFS = attributesFromFS.deduplicate
+    let allAttributes = mergeUnique(attributesFromVS, attributesFromFS)
+    let allVaryings   = simpleVaryings & attributesFromFS
+
+    # generate the shaders
+
+    var vertexShader   = "#version 450\n"
+    vertexShader.add "// uniforms for vertex shader\n"
+    for i, uniform in uniformsFromVS:
+      vertexShader.add "uniform layout(location=", i, ") ", uniform.getTypeInst.glslType, " "
+      vertexShader.compileToGlsl(uniform)
+      vertexShader.add ";\n"
+
+    vertexShader.add "// all attributes\n"
+    for i, attrib in allAttributes:
+      vertexShader.add "in layout(location=", i, ") ", attrib.getTypeInst.glslType, " in_"
+      vertexShader.compileToGlsl(attrib)
+      vertexShader.add ";\n"
+
+    vertexShader.add "// all varyings\n"
+    for i, varying in allVaryings:
+      vertexShader.add "out layout(location=", i, ") ", varying.getTypeInst.glslType, " out_"
+      vertexShader.compileToGlsl(varying)
+      vertexShader.add ";\n"
+
+    vertexShader.add "void main() {\n"
+
+    vertexShader.add "// convert used attributes to local variables (because reasons)\n"
+    for i, attrib in attributesFromVS:
+      vertexShader.add attrib.getTypeInst.glslType, " "
+      vertexShader.compileToGlsl(attrib)
+      vertexShader.add " = in_"
+      vertexShader.compileToGlsl(attrib)
+      vertexShader.add ";\n"
+
+    vertexShader.add "// glsl translation of main body\n"
+    vertexShader.compileToGlsl(vertexPart)
+
+    vertexShader.add "// forward attributes that are used in the fragment shader\n"
+    for i, attrib in attributesFromFS:
+      vertexShader.add "out_"
+      vertexShader.compileToGlsl(attrib)
+      vertexShader.add " = in_"
+      vertexShader.compileToGlsl(attrib)
+      vertexShader.add ";\n"
 
 
-  var vertexShader = "void main() {\n"
-  vertexShader.compileToGlsl(vertexPart)
-  vertexShader.add "}\n"
-  var fragmentShader = "void main() {\n"
-  fragmentShader.compileToGlsl(fragmentPart)
-  fragmentShader.add "}\n"
-  let varyings = extractVaryingSymbols(vertexPart, fragmentPart)
+    var fragmentShader = ""
+    vertexShader.add "}\n"
+    fragmentShader.add "void main() {\n"
+    fragmentShader.compileToGlsl(fragmentPart)
+    fragmentShader.add "}\n"
 
-  echo "=".repeat(80)
-  echo "vertex part"
-  echo vertexShader
-  echo "-".repeat(80)
-  echo "fragment part"
-  echo fragmentShader
-  echo "=".repeat(80)
+    echo "=".repeat(80)
+    echo "vertex part"
+    echo vertexShader
+    echo "-".repeat(80)
+    echo "fragment part"
+    echo fragmentShader
+    echo "=".repeat(80)
+
+
+    validateShader(vertexShader, skVert)
 
 
   #echo compileToGlsl(arg);
-
 #[
-
   #let uniformsSection = ssaList2.createGlslUniformsSection
   #let vertexTypeSection = formalParams[1].createGlslAttributesSection
   #let fragmentTypeSection = formalParams[0].createGlslFragmentTypeSection
   #let glslMain = createGlslMain(ssaList2)
-
   let (_,_,_) = ssaList2.splitVertexFragmentShader(vertexSym, resultSym)
-
   #let shaderSource = uniformsSection & "\n" & vertexTypeSection & "\n" & fragmentTypeSection & "\n" & glslMain
   #echo shaderSource
 ]#
@@ -286,7 +379,6 @@ type
     Position: Vec4f
     PointSize: float32
     ClipDistance: UncheckedArray[float32]
-
 
 proc injectTypes(framebuffer, mesh, arg: NimNode): NimNode {.compileTime.} =
   ## Inject types to the ``rendor .. do: ...`` node.

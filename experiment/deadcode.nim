@@ -71,13 +71,6 @@ type
 
   ConstraintRange = tuple[min,max: GlslConstraint]
 
-proc findSymbolWithName(arg: NimNode; symName: string): NimNode =
-  ## searches though a tree and returns the first symbol node with the
-  ## given identifier, on nil if no such symbol could be found.
-  for node in arg.depthFirstTraversal:
-    if node.kind == nnkSym and eqIdent(node, symName):
-      return node
-
 proc expectIdent*(arg: NimNode; identName: string): void =
   if not arg.eqIdent(identName):
     error("expect identifier or symbol of name " & identName, arg)

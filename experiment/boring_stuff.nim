@@ -10,22 +10,19 @@ proc makeUniqueData[T](arg: var openarray[T]): int =
 
   if arg.len <= 1:
     # sequentces with one or less elements can never have duplicates
-    return
+    return arg.len
 
-  var i,j : int
-  while i < arg.len:
-    template a: var T = arg[i]
-    template b: var T = arg[j]
-    if arg[j] != arg[i]:
-      # found an element that is different than the previeous element
-      j += 1
-      # this increment before the swap is correct, because arg[0]
-      # should not be changed. Neither should the last written element
-      # be overwritten.
-      swap(arg[i], arg[j])
+  var insertionIndex = 1
+  var readIndex = 1
 
-  # plus 1 because j is the index of the last elemnt, not the length
-  j + 1
+  while readIndex < arg.len:
+    # is the last inserted (past tense == -1) element different that the current one?
+    if arg[insertionIndex-1] != arg[readIndex]:
+      swap(arg[insertionIndex], arg[readIndex])
+      insertionIndex += 1
+    readIndex += 1
+  insertionIndex
+
 
 proc makeUnique[T](arg: var seq[T]): void =
   ## removes consecutive duplicate elements from `arg`. This works
@@ -33,10 +30,16 @@ proc makeUnique[T](arg: var seq[T]): void =
   ## the amount of unique elements.
   arg.setLen(arg.makeUniqueData)
 
-
 proc sortAndUnique*[T](arg: var seq[T]): void =
   arg.sort(cmp)
   arg.makeUnique
+
+macro add*(dst: var string, arg1, arg2: untyped, rest: varargs[untyped]): untyped =
+  result = quote do:
+    `dst`.add(`arg1`)
+    `dst`.add(`arg2`)
+  for arg in rest:
+    result.add newCall(bindSym"add", dst, arg)
 
 ## NimNode utils
 
@@ -58,6 +61,13 @@ iterator depthFirstTraversal*(n: NimNode): NimNode =
       stack.add((n: child, i: 0))
       yield stack[^1].n
     discard stack.pop
+
+proc findSymbolWithName*(arg: NimNode; symName: string): NimNode =
+  ## searches though a tree and returns the first symbol node with the
+  ## given identifier, on nil if no such symbol could be found.
+  for node in arg.depthFirstTraversal:
+    if node.kind == nnkSym and eqIdent(node, symName):
+      return node
 
 iterator fields*(typeAst: NimNode): tuple[memberSym, typeSym: NimNode] =
   let parent: NimNode =
