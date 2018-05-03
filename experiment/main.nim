@@ -359,8 +359,17 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       vec4 color;
     };
 
-    out layout(location=0) vec4 result_color;
 """
+
+    fragmentShader.add "// fragment output symbols\n"
+    var i = 0
+    for memberSym,typeSym in resultSym.getTypeImpl.fields:
+      fragmentShader.add "out layout(location=", i,") ", typeSym.glslType, " "
+      fragmentShader.compileToGlsl(resultSym)
+      fragmentShader.add "_"
+      fragmentShader.compileToGlsl(memberSym)
+      fragmentShader.add ";\n"
+      i += 1
 
     fragmentShader.add "// uniforms in fragment shader\n"
     for i, uniform in uniformsFromFS:
@@ -425,7 +434,7 @@ type
     ClipDistance: UncheckedArray[float32]
 
 proc injectTypes(framebuffer, mesh, arg: NimNode): NimNode {.compileTime.} =
-  ## Inject types to the ``rendor .. do: ...`` node.
+  ## Inject types to the ``render .. do: ...`` node.
   arg.expectKind(nnkDo)
   let formalParams = arg[3]
   formalParams.expectKind(nnkFormalParams)
@@ -437,33 +446,19 @@ proc injectTypes(framebuffer, mesh, arg: NimNode): NimNode {.compileTime.} =
     `framebuffer`.type.FragmentType
 
   let resultType = formalParams[0] or fragmentTypeExpr
-
   var vertexArg, vertexType, envArg, envType: NimNode
 
-  case formalParams.len
-  of 2:
-    let identDefs = formalParams[1]
-    identDefs.expectKind nnkIdentDefs
-
-    identDefs[2].expectKind nnkEmpty
-
-    vertexArg = identDefs[0]
+  formalParams.matchAst:
+  of nnkFormalParams(_,nnkIdentDefs(`vertexArgX`, `envArgX`,nnkEmpty,_)):
+    vertexArg = vertexArgX
     vertexType = vertexTypeExpr
-    envArg = identDefs[1]
+    envArg = envArgX
     envType = nnkVarTy.newTree(bindSym"GlEnvironment")
-
-  of 3:
-    formalParams[1].expectKind nnkIdentDefs
-    formalParams[2].expectKind nnkIdentDefs
-
-    vertexArg = formalParams[1][0]
-    vertexType = formalParams[1][1] or vertexTypeExpr
-
-    envArg = formalParams[2][0]
-    envType = formalParams[2][1] or nnkVarTy.newTree(bindSym"GlEnvironment")
-
-  else:
-    error("invalid ast", formalParams)
+  of nnkFormalParams(_,nnkIdentDefs(`vertexArgX`, `vertexTypeX`, _), nnkIdentDefs(`envArgX`, `envTypeX`,_)):
+    vertexArg = vertexArgX
+    vertexType = vertexTypeX or vertexTypeExpr
+    envArg = envArgX
+    envType = envTypeX or nnkVarTy.newTree(bindSym"GlEnvironment")
 
   let newParams =
     nnkFormalParams.newTree(
