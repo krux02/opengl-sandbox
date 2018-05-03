@@ -60,6 +60,13 @@ proc indentCode(arg: string, indentation: string): string =
     result.add line
 
 
+
+proc symKind(arg: NimNode): NimSymKind =
+  if arg.kind == nnkHiddenDeref:
+    symKind(arg[0])
+  else:
+    macros.symKind(arg)
+
 proc compileToGlsl(result: var string; arg: NimNode): void =
   arg.matchAst(errorSym):
   of nnkFloatLit:
@@ -79,8 +86,17 @@ proc compileToGlsl(result: var string; arg: NimNode): void =
       if c != '_': # underscore is my personal separator
         result.add c
   of nnkDotExpr(`lhs`, `rhs`):
+    # I am pretty sure this is a big hack
+    let symKind =
+      if lhs.kind == nnkHiddenDeref:
+        lhs[0].symKind
+      else:
+        lhs.symKind
     result.compileToGlsl(lhs)
-    result.add '_'
+    if symKind in {nskParam, nskResult}:
+      result.add '_'
+    else:
+      result.add '.'
     result.compileToGlsl(rhs)
   of nnkAsgn(`lhs`, `rhs`):
     result.compileToGlsl(lhs)
@@ -192,36 +208,6 @@ proc compileToGlsl(result: var string; arg: NimNode): void =
     result.add "\n}"
 
 
-proc mergeUnique[T](a,b: seq[T]): seq[T] =
-  ## merge two sorted sequences into a single seq.
-  result = @[]
-  var i,j = 0
-
-  while i < a.len and j < b.len:
-    if a[i] < b[j]:
-      result.add a[i]
-      i += 1
-    elif b[j] < a[i]:
-      result.add b[j]
-      j += 1
-    else:
-      result.add a[i]
-      i += 1
-      j += 1
-
-  # append rest
-  while i < a.len:
-    result.add a[i]
-    i += 1
-
-  while j < b.len:
-    result.add b[j]
-    j += 1
-
-  #echo a[0].repr
-  #echo b[0].repr
-  #echo result[0].repr
-
 macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
   arg.expectKind nnkDo
@@ -279,13 +265,28 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     attributesFromVS = attributesFromVS.deduplicate
     uniformsFromVS = uniformsFromVS.deduplicate
 
+    var localSymbolsFS: seq[NimNode] = @[]
+    fragmentPart.matchAstRecursive:
+    of `section` @ {nnkVarSection, nnkLetSection}:
+      for sym, _ in section.fieldValuePairs:
+        localSymbolsFS.add sym
+
     # now look for all usages of symbols from the vertex shader in the fragment shader
     # TODO optimization skip symbols declarations
     var simpleVaryings = newSeq[Nimnode](0)
     var attributesFromFS = newSeq[Nimnode](0)
+    var uniformsFromFS = newSeq[NimNode](0)
     fragmentPart.matchAstRecursive:
-    of `sym` @ nnkSym |= sym in localSymbolsVS:
-      simpleVaryings.add sym
+    of `sym` @ nnkSym |= sym.symkind in {nskLet, nskVar}:
+      # a symbol that is used in the fragment shader
+      if sym in localSymbolsVS:
+        # that is declared in the fragment sader is a varying
+        simpleVaryings.add sym
+      elif sym notin localSymbolsFS:
+        # when it is not local to the fragment shader, it is a uniform
+        uniformsFromFS.add sym
+    of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == glSym:
+      discard
     of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == vertexSym:
       attributesFromFS.add attribAccess
     simpleVaryings.sortAndUnique
@@ -294,9 +295,13 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     let allAttributes = mergeUnique(attributesFromVS, attributesFromFS)
     let allVaryings   = simpleVaryings & attributesFromFS
 
-    # generate the shaders
+    ############################################################################
+    ########################### generate the shaders ###########################
+    ############################################################################
 
+    ### vertex shader ###
     var vertexShader   = "#version 450\n"
+
     vertexShader.add "// uniforms for vertex shader\n"
     for i, uniform in uniformsFromVS:
       vertexShader.add "uniform layout(location=", i, ") ", uniform.getTypeInst.glslType, " "
@@ -335,11 +340,49 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       vertexShader.add " = in_"
       vertexShader.compileToGlsl(attrib)
       vertexShader.add ";\n"
-
-
-    var fragmentShader = ""
     vertexShader.add "}\n"
+
+    ### fragment shader ###
+
+
+    # uniform locations are incorrect
+
+    var fragmentShader = "#version 450\n"
+    # hack for the light object
+    # Light = object
+    #   position_ws : Vec4f
+    #   color : Vec4f
+
+    fragmentShader.add """
+    struct Light {
+      vec4 positionws;
+      vec4 color;
+    };
+
+    out layout(location=0) vec4 result_color;
+"""
+
+    fragmentShader.add "// uniforms in fragment shader\n"
+    for i, uniform in uniformsFromFS:
+      fragmentShader.add "uniform layout(location=", i*10, ") ", uniform.getTypeInst.glslType, " "
+      fragmentShader.compileToGlsl(uniform)
+      fragmentShader.add ";\n"
+
+    fragmentShader.add "// all varyings\n"
+    for i, varying in allVaryings:
+      fragmentShader.add "in layout(location=", i, ") ", varying.getTypeInst.glslType, " in_"
+      fragmentShader.compileToGlsl(varying)
+      fragmentShader.add ";\n"
+
     fragmentShader.add "void main() {\n"
+    fragmentShader.add "// convert varyings to local variables (because reasons)\n"
+    for i, varying in allVaryings:
+      fragmentShader.add varying.getTypeInst.glslType, " "
+      fragmentShader.compileToGlsl(varying)
+      fragmentShader.add " = in_"
+      fragmentShader.compileToGlsl(varying)
+      fragmentShader.add ";\n"
+
     fragmentShader.compileToGlsl(fragmentPart)
     fragmentShader.add "}\n"
 
@@ -353,6 +396,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
 
     validateShader(vertexShader, skVert)
+    validateShader(fragmentShader, skFrag)
 
 
   #echo compileToGlsl(arg);

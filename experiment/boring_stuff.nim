@@ -34,6 +34,33 @@ proc sortAndUnique*[T](arg: var seq[T]): void =
   arg.sort(cmp)
   arg.makeUnique
 
+proc mergeUnique*[T](a,b: seq[T]): seq[T] =
+  ## merge two sorted sequences into a single seq.
+  result = @[]
+  var i,j = 0
+
+  while i < a.len and j < b.len:
+    if a[i] < b[j]:
+      result.add a[i]
+      i += 1
+    elif b[j] < a[i]:
+      result.add b[j]
+      j += 1
+    else:
+      result.add a[i]
+      i += 1
+      j += 1
+
+  # append rest
+  while i < a.len:
+    result.add a[i]
+    i += 1
+
+  while j < b.len:
+    result.add b[j]
+    j += 1
+
+
 macro add*(dst: var string, arg1, arg2: untyped, rest: varargs[untyped]): untyped =
   result = quote do:
     `dst`.add(`arg1`)
