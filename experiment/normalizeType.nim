@@ -1,4 +1,4 @@
-import macros
+import macros, ast_pattern_matching
 
 ## this package here is just to provide a function so that glm alias
 ## types such as ``Vec4f`` or ``Mat4f`` can be normalized to bracket
@@ -20,21 +20,30 @@ proc substitute(arg, symbol, replacement: NimNode): NimNode =
     for child in arg:
       result.add child.substitute(symbol, replacement)
 
-proc resolveAliasInternal(typ: NimNode): NimNode =
+proc normalizeType*(arg: NimNode): NimNode
 
-  case typ.kind
+proc resolveAliasInternal(typ: NimNode): NimNode =
+  typ.matchAst:
   of nnkSym:
+
+
     let impl = typ.getImpl
     if impl.kind == nnkNilLit:
       return typ
+
     result = impl.resolveAliasInternal
 
   of nnkTypeDef:
     result = typ
     result[2] = typ[2].resolveAliasInternal
 
-  of nnkBracketExpr:
-    typ[0].expectKind nnkSym
+  of nnkBracketExpr(ident"range", nnkIntLit , nnkIntLit):
+    result = bindSym"int32"
+
+  of nnkBracketExpr( `arr` @ ident"array", `size`, `innerType`):
+    result = nnkBracketExpr.newTree(arr, size, normalizeType(innerType))
+
+  of nnkBracketExpr |= typ[0].kind == nnkSym:
     result = typ[0].resolveAliasInternal
     result.expectKind nnkTypeDef
 
@@ -44,12 +53,9 @@ proc resolveAliasInternal(typ: NimNode): NimNode =
       let arg = typ[i+1]
       result = result.substitute(sym, arg)
 
-  of nnkObjectTy, nnkTupleTy, nnkDistinctTy:
+  of {nnkObjectTy, nnkTupleTy, nnkDistinctTy}:
     result = typ
 
-  else:
-    echo typ.treeRepr
-    error("illegal argument: " & typ.repr, typ)
 
 proc sequenceTransform(arg: NimNode): seq[NimNode] =
   ## `resolveAliasInternal` will return a recursive datastructure of

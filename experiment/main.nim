@@ -230,12 +230,12 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         echo "</render_inner>"
 
     # this is really a hack because arguments are not symbols for some reason
+    # ¯\_(ツ)_/¯
     let vertexSym = body.findSymbolWithName(vertexDef[0].strVal)
     let glSym     = body.findSymbolWithName(glDef[0].strVal)
 
     let vertexPart = nnkStmtList.newTree
     let fragmentPart = nnkStmtList.newTree
-
     block:
       var currentNode = vertexPart
       for stmt in body:
@@ -243,6 +243,44 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
           currentNode = fragmentPart
 
         currentNode.add stmt
+
+
+
+    var usedProcSymbols   = newSeq[NimNode](0)
+    var usedVarLetSymbols = newSeq[NimNode](0)
+    var symCollection = newSeq[NimNode](0)
+    var usedTypes = newSeq[NimNode](0)
+    body.matchAstRecursive:
+    of `sym` @ nnkSym:
+      let symKind = sym.symKind
+      if symKind == nskProc:
+        usedProcSymbols.add sym
+      elif symKind in {nskLet, nskVar, nskForVar}:
+        usedVarLetSymbols.add sym
+      elif symKind == nskType:
+        usedTypes.add sym.normalizeType
+      else:
+        symCollection.add sym
+
+    usedVarLetSymbols = usedVarLetSymbols.deduplicate
+
+    #echo body.treeRepr
+    for sym in usedVarLetSymbols:
+      usedTypes.add sym.getTypeInst.normalizeType
+
+    usedTypes = usedTypes.deduplicate
+
+    for tpe in usedTypes:
+      ## TODO: do something with the used types (generate the Light definition)
+      echo "type: ", tpe.repr
+
+    symCollection = symCollection.deduplicate
+    usedProcSymbols = usedProcSymbols.deduplicate
+    echo usedVarLetSymbols
+    echo usedProcSymbols
+    for sym in symCollection:
+      echo sym.symKind, " ", sym
+
 
     # collect all symbols that have been declared in the vertex shader
 

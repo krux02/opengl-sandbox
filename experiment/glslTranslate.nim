@@ -9,6 +9,7 @@ proc expectIntIn(arg: NimNode; slice: Slice[int]): void =
     error("expect integer literal in range: " & $slice.a & " .. " & $slice.b & " but got " & $arg.intVal, arg)
 
 proc glslType*(arg: NimNode): string {.compileTime.} =
+  let arg = arg.normalizeType
 
   arg.matchAst:
   of nnkBracketExpr( ident"array", nnkInfix(ident"..", 0, `highLit`), `innerType`):
@@ -19,9 +20,6 @@ proc glslType*(arg: NimNode): string {.compileTime.} =
     return
   else:
     discard
-
-  let arg = arg.normalizeType
-
 
   arg.matchAst:
   of ident"float32":
