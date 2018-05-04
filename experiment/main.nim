@@ -6,7 +6,7 @@ import glm, ast_pattern_matching
 import normalizeType, glslTranslate, boring_stuff
 
 type
-  ShaderKind = enum
+  ShaderKind* = enum
     skVert = "vert"
     skTesc = "tesc",
     skTese = "tese",
@@ -49,17 +49,18 @@ proc validateShader(src: string, sk: ShaderKind): void {.compileTime.} =
     echo(BarStyle, "==== end Shader Problems =========================================", ColorReset)
 
   else:
-    echo "compile: OK"
+    echo "compile ",sk,":"," OK"
 
 
-proc indentCode(arg: string, indentation: string): string =
-  let N = arg.countLines
-  result = newStringOfCap(indentation.len * N + arg.len)
+proc indentCode(arg: string): string =
+  result = ""
+  var indentation = 0
   for line in splitLines(arg):
-    result.add indentation
+    indentation -= line.count("}")
+    result.add "  ".repeat(max(indentation, 0))
     result.add line
-
-
+    result.add "\n"
+    indentation += line.count("{")
 
 proc symKind(arg: NimNode): NimSymKind =
   if arg.kind == nnkHiddenDeref:
@@ -275,13 +276,8 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       if tpe.eqIdent "Light":
         typesToGenerate.add tpe
 
-    symCollection = symCollection.deduplicate
-    usedProcSymbols = usedProcSymbols.deduplicate
-    echo usedVarLetSymbols
-    echo usedProcSymbols
-    for sym in symCollection:
-      echo sym.symKind, " ", sym
-
+    symCollection = symCollection.deduplicate     # TODO unused
+    usedProcSymbols = usedProcSymbols.deduplicate # TODO unused
 
     # collect all symbols that have been declared in the vertex shader
 
@@ -445,12 +441,10 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     fragmentShader.compileToGlsl(fragmentPart)
     fragmentShader.add "}\n"
 
-    echo "=".repeat(80)
-    echo "vertex part"
-    echo vertexShader
-    echo "-".repeat(80)
-    echo "fragment part"
-    echo fragmentShader
+    echo "|> vertex shader <|".center(80,'=')
+    echo vertexShader.indentCode
+    echo "|> fragment shader <|".center(80,'=')
+    echo fragmentShader.indentCode
     echo "=".repeat(80)
 
     validateShader(vertexShader, skVert)
@@ -511,7 +505,7 @@ proc injectTypes(framebuffer, mesh, arg: NimNode): NimNode {.compileTime.} =
   result = arg
   result[3] = newParams
 
-macro render(framebuffer, mesh: typed; arg: untyped): untyped =
+macro render*(framebuffer, mesh: typed; arg: untyped): untyped =
   result = newCall(
     bindSym"render_inner", newLit(false), mesh,
     injectTypes(framebuffer, mesh, arg))
@@ -545,7 +539,6 @@ var myTexture: Texture2D
 var mesh: MyMesh
 var framebuffer: MyFramebuffer
 var mvp: Mat4f
-
 var M,V,P: Mat4f
 var lights: array[10,Light]
 
