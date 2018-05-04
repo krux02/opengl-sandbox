@@ -263,16 +263,17 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         symCollection.add sym
 
     usedVarLetSymbols = usedVarLetSymbols.deduplicate
-
-    #echo body.treeRepr
     for sym in usedVarLetSymbols:
       usedTypes.add sym.getTypeInst.normalizeType
 
     usedTypes = usedTypes.deduplicate
 
+    var typesToGenerate = newSeq[NimNode](0)
     for tpe in usedTypes:
-      ## TODO: do something with the used types (generate the Light definition)
-      echo "type: ", tpe.repr
+      # TODO, well this is not really a correct filtering mechanism for gathering types.
+      # There must be a smartey way to find out what is defined in glsl and what is not.
+      if tpe.eqIdent "Light":
+        typesToGenerate.add tpe
 
     symCollection = symCollection.deduplicate
     usedProcSymbols = usedProcSymbols.deduplicate
@@ -334,10 +335,9 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     let allVaryings   = simpleVaryings & attributesFromFS
 
     ############################################################################
-    ########################### generate the shaders ###########################
+    ########################## generate vertex shader ##########################
     ############################################################################
 
-    ### vertex shader ###
     var vertexShader   = "#version 450\n"
 
     vertexShader.add "// uniforms for vertex shader\n"
@@ -378,26 +378,38 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       vertexShader.add " = in_"
       vertexShader.compileToGlsl(attrib)
       vertexShader.add ";\n"
+
+    vertexShader.add "// forward other varyings\n"
+    for i, varying in simpleVaryings:
+      vertexShader.add "out_"
+      vertexShader.compileToGlsl(varying)
+      vertexShader.add " = "
+      vertexShader.compileToGlsl(varying)
+      vertexShader.add ";\n"
+
     vertexShader.add "}\n"
 
-    ### fragment shader ###
+    ############################################################################
+    ######################### generate fragment shaders ########################
+    ############################################################################
 
-
-    # uniform locations are incorrect
+    # TODO uniform locations are incorrect, use uniform buffer.
 
     var fragmentShader = "#version 450\n"
-    # hack for the light object
-    # Light = object
-    #   position_ws : Vec4f
-    #   color : Vec4f
+    for tpe in typesToGenerate:
+      let impl = tpe.getTypeImpl
 
-    fragmentShader.add """
-    struct Light {
-      vec4 positionws;
-      vec4 color;
-    };
-
-"""
+      impl.matchAst:
+      of nnkObjectTy(
+        nnkEmpty, nnkEmpty,
+        `recList` @ nnkRecList
+      ):
+        fragmentShader.add "struct ", tpe.repr, "{\n"
+        for field,tpe in recList.fields:
+          fragmentShader.add tpe.glslType, " "
+          fragmentShader.compileToGlsl field
+          fragmentShader.add ";\n"
+        fragmentShader.add "};\n"
 
     fragmentShader.add "// fragment output symbols\n"
     var i = 0
@@ -441,21 +453,8 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     echo fragmentShader
     echo "=".repeat(80)
 
-
     validateShader(vertexShader, skVert)
     validateShader(fragmentShader, skFrag)
-
-
-  #echo compileToGlsl(arg);
-#[
-  #let uniformsSection = ssaList2.createGlslUniformsSection
-  #let vertexTypeSection = formalParams[1].createGlslAttributesSection
-  #let fragmentTypeSection = formalParams[0].createGlslFragmentTypeSection
-  #let glslMain = createGlslMain(ssaList2)
-  let (_,_,_) = ssaList2.splitVertexFragmentShader(vertexSym, resultSym)
-  #let shaderSource = uniformsSection & "\n" & vertexTypeSection & "\n" & fragmentTypeSection & "\n" & glslMain
-  #echo shaderSource
-]#
 
 proc `or`(arg, alternative: NimNode): NimNode {.compileTime.} =
   if arg.kind != nnkEmpty:
