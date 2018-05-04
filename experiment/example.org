@@ -1,5 +1,20 @@
+#+TITLE: Implementation
 
-* source
+* TODO
+** TODO typed and untyped macros
+** TODO two pass macro
+** TODO type injection
+** TODO gathering used types and procedures
+** TODO type normalization
+** TODO translation from Nim IR to GLSL
+** TODO identifier transformation
+** TODO AST pattern matching
+** TODO matching the for construct
+
+* base example
+
+The following code is the example that I want to be able to compile
+and run.
 
 #+BEGIN_SRC nim
 import glm

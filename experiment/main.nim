@@ -1,3 +1,10 @@
+
+
+# TODO document current steps
+# TODO frame code generation for rendering
+# TODO optimization for pulling up variables into CPU
+# TODO variables should not conflict with glsl keywords
+
 # stdlib
 import sugar, algorithm, macros, strutils, tables, sequtils
 # packages
@@ -24,7 +31,7 @@ const
 proc validateShader(src: string, sk: ShaderKind): void {.compileTime.} =
   let log = staticExec("glslangValidator --stdin -S " & $sk, src, "true")
   if log.len > 0:
-    echo "#####  glsl errors:  ####"
+    echo "  glsl errors:  ".center(80,'#')
     var problems = newSeq[tuple[lineNr: int, message: string]](0)
     for line in log.splitLines:
       if line.startsWith("ERROR: 0:"):
@@ -36,7 +43,7 @@ proc validateShader(src: string, sk: ShaderKind): void {.compileTime.} =
 
         problems.add((lineNr: lineNr, message: message))
 
-    echo(BarStyle, "==== start Shader Problems =======================================", ColorReset)
+    echo(BarStyle, " start Shader Problems ".center(80,'='), ColorReset)
     var lineNr = 0
     for line in src.splitLines:
       lineNr += 1
@@ -44,9 +51,9 @@ proc validateShader(src: string, sk: ShaderKind): void {.compileTime.} =
       for problem in problems:
         if problem.lineNr == lineNr:
           echo("     ", ErrorStyle, problem.message)
-    echo(BarStyle, "------------------------------------------------------------------", ColorReset)
+    echo(BarStyle, repeat("-",80), ColorReset)
     echo(ErrorStyle2, log)
-    echo(BarStyle, "==== end Shader Problems =========================================", ColorReset)
+    echo(BarStyle, center(" end Shader Problems ",80,'='), ColorReset)
 
   else:
     echo "compile ",sk,":"," OK"
@@ -224,7 +231,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
   ):
     if debug:
       echo "<render_inner>"
-      #echo body.treeRepr
+      echo body.repr
     defer:
       if debug:
         echo result.lispRepr
@@ -546,6 +553,9 @@ framebuffer.renderDebug(mesh) do (v, gl):
   gl.Position     = P * V * M * v.position_os
   let position_cs = V*M*v.position_os
   let normal_cs   = inverse(transpose(V*M)) * v.normal_os
+
+
+  var inout = P
 
   ## rasterize
 
