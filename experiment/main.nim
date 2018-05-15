@@ -28,6 +28,10 @@ const
   LineNumberStyle = "\e[33m" # Yellow
   BarStyle = "\e[30m\e[43m" # Black and Yellow
 
+
+proc deduplicate(arg: var seq[NimNode]): void =
+  arg = sequtils.deduplicate(arg)
+
 proc validateShader(src: string, sk: ShaderKind): void {.compileTime.} =
   let log = staticExec("glslangValidator --stdin -S " & $sk, src, "true")
   if log.len > 0:
@@ -75,10 +79,14 @@ proc symKind(arg: NimNode): NimSymKind =
   else:
     macros.symKind(arg)
 
+var buffer: string
+
 proc compileToGlsl(result: var string; arg: NimNode): void =
   arg.matchAst(errorSym):
   of nnkFloatLit:
     result.add arg.floatVal
+  of nnkIntLit:
+    result.add arg.intVal
   of nnkEmpty:
     result.add "/* empty */"
   of nnkCommentStmt:
@@ -90,9 +98,16 @@ proc compileToGlsl(result: var string; arg: NimNode): void =
       result.compileToGlsl(stmt)
       result.add ";\n"
   of {nnkIdent, nnkSym}:
-    for c in arg.strVal:
+    buffer = ""
+    for c in arg.repr:
       if c != '_': # underscore is my personal separator
-        result.add c
+        buffer.add c
+    if glslKeywords.binarySearch(buffer) < 0:
+      result.add buffer
+    else:
+      result.add buffer
+      result.add "_XXX"
+
   of nnkDotExpr(`lhs`, `rhs`):
     # I am pretty sure this is a big hack
     let symKind =
@@ -170,7 +185,7 @@ proc compileToGlsl(result: var string; arg: NimNode): void =
                 nnkStmtList(
                   nnkStmtList(
                     nnkFastAsgn(_ #[`loopVar`]#, `loopVarExpr`),
-                    `body` @ nnkStmtList
+                    `body`
                   ),
                   nnkIfStmt(
                     nnkElifBranch(
@@ -191,7 +206,6 @@ proc compileToGlsl(result: var string; arg: NimNode): void =
     )
   ):
     let irepr = loopIndex.repr
-
     result.add "for(int "
     result.add irepr
     result.add " = 0; "
@@ -214,6 +228,7 @@ proc compileToGlsl(result: var string; arg: NimNode): void =
 
     result.compileToGlsl body
     result.add "\n}"
+
 
 
 macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
@@ -270,11 +285,10 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       else:
         symCollection.add sym
 
-    usedVarLetSymbols = usedVarLetSymbols.deduplicate
+    usedVarLetSymbols.deduplicate
     for sym in usedVarLetSymbols:
       usedTypes.add sym.getTypeInst.normalizeType
-
-    usedTypes = usedTypes.deduplicate
+    usedTypes.deduplicate
 
     var typesToGenerate = newSeq[NimNode](0)
     for tpe in usedTypes:
@@ -283,8 +297,8 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       if tpe.eqIdent "Light":
         typesToGenerate.add tpe
 
-    symCollection = symCollection.deduplicate     # TODO unused
-    usedProcSymbols = usedProcSymbols.deduplicate # TODO unused
+    symCollection.deduplicate   # TODO unused
+    usedProcSymbols.deduplicate # TODO unused
 
     # collect all symbols that have been declared in the vertex shader
 
@@ -304,8 +318,8 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     of `sym` @ nnkSym |= sym.symKind in {nskLet, nskVar} and sym notin localSymbolsVS:
       uniformsFromVS.add sym
     # TODO this is O(n^2), why does sortAndUnique fail?
-    attributesFromVS = attributesFromVS.deduplicate
-    uniformsFromVS = uniformsFromVS.deduplicate
+    attributesFromVS.deduplicate
+    uniformsFromVS.deduplicate
 
     var localSymbolsFS: seq[NimNode] = @[]
     fragmentPart.matchAstRecursive:
@@ -331,9 +345,11 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       discard
     of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == vertexSym:
       attributesFromFS.add attribAccess
-    simpleVaryings.sortAndUnique
-    # TODO this is O(n^2), why does sortAndUnique fail?
-    attributesFromFS = attributesFromFS.deduplicate
+
+    uniformsFromFS.deduplicate
+    attributesFromFS.deduplicate
+    simpleVaryings.deduplicate
+
     let allAttributes = mergeUnique(attributesFromVS, attributesFromFS)
     let allVaryings   = simpleVaryings & attributesFromFS
 
@@ -554,11 +570,10 @@ framebuffer.renderDebug(mesh) do (v, gl):
   let position_cs = V*M*v.position_os
   let normal_cs   = inverse(transpose(V*M)) * v.normal_os
 
-
   var inout = P
+  let auto = 123
 
   ## rasterize
-
   var lighting: Vec4f
   for light in lights:
     let light_position_cs = V * light.position_ws
