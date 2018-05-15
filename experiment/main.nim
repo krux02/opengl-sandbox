@@ -184,7 +184,7 @@ proc compileToGlsl(result: var string; arg: NimNode): void =
                 1,
                 nnkStmtList(
                   nnkStmtList(
-                    nnkFastAsgn(_ #[`loopVar`]#, `loopVarExpr`),
+                    nnkFastAsgn(_ #[`loopVar`]#, nnkBracketExpr(`collectionSym`,_ #[`loopIndex`]#)),
                     `body`
                   ),
                   nnkIfStmt(
@@ -205,7 +205,8 @@ proc compileToGlsl(result: var string; arg: NimNode): void =
       )
     )
   ):
-    let irepr = loopIndex.repr
+    let loopIndexTrue = genSym(nskVar, "i")
+    let irepr = loopIndexTrue.repr
     result.add "for(int "
     result.add irepr
     result.add " = 0; "
@@ -222,12 +223,10 @@ proc compileToGlsl(result: var string; arg: NimNode): void =
     result.add ' '
     result.compileToGlsl(loopVar)
     result.add " = "
-    result.compileToGlsl(loopVarExpr)
-    result.add ";\n"
-
-
+    result.compileToGlsl(collectionSym)
+    result.add "[", irepr, "];\n{\n"
     result.compileToGlsl body
-    result.add "\n}"
+    result.add "\n}}"
 
 
 
@@ -246,7 +245,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
   ):
     if debug:
       echo "<render_inner>"
-      echo body.repr
     defer:
       if debug:
         echo result.lispRepr
@@ -266,7 +264,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
           currentNode = fragmentPart
 
         currentNode.add stmt
-
 
 
     var usedProcSymbols   = newSeq[NimNode](0)
@@ -308,7 +305,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       for sym, _ in section.fieldValuePairs:
         localSymbolsVS.add sym
 
-    var uniformsFromVS = newSeq[NimNode](0)
+    var uniforms = newSeq[NimNode](0)
     var attributesFromVS = newSeq[NimNode](0)
     vertexPart.matchAstRecursive:
     of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == vertexSym:
@@ -316,10 +313,9 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == glSym:
       discard
     of `sym` @ nnkSym |= sym.symKind in {nskLet, nskVar} and sym notin localSymbolsVS:
-      uniformsFromVS.add sym
+      uniforms.add sym
     # TODO this is O(n^2), why does sortAndUnique fail?
     attributesFromVS.deduplicate
-    uniformsFromVS.deduplicate
 
     var localSymbolsFS: seq[NimNode] = @[]
     fragmentPart.matchAstRecursive:
@@ -331,7 +327,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     # TODO optimization skip symbols declarations
     var simpleVaryings = newSeq[Nimnode](0)
     var attributesFromFS = newSeq[Nimnode](0)
-    var uniformsFromFS = newSeq[NimNode](0)
     fragmentPart.matchAstRecursive:
     of `sym` @ nnkSym |= sym.symkind in {nskLet, nskVar}:
       # a symbol that is used in the fragment shader
@@ -340,18 +335,68 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         simpleVaryings.add sym
       elif sym notin localSymbolsFS:
         # when it is not local to the fragment shader, it is a uniform
-        uniformsFromFS.add sym
+        uniforms.add sym
     of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == glSym:
       discard
     of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == vertexSym:
       attributesFromFS.add attribAccess
 
-    uniformsFromFS.deduplicate
+    uniforms.deduplicate
     attributesFromFS.deduplicate
     simpleVaryings.deduplicate
 
+    ## split uniforms into texture/sampler uniforms and non-texture uniforms
+
+    var uniformSamplers = newSeq[NimNode](0)
+    var uniformRest = newSeq[NimNode](0)
+
+    for uniform in uniforms:
+      if uniform.isSampler:
+        uniformSamplers.add uniform
+      else:
+        uniformRest.add uniform
+
+
     let allAttributes = mergeUnique(attributesFromVS, attributesFromFS)
     let allVaryings   = simpleVaryings & attributesFromFS
+
+
+    ############################################################################
+    ################################ shared code ###############################
+    ############################################################################
+
+    var sharedCode = ""
+
+    # generate types
+    sharedCode.add "// types section\n"
+    for tpe in typesToGenerate:
+      let impl = tpe.getTypeImpl
+
+      impl.matchAst:
+      of nnkObjectTy(
+        nnkEmpty, nnkEmpty,
+        `recList` @ nnkRecList
+      ):
+        sharedCode.add "struct ", tpe.repr, "{\n"
+        for field,tpe in recList.fields:
+          sharedCode.add tpe.glslType, " "
+          sharedCode.compileToGlsl field
+          sharedCode.add ";\n"
+        sharedCode.add "};\n"
+
+    # uniforms
+    sharedCode.add "// uniforms section\n"
+    sharedCode.add "layout (std140) uniform shader_data {\n"
+    for uniform in uniformRest:
+      sharedCode.add uniform.getTypeInst.glslType, " "
+      sharedCode.compileToGlsl(uniform)
+      sharedCode.add ";\n"
+    sharedCode.add "};\n"
+    for i, uniform in uniformSamplers:
+      sharedCode.add "layout(binding=", 0, ") "
+      sharedCode.add "uniform ", uniform.getTypeInst.glslType, " "
+      sharedCode.compileToGlsl(uniform)
+      sharedCode.add ";\n"
 
     ############################################################################
     ########################## generate vertex shader ##########################
@@ -359,11 +404,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     var vertexShader   = "#version 450\n"
 
-    vertexShader.add "// uniforms for vertex shader\n"
-    for i, uniform in uniformsFromVS:
-      vertexShader.add "uniform layout(location=", i, ") ", uniform.getTypeInst.glslType, " "
-      vertexShader.compileToGlsl(uniform)
-      vertexShader.add ";\n"
+    vertexShader.add sharedCode
 
     vertexShader.add "// all attributes\n"
     for i, attrib in allAttributes:
@@ -414,21 +455,10 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     # TODO uniform locations are incorrect, use uniform buffer.
 
-    var fragmentShader = "#version 450\n"
-    for tpe in typesToGenerate:
-      let impl = tpe.getTypeImpl
 
-      impl.matchAst:
-      of nnkObjectTy(
-        nnkEmpty, nnkEmpty,
-        `recList` @ nnkRecList
-      ):
-        fragmentShader.add "struct ", tpe.repr, "{\n"
-        for field,tpe in recList.fields:
-          fragmentShader.add tpe.glslType, " "
-          fragmentShader.compileToGlsl field
-          fragmentShader.add ";\n"
-        fragmentShader.add "};\n"
+    var fragmentShader = "#version 450\n"
+
+    fragmentShader.add sharedCode
 
     fragmentShader.add "// fragment output symbols\n"
     var i = 0
@@ -439,12 +469,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       fragmentShader.compileToGlsl(memberSym)
       fragmentShader.add ";\n"
       i += 1
-
-    fragmentShader.add "// uniforms in fragment shader\n"
-    for i, uniform in uniformsFromFS:
-      fragmentShader.add "uniform layout(location=", i*10, ") ", uniform.getTypeInst.glslType, " "
-      fragmentShader.compileToGlsl(uniform)
-      fragmentShader.add ";\n"
 
     fragmentShader.add "// all varyings\n"
     for i, varying in allVaryings:

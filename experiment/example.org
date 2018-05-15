@@ -127,6 +127,22 @@ performance might really suffer from dynamically sized arrays, but
 this should really be tested,  I did not test it at all yet.
 
 
+** passing uniforms
+
+
+Uniforms are split into two different kinds of uniforms: ~samplers~
+and ~rest~.  Samplers depend on the OpenGL state and are passed
+differently that the ~rest~.  Everything that is not a sampler can be
+packed into a single uniform buffer object.  Samplers get their value
+assigned in the shader.
+
+
+
+The solution is that textures are passed uni
+
+Uniforms are separated into two types of uniforms.  Samplers and Non sam
+
+
 ** preventing the `iterator items` expansion, or matching against it?
 
 

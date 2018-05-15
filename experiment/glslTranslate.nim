@@ -3,6 +3,26 @@
 
 import normalizeType, glm, ast_pattern_matching
 
+proc isSampler*(arg: NimNode): bool =
+  arg.getTypeInst.normalizeType.matchAst:
+  of ident"Texture1D":
+    return true
+  of ident"Texture2D":
+    return true
+  of ident"Texture3D":
+    return true
+  of ident"TextureCube":
+    return true
+  of ident"Texture2DShadow":
+    return true
+  of ident"TextureCubeShadow":
+    return true
+  of ident"Texture2DArray":
+    return true
+  of ident"Texture2DArrayShadow":
+    return true
+  else:
+    return false
 
 proc expectIntIn(arg: NimNode; slice: Slice[int]): void =
   if arg.intVal notin slice:

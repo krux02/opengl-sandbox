@@ -136,7 +136,6 @@ when isMainModule:
 
   macro foobar(arg: typed): untyped =
     let typ = arg.getTypeInst.normalizeType
-    echo typ.repr
 
   var
     a: MyObjectSubAlias
