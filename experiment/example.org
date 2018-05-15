@@ -1,6 +1,7 @@
 #+TITLE: Implementation
 
 * TODO
+** TODO glm port for the typechecker
 ** TODO typed and untyped macros
 ** TODO two pass macro
 ** TODO type injection
@@ -13,14 +14,33 @@
 
 * base example
 
-The following code is the example that I want to be able to compile
-and run.
+# Why I chose an example for explanation?
+To my knowledge it is easiest to understand a new topic with a
+concrete example.  Therefore I would like to explain the inernals of
+the compiler with an example.  The example that I choose should be an
+example that is easy to understand, could be part of a real program
+and it should cover many features that I want to support.
 
+# What is the example about?
+In listing ref:base-example I show an example that I want to make
+executable over the course of this mater thesis.  It renders a mesh
+with texture mapping and vertex-normals.  In the vertex shader the
+lighting is calculated by a loop that iterates all light sources.
+
+Features this example covers:
+
+  * uniforms
+  * attributes
+  * non-builtin types (Light)
+  * for loop (iterator)
+
+#+caption: Base Example label:base-example
 #+BEGIN_SRC nim
-import glm
+import glm, macros
 
-template render(arg: varargs[untyped]): untyped =
-  discard
+macro render(args: varargs[untyped]): untyped =
+  for arg in args:
+    echo arg.treeRepr
 
 type
   Mesh[T] = object
@@ -52,10 +72,12 @@ var M,V,P: Mat4f
 var lights: array[10,Light]
 
 framebuffer.render(mesh) do (v, gl):
-  gl.Position     = P * V * M * v.position_os
+  gl.Position     = (P * V * M) * v.position_os
   let position_cs = V*M*v.position_os
   let normal_cs   = inverse(transpose(V*M)) * v.normal_os
   var lighting: Vec4f
+
+  ## rasterize
 
   for light in lights:
     let light_position_cs = V * light.position_ws
@@ -68,34 +90,54 @@ framebuffer.render(mesh) do (v, gl):
 
 #+END_SRC
 
-The outer most macro will inject types into the statement. This is
-just aiding the Nim compiler, because Nim can infer these types
-automatically.  It is best visualized with an example:
+#+RESULTS:
+: HalloWelt...
 
+# how the nim typechecker works, and why I create the outer macro.
+The typechecker in Nim can only check types of the Nim programming
+language with semantics of the Nim programming language.  The
+typechecking algorithm itself is not scriptable.  Therefore I need to
+map glsl semantics somehow to the Nim programming language.  Most glsl
+types map nicely to the types defined in the glm library.  Then the
+glsl part needs to have some context for the typechecker that I inject
+with a two layer macro (where the full will you talk about it).
+
+From here on I assume that all types of glsl also work flawlessly in
+Nim.  For more details on how this works see the glsl section.
+
+In order for the typecheck to be able to resolve all symbols correctly
+I use the pattern with a two layer macro.  The outer macro takes a
+non-typechecked AST, and then generates an AST that is capabale to be
+fully typechecked.  The then generated AST is a statment to a typed
+macro.  With this pattern it is possible to introduce symbols that
+only exist in the embedded DSL.  In the listings ref:two-layer-macro-a
+and ref:two-layer-macro-a you see how I introduce the symbol ~gl~ with
+this pattern.
+
+#+caption: Two Layer Macro A label:two-layer-macro-a
 #+BEGIN_SRC nim
-framebuffer.render(mesh) do (v, gl):
-  #[ ... ]#
-  discard
+framebuffer.render(mesh) do (v):
+  gl.Position     = (P * V * M) * v.position_os
+  #[...]#
 #+END_SRC
 
 This will be transformed into the following statement:
 
+#+caption: Two Layer Macro B label:two-layer-macro-b
 #+BEGIN_SRC nim
-framebuffer.render(mesh) do (v: MyVertexType; gl: var GlShaderContext) -> MyFragmentType:
-  #[ ... ]#
-  discard
+block:  # A code block to create a new variable scope.
+  gl: var GlShaderContext {.inject.} # inject to prevent symbol hiding hygienic
+  render_inner(framebuffer, mesh) do (v: MyVertexType) -> MyFragmentType:
+    gl.Position     = (P * V * M) * v.position_os
+    #[ ... ]#
 #+END_SRC
 
-
 Now the type checker can resolve all symbols from the inner body of
-the macro.  A body with resolved symbols is printed here.  It is not
-obvious from this representation that now the identifier are resolved
-as symbols with type information, but it is visible that some things
-actually haves changed.
+this macro.  The typechecked AST is reprinted here again in nim representation.
 
-#+BEGIN_SRC nim
+#+BEGIN_EXAMPLE
 
-do (v: MyVertexType; gl: var GlShaderContext)-> MyFragmentType:
+do (v: MyVertexType; gl: var GlShaderContext) -> MyFragmentType:
   gl.Position = P * V * M * v.position_os
   let position_cs = V * M * v.position_os
   let normal_cs = inverse(transpose(V * M)) * v.normal_os
@@ -117,7 +159,23 @@ do (v: MyVertexType; gl: var GlShaderContext)-> MyFragmentType:
   let textureSample = texture(myTexture, v.texCoord, 0.0)
   result.color = textureSample * lighting
 
-#+END_SRC
+#+END_EXAMPLE
+
+For representation alone it is not obvious that it is now a tree
+of resolved symbols, but the full tree would be too large to be shown
+here. This is only the last last line printed in tree representation:
+
+#+BEGIN_EXAMPLE
+  Asgn
+    DotExpr
+      Sym "result"
+      Sym "color"
+    Infix
+      Sym "*"
+      Sym "textureSample"
+      Sym "lighting"
+
+#+END_EXAMPLE
 
 I don't know what to do to prevent that the for loop becomes a while
 loop.  Should I filter for this while loop and translate it back to a
@@ -126,6 +184,7 @@ hope the glsl compiler will be able to unroll it anyway?  Glsl
 performance might really suffer from dynamically sized arrays, but
 this should really be tested,  I did not test it at all yet.
 
+** Extraction of Meta Information
 
 ** passing uniforms
 
@@ -145,6 +204,41 @@ Uniforms are separated into two types of uniforms.  Samplers and Non sam
 
 ** preventing the `iterator items` expansion, or matching against it?
 
+The metainformation that is important for the next steps are the
+following:
+
+ * split vertex and fragment shader parts
+ * extract all used uniforms
+ * extract all used attributes and in witch shader they are used
+ * extract identifiers that are used as varyings.
+ * used types (non glsl types)
+
+*** Extract Vertex and Fragment Shader
+
+# the magic comment
+Currently the vertex shader and the fragment shader is the code is
+sparated by a magic comment ~## rasterize~. I don't necessarily like
+this magic comment, and I think eventually it will go away, but for
+now it is how the separation is explicitly specified. All statements
+fore it will be translated into a vertex shader, and all statements
+after it will be translated into a fragment shader.  This is very
+simple to implement.
+
+**** TODO introduce name for the argument of the macro (the AST).
+
+The ast, the argument of the macro will from now on be called /body/.
+
+# traverse the AST (uniforms)
+Now the AST can be scanned for all used symbols. A symbol of a
+variable that has not been defined locally in the argument of the
+macro has to be a uniform. A symbol that has been defined in the
+
+# How do I get metainformation.
+# What uniforms are used
+# What attributes are used
+# how do I translate identifiers
+
+** preventing the `iterator items` expansion, or matching against it?
 
 From here on the Nim code should be translated directly into
 GLSL. Even though I haven't talked at all about the shader stage

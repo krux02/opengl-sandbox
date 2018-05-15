@@ -83,9 +83,9 @@ var buffer: string
 
 proc compileToGlsl(result: var string; arg: NimNode): void =
   arg.matchAst(errorSym):
-  of nnkFloatLit:
+  of {nnkFloat32Lit,nnkFloat64Lit,nnkFloatLit}:
     result.add arg.floatVal
-  of nnkIntLit:
+  of {nnkInt32Lit, nnkInt64Lit, nnkIntLit}:
     result.add arg.intVal
   of nnkEmpty:
     result.add "/* empty */"
@@ -594,9 +594,7 @@ framebuffer.renderDebug(mesh) do (v, gl):
   let position_cs = V*M*v.position_os
   let normal_cs   = inverse(transpose(V*M)) * v.normal_os
 
-  var inout = P
-  let auto = 123
-
+  var inout = 123   # test identifier that is keyword in glsl
   ## rasterize
   var lighting: Vec4f
   for light in lights:
