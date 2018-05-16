@@ -90,9 +90,6 @@ framebuffer.render(mesh) do (v, gl):
 
 #+END_SRC
 
-#+RESULTS:
-: HalloWelt...
-
 # how the nim typechecker works, and why I create the outer macro.
 The typechecker in Nim can only check types of the Nim programming
 language with semantics of the Nim programming language.  The
@@ -184,23 +181,43 @@ hope the glsl compiler will be able to unroll it anyway?  Glsl
 performance might really suffer from dynamically sized arrays, but
 this should really be tested,  I did not test it at all yet.
 
-** Extraction of Meta Information
 
 ** passing uniforms
 
+# how passing uniforms generally works and what should be taken care of.
 
-Uniforms are split into two different kinds of uniforms: ~samplers~
-and ~rest~.  Samplers depend on the OpenGL state and are passed
-differently that the ~rest~.  Everything that is not a sampler can be
-packed into a single uniform buffer object.  Samplers get their value
-assigned in the shader.
+When passing uniforms one wants to minimize the amount of calls into
+OpenGL like for most tasks.  All simple data uniforms like matrices
+and vectors can simply be passed to the shader program.  For textures
+though, this does not work.  In OpenGL textures are not passed
+directly to the shader.  Internally there is a list of active textures
+and a texture needs to be bound to an active texture first. Then when
+the texture needs to be used in a shader, the index of that texture in
+the list of active textures is passed as an integer to the uniform.
 
+[[./experiment/active-texture.png]]
 
+# how I pass my uniforms to the shader
+The way I solve it, is that I split the uniforms into two different
+kinds of uniforms, the texture uniforms, and the non-texture
+uniforms. All /non-texture/ uniforms are automatically joined into a
+single uniform buffer, which is then passed to the program in one
+batch.
 
-The solution is that textures are passed uni
+The texture uniforms get their values assigned statically in the
+shader to a consecutive range of indices. All textures can now be
+bound to the OpenGL state with a single call to ~glBindImageTextures~.
+So there will never be a call to ~glUniform1i~ to set a texture
+uniform at all.
 
-Uniforms are separated into two types of uniforms.  Samplers and Non sam
+#+BEGIN_SRC glsl
+// here I start at 0, but I could start at any other index.
+layout(binding=0) uniform sampler2D reflection;
+layout(binding=1) uniform sampler2DShadow color;
+layout(binding=2) uniform samplerCube skybox;
+#+END_SRC
 
+** Extraction of Meta Information
 
 ** preventing the `iterator items` expansion, or matching against it?
 

@@ -262,9 +262,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       for stmt in body:
         if stmt.kind == nnkCommentStmt and stmt.strVal == "rasterize":
           currentNode = fragmentPart
-
         currentNode.add stmt
-
 
     var usedProcSymbols   = newSeq[NimNode](0)
     var usedVarLetSymbols = newSeq[NimNode](0)
@@ -305,7 +303,9 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       for sym, _ in section.fieldValuePairs:
         localSymbolsVS.add sym
 
-    var uniforms = newSeq[NimNode](0)
+    var uniformSamplers = newSeq[NimNode](0)
+    var uniformRest = newSeq[NimNode](0)
+
     var attributesFromVS = newSeq[NimNode](0)
     vertexPart.matchAstRecursive:
     of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == vertexSym:
@@ -313,7 +313,10 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == glSym:
       discard
     of `sym` @ nnkSym |= sym.symKind in {nskLet, nskVar} and sym notin localSymbolsVS:
-      uniforms.add sym
+      if sym.isSampler:
+        uniformSamplers.add sym
+      else:
+        uniformRest.add sym
     # TODO this is O(n^2), why does sortAndUnique fail?
     attributesFromVS.deduplicate
 
@@ -335,31 +338,25 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         simpleVaryings.add sym
       elif sym notin localSymbolsFS:
         # when it is not local to the fragment shader, it is a uniform
-        uniforms.add sym
+        if sym.isSampler:
+          uniformSamplers.add sym
+        else:
+          uniformRest.add sym
+
     of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == glSym:
       discard
     of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == vertexSym:
       attributesFromFS.add attribAccess
 
-    uniforms.deduplicate
     attributesFromFS.deduplicate
     simpleVaryings.deduplicate
+    uniformSamplers.deduplicate
+    uniformRest.deduplicate
 
     ## split uniforms into texture/sampler uniforms and non-texture uniforms
 
-    var uniformSamplers = newSeq[NimNode](0)
-    var uniformRest = newSeq[NimNode](0)
-
-    for uniform in uniforms:
-      if uniform.isSampler:
-        uniformSamplers.add uniform
-      else:
-        uniformRest.add uniform
-
-
     let allAttributes = mergeUnique(attributesFromVS, attributesFromFS)
     let allVaryings   = simpleVaryings & attributesFromFS
-
 
     ############################################################################
     ################################ shared code ###############################
