@@ -154,6 +154,11 @@ the split point of vertex and fragment shader.  Everything before that
 comment is defined to be part of the vertex shader, everything behind
 it will be part of the fragment shader.
 
+I don't necessarily like this magic comment, and I think eventually it
+will go away. But the advantages of this magic comment are that it is
+easy to understand and very easy to implement.  And it serves the
+purpose very well to split between vertex shader and fragment shader.
+
 ** Extraction of Meta Information
 
 From all the information the AST provides several lists are extracted
@@ -359,6 +364,43 @@ Of course types that are used as members here need to be translated to
 glsl as well, when they are not already built-in.  In this example
 this is not necessary though, because ~vec4~ is a built-in type.
 
+** working on the Framebuffer type
+
+a frambeffure needs the following attributes
+
+  * size :: each attachment needs to have this size
+  * depth attachment :: can be DepthTexture or a DepthRenderbuffer
+  * stencil attachment :: I don't know what it can be
+  * color attachments :: these can be an arbitrary amount of
+       attachments.
+
+Each attachments needs to have the following information:
+  * name :: each attachment needs to have a name
+  * glsl type :: the type in glsl for the output variable
+  * internal format :: how is it stored internally. float, normalized
+       int, or something else. Also for the depth it specifies the
+       precision
+  * texture type :: what kind of texture is the color attachment?
+                    Texture2D, Texture2DRect, Texture2DShadow, ...
+
+Open questions
+
+ * ownership :: who owns the attachments? Are the attachments created
+                with the Framebuffer and die with it, or is the
+                lifetime of the Attachment independent of the
+                Framebuffer?
+
+ * compile or run time :: Which information needs to be statically
+      known at compile time for code generation. Which information
+      needs to be statically known? Which information is best
+      specified at runtime?
+
+
+a Framebuffer as a depth
+
+
+
+
 ** the two layer macro
 <<sec:two-layer-macro>>
 
@@ -466,23 +508,7 @@ following:
 
 *** Extract Vertex and Fragment Shader
 
-# the magic comment
-Currently the vertex shader and the fragment shader is the code is
-sparated by a magic comment ~## rasterize~. I don't necessarily like
-this magic comment, and I think eventually it will go away, but for
-now it is how the separation is explicitly specified. All statements
-fore it will be translated into a vertex shader, and all statements
-after it will be translated into a fragment shader.  This is very
-simple to implement.
-
 **** TODO introduce name for the argument of the macro (the AST).
-
-The ast, the argument of the macro will from now on be called /body/.
-
-# traverse the AST (uniforms)
-Now the AST can be scanned for all used symbols. A symbol of a
-variable that has not been defined locally in the argument of the
-macro has to be a uniform. A symbol that has been defined in the
 
 # How do I get metainformation.
 # What uniforms are used

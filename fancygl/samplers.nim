@@ -363,3 +363,26 @@ proc saveToBmpFile*(tex: TextureRectangle, filename: string): void =
   let bufferSize = GLsizei(s.x * s.y * 4)
   glGetTextureImage(tex.handle, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, bufferSize, surface.pixels)
   discard surface.saveBMP(filename)
+
+## glsl only procs
+
+proc texture*(sampler: Texture2D;            P: Vec2f; bias: float32 = 0): Vec4f =
+  quit("only implemented in shader")
+
+proc texture*(sampler: Texture3D;            P: Vec3f; bias: float32 = 0): Vec4f =
+  quit("only implemented in shader")
+
+proc texture*(sampler: TextureCubeMap;          P: Vec3f; bias: float32 = 0): Vec4f =
+  quit("only implemented in shader")
+
+proc texture*(sampler: Texture2DShadow;      P: Vec3f; bias: float32 = 0): Vec4f =
+  quit("only implemented in shader")
+
+proc texture*(sampler: TextureCubeShadow;    P: Vec4f; bias: float32 = 0): Vec4f =
+  quit("only implemented in shader")
+
+proc texture*(sampler: Texture2DArray;       P: Vec3f; bias: float32 = 0): Vec4f =
+  quit("only implemented in shader")
+
+proc texture*(sampler: Texture2DArrayShadow; P: Vec4f): Vec4f =
+  quit("only implemented in shader")

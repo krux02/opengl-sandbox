@@ -8,7 +8,7 @@
 # stdlib
 import sugar, algorithm, macros, strutils, tables, sequtils
 # packages
-import glm, ast_pattern_matching
+import ../fancygl, ast_pattern_matching
 # local stuff
 import normalizeType, glslTranslate, boring_stuff
 
@@ -245,6 +245,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
   ):
     if debug:
       echo "<render_inner>"
+      #echo arg.treeRepr
     defer:
       if debug:
         echo result.lispRepr
@@ -268,6 +269,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     var usedVarLetSymbols = newSeq[NimNode](0)
     var symCollection = newSeq[NimNode](0)
     var usedTypes = newSeq[NimNode](0)
+
     body.matchAstRecursive:
     of `sym` @ nnkSym:
       let symKind = sym.symKind
@@ -293,7 +295,9 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         typesToGenerate.add tpe
 
     symCollection.deduplicate   # TODO unused
+    echo "symCollection:   ", symCollection
     usedProcSymbols.deduplicate # TODO unused
+    echo "usedProcSymbols: ", usedProcSymbols
 
     # collect all symbols that have been declared in the vertex shader
 
@@ -368,6 +372,8 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     sharedCode.add "// types section\n"
     for tpe in typesToGenerate:
       let impl = tpe.getTypeImpl
+
+      echo impl.treeRepr
 
       impl.matchAst:
       of nnkObjectTy(
