@@ -3,12 +3,13 @@
 * TODO
 ** TODO glm port for the typechecker
 ** TODO typed and untyped macros
-** TODO two pass macro
-** TODO type injection
+** TODO two pass macro, type injection
 ** TODO gathering used types and procedures
 ** TODO type normalization
 ** TODO translation from Nim IR to GLSL
 ** TODO identifier transformation
+*** underscore separator
+*** collision prevention with glsl keywords
 ** TODO AST pattern matching
 ** TODO matching the for construct
 
@@ -90,97 +91,94 @@ framebuffer.render(mesh) do (v, gl):
 
 #+END_SRC
 
-# how the nim typechecker works, and why I create the outer macro.
-The typechecker in Nim can only check types of the Nim programming
-language with semantics of the Nim programming language.  The
-typechecking algorithm itself is not scriptable.  Therefore I need to
-map glsl semantics somehow to the Nim programming language.  Most glsl
-types map nicely to the types defined in the glm library.  Then the
-glsl part needs to have some context for the typechecker that I inject
-with a two layer macro (where the full will you talk about it).
+** Type Checking Phase
 
-From here on I assume that all types of glsl also work flawlessly in
-Nim.  For more details on how this works see the glsl section.
+The symbol ~render~ is the macro and the entire block including the
+symbol ~framebuffer~ until the end of the macro is the argument of the
+macro.  For now to keep the complexity low, I just assume that
+every symbol inside of the AST can be resolved by the Nim type
+checker.  There is a trick that I do to achieve this explained in more
+detail in [[sec:two-layer-macro]].  The typechecked ast is very verbose in
+its tree representation, but for the last two lines the AST looks like
+the following.
 
-In order for the typecheck to be able to resolve all symbols correctly
-I use the pattern with a two layer macro.  The outer macro takes a
-non-typechecked AST, and then generates an AST that is capabale to be
-fully typechecked.  The then generated AST is a statment to a typed
-macro.  With this pattern it is possible to introduce symbols that
-only exist in the embedded DSL.  In the listings ref:two-layer-macro-a
-and ref:two-layer-macro-a you see how I introduce the symbol ~gl~ with
-this pattern.
-
-#+caption: Two Layer Macro A label:two-layer-macro-a
-#+BEGIN_SRC nim
-framebuffer.render(mesh) do (v):
-  gl.Position     = (P * V * M) * v.position_os
-  #[...]#
+#+BEGIN_SRC
+    LetSection
+      IdentDefs
+        Sym "textureSample"
+        Empty
+        Call
+          Sym "texture"
+          Sym "myTexture"
+          DotExpr
+            Sym "v"
+            Sym "texCoord"
+          FloatLit 0.0
+    Asgn
+      DotExpr
+        Sym "result"
+        Sym "color"
+      Infix
+        Sym "*"
+        Sym "textureSample"
+        Sym "lighting"
 #+END_SRC
 
-This will be transformed into the following statement:
+# the AST structure
+Each node is tagged with a node kind, for example ~LetSection~,
+~Call~, ~DotExpression~, ~Sym~, etc, and each node has an arbitrary
+amount of children. Some nodes have string values like symbols and
+string literals. Also Literals also contain their value.
 
-#+caption: Two Layer Macro B label:two-layer-macro-b
-#+BEGIN_SRC nim
-block:  # A code block to create a new variable scope.
-  gl: var GlShaderContext {.inject.} # inject to prevent symbol hiding hygienic
-  render_inner(framebuffer, mesh) do (v: MyVertexType) -> MyFragmentType:
-    gl.Position     = (P * V * M) * v.position_os
-    #[ ... ]#
-#+END_SRC
+# additional information that is in the AST
+Type information can not only be queried from symbol nodes, but also
+from all expressions.  For example when ~getTypeInst~ is called on the
+~Infix~ node in the excerpt above, it will return the type ast of
+exactly that node.  Types are represented in AST form as well.  For
+example the type ~Vec4f~ will be represented after normalization as
+~Vec[4, float32]~.  Symbols also have a tag that is not visible in the
+tree that specifies what kind of symbol it is.  This kind can be used
+to identify if a symbol is a type, a function, a variables, a constant
+etc.  From type and function symbols it is possible to jump to the
+AST of the implementation.
 
-Now the type checker can resolve all symbols from the inner body of
-this macro.  The typechecked AST is reprinted here again in nim representation.
+# TODO reference the type normalization section
 
-#+BEGIN_EXAMPLE
+From all this information that the AST provides, it is possible to
+generate everything necessary to run that code on the GPU.
 
-do (v: MyVertexType; gl: var GlShaderContext) -> MyFragmentType:
-  gl.Position = P * V * M * v.position_os
-  let position_cs = V * M * v.position_os
-  let normal_cs = inverse(transpose(V * M)) * v.normal_os
-  var lighting: Vec4f
-  block tmp346054:
-      var light: Light
-      var i = 0
-      if i <= 9:
-        block tmp346055:
-            while true:
-              light = lights[i]
-              let light_position_cs = V * light.position_ws
-              let light_direction_cs = light_position_cs - position_cs
-              let light_intensity = dot(light_direction_cs, normal_cs)
-              lighting += light_intensity * light.color
-              if 9 <= i:
-                break tmp346055
-              inc(i, 1)
-  let textureSample = texture(myTexture, v.texCoord, 0.0)
-  result.color = textureSample * lighting
+** vertex fragment shader separation
 
-#+END_EXAMPLE
+At the time of writing this, the magic comment ~## rasterize~ defines
+the split point of vertex and fragment shader.  Everything before that
+comment is defined to be part of the vertex shader, everything behind
+it will be part of the fragment shader.
 
-For representation alone it is not obvious that it is now a tree
-of resolved symbols, but the full tree would be too large to be shown
-here. This is only the last last line printed in tree representation:
+** Extraction of Meta Information
 
-#+BEGIN_EXAMPLE
-  Asgn
-    DotExpr
-      Sym "result"
-      Sym "color"
-    Infix
-      Sym "*"
-      Sym "textureSample"
-      Sym "lighting"
+From all the information the AST provides several lists are extracted
+that will be used for code generation
 
-#+END_EXAMPLE
+ * Uniforms :: Symbols of variables that appear in the body, but are
+               not declared locally in that body, but come from
+               somewhere else in the program.  These symbols need to
+               be passed as uniforms to the program.
 
-I don't know what to do to prevent that the for loop becomes a while
-loop.  Should I filter for this while loop and translate it back to a
-for loop in glsl? Or should I just translate into a while loop and
-hope the glsl compiler will be able to unroll it anyway?  Glsl
-performance might really suffer from dynamically sized arrays, but
-this should really be tested,  I did not test it at all yet.
+ * Attributes :: Each access to the vertex symbol is an access to an
+                 attribute.  With this approach there won't be any
+                 attribute passed to the shader that isn't used.
 
+ * Types :: Types of symbols and expressions that are used within the
+            body.  Types that are not built-in types of glsl need to
+            be compiled to glsl.
+
+ * Procedures :: Procedure symbols that are used within the
+                 body. Procedures that are not built-in need to be
+                 compiled to glsl as well.
+
+ * Varyings :: Symbols that are declared in the vertex shader, but are
+               accessed from the fragment shader are symbols that need
+               to be rasterized as varying.
 
 ** passing uniforms
 
@@ -268,7 +266,192 @@ Because of the disadvantages and no guarantee for a performance gain,
 this has not been implemented yet.  But this technique will be picked
 up again, if binding textures turns out to be expensive.
 
-** Extraction of Meta Information
+
+** Translating Symbols to glsl
+
+Translating symbols to glsl could be done just by writing the name of
+the symbol to glsl. I could rename all symbols to generic names such
+as ~sym1~, ~sym2~, ~sym3~, ... but this make the generated code very
+hard to read.  And I would really like to be able to read the
+generated code, just to verify that it is correct.  Whenever something
+doesn't work and I need to check manually what went wrong in the code
+generation process, it helps a lot when the generated code is readable
+and maintains the names of the original symbols.
+
+# underscores
+Nim has a very weird rule for identifier equality.  First of all it is
+case insensitive (except for the first character), and it ignores
+underscores in names.  so ~foo_bar~ and ~fooBar~ are equal according
+to Nim identifier comparison.  I don't necessarily like this but I can
+use it to my advantage.  First of all I can remove all underscores
+from identifires without creating name clashes from Nim symbols.  Then
+the underscore becomes free for me to create prefixes and postfixes
+that cannot clash at all anymore with other Nim symbols. For example I
+can generate ~in_foobar~ and it cannot clash with a symbol from the
+ast, because if ~in_foobar~ would be used inside of the body, it would
+be translated without the ~_~, it would be translated as ~infoobar~.
+
+# resolving keyword conflicts
+Nim allows symbols to be named like keywords of glsl. This is
+simply resolved with a list of all glsl keywords.  Whenever a symbol
+name is a keyword in glsl, I will know that by looking in that list,
+and I will append a post-fix to the generated symbol in glsl.
+
+** Translating Types to glsl
+
+# translating simple types to glsl
+Most types that are used in the code block should be built-in types of
+glsl, just the correct mapping of the types should be done. For
+example the Nim type ~int32~ will be translated to ~int~ and ~float32~
+will be translated to ~float~. A bit more complicated are the
+vec-types.  For example the type ~Vec4f~ is an alias to
+~Vec4[float32]~ which is also just an alias to ~Vec[4,float32]~.  For
+this alias resolution I implemented a ~normalizeType~ function that
+resolves all alias types to their original name.  In this case all of
+the three representations would be mapped to ~Vec[4,float32]~.  The
+generic Vec types are easy to map to the built-in types of glsl.  For
+example ~Vec[4,float32]~ is translated to ~vec4~ and ~Vec[2, int32]~
+is translated to ~ivec2~, etc.
+
+# translating used defined types to glsl
+
+For user defined types, the type definition needs to be translated to
+glsl as well.  In the given example that would be the type ~Light~
+that is used by iterating the lights array.  A simple check of that
+symbol is a built-in types should verify that this type is a user
+defined type.  With ~getImpl~ on the ~Light~ type symbol I can get to
+the implementation and use it to translate it to glsl.  Here is an
+example how the translation of that type looks like.
+
+#+caption: Light Type Definition in Nim
+#+BEGIN_SRC nim
+type
+  Light = object
+    position_ws : Vec4f
+    color : Vec4f
+#+END_SRC
+
+#+caption: Light Type AST from getImpl
+#+BEGIN_SRC
+ObjectTy
+  Empty
+  Empty
+  RecList
+    IdentDefs
+      Sym "position_ws"
+      Sym "Vec4f"
+      Empty
+    IdentDefs
+      Sym "color"
+      Sym "Vec4f"
+      Empty
+#+END_SRC
+
+#+caption: Light Type in glsl
+#+BEGIN_SRC glsl
+struct Light {
+  vec4 positionws;
+  vec4 color;
+};
+#+END_SRC
+
+Of course types that are used as members here need to be translated to
+glsl as well, when they are not already built-in.  In this example
+this is not necessary though, because ~vec4~ is a built-in type.
+
+** the two layer macro
+<<sec:two-layer-macro>>
+
+# how the nim typechecker works, and why I create the outer macro.
+The typechecker in Nim can only check types of the Nim programming
+language with semantics of the Nim programming language.  The type
+checking algorithm itself is not script-able.  Therefore I need to map
+glsl semantics somehow to the Nim programming language.  Most glsl
+types map nicely to the types defined in the glm library.  Then the
+glsl part needs to have some context for the typechecker that I inject
+with a two layer macro (where the full will you talk about it).
+
+From here on I assume that all types of glsl also work flawlessly in
+Nim.  For more details on how this works see the glsl section.
+
+In order for the typecheck to be able to resolve all symbols correctly
+I use the pattern with a two layer macro.  The outer macro takes a
+non-type-checked AST, and then generates an AST that is capabale to be
+fully type-checked.  The then generated AST is a statment to a typed
+macro.  With this pattern it is possible to introduce symbols that
+only exist in the embedded DSL.  In the listings ref:two-layer-macro-a
+and ref:two-layer-macro-a you see how I introduce the symbol ~gl~ with
+this pattern.
+
+#+caption: Two Layer Macro A label:two-layer-macro-a
+#+BEGIN_SRC nim
+framebuffer.render(mesh) do (v):
+  gl.Position     = (P * V * M) * v.position_os
+  #[...]#
+#+END_SRC
+
+This will be transformed into the following statement:
+
+#+caption: Two Layer Macro B label:two-layer-macro-b
+#+BEGIN_SRC nim
+block:  # A code block to create a new variable scope.
+  gl: var GlShaderContext {.inject.} # inject to prevent symbol hiding hygienic
+  render_inner(framebuffer, mesh) do (v: MyVertexType) -> MyFragmentType:
+    gl.Position     = (P * V * M) * v.position_os
+    #[ ... ]#
+#+END_SRC
+
+Now the type checker can resolve all symbols from the inner body of
+this macro.  The typechecked AST is reprinted here again in nim representation.
+
+#+BEGIN_EXAMPLE
+
+do (v: MyVertexType; gl: var GlShaderContext) -> MyFragmentType:
+  gl.Position = P * V * M * v.position_os
+  let position_cs = V * M * v.position_os
+  let normal_cs = inverse(transpose(V * M)) * v.normal_os
+  var lighting: Vec4f
+  block tmp346054:
+      var light: Light
+      var i = 0
+      if i <= 9:
+        block tmp346055:
+            while true:
+              light = lights[i]
+              let light_position_cs = V * light.position_ws
+              let light_direction_cs = light_position_cs - position_cs
+              let light_intensity = dot(light_direction_cs, normal_cs)
+              lighting += light_intensity * light.color
+              if 9 <= i:
+                break tmp346055
+              inc(i, 1)
+  let textureSample = texture(myTexture, v.texCoord, 0.0)
+  result.color = textureSample * lighting
+
+#+END_EXAMPLE
+
+For representation alone it is not obvious that it is now a tree
+of resolved symbols, but the full tree would be too large to be shown
+here. This is only the last last line printed in tree representation:
+
+#+BEGIN_EXAMPLE
+  Asgn
+    DotExpr
+      Sym "result"
+      Sym "color"
+    Infix
+      Sym "*"
+      Sym "textureSample"
+      Sym "lighting"
+
+#+END_EXAMPLE
+
+I don't know what to do to prevent that the for loop becomes a while
+loop.  Should I filter for this while loop and translate it back to a
+for loop in glsl? Or should I just translate into a while loop and
+hope the glsl compiler will be able to unroll it anyway?  Glsl
+performance might really suffer from dynamically sized arrays, but
+this should really be tested,  I did not test it at all yet.
 
 ** preventing the `iterator items` expansion, or matching against it?
 
