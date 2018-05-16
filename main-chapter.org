@@ -199,16 +199,18 @@ the list of active textures is passed as an integer to the uniform.
 
 # how I pass my uniforms to the shader
 The way I solve it, is that I split the uniforms into two different
-kinds of uniforms, the texture uniforms, and the non-texture
+kinds of uniforms, the /texture/ uniforms, and the /non-texture/
 uniforms. All /non-texture/ uniforms are automatically joined into a
 single uniform buffer, which is then passed to the program in one
 batch.
 
 The texture uniforms get their values assigned statically in the
-shader to a consecutive range of indices. All textures can now be
+shader to a consecutive range of indices.  All textures can now be
 bound to the OpenGL state with a single call to ~glBindImageTextures~.
 So there will never be a call to ~glUniform1i~ to set a texture
-uniform at all.
+uniform at all.  With this solution the programmers can use a
+different textures on each draw call, but they don't need to care
+about the internal array of active textures at all.
 
 #+BEGIN_SRC glsl
 // here I start at 0, but I could start at any other index.
@@ -216,6 +218,55 @@ layout(binding=0) uniform sampler2D reflection;
 layout(binding=1) uniform sampler2DShadow color;
 layout(binding=2) uniform samplerCube skybox;
 #+END_SRC
+
+#+BEGIN_SRC nim
+var handles = [reflection.handle, color.hanle, skybox.handle]
+glBindTextures(0, GLsizei(handles.len), handles[0].addr)
+#+END_SRC
+
+A possible optimization to this method would be to reserve some active
+textures at compile time for textures that are known to be used in
+many shader programs.  These textures would be bound to active textures at
+initialization stage and never unbound again.  For example just assume
+a font atlas would be used by many programs.
+
+#+BEGIN_SRC glsl
+  // here are all used texture uniforms from the statically reserved
+  // active textures
+  layout(binding=0) uniform sampler2DRect fontAtlas;
+
+  // the used active textures are now of course shifted by the total
+  // amount of statically reserved active textures.  For the purpose of
+  // this example I assume that there is another statically reserved
+  // active texture in the program, that is not used in this shader. So
+  // all used texture uniforms are shifted by 2 in the index.
+  layout(binding=2) uniform sampler2D reflection;
+  layout(binding=3) uniform sampler2DShadow color;
+  layout(binding=4) uniform samplerCube skybox;
+#+END_SRC
+
+#+BEGIN_SRC nim
+var handles = [reflection.handle, color.hanle, skybox.handle]
+glBindTextures(2, GLsizei(handles.len), handles[0].addr)
+#+END_SRC
+
+The advantage here is that statically reserved active texture units
+don't need any OpenGL state change at all.  But I have no measurement
+at all on how much performance gain there is or much much performance
+gain might be possible.
+
+The disadvantage is for the mostly that the programmer needs to take
+active care of these statically reserved active textures.  He needs to
+be aware on how many there are. The limits are at least 48 by the
+standard, and on my computer there cannot be more than 192 combined
+texture image units. Also all texture unit reservation needs to take
+place before the first shader program is compiled, because otherwise
+the offset for the dynamically bound active textures won't be correct
+anymore.
+
+Because of the disadvantages and no guarantee for a performance gain,
+this has not been implemented yet.  But this technique will be picked
+up again, if binding textures turns out to be expensive.
 
 ** Extraction of Meta Information
 
