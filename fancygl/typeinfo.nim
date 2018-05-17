@@ -25,28 +25,28 @@ template glslIsSampler[M,N,T](t: typedesc[Mat[M,N,T]]): bool = false
 template glslIsSampler       (t: typedesc[SomeNumber]): bool = false
 template glslIsSampler       (t: typedesc[bool      ]): bool = false
 
-template attribSize(t: typedesc[SomeNumber]) : GLint        = 1
-template attribNormalized(t: typedesc[SomeNumber]): bool = false
+template attribSize*(t: typedesc[SomeNumber]) : GLint        = 1
+template attribNormalized*(t: typedesc[SomeNumber]): bool = false
 
-template attribType(t: typedesc[int8    ]) : GLenum = cGL_BYTE
-template attribType(t: typedesc[int16   ]) : GLenum = cGL_SHORT
-template attribType(t: typedesc[int32   ]) : GLenum = cGL_INT
-template attribType(t: typedesc[float32 ]) : GLenum = cGL_FLOAT
-template attribType(t: typedesc[float64 ]) : GLenum = cGL_DOUBLE
-template attribType(t: typedesc[uint8   ]) : GLenum = GL_UNSIGNED_BYTE
-template attribType(t: typedesc[uint16  ]) : GLenum = GL_UNSIGNED_SHOR
-template attribType(t: typedesc[uint32  ]) : GLenum = GL_UNSIGNED_INT
+template attribType*(t: typedesc[int8    ]) : GLenum = cGL_BYTE
+template attribType*(t: typedesc[int16   ]) : GLenum = cGL_SHORT
+template attribType*(t: typedesc[int32   ]) : GLenum = cGL_INT
+template attribType*(t: typedesc[float32 ]) : GLenum = cGL_FLOAT
+template attribType*(t: typedesc[float64 ]) : GLenum = cGL_DOUBLE
+template attribType*(t: typedesc[uint8   ]) : GLenum = GL_UNSIGNED_BYTE
+template attribType*(t: typedesc[uint16  ]) : GLenum = GL_UNSIGNED_SHOR
+template attribType*(t: typedesc[uint32  ]) : GLenum = GL_UNSIGNED_INT
 
-template attribSize[N,T](t: typedesc[Vec[N,T]]): GLint      = GLint(N)
-template attribType[N,T](t: typedesc[Vec[N,T]]): GLenum    = T.attribType
-template attribNormalized[N,T](t: typedesc[Vec[N,T]]): bool = false
+template attribSize*[N,T](t: typedesc[Vec[N,T]]): GLint      = GLint(N)
+template attribType*[N,T](t: typedesc[Vec[N,T]]): GLenum    = T.attribType
+template attribNormalized*[N,T](t: typedesc[Vec[N,T]]): bool = false
 
 # I hope at some point this will be implemented in the compiler, and i do not need to replicate it here:
 # todo insert alignof here
 
-template attribSize(t : typedesc[Color]): GLint = 4
-template attribType(t:  typedesc[Color]) : GLenum = GL_UNSIGNED_BYTE
-template attribNormalized(t: typedesc[Color]) : GLboolean = true
+template attribSize*(t : typedesc[Color]): GLint = 4
+template attribType*(t:  typedesc[Color]) : GLenum = GL_UNSIGNED_BYTE
+template attribNormalized*(t: typedesc[Color]) : GLboolean = true
 template glslTypeRepr(t: typedesc[Color]): string = "vec4"
 template glslIsSampler(t: typedesc[Color]): bool = false
 

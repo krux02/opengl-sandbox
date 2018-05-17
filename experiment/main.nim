@@ -12,6 +12,7 @@ import ../fancygl, ast_pattern_matching
 # local stuff
 import normalizeType, glslTranslate, boring_stuff
 
+
 type
   ShaderKind* = enum
     skVert = "vert"
@@ -246,10 +247,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     if debug:
       echo "<render_inner>"
       #echo arg.treeRepr
-    defer:
-      if debug:
-        echo result.lispRepr
-        echo "</render_inner>"
 
     # this is really a hack because arguments are not symbols for some reason
     # ¯\_(ツ)_/¯
@@ -372,8 +369,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     sharedCode.add "// types section\n"
     for tpe in typesToGenerate:
       let impl = tpe.getTypeImpl
-
-      echo impl.treeRepr
 
       impl.matchAst:
       of nnkObjectTy(
@@ -500,6 +495,63 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     validateShader(vertexShader, skVert)
     validateShader(fragmentShader, skFrag)
 
+    ############################################################################
+    ############################# generate nim code ############################
+    ############################################################################
+
+    let vertexShaderLit = newLit(vertexShader)
+    let fragmentShaderLit = newLit(fragmentShader)
+
+    let lineinfoLit = newLit(body.lineinfoObj)
+
+
+
+    let vaoSym = genSym(nskVar, "vao")
+
+
+    ## attribute initialization
+    let attributeInitialization = newStmtList()
+
+    let dummySym = genSym(nskVar, "dummy")
+    let vertexType = vertexSym.getTypeInst
+    attributeInitialization.add quote do:
+      var `vaoSym`: VertexArrayObject
+      glCreateVertexArrays(1, `vaoSym`.handle.addr)
+      var `dummySym`: `vertexType`
+
+    for i, attrib in allAttributes:
+      echo "attrib: ", attrib.lispRepr
+      let iLit = newLit(uint32(i))
+      let memberSym = attrib[1]
+      let memberType = attrib.getTypeInst.normalizeType
+
+      #echo attrib.repr, " -- ", attrib.getTypeInst.normalizeType.repr
+      attributeInitialization.add quote do:
+        # TODO there is no divisor inference
+        glVertexArrayBindingDivisor(`vaoSym`.handle, `iLit`, 0)
+        let size           = attribSize(`memberType`)
+        let typeArg        = attribType(`memberType`)
+        let normalized     = attribNormalized(`memberType`)
+        let relativeoffset = GLuint(cast[int](`dummySym`.`memberSym`.addr) - cast[int](`dummySym`.addr))
+        glVertexArrayAttribFormat(`vaoSym`.handle, `iLit`, size, typeArg, normalized, relativeoffset)
+        glVertexArrayAttribBinding(`vaoSym`.handle, `iLit`, `iLit`)
+
+    result = quote do:
+      var program: Program
+
+      if program.handle == 0:
+        program.handle = glCreateProgram()
+        program.attachAndDeleteShader( compileShader(GL_VERTEX_SHADER, `vertexShaderLit`, `lineinfoLit`) )
+        program.attachAndDeleteShader( compileShader(GL_FRAGMENT_SHADER, `fragmentShader`, `lineinfoLit`) )
+        program.linkOrDelete
+
+        `attributeInitialization`
+
+  if debug:
+    echo result.repr
+    echo "</render_inner>"
+
+
 proc `or`(arg, alternative: NimNode): NimNode {.compileTime.} =
   if arg.kind != nnkEmpty:
     arg
@@ -508,11 +560,55 @@ proc `or`(arg, alternative: NimNode): NimNode {.compileTime.} =
 
 type
   Mesh[VertexType] = object
+
   Framebuffer[FragmentType] = object
+    handle: GLuint
+    size: Vec2i
+
   GlEnvironment = object
     Position: Vec4f
     PointSize: float32
     ClipDistance: UncheckedArray[float32]
+
+
+proc create[FragmentType](result: var Framebuffer[FragmentType]): void =
+  glCreateFramebuffers(1, result.handle.addr)
+
+  var depth_texture: GLuint
+  glCreateTextures(GL_TEXTURE_2D, 1, depth_texture.addr)
+  glTextureParameteri(depth_texture, GL_TEXTURE_MIN_FILTER, GLint(GL_NEAREST))
+  glTextureParameteri(depth_texture, GL_TEXTURE_MAG_FILTER, GLint(GL_NEAREST))
+  glTextureParameteri(depth_texture, GL_TEXTURE_WRAP_S, GLint(GL_CLAMP_TO_EDGE))
+  glTextureParameteri(depth_texture, GL_TEXTURE_WRAP_T, GLint(GL_CLAMP_TO_EDGE))
+  glTextureStorage2D(depth_texture, 1, GL_DEPTH_COMPONENT24, result.size.x, result.size.y)
+
+  glNamedFramebufferTexture(result.handle, GL_DEPTH_ATTACHMENT, depth_texture, 0)
+
+  var fragment: FragmentType
+
+  var i = 0
+  for field in fragment.fields:
+    # Build the texture that will serve as the color attachment for the framebuffer.
+    var texture_attachment: GLuint
+    glCreateTextures(GL_TEXTURE_2D, 1, texture_attachment.addr)
+    glTextureParameteri(texture_attachment, GL_TEXTURE_MIN_FILTER, GLint(GL_LINEAR));
+    glTextureParameteri(texture_attachment, GL_TEXTURE_MAG_FILTER, GLint(GL_LINEAR));
+    glTextureParameteri(texture_attachment, GL_TEXTURE_WRAP_S, GLint(GL_CLAMP_TO_BORDER));
+    glTextureParameteri(texture_attachment, GL_TEXTURE_WRAP_T, GLint(GL_CLAMP_TO_BORDER));
+    glTextureStorage2D(texture_attachment, 1, GL_RGBA8, result.size.x, result.size.y)
+    glNamedFramebufferTexture(result.handle, GL_COLOR_ATTACHMENT0 + GLenum(i), texture_attachment, 0)
+
+    i += 1
+
+  let status = glCheckNamedFramebufferStatus(result.handle, GL_FRAMEBUFFER)
+  assert status == GL_FRAMEBUFFER_COMPLETE
+
+  echo "creating framebuffer is ok"
+
+proc createFramebuffer[FragmentType](size: Vec2i): Framebuffer[FragmentType] =
+  result.size = size
+  result.create
+
 
 proc injectTypes(framebuffer, mesh, arg: NimNode): NimNode {.compileTime.} =
   ## Inject types to the ``render .. do: ...`` node.
@@ -556,14 +652,20 @@ proc injectTypes(framebuffer, mesh, arg: NimNode): NimNode {.compileTime.} =
   result[3] = newParams
 
 macro render*(framebuffer, mesh: typed; arg: untyped): untyped =
-  result = newCall(
-    bindSym"render_inner", newLit(false), mesh,
-    injectTypes(framebuffer, mesh, arg))
+  let arg = injectTypes(framebuffer, mesh, arg)
+  result = quote do:
+    let fb = `framebuffer`
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fb.handle)
+    render_inner(false, `mesh`, `arg`)
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
 
 macro renderDebug(framebuffer, mesh: typed; arg: untyped): untyped =
-  result = newCall(
-    bindSym"render_inner", newLit(true), mesh,
-    injectTypes(framebuffer, mesh, arg))
+  let arg = injectTypes(framebuffer, mesh, arg)
+  result = quote do:
+    let fb = `framebuffer`
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fb.handle)
+    render_inner(true, `mesh`, `arg`)
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
 
 ################################################################################
 ################################## user  code ##################################
@@ -585,9 +687,11 @@ type
   MyMesh        = Mesh[MyVertexType]
   MyFramebuffer = Framebuffer[MyFragmentType]
 
+let (window, context) = defaultSetup()
+
 var myTexture: Texture2D
 var mesh: MyMesh
-var framebuffer: MyFramebuffer
+var framebuffer: MyFramebuffer = createFramebuffer[MyFragmentType](window.size)
 var mvp: Mat4f
 var M,V,P: Mat4f
 var lights: array[10,Light]
