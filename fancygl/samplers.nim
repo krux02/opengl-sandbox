@@ -17,14 +17,6 @@ proc createErrorSurface*(message: string = nil): sdl.Surface =
 
 const typeConst = [GL_RED, GL_RG, GL_RGB, GL_RGBA]
 
-template textureTypeTemplate(name: untyped, target: GLenum, shadername:string): untyped =
-  type
-    name* = object
-      handle*: GLuint
-
-  proc `$`*(texture: name): string =
-    $texture.handle
-
 proc unbindTextures*(first,count: int): void =
   if glBindTextures != nil:
     glBindTextures(first.GLuint, count.GLsizei, nil)
@@ -70,38 +62,60 @@ proc geometryPrimitiveLayout(mode: GLenum): string =
   else:
     ""
 
-textureTypeTemplate(Texture1D,
-    GL_TEXTURE_1D, "sampler1D")
-textureTypeTemplate(Texture2D,
-    GL_TEXTURE_2D, "sampler2D")
-textureTypeTemplate(Texture3D,
-    GL_TEXTURE_3D, "sampler3D")
-textureTypeTemplate(Texture1DArray,
-    GL_Texture_1D_ARRAY, "sampler1DArray")
-textureTypeTemplate(Texture2DArray,
-    GL_TEXTURE_2D_ARRAY, "sampler2DArray")
-textureTypeTemplate(TextureRectangle,
-    GL_TEXTURE_RECTANGLE, "sampler2DRect")
-textureTypeTemplate(TextureCubeMap,
-    GL_TEXTURE_CUBE_MAP, "samplerCube")
-#textureTypeTemplate(TextureCubeMapArray,
-#    GL_TEXTURE_CUBE_MAP_ARRAY , "samplerCubeArray")
-textureTypeTemplate(TextureBuffer,
-    GL_TEXTURE_BUFFER, "samplerBuffer")
-textureTypeTemplate(Texture2DMultisample,
-    GL_TEXTURE_2D_MULTISAMPLE, "sampler2DMS")
-textureTypeTemplate(Texture2DMultisampleArray,
-    GL_TEXTURE_2D_MULTISAMPLE_ARRAY, "sampler2DMSArray")
+type
+  Texture1D* = object
+    handle*: GLuint
 
+  Texture2D* = object
+    handle*: GLuint
 
-textureTypeTemplate(Texture1DShadow,        GL_TEXTURE_1D,             "sampler1DShadow​")
-textureTypeTemplate(Texture2DShadow,        GL_TEXTURE_2D,             "sampler2DShadow​")
-textureTypeTemplate(TextureCubeShadow,      GL_TEXTURE_CUBE_MAP,       "samplerCubeShadow​")
-textureTypeTemplate(Texture2DRectShadow,    GL_TEXTURE_RECTANGLE,      "sampler2DRectShadow​")
-textureTypeTemplate(Texture1DArrayShadow,   GL_TEXTURE_1D_ARRAY,       "sampler1DArrayShadow​")
-textureTypeTemplate(Texture2DArrayShadow,   GL_TEXTURE_2D_ARRAY,       "sampler2DArrayShadow​")
-# textureTypeTemplate(TextureCubeArrayShadow, GL_TEXTURE_CUBE_MAP_ARRAY, "samplerCubeArrayShadow​")
+  Texture3D* = object
+    handle*: GLuint
 
+  Texture1DArray* = object
+    handle*: GLuint
+
+  Texture2DArray* = object
+    handle*: GLuint
+
+  TextureRectangle* = object
+    handle*: GLuint
+
+  TextureCubeMap* = object
+    handle*: GLuint
+
+  TextureCubeMapArray* = object
+    handle*: GLuint
+
+  TextureBuffer* = object
+    handle*: GLuint
+
+  Texture2DMultisample* = object
+    handle*: GLuint
+
+  Texture2DMultisampleArray* = object
+    handle*: GLuint
+
+  Texture1DShadow* = object
+    handle*: GLuint
+
+  Texture2DShadow* = object
+    handle*: GLuint
+
+  TextureCubeShadow* = object
+    handle*: GLuint
+
+  TextureCubeArrayShadow* = object
+    handle*: GLuint
+
+  Texture2DRectShadow* = object
+    handle*: GLuint
+
+  Texture1DArrayShadow* = object
+    handle*: GLuint
+
+  Texture2DArrayShadow* = object
+    handle*: GLuint
 
 type
   AnyTexture =
@@ -112,6 +126,9 @@ type
     Texture1DShadow | Texture2DShadow | TextureCubeShadow |
     Texture2DRectShadow | Texture1DArrayShadow | Texture2DArrayShadow
     #TextureCubeArrayShadow
+
+proc `$`*(texture: AnyTexture): string =
+  $texture.handle
 
 proc isValid*(texture: AnyTexture): bool =
   texture.handle.int > 0 and glIsTexture(texture.handle)
