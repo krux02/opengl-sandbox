@@ -523,6 +523,10 @@ type
 type SeqLikeBuffer[T] = ArrayBuffer[T] | ElementArrayBuffer[T]
 type AnyBuffer[T] = ArrayBuffer[T] | ElementArrayBuffer[T] | UniformBuffer[T]
 
+template absoluteoffset*[T](arg: SeqLikeBuffer[T]): GLsizei = 0
+template stride*[T](arg: SeqLikeBuffer[T]): GLsizei         = GLsizei(sizeof(T))
+
+## TODO call this create
 
 proc new*[T](arrayBuffer: var ArrayBuffer[T] ) : void =
   glCreateBuffers(1, arrayBuffer.handle.addr)
@@ -827,7 +831,9 @@ type
     buffer*: ArrayBuffer[S]
     absoluteoffset*: GLsizei
     relativeoffset*: GLuint
-    stride*: int
+    stride*: GLsizei
+
+proc handle*(ab: ArrayBufferView): GLuint = ab.buffer.handle
 
 proc len*(ab: ArrayBufferView):  int = ab.buffer.len
 proc high*(ab: ArrayBufferView): int = ab.buffer.len - 1
@@ -837,7 +843,7 @@ template view*(buf: ArrayBuffer; member: untyped): untyped =
   var res : ArrayBufferView[buf.T, dummyVal.member.type]
   res.buffer = buf
   res.relativeoffset = GLuint(cast[int](dummyVal.member.addr) - cast[int](dummyVal.addr))
-  res.stride = sizeof(buf.T)
+  res.stride = GLsizei(sizeof(buf.T))
   res
 
 proc splitView*(buf: ArrayBuffer[Mat4f]): array[4, ArrayBufferView[Mat4f, Vec4f]] =
@@ -992,11 +998,42 @@ proc setFormat*[S,T](vao: VertexArrayObject; binding: uint32; view: ArrayBufferV
   glVertexArrayAttribFormat(vao.handle, binding, attribSize(T), attribType(T), attribNormalized(T), view.relativeoffset);
 
 proc setBuffer*[T](vao: VertexArrayObject; binding: uint32; buffer: ArrayBuffer[T]): void =
-  glVertexArrayVertexBuffer(vao.handle, binding, buffer.handle, 0, GLsizei(sizeof(T)))
+  glVertexArrayVertexBuffer(vao.handle, binding, buffer.handle, buffer.absoluteoffset, buffer.stride)
 
-proc setBuffer*(vao: VertexArrayObject; binding: uint32; view: ArrayBufferView): void =
-  glVertexArrayVertexBuffer(vao.handle, binding, view.buffer.handle, view.absoluteoffset, GLsizei(view.stride))
+proc setBuffer*(vao: VertexArrayObject; binding: uint32; buffer: ArrayBufferView): void =
+  glVertexArrayVertexBuffer(vao.handle, binding, buffer.handle, buffer.absoluteoffset, buffer.stride)
 
+macro setBuffers*(vao: VertexArrayObject; first: uint32; buffers: varargs[untyped]): untyped =
+  when false: # there is a bug in OpenGL that prevents this from working :/
+    if buffers.len > 0:
+
+      let buffersArray = nnkBracket.newTree
+      let offsetsArray = nnkBracket.newTree
+      let stridesArray = nnkBracket.newTree
+
+      for buffer in buffers:
+        buffersArray.add newDotExpr(buffer, ident"handle")
+        offsetsArray.add newDotExpr(buffer, ident"absoluteoffset")
+        stridesArray.add newDotExpr(buffer, ident"stride")
+
+      let countLit = newLit(GLsizei(buffers.len))
+
+      result = quote do:
+        var buffers = `buffersArray`
+        var offsets = `offsetsArray`
+        var strides = `stridesArray`
+
+        for i in 0 ..< `countLit`:
+          glBindVertexBuffer(`first` + uint32(i), buffers[i], offsets[i], strides[i])
+
+        ## This command should be able to replace the upper loop, but for some reason it does not work :/
+        # glVertexArrayVertexBuffers(`vao`.handle, `first`, `countLit`, buffers[0].addr, offsets[0].addr, strides[0].addr)
+
+  else:
+    result = newStmtList()
+    for i, buffer in buffers:
+      let binding = newInfix(bindSym"+", first, newLit(i))
+      result.add newCall( bindSym"setBuffer", vao, binding, buffer)
 
 ##########################
 # # transform feedback # #

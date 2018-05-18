@@ -503,19 +503,18 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     let fragmentShaderLit = newLit(fragmentShader)
 
     let lineinfoLit = newLit(body.lineinfoObj)
-
-
-
     let vaoSym = genSym(nskVar, "vao")
 
+    let programSym = genSym(nskVar, "program")
+
+    let initialization = newStmtList()
 
     ## attribute initialization
-    let attributeInitialization = newStmtList()
 
     let dummySym = genSym(nskVar, "dummy")
     let vertexType = vertexSym.getTypeInst
-    attributeInitialization.add quote do:
-      var `vaoSym`: VertexArrayObject
+
+    initialization.add quote do:
       glCreateVertexArrays(1, `vaoSym`.handle.addr)
       var `dummySym`: `vertexType`
 
@@ -526,7 +525,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       let memberType = attrib.getTypeInst.normalizeType
 
       #echo attrib.repr, " -- ", attrib.getTypeInst.normalizeType.repr
-      attributeInitialization.add quote do:
+      initialization.add quote do:
         # TODO there is no divisor inference
         glVertexArrayBindingDivisor(`vaoSym`.handle, `iLit`, 0)
         let size           = attribSize(`memberType`)
@@ -536,16 +535,76 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         glVertexArrayAttribFormat(`vaoSym`.handle, `iLit`, size, typeArg, normalized, relativeoffset)
         glVertexArrayAttribBinding(`vaoSym`.handle, `iLit`, `iLit`)
 
-    result = quote do:
-      var program: Program
+    ## uniform initialization
 
-      if program.handle == 0:
-        program.handle = glCreateProgram()
-        program.attachAndDeleteShader( compileShader(GL_VERTEX_SHADER, `vertexShaderLit`, `lineinfoLit`) )
-        program.attachAndDeleteShader( compileShader(GL_FRAGMENT_SHADER, `fragmentShader`, `lineinfoLit`) )
-        program.linkOrDelete
 
-        `attributeInitialization`
+    let draw = newStmtList()
+
+    draw.add newCommentStmtNode("passing uniform")
+
+
+    if uniformRest.len > 0:
+      let uniformTupleType = nnkTupleTy.newTree
+      for uniform in uniformRest:
+        uniformTupleType.add nnkIdentDefs.newTree(
+          ident(uniform.strVal),
+          uniform.getTypeInst,
+          newEmptyNode()
+        )
+
+      let uniformsTupleSym = genSym(nskVar, "uniforms")
+
+      draw.add quote do:
+        var `uniformsTupleSym`: `uniformTupleType`
+
+
+      for uniform in uniformRest:
+        let member = ident(uniform.strVal)
+        draw.add newAssignment(newDotExpr(uniformsTupleSym, member), uniform)
+
+    if uniformSamplers.len > 0:
+       discard
+
+
+
+    # result = quote do:
+    #   var `programSym`: Program
+    #   var `vaoSym`: VertexArrayObject
+    #   var `uniformBlockIndexSym`: GLuint
+    #   var `uniformBlockBufferSym`: GLuint
+
+    #   if `programSym`.handle == 0:
+    #     `programSym`.handle = glCreateProgram()
+    #     `programSym`.attachAndDeleteShader( compileShader(GL_VERTEX_SHADER, `vertexShaderLit`, `lineinfoLit`) )
+    #     `programSym`.attachAndDeleteShader( compileShader(GL_FRAGMENT_SHADER, `fragmentShader`, `lineinfoLit`) )
+    #     `programSym`.linkOrDelete
+
+    #      `uniformBlockIndexSym` = glGetUniformBlockIndex(programSym.handle, ​"shader_data")
+    #      glUniformBlockBinding(`programSym`.handle, `uniformBlockIndexSym`, `uniformBlockIndexSym`)
+
+
+    #      glCreateUniformBlockBuffer
+
+    #     `initialization`
+
+    #   `draw`
+
+
+
+    # sharedCode.add "// uniforms section\n"
+    # sharedCode.add "layout (std140) uniform shader_data {\n"
+    # for uniform in uniformRest:
+    #   sharedCode.add uniform.getTypeInst.glslType, " "
+    #   sharedCode.compileToGlsl(uniform)
+    #   sharedCode.add ";\n"
+    # sharedCode.add "};\n"
+    # for i, uniform in uniformSamplers:
+    #   sharedCode.add "layout(binding=", 0, ") "
+    #   sharedCode.add "uniform ", uniform.getTypeInst.glslType, " "
+    #   sharedCode.compileToGlsl(uniform)
+    #   sharedCode.add ";\n"
+
+
 
   if debug:
     echo result.repr
@@ -689,12 +748,29 @@ type
 
 let (window, context) = defaultSetup()
 
-var myTexture: Texture2D
+var myTexture: Texture2D = loadTexture2DFromFile(getResourcePath("crate.png"))
+var myMeshArrayBuffer = newArrayBuffer[MyVertexType](boxVertices.len)
+
+for i, vertex in myMeshArrayBuffer.wPairs:
+  vertex.position_os = boxVertices[i]
+  vertex.normal_os   = boxNormals[i]
+  vertex.texCoord    = boxTexCoords[i]
+
 var mesh: MyMesh
 var framebuffer: MyFramebuffer = createFramebuffer[MyFragmentType](window.size)
-var mvp: Mat4f
+
 var M,V,P: Mat4f
+
+M = mat4f(1).translate( 0, 0, -7)
+V = mat4f(1)
+P = perspective(45'f32, window.aspectRatio, 0.1, 100.0)
+
 var lights: array[10,Light]
+
+for i, light in lights.mpairs:
+  light.position_ws  =  vec4f(1)
+  light.color        =  vec4f(1)
+
 
 framebuffer.renderDebug(mesh) do (v, gl):
   gl.Position     = P * V * M * v.position_os
@@ -712,3 +788,218 @@ framebuffer.renderDebug(mesh) do (v, gl):
 
   let textureSample = texture(myTexture, v.texCoord)
   result.color = textureSample * lighting
+
+
+proc manualDrawCode(): void
+
+proc render(): void =
+  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
+
+  manualDrawCode()
+
+  glSwapWindow(window)
+
+var runGame = true
+while runGame:
+  for evt in events():
+    if evt.kind == QUIT:
+      runGame = false
+      break
+    if evt.kind == KeyDown:
+      case evt.key.keysym.scancode
+      of SCANCODE_ESCAPE:
+        runGame = false
+      of SCANCODE_F10:
+        window.screenshot
+      else:
+        discard
+
+  render()
+
+################################################################################
+################################# manual  code #################################
+################################################################################
+
+# test code before generating it
+
+const
+  vertexShaderSrc = """
+#version 450
+// types section
+struct Light{
+  vec4 positionws;
+  vec4 color;
+};
+// uniforms section
+layout (std140) uniform shader_data {
+  mat4 P;
+  mat4 V;
+  mat4 M;
+  Light[10] lights;
+};
+layout(binding=0) uniform sampler2D myTexture;
+// all attributes
+in layout(location=0) vec4 in_v_positionos;
+in layout(location=1) vec4 in_v_normalos;
+in layout(location=2) vec2 in_v_texCoord;
+// all varyings
+out layout(location=0) vec4 out_positioncs;
+out layout(location=1) vec4 out_normalcs;
+out layout(location=2) vec2 out_v_texCoord;
+void main() {
+  // convert used attributes to local variables (because reasons)
+  vec4 v_positionos = in_v_positionos;
+  vec4 v_normalos = in_v_normalos;
+  // glsl translation of main body
+  gl_Position = (((P * V) * M) * v_positionos);
+  vec4 positioncs = ((V * M) * v_positionos);
+  vec4 normalcs = (inverse(transpose((V * M)) )  * v_normalos);
+  int inout_XXX = 123;
+  // forward attributes that are used in the fragment shader
+  out_v_texCoord = in_v_texCoord;
+  // forward other varyings
+  out_positioncs = positioncs;
+  out_normalcs = normalcs;
+}
+"""
+  fragmentShaderSrc = """
+#version 450
+// types section
+struct Light{
+  vec4 positionws;
+  vec4 color;
+};
+// uniforms section
+layout (std140) uniform shader_data {
+  mat4 P;
+  mat4 V;
+  mat4 M;
+  Light[10] lights;
+};
+layout(binding=0) uniform sampler2D myTexture;
+// fragment output symbols
+out layout(location=0) vec4 result_color;
+// all varyings
+in layout(location=0) vec4 in_positioncs;
+in layout(location=1) vec4 in_normalcs;
+in layout(location=2) vec2 in_v_texCoord;
+void main() {
+  // convert varyings to local variables (because reasons)
+  vec4 positioncs = in_positioncs;
+  vec4 normalcs = in_normalcs;
+  vec2 v_texCoord = in_v_texCoord;
+  /// rasterize
+  ;
+  vec4 lighting = vec4(0);
+  for(int i575802 = 0; i575802 < 10; ++i575802) {
+    Light light = lights[i575802];
+    {
+      vec4 lightpositioncs = (V * light.positionws);
+      vec4 lightdirectioncs = (lightpositioncs - positioncs);
+      float lightintensity = dot(lightdirectioncs, normalcs) ;
+      (lighting += (lightintensity * light.color));
+
+  }};
+  vec4 textureSample = texture(myTexture, v_texCoord, 0.0) ;
+  result_color = (textureSample * lighting);
+  result_color = vec4(1);
+}
+"""
+
+
+
+type
+  UniformBufferType = tuple[P: Mat4f, V: Mat4f, M: Mat4f, lights: array[0 .. 9, Light]]
+
+
+var
+  program: Program
+  vao: VertexArrayObject
+  uniformBuffer: UniformBuffer[UniformBufferType]
+
+proc manualDrawCode(): void =
+  ## this code block should eventually be generated
+
+
+  if program.handle == 0:
+    program.handle = glCreateProgram()
+    program.attachAndDeleteShader(
+      compileShader(GL_VERTEX_SHADER, vertexShaderSrc,
+                    LineInfo(filename: "main.nim", line: 748, column: 2)))
+
+    program.attachAndDeleteShader(
+      compileShader(GL_FRAGMENT_SHADER, fragmentShaderSrc,
+                    LineInfo(filename: "main.nim", line: 748, column: 2)))
+
+    program.linkOrDelete
+
+    glCreateVertexArrays(1, vao.handle.addr)
+    glCreateBuffers(1, uniformBuffer.handle.addr)
+    glNamedBufferStorage(
+      uniformBuffer.handle, sizeof(UniformBufferType), nil,
+      GL_MAP_WRITE_BIT or GL_DYNAMIC_STORAGE_BIT or GL_MAP_PERSISTENT_BIT
+    )
+
+    var dummy: MyVertexType
+    glVertexArrayBindingDivisor(vao.handle, 0'u32, 0)
+    let size575808 = attribSize(Vec[4, float32])
+    let typeArg575810 = attribType(Vec[4, float32])
+    let normalized575812 = attribNormalized(Vec[4, float32])
+    let relativeoffset575814 = GLuint(cast[int](dummy.position_os.addr) - cast[int](dummy.addr))
+    glVertexArrayAttribFormat(
+      vao.handle, 0'u32, size575808, typeArg575810,
+      normalized575812, relativeoffset575814
+    )
+    glVertexArrayAttribBinding(vao.handle, 0'u32, 0'u32)
+    glVertexArrayBindingDivisor(vao.handle, 1'u32, 0)
+    let size575816 = attribSize(Vec[4, float32])
+    let typeArg575818 = attribType(Vec[4, float32])
+    let normalized575820 = attribNormalized(Vec[4, float32])
+    let relativeoffset575822 = GLuint(cast[int](dummy.normal_os.addr) -  cast[int](dummy.addr))
+    glVertexArrayAttribFormat(
+      vao.handle, 1'u32, size575816, typeArg575818,
+      normalized575820, relativeoffset575822
+    )
+    glVertexArrayAttribBinding(vao.handle, 1'u32, 1'u32)
+    glVertexArrayBindingDivisor(vao.handle, 2'u32, 0)
+    let size575824 = attribSize(Vec[2, float32])
+    let typeArg575826 = attribType(Vec[2, float32])
+    let normalized575828 = attribNormalized(Vec[2, float32])
+    let relativeoffset575830 = GLuint(cast[int](dummy.texCoord.addr) - cast[int](dummy.addr))
+    glVertexArrayAttribFormat(
+      vao.handle, 2'u32, size575824, typeArg575826,
+      normalized575828, relativeoffset575830
+    )
+    glVertexArrayAttribBinding(vao.handle, 2'u32, 2'u32)
+
+  ## passing uniform
+
+  let uniformPointer = cast[ptr UniformBufferType](glMapNamedBufferRange(
+    uniformBuffer.handle, 0, sizeof(UniformBufferType),
+    GL_MAP_WRITE_BIT
+  ))
+
+  echo cast[int](uniformPointer)
+
+  uniformPointer.P = P
+  uniformPointer.V = V
+  uniformPointer.M = M
+  uniformPointer.lights = lights
+
+  doAssert glUnmapNamedBuffer(uniformBuffer.handle)
+
+  glUseProgram(program.handle)
+  glBindVertexArray(vao.handle)
+
+
+  # TODO: hmm this seems to bu wrong
+  uiaedrntdrnue
+
+  setBuffer(vao, 0, myMeshArrayBuffer.view(position_os))
+  setBuffer(vao, 1, myMeshArrayBuffer.view(normal_os))
+  setBuffer(vao, 2, myMeshArrayBuffer.view(texCoord))
+
+  var textureHandles = [myTexture.handle]
+  glBindTextures(0, GLsizei(textureHandles.len), textureHandles[0].addr)
+
+  glDrawArrays(GL_TRIANGLES, 0, GLsizei(len(myMeshArrayBuffer)))

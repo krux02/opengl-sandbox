@@ -16,7 +16,7 @@ type
 
 var boxBuffer = newArrayBuffer[VertexStruct](boxVertices.len)
 
-for i, vertex in boxBuffer.mpairs:
+for i, vertex in boxBuffer.wPairs:
   vertex.pos      = boxVertices[i]
   vertex.normal   = boxNormals[i]
   vertex.color    = boxColors[i]

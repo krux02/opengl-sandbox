@@ -255,6 +255,9 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
     of "attributes":
       var binding: uint32
+
+      let setBuffersCall = newCall(bindSym"setBuffers", vao, newLit(binding))
+
       for innerCall in call[1][1].items:
         innerCall[1].expectKind nnkStrLit
         let name = $innerCall[1]
@@ -295,15 +298,17 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
             glVertexArrayAttribBinding(`vao`.handle, `bindingLit`, uint32(`location`.index))
         )
 
-        drawBlock.add(quote do:
-          setBuffer(`vao`, `bindingLit`, `value`)
-        )
+        setBuffersCall.add value
+
 
         attribNames.add( name )
         attribTypes.add( glslType )
         # format("in $1 $2", value.glslAttribType, name) )
         numLocations += 1
         binding += 1
+
+      echo setBuffersCall.repr
+      drawBlock.add(setBuffersCall)
 
     of "vertexOut":
       ##echo "vertexOut"
