@@ -2,8 +2,7 @@
 
 import ../fancygl
 
-let windowsize = vec2i(640, 480)
-let (window, context) = defaultSetup(windowsize)
+let (window, context) = defaultSetup(vec2i(640,480))
 
 let crateTexture = loadTexture2DFromFile(getResourcePath("crate.png"))
 
@@ -31,8 +30,8 @@ let
 let indices = iotaSeq[int8](boxvertices.len).elementArrayBuffer
 
 declareFramebuffer(Fb1FramebufferType):
-  depth = newDepthTexture2D(windowsize)
-  color = newTexture2D(windowsize)
+  depth = newDepthTexture2D(window.size)
+  color = newTexture2D(window.size)
 
 let fb1 = newFb1FramebufferType()
 
@@ -53,7 +52,7 @@ vec4 mymix(vec4 color, float alpha) {
 """
 
 var
-  projection_mat : Mat4f = perspective(45'f32, windowsize.x / windowsize.y, 0.1, 100.0)
+  projection_mat : Mat4f = perspective(45'f32, window.aspectratio, 0.1, 100.0)
   mouseX, mouseY: int32
   gameTimer    = newStopWatch(true)
   fps          = 0
@@ -67,7 +66,7 @@ proc render() =
 
   let mousePos  = vec2i(mouseX,mouseY)
   let mousePosf = vec2f(mousePos)
-  let mousePosNorm = mousePosf / vec2f(windowsize)
+  let mousePosNorm = mousePosf / vec2f(window.size)
 
   #for i in 0..<5:
   block writeToFramebufferBlock:
@@ -140,7 +139,7 @@ proc render() =
         tex = fb1.color
         depth = fb1.depth
         time
-        windowsize = vec2f(windowsize)
+        windowsize = vec2f(window.size)
         texSize = fb1.color.size.vec2f
 
       fragmentMain:
