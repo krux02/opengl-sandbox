@@ -789,7 +789,12 @@ framebuffer.renderDebug(mesh) do (v, gl):
 
 proc manualDrawCode(): void
 
-proc render(): void =
+var
+  buffer0 = myMeshArrayBuffer.view(position_os) # setBuffer(vao, 0, buffer0)
+  buffer1 = myMeshArrayBuffer.view(normal_os)   # setBuffer(vao, 1, buffer1)
+  buffer2 = myMeshArrayBuffer.view(texCoord)    # setBuffer(vao, 2, buffer2)
+
+proc render2(): void =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
 
   manualDrawCode()
@@ -811,7 +816,7 @@ while runGame:
       else:
         discard
 
-  render()
+  render2()
 
 ################################################################################
 ################################# manual  code #################################
@@ -904,6 +909,7 @@ void main() {
 """
 
 
+echo "############################## manual code running frome here ##############################"
 
 type
   UniformBufferType = tuple[P: Mat4f, V: Mat4f, M: Mat4f, lights: array[0 .. 9, Light]]
@@ -914,20 +920,10 @@ var
   vao: VertexArrayObject
   uniformBuffer: UniformBuffer[UniformBufferType]
 
-  buffer0 = myMeshArrayBuffer.view(position_os) # setBuffer(vao, 0, buffer0)
-  buffer1 = myMeshArrayBuffer.view(normal_os)   # setBuffer(vao, 1, buffer1)
-  buffer2 = myMeshArrayBuffer.view(texCoord)    # setBuffer(vao, 2, buffer2)
-
-
-echo buffer0
-echo buffer1
-echo buffer2
-
-const lineinfo = LineInfo(filename: "main.nim", line: 748, column: 2))
+const lineinfo = LineInfo(filename: "main.nim", line: 748, column: 2)
 
 proc manualDrawCode(): void =
   ## this code block should eventually be generated
-
 
   if program.handle == 0:
     program.handle = glCreateProgram()
@@ -939,42 +935,31 @@ proc manualDrawCode(): void =
     program.linkOrDelete
 
     glCreateVertexArrays(1, vao.handle.addr)
+
+    glUseProgram(program.handle)
+    glBindVertexArray(vao.handle)
+
     glCreateBuffers(1, uniformBuffer.handle.addr)
     glNamedBufferStorage(
       uniformBuffer.handle, sizeof(UniformBufferType), nil,
       GL_MAP_WRITE_BIT or GL_DYNAMIC_STORAGE_BIT or GL_MAP_PERSISTENT_BIT
     )
 
-    var dummy: MyVertexType
+    # TODO: hmm this seems to be wrong, these is still something not working
+
+    glEnableVertexArrayAttrib(vao.handle, 0'u32)
     glVertexArrayBindingDivisor(vao.handle, 0'u32, 0)
-    let size575808 = attribSize(Vec[4, float32])
-    let typeArg575810 = attribType(Vec[4, float32])
-    let normalized575812 = attribNormalized(Vec[4, float32])
-    let relativeoffset575814 = GLuint(cast[int](dummy.position_os.addr) - cast[int](dummy.addr))
-    glVertexArrayAttribFormat(
-      vao.handle, 0'u32, size575808, typeArg575810,
-      normalized575812, relativeoffset575814
-    )
+    glVertexArrayAttribFormat(vao.handle, 0'u32, attribSize(buffer0.T), attribType(buffer0.T), attribNormalized(buffer0.T), buffer0.relativeoffset);
     glVertexArrayAttribBinding(vao.handle, 0'u32, 0'u32)
+
+    glEnableVertexArrayAttrib(vao.handle, 1'u32)
     glVertexArrayBindingDivisor(vao.handle, 1'u32, 0)
-    let size575816 = attribSize(Vec[4, float32])
-    let typeArg575818 = attribType(Vec[4, float32])
-    let normalized575820 = attribNormalized(Vec[4, float32])
-    let relativeoffset575822 = GLuint(cast[int](dummy.normal_os.addr) -  cast[int](dummy.addr))
-    glVertexArrayAttribFormat(
-      vao.handle, 1'u32, size575816, typeArg575818,
-      normalized575820, relativeoffset575822
-    )
+    glVertexArrayAttribFormat(vao.handle, 0'u32, attribSize(buffer1.T), attribType(buffer1.T), attribNormalized(buffer1.T), buffer1.relativeoffset);
     glVertexArrayAttribBinding(vao.handle, 1'u32, 1'u32)
+
+    glEnableVertexArrayAttrib(vao.handle, 2'u32)
     glVertexArrayBindingDivisor(vao.handle, 2'u32, 0)
-    let size575824 = attribSize(Vec[2, float32])
-    let typeArg575826 = attribType(Vec[2, float32])
-    let normalized575828 = attribNormalized(Vec[2, float32])
-    let relativeoffset575830 = GLuint(cast[int](dummy.texCoord.addr) - cast[int](dummy.addr))
-    glVertexArrayAttribFormat(
-      vao.handle, 2'u32, size575824, typeArg575826,
-      normalized575828, relativeoffset575830
-    )
+    glVertexArrayAttribFormat(vao.handle, 0'u32, attribSize(buffer2.T), attribType(buffer2.T), attribNormalized(buffer2.T), buffer2.relativeoffset);
     glVertexArrayAttribBinding(vao.handle, 2'u32, 2'u32)
 
   ## passing uniform
@@ -991,15 +976,11 @@ proc manualDrawCode(): void =
 
   doAssert glUnmapNamedBuffer(uniformBuffer.handle)
 
-
   glUseProgram(program.handle)
   glBindVertexArray(vao.handle)
 
-
-
   glBindBufferBase(GL_UNIFORM_BUFFER, 0, uniformBuffer.handle)
 
-  # TODO: hmm this seems to bu wrong, these is still something not working
 
   setBuffer(vao, 0, buffer0)
   setBuffer(vao, 1, buffer1)
@@ -1008,4 +989,5 @@ proc manualDrawCode(): void =
   var textureHandles = [myTexture.handle]
   glBindTextures(0, GLsizei(textureHandles.len), textureHandles[0].addr)
 
-  glDrawArrays(GL_TRIANGLES, 0, GLsizei(len(myMeshArrayBuffer)))
+  let numVertices = GLsizei(len(myMeshArrayBuffer))
+  glDrawArrays(GL_TRIANGLES, 0, numVertices)
