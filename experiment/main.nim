@@ -291,10 +291,8 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       if tpe.eqIdent "Light":
         typesToGenerate.add tpe
 
-    symCollection.deduplicate   # TODO unused
-    echo "symCollection:   ", symCollection
-    usedProcSymbols.deduplicate # TODO unused
-    echo "usedProcSymbols: ", usedProcSymbols
+    symCollection.deduplicate   # TODO unused(symCollection)
+    usedProcSymbols.deduplicate # TODO unused(usedProcSymbols)
 
     # collect all symbols that have been declared in the vertex shader
 
@@ -519,7 +517,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       var `dummySym`: `vertexType`
 
     for i, attrib in allAttributes:
-      echo "attrib: ", attrib.lispRepr
       let iLit = newLit(uint32(i))
       let memberSym = attrib[1]
       let memberType = attrib.getTypeInst.normalizeType
@@ -917,6 +914,17 @@ var
   vao: VertexArrayObject
   uniformBuffer: UniformBuffer[UniformBufferType]
 
+  buffer0 = myMeshArrayBuffer.view(position_os) # setBuffer(vao, 0, buffer0)
+  buffer1 = myMeshArrayBuffer.view(normal_os)   # setBuffer(vao, 1, buffer1)
+  buffer2 = myMeshArrayBuffer.view(texCoord)    # setBuffer(vao, 2, buffer2)
+
+
+echo buffer0
+echo buffer1
+echo buffer2
+
+const lineinfo = LineInfo(filename: "main.nim", line: 748, column: 2))
+
 proc manualDrawCode(): void =
   ## this code block should eventually be generated
 
@@ -924,12 +932,9 @@ proc manualDrawCode(): void =
   if program.handle == 0:
     program.handle = glCreateProgram()
     program.attachAndDeleteShader(
-      compileShader(GL_VERTEX_SHADER, vertexShaderSrc,
-                    LineInfo(filename: "main.nim", line: 748, column: 2)))
-
+      compileShader(GL_VERTEX_SHADER, vertexShaderSrc, lineinfo))
     program.attachAndDeleteShader(
-      compileShader(GL_FRAGMENT_SHADER, fragmentShaderSrc,
-                    LineInfo(filename: "main.nim", line: 748, column: 2)))
+      compileShader(GL_FRAGMENT_SHADER, fragmentShaderSrc, lineinfo))
 
     program.linkOrDelete
 
@@ -979,8 +984,6 @@ proc manualDrawCode(): void =
     GL_MAP_WRITE_BIT
   ))
 
-  echo cast[int](uniformPointer)
-
   uniformPointer.P = P
   uniformPointer.V = V
   uniformPointer.M = M
@@ -988,16 +991,19 @@ proc manualDrawCode(): void =
 
   doAssert glUnmapNamedBuffer(uniformBuffer.handle)
 
+
   glUseProgram(program.handle)
   glBindVertexArray(vao.handle)
 
 
-  # TODO: hmm this seems to bu wrong
-  uiaedrntdrnue
 
-  setBuffer(vao, 0, myMeshArrayBuffer.view(position_os))
-  setBuffer(vao, 1, myMeshArrayBuffer.view(normal_os))
-  setBuffer(vao, 2, myMeshArrayBuffer.view(texCoord))
+  glBindBufferBase(GL_UNIFORM_BUFFER, 0, uniformBuffer.handle)
+
+  # TODO: hmm this seems to bu wrong, these is still something not working
+
+  setBuffer(vao, 0, buffer0)
+  setBuffer(vao, 1, buffer1)
+  setBuffer(vao, 2, buffer2)
 
   var textureHandles = [myTexture.handle]
   glBindTextures(0, GLsizei(textureHandles.len), textureHandles[0].addr)

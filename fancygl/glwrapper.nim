@@ -994,8 +994,8 @@ proc readPixel*(pos: Vec2i) : Color = readPixel(pos.x.int, pos.y.int)
 proc setFormat*[T](vao: VertexArrayObject, binding: uint32, buffer: ArrayBuffer[T]) =
   glVertexArrayAttribFormat(vao.handle, binding, attribSize(T), attribType(T), attribNormalized(T), 0);
 
-proc setFormat*[S,T](vao: VertexArrayObject; binding: uint32; view: ArrayBufferView[S,T]): void =
-  glVertexArrayAttribFormat(vao.handle, binding, attribSize(T), attribType(T), attribNormalized(T), view.relativeoffset);
+proc setFormat*[S,T](vao: VertexArrayObject; binding: uint32; buffer: ArrayBufferView[S,T]): void =
+  glVertexArrayAttribFormat(vao.handle, binding, attribSize(T), attribType(T), attribNormalized(T), buffer.relativeoffset);
 
 proc setBuffer*[T](vao: VertexArrayObject; binding: uint32; buffer: ArrayBuffer[T]): void =
   glVertexArrayVertexBuffer(vao.handle, binding, buffer.handle, buffer.absoluteoffset, buffer.stride)
