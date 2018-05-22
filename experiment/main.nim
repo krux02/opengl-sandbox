@@ -758,15 +758,22 @@ var framebuffer: MyFramebuffer = createFramebuffer[MyFragmentType](window.size)
 
 var M,V,P: Mat4f
 
-M = mat4f(1).translate( 0, 0, -7)
-V = mat4f(1)
+M = mat4f(1)
+V = mat4f(1).translate( 0, 0, -7)
 P = perspective(45'f32, window.aspectRatio, 0.1, 100.0)
 
-var lights: array[10,Light]
+var lights: array[4,Light]
 
-for i, light in lights.mpairs:
-  light.position_ws  =  vec4f(1)
-  light.color        =  vec4f(1)
+
+lights[0].position_ws = vec4f(-4,-4,0,1)
+lights[1].position_ws = vec4f(-4, 4,0,1)
+lights[2].position_ws = vec4f( 4,-4,0,1)
+lights[3].position_ws = vec4f( 4, 4,0,1)
+
+lights[0].color = vec4f(1,0,1,1)
+lights[1].color = vec4f(1,0,0,1)
+lights[2].color = vec4f(0,1,0,1)
+lights[3].color = vec4f(0,0,1,1)
 
 
 framebuffer.renderDebug(mesh) do (v, gl):
@@ -780,7 +787,7 @@ framebuffer.renderDebug(mesh) do (v, gl):
   for light in lights:
     let light_position_cs = V * light.position_ws
     let light_direction_cs = light_position_cs-position_cs
-    let light_intensity = dot(light_direction_cs, normal_cs)
+    let light_intensity = max(dot(light_direction_cs, normal_cs), 0)
     lighting += light_intensity * light.color
 
   let textureSample = texture(myTexture, v.texCoord)
@@ -815,6 +822,10 @@ while runGame:
         window.screenshot
       else:
         discard
+
+
+  M.rotateInplZ(0.01)
+  M.rotateInplX(0.0354)
 
   render2()
 
@@ -898,13 +909,13 @@ void main() {
     {
       vec4 lightpositioncs = (V * light.positionws);
       vec4 lightdirectioncs = (lightpositioncs - positioncs);
-      float lightintensity = dot(lightdirectioncs, normalcs) ;
+      float lightintensity = max(dot(lightdirectioncs, normalcs),0);
       (lighting += (lightintensity * light.color));
 
   }};
   vec4 textureSample = texture(myTexture, v_texCoord, 0.0) ;
   result_color = (textureSample * lighting);
-  result_color = vec4(1);
+  //result_color = vec4(1);
 }
 """
 
@@ -912,8 +923,7 @@ void main() {
 echo "############################## manual code running frome here ##############################"
 
 type
-  UniformBufferType = tuple[P: Mat4f, V: Mat4f, M: Mat4f, lights: array[0 .. 9, Light]]
-
+  UniformBufferType = tuple[P: Mat4f, V: Mat4f, M: Mat4f, lights: array[0 .. 3, Light]]
 
 var
   program: Program
@@ -921,6 +931,11 @@ var
   uniformBuffer: UniformBuffer[UniformBufferType]
 
 const lineinfo = LineInfo(filename: "main.nim", line: 748, column: 2)
+
+
+echo buffer0
+echo buffer1
+echo buffer2
 
 proc manualDrawCode(): void =
   ## this code block should eventually be generated
@@ -936,16 +951,11 @@ proc manualDrawCode(): void =
 
     glCreateVertexArrays(1, vao.handle.addr)
 
-    glUseProgram(program.handle)
-    glBindVertexArray(vao.handle)
-
     glCreateBuffers(1, uniformBuffer.handle.addr)
     glNamedBufferStorage(
       uniformBuffer.handle, sizeof(UniformBufferType), nil,
       GL_MAP_WRITE_BIT or GL_DYNAMIC_STORAGE_BIT or GL_MAP_PERSISTENT_BIT
     )
-
-    # TODO: hmm this seems to be wrong, these is still something not working
 
     glEnableVertexArrayAttrib(vao.handle, 0'u32)
     glVertexArrayBindingDivisor(vao.handle, 0'u32, 0)
@@ -954,12 +964,12 @@ proc manualDrawCode(): void =
 
     glEnableVertexArrayAttrib(vao.handle, 1'u32)
     glVertexArrayBindingDivisor(vao.handle, 1'u32, 0)
-    glVertexArrayAttribFormat(vao.handle, 0'u32, attribSize(buffer1.T), attribType(buffer1.T), attribNormalized(buffer1.T), buffer1.relativeoffset);
+    glVertexArrayAttribFormat(vao.handle, 1'u32, attribSize(buffer1.T), attribType(buffer1.T), attribNormalized(buffer1.T), buffer1.relativeoffset);
     glVertexArrayAttribBinding(vao.handle, 1'u32, 1'u32)
 
     glEnableVertexArrayAttrib(vao.handle, 2'u32)
     glVertexArrayBindingDivisor(vao.handle, 2'u32, 0)
-    glVertexArrayAttribFormat(vao.handle, 0'u32, attribSize(buffer2.T), attribType(buffer2.T), attribNormalized(buffer2.T), buffer2.relativeoffset);
+    glVertexArrayAttribFormat(vao.handle, 2'u32, attribSize(buffer2.T), attribType(buffer2.T), attribNormalized(buffer2.T), buffer2.relativeoffset);
     glVertexArrayAttribBinding(vao.handle, 2'u32, 2'u32)
 
   ## passing uniform
@@ -981,10 +991,7 @@ proc manualDrawCode(): void =
 
   glBindBufferBase(GL_UNIFORM_BUFFER, 0, uniformBuffer.handle)
 
-
-  setBuffer(vao, 0, buffer0)
-  setBuffer(vao, 1, buffer1)
-  setBuffer(vao, 2, buffer2)
+  setBuffers(vao, 0, buffer0, buffer1, buffer2)
 
   var textureHandles = [myTexture.handle]
   glBindTextures(0, GLsizei(textureHandles.len), textureHandles[0].addr)

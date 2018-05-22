@@ -1026,7 +1026,7 @@ macro setBuffers*(vao: VertexArrayObject; first: uint32; buffers: varargs[untype
         var strides = `stridesArray`
 
         for i in 0 ..< `countLit`:
-          glBindVertexBuffer(`first` + uint32(i), buffers[i], offsets[i], strides[i])
+          glBindVertexBuffer(uint32(`first`) + uint32(i), buffers[i], offsets[i], strides[i])
 
         ## This command should be able to replace the upper loop, but for some reason it does not work :/
         # glVertexArrayVertexBuffers(`vao`.handle, `first`, `countLit`, buffers[0].addr, offsets[0].addr, strides[0].addr)
