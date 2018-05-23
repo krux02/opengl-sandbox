@@ -1,5 +1,99 @@
 
 
+# these constants are temporary
+
+from macros import Lineinfo
+
+const
+  vertexShaderSrc = """
+#version 450
+// types section
+struct Light{
+  vec4 positionws;
+  vec4 color;
+};
+// uniforms  section
+layout (std140) uniform shader_data {
+  mat4 P;
+  mat4 V;
+  mat4 M;
+  Light[4] lights;
+};
+layout(binding=0) uniform sampler2D myTexture;
+// all attributes
+in layout(location=0) vec4 in_v_positionos;
+in layout(location=1) vec4 in_v_normalos;
+in layout(location=2) vec2 in_v_texCoord;
+// all varyings
+out layout(location=0) vec4 out_positioncs;
+out layout(location=1) vec4 out_normalcs;
+out layout(location=2) vec2 out_v_texCoord;
+void main() {
+  // convert used attributes to local variables (because reasons)
+  vec4 v_positionos = in_v_positionos;
+  vec4 v_normalos = in_v_normalos;
+  // glsl translation of main body
+  gl_Position = (((P * V) * M) * v_positionos);
+  vec4 positioncs = ((V * M) * v_positionos);
+  vec4 normalcs = (inverse(transpose((V * M)) )  * v_normalos);
+  int inout_XXX = 123;
+  // forward attributes that are used in the fragment shader
+  out_v_texCoord = in_v_texCoord;
+  // forward other varyings
+  out_positioncs = positioncs;
+  out_normalcs = normalcs;
+}
+
+"""
+
+  fragmentShaderSrc = """
+#version 450
+// types section
+struct Light{
+  vec4 positionws;
+  vec4 color;
+};
+// uniforms section
+layout (std140) uniform shader_data {
+  mat4 P;
+  mat4 V;
+  mat4 M;
+  Light[4] lights;
+};
+layout(binding=0) uniform sampler2D myTexture;
+// fragment output symbols
+out layout(location=0) vec4 result_color;
+// all varyings
+in layout(location=0) vec4 in_positioncs;
+in layout(location=1) vec4 in_normalcs;
+in layout(location=2) vec2 in_v_texCoord;
+void main() {
+  // convert varyings to local variables (because reasons)
+  vec4 positioncs = in_positioncs;
+  vec4 normalcs = in_normalcs;
+  vec2 v_texCoord = in_v_texCoord;
+  /// rasterize
+  ;
+  vec4 lighting = vec4(0);
+  for(int i580019 = 0; i580019 < 4; ++i580019) {
+    Light light = lights[i580019];
+    {
+      vec4 lightpositioncs = (V * light.positionws);
+      vec4 lightdirectioncs = (lightpositioncs - positioncs);
+      float lightintensity = max(dot(lightdirectioncs, normalcs) , 0.0) ;
+      (lighting += (lightintensity * light.color));
+
+  }};
+  vec4 textureSample = texture(myTexture, v_texCoord, 0.0) ;
+  result_color = (textureSample * lighting);
+}
+
+"""
+  lineinfo = LineInfo(filename: "main.nim", line: 748, column: 2)
+
+
+
+
 # TODO document current steps
 # TODO frame code generation for rendering
 # TODO optimization for pulling up variables into CPU
@@ -12,6 +106,9 @@ import ../fancygl, ast_pattern_matching
 # local stuff
 import normalizeType, glslTranslate, boring_stuff
 
+
+static:
+  let empty = newEmptyNode()
 
 type
   ShaderKind* = enum
@@ -451,7 +548,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     # TODO uniform locations are incorrect, use uniform buffer.
 
-
     var fragmentShader = "#version 450\n"
 
     fragmentShader.add sharedCode
@@ -497,96 +593,186 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     ############################# generate nim code ############################
     ############################################################################
 
+
+    let pipelineType = nnkTupleTy.newTree
+
+    let pSym = genSym(nskVar, "p")
+
+    pipelineType.add nnkIdentDefs.newTree( ident"program",       bindSym"Program" , empty)
+    pipelineType.add nnkIdentDefs.newTree( ident"vao",           bindSym"VertexArrayObject" , empty)
+
+    vertexShader = indentCode(vertexShader)
+    fragmentShader = indentCode(fragmentShader)
+
+    #echo vertexShader.len
+    #echo vertexShaderSrc.len
+    #for i in 0 .. 100:
+    #  echo vertexShader[i] == vertexShaderSrc[i]
+
+
+    echo vertexShader == vertexShaderSrc
+    echo fragmentShader == fragmentShaderSrc
+
     let vertexShaderLit = newLit(vertexShader)
     let fragmentShaderLit = newLit(fragmentShader)
 
     let lineinfoLit = newLit(body.lineinfoObj)
-    let vaoSym = genSym(nskVar, "vao")
-
-    let programSym = genSym(nskVar, "program")
 
     let initialization = newStmtList()
 
     ## attribute initialization
 
-    let dummySym = genSym(nskVar, "dummy")
-    let vertexType = vertexSym.getTypeInst
+    # for i, attrib in allAttributes:
+    #   let iLit = newLit(uint32(i))
+    #   let memberSym = attrib[1]
+    #   let memberType = attrib.getTypeInst.normalizeType
 
-    initialization.add quote do:
-      glCreateVertexArrays(1, `vaoSym`.handle.addr)
-      var `dummySym`: `vertexType`
+    #   #echo attrib.repr, " -- ", attrib.getTypeInst.normalizeType.repr
+    #   initialization.add quote do:
+    #     # TODO there is no divisor inference
+    #     glVertexArrayBindingDivisor(`vaoSym`.handle, `iLit`, 0)
+    #     let size           = attribSize(`memberType`)
+    #     let typeArg        = attribType(`memberType`)
+    #     let normalized     = attribNormalized(`memberType`)
+    #     let relativeoffset = GLuint(cast[int](`dummySym`.`memberSym`.addr) - cast[int](`dummySym`.addr))
+    #     glVertexArrayAttribFormat(`vaoSym`.handle, `iLit`, size, typeArg, normalized, relativeoffset)
+    #     glVertexArrayAttribBinding(`vaoSym`.handle, `iLit`, `iLit`)
 
-    for i, attrib in allAttributes:
-      let iLit = newLit(uint32(i))
-      let memberSym = attrib[1]
-      let memberType = attrib.getTypeInst.normalizeType
-
-      #echo attrib.repr, " -- ", attrib.getTypeInst.normalizeType.repr
-      initialization.add quote do:
-        # TODO there is no divisor inference
-        glVertexArrayBindingDivisor(`vaoSym`.handle, `iLit`, 0)
-        let size           = attribSize(`memberType`)
-        let typeArg        = attribType(`memberType`)
-        let normalized     = attribNormalized(`memberType`)
-        let relativeoffset = GLuint(cast[int](`dummySym`.`memberSym`.addr) - cast[int](`dummySym`.addr))
-        glVertexArrayAttribFormat(`vaoSym`.handle, `iLit`, size, typeArg, normalized, relativeoffset)
-        glVertexArrayAttribBinding(`vaoSym`.handle, `iLit`, `iLit`)
-
-    ## uniform initialization
+    # ## uniform initialization
 
 
-    let draw = newStmtList()
+    # let draw = newStmtList()
 
-    draw.add newCommentStmtNode("passing uniform")
+    # draw.add newCommentStmtNode("passing uniform")
 
+
+    let uniformBufferTypeDef = newStmtList()
+    let uniformBufferTypeSym = genSym(nskType, "UniformObject")
 
     if uniformRest.len > 0:
-      let uniformTupleType = nnkTupleTy.newTree
-      for uniform in uniformRest:
-        uniformTupleType.add nnkIdentDefs.newTree(
-          ident(uniform.strVal),
-          uniform.getTypeInst,
-          newEmptyNode()
-        )
-
-      let uniformsTupleSym = genSym(nskVar, "uniforms")
-
-      draw.add quote do:
-        var `uniformsTupleSym`: `uniformTupleType`
+      discard
 
 
-      for uniform in uniformRest:
-        let member = ident(uniform.strVal)
-        draw.add newAssignment(newDotExpr(uniformsTupleSym, member), uniform)
+
+        # let uniformTupleType = nnkTupleTy.newTree
+        # for uniform in uniformRest:
+        #   uniformTupleType.add nnkIdentDefs.newTree(
+        #     ident(uniform.strVal),
+        #     uniform.getTypeInst,
+        #     empty
+        #   )
+
+        # let uniformsPtrSym = genSym(nskVar, "uniforms")
+
+        # draw.add quote do:
+        #   let `uniformsPointerSym` = cast[ptr `uniformTupleType`](glMapNamedBufferRange(
+        #     `pSym`.uniformBuffer.handle,
+        #     0, sizeof(UniformBufferType),
+        #     GL_MAP_WRITE_BIT
+        #   ))
+
+        # uniformPointer.P = P
+        # uniformPointer.V = V
+        # uniformPointer.M = M
+        # uniformPointer.lights = lights
+
+        # doAssert glUnmapNamedBuffer(`pSym`.uniformBuffer.handle)
+
+
+        # for uniform in uniformRest:
+        #   let member = ident(uniform.strVal)
+        #   uniformPassing.add newAssignment(newDotExpr(uniformsTupleSym, member), uniform)
 
     if uniformSamplers.len > 0:
        discard
 
+    let uniformBufferIdent = ident"uniformBuffer"
 
+    result = quote do:
+      type
+        `uniformBufferTypeSym` = object
+          P: Mat4f
+          V: Mat4f
+          M: Mat4f
+          lights: array[0 .. 3, Light]
 
-    # result = quote do:
-    #   var `programSym`: Program
-    #   var `vaoSym`: VertexArrayObject
-    #   var `uniformBlockIndexSym`: GLuint
-    #   var `uniformBlockBufferSym`: GLuint
+      ## this code block should eventually be generated
+      var `pSym` {.global.}: tuple[
+        program: Program,
+        vao: VertexArrayObject,
+        `uniformBufferIdent`: UniformBuffer[`uniformBufferTypeSym`],
+        buffer0: ArrayBufferView[MyVertexType, Vec4f],
+        buffer1: ArrayBufferView[MyVertexType, Vec4f],
+        buffer2: ArrayBufferView[MyVertexType, Vec2f],
+      ]
 
-    #   if `programSym`.handle == 0:
-    #     `programSym`.handle = glCreateProgram()
-    #     `programSym`.attachAndDeleteShader( compileShader(GL_VERTEX_SHADER, `vertexShaderLit`, `lineinfoLit`) )
-    #     `programSym`.attachAndDeleteShader( compileShader(GL_FRAGMENT_SHADER, `fragmentShader`, `lineinfoLit`) )
-    #     `programSym`.linkOrDelete
+      if `pSym`.program.handle == 0:
 
-    #      `uniformBlockIndexSym` = glGetUniformBlockIndex(programSym.handle, ​"shader_data")
-    #      glUniformBlockBinding(`programSym`.handle, `uniformBlockIndexSym`, `uniformBlockIndexSym`)
+        `pSym`.buffer0 = myMeshArrayBuffer.view(position_os)
+        `pSym`.buffer1 = myMeshArrayBuffer.view(normal_os)
+        `pSym`.buffer2 = myMeshArrayBuffer.view(texCoord)
 
+        `pSym`.program.handle = glCreateProgram()
+        `pSym`.program.attachAndDeleteShader(
+          compileShader(GL_VERTEX_SHADER, `vertexShaderLit`, `lineinfoLit`))
+        `pSym`.program.attachAndDeleteShader(
+          compileShader(GL_FRAGMENT_SHADER, `fragmentShaderLit`, `lineinfoLit`))
 
-    #      glCreateUniformBlockBuffer
+        `pSym`.program.linkOrDelete
 
-    #     `initialization`
+        glCreateVertexArrays(1, `pSym`.vao.handle.addr)
 
-    #   `draw`
+        glCreateBuffers(1, `pSym`.uniformBuffer.handle.addr)
+        glNamedBufferStorage(
+          `pSym`.uniformBuffer.handle, sizeof(`uniformBufferTypeSym`), nil,
+          GL_MAP_WRITE_BIT or GL_DYNAMIC_STORAGE_BIT or GL_MAP_PERSISTENT_BIT
+        )
 
+        glEnableVertexArrayAttrib(`pSym`.vao.handle, 0'u32)
+        glVertexArrayBindingDivisor(`pSym`.vao.handle, 0'u32, 0)
+        setFormat(`pSym`.vao, 0, `pSym`.buffer0)
+        glVertexArrayAttribBinding(`pSym`.vao.handle, 0'u32, 0'u32)
 
+        glEnableVertexArrayAttrib(`pSym`.vao.handle, 1'u32)
+        glVertexArrayBindingDivisor(`pSym`.vao.handle, 1'u32, 0)
+        setFormat(`pSym`.vao, 1, `pSym`.buffer1)
+        glVertexArrayAttribBinding(`pSym`.vao.handle, 1'u32, 1'u32)
+
+        glEnableVertexArrayAttrib(`pSym`.vao.handle, 2'u32)
+        glVertexArrayBindingDivisor(`pSym`.vao.handle, 2'u32, 0)
+        setFormat(`pSym`.vao, 2, `pSym`.buffer2);
+        glVertexArrayAttribBinding(`pSym`.vao.handle, 2'u32, 2'u32)
+
+      ## passing uniform
+      let uniformPointer = cast[ptr `uniformBufferTypeSym`](glMapNamedBufferRange(
+        `pSym`.uniformBuffer.handle,
+        0, sizeof(`uniformBufferTypeSym`),
+        GL_MAP_WRITE_BIT
+      ))
+
+      uniformPointer.P = P
+      uniformPointer.V = V
+      uniformPointer.M = M
+      uniformPointer.lights = lights
+
+      doAssert glUnmapNamedBuffer(`pSym`.uniformBuffer.handle)
+
+      glUseProgram(`pSym`.program.handle)
+      glBindVertexArray(`pSym`.vao.handle)
+
+      glBindBufferBase(GL_UNIFORM_BUFFER, 0, `pSym`.uniformBuffer.handle)
+
+      setBuffers(`pSym`.vao, 0, `pSym`.buffer0, `pSym`.buffer1, `pSym`.buffer2)
+
+      var textureHandles = [myTexture.handle]
+      glBindTextures(0, GLsizei(textureHandles.len), textureHandles[0].addr)
+
+      let numVertices = GLsizei(len(myMeshArrayBuffer))
+      glDrawArrays(GL_TRIANGLES, 0, numVertices)
+
+    if debug:
+      echo result.repr
+      echo "</render_inner>"
 
     # sharedCode.add "// uniforms section\n"
     # sharedCode.add "layout (std140) uniform shader_data {\n"
@@ -601,11 +787,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     #   sharedCode.compileToGlsl(uniform)
     #   sharedCode.add ";\n"
 
-
-
-  if debug:
-    echo result.repr
-    echo "</render_inner>"
 
 
 proc `or`(arg, alternative: NimNode): NimNode {.compileTime.} =
@@ -697,10 +878,10 @@ proc injectTypes(framebuffer, mesh, arg: NimNode): NimNode {.compileTime.} =
     nnkFormalParams.newTree(
       resultType,
       nnkIdentDefs.newTree(
-        vertexArg, vertexType, newEmptyNode()
+        vertexArg, vertexType, empty
       ),
       nnkIdentDefs.newTree(
-        envArg, envType, newEmptyNode()
+        envArg, envType, empty
       )
     )
 
@@ -711,17 +892,17 @@ macro render*(framebuffer, mesh: typed; arg: untyped): untyped =
   let arg = injectTypes(framebuffer, mesh, arg)
   result = quote do:
     let fb = `framebuffer`
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fb.handle)
+    #glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fb.handle)
     render_inner(false, `mesh`, `arg`)
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
+    #glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
 
 macro renderDebug(framebuffer, mesh: typed; arg: untyped): untyped =
   let arg = injectTypes(framebuffer, mesh, arg)
   result = quote do:
     let fb = `framebuffer`
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fb.handle)
+    #glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fb.handle)
     render_inner(true, `mesh`, `arg`)
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
+    #glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
 
 ################################################################################
 ################################## user  code ##################################
@@ -776,41 +957,32 @@ lights[1].color = vec4f(1,0,0,1)
 lights[2].color = vec4f(0,1,0,1)
 lights[3].color = vec4f(0,0,1,1)
 
-framebuffer.renderDebug(mesh) do (v, gl):
-  gl.Position     = P * V * M * v.position_os
-  let position_cs = V*M*v.position_os
-  let normal_cs   = inverse(transpose(V*M)) * v.normal_os
+proc renderSceneManual(): void
+proc renderScene(): void =
+  framebuffer.renderDebug(mesh) do (v, gl):
+    gl.Position     = P * V * M * v.position_os
+    let position_cs = V*M*v.position_os
+    let normal_cs   = inverse(transpose(V*M)) * v.normal_os
 
-  var inout = 123   # test identifier that is keyword in glsl
-  ## rasterize
-  var lighting: Vec4f
-  for light in lights:
-    let light_position_cs = V * light.position_ws
-    let light_direction_cs = light_position_cs-position_cs
-    let light_intensity = max(dot(light_direction_cs, normal_cs), 0)
-    lighting += light_intensity * light.color
+    ## rasterize
+    var lighting: Vec4f
+    for light in lights:
+      let light_position_cs = V * light.position_ws
+      let light_direction_cs = light_position_cs-position_cs
+      let light_intensity = max(dot(light_direction_cs, normal_cs), 0)
+      lighting += light_intensity * light.color
 
-  let textureSample = texture(myTexture, v.texCoord)
-  result.color = textureSample * lighting
-
-
-proc manualDrawCode(): void
-
-var
-  buffer0 = myMeshArrayBuffer.view(position_os) # setBuffer(vao, 0, buffer0)
-  buffer1 = myMeshArrayBuffer.view(normal_os)   # setBuffer(vao, 1, buffer1)
-  buffer2 = myMeshArrayBuffer.view(texCoord)    # setBuffer(vao, 2, buffer2)
-
-proc render2(): void =
-  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
-
-  manualDrawCode()
-
-  glSwapWindow(window)
+    let textureSample = texture(myTexture, v.texCoord)
+    result.color = textureSample * lighting
 
 var runGame = true
 
+
+let timer = newStopWatch(true)
+var renderer: int = 0
+
 while runGame:
+
   for evt in events():
     case evt.kind:
     of QUIT:
@@ -822,22 +994,37 @@ while runGame:
         runGame = false
       of SCANCODE_F10:
         window.screenshot
+      of SCANCODE_1:
+        renderer = 0
+      of SCANCODE_2:
+        renderer = 1
       else:
         discard
     of MouseMotion:
-      let angleX = float32(evt.motion.yrel) * 0.01f
-      let angleY = float32(evt.motion.xrel) * 0.01f
-      let rotMat = mat4f(1).rotateX(angleX).rotateY(angleY)
+      let v = vec2(evt.motion.yrel.float32, evt.motion.xrel.float32)
+      let alpha = v.length * 0.01
+      let axis = vec3(v, 0)
+      let rotMat = mat4f(1).rotate(axis, alpha)
       M = rotMat * M
     else:
       discard
 
-  # just some random rotation to make the scene at least a bit interesting
-  # let time = float32(timer.time)
-  # M.rotateInplZ(0.01 * (cos(time*1.234f)+1) )
-  # M.rotateInplX(0.0354 * (sin(time)+1) )
 
-  render2()
+  let time = float32(timer.time)
+
+
+  for i, light in lights.mpairs:
+    let alpha = time + Pi * 0.25f * float32(i)
+    light.position_ws.xy = vec2f(cos(alpha), sin(alpha)) * 4
+
+  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
+
+  if renderer == 0:
+    renderScene()
+  else:
+    renderSceneManual()
+
+  glSwapWindow(window)
 
 ################################################################################
 ################################# manual  code #################################
@@ -845,142 +1032,67 @@ while runGame:
 
 # test code before generating it
 
-const
-  vertexShaderSrc = """
-#version 450
-// types section
-struct Light{
-  vec4 positionws;
-  vec4 color;
-};
-// uniforms section
-layout (std140) uniform shader_data {
-  mat4 P;
-  mat4 V;
-  mat4 M;
-  Light[10] lights;
-};
-layout(binding=0) uniform sampler2D myTexture;
-// all attributes
-in layout(location=0) vec4 in_v_positionos;
-in layout(location=1) vec4 in_v_normalos;
-in layout(location=2) vec2 in_v_texCoord;
-// all varyings
-out layout(location=0) vec4 out_positioncs;
-out layout(location=1) vec4 out_normalcs;
-out layout(location=2) vec2 out_v_texCoord;
-void main() {
-  // convert used attributes to local variables (because reasons)
-  vec4 v_positionos = in_v_positionos;
-  vec4 v_normalos = in_v_normalos;
-  // glsl translation of main body
-  gl_Position = (((P * V) * M) * v_positionos);
-  vec4 positioncs = ((V * M) * v_positionos);
-  vec4 normalcs = (inverse(transpose((V * M)) )  * v_normalos);
-  int inout_XXX = 123;
-  // forward attributes that are used in the fragment shader
-  out_v_texCoord = in_v_texCoord;
-  // forward other varyings
-  out_positioncs = positioncs;
-  out_normalcs = normalcs;
-}
-"""
-  fragmentShaderSrc = """
-#version 450
-// types section
-struct Light{
-  vec4 positionws;
-  vec4 color;
-};
-// uniforms section
-layout (std140) uniform shader_data {
-  mat4 P;
-  mat4 V;
-  mat4 M;
-  Light[10] lights;
-};
-layout(binding=0) uniform sampler2D myTexture;
-// fragment output symbols
-out layout(location=0) vec4 result_color;
-// all varyings
-in layout(location=0) vec4 in_positioncs;
-in layout(location=1) vec4 in_normalcs;
-in layout(location=2) vec2 in_v_texCoord;
-void main() {
-  // convert varyings to local variables (because reasons)
-  vec4 positioncs = in_positioncs;
-  vec4 normalcs = in_normalcs;
-  vec2 v_texCoord = in_v_texCoord;
-  /// rasterize
-  ;
-  vec4 lighting = vec4(0);
-  for(int i575802 = 0; i575802 < 10; ++i575802) {
-    Light light = lights[i575802];
-    {
-      vec4 lightpositioncs = (V * light.positionws);
-      vec4 lightdirectioncs = (lightpositioncs - positioncs);
-      float lightintensity = max(dot(lightdirectioncs, normalcs),0);
-      (lighting += (lightintensity * light.color));
+echo "#################### manual code running frome here ####################"
 
-  }};
-  vec4 textureSample = texture(myTexture, v_texCoord, 0.0) ;
-  result_color = (textureSample * lighting);
-  //result_color = vec4(1);
-}
-"""
+proc renderSceneManual(): void =
+  type
+    UniformBufferType = object
+      P: Mat4f
+      V: Mat4f
+      M: Mat4f
+      lights: array[0 .. 3, Light]
 
-
-echo "############################## manual code running frome here ##############################"
-
-type
-  UniformBufferType = tuple[P: Mat4f, V: Mat4f, M: Mat4f, lights: array[0 .. 3, Light]]
-
-var
-  program: Program
-  vao: VertexArrayObject
-  uniformBuffer: UniformBuffer[UniformBufferType]
-
-const lineinfo = LineInfo(filename: "main.nim", line: 748, column: 2)
-
-proc manualDrawCode(): void =
   ## this code block should eventually be generated
+  var p {.global.}: tuple[
+    program: Program,
+    vao: VertexArrayObject,
+    uniformBuffer: UniformBuffer[UniformBufferType],
+    buffer0: ArrayBufferView[MyVertexType, Vec4f],
+    buffer1: ArrayBufferView[MyVertexType, Vec4f],
+    buffer2: ArrayBufferView[MyVertexType, Vec2f],
+  ]
 
-  if program.handle == 0:
-    program.handle = glCreateProgram()
-    program.attachAndDeleteShader(
+  if p.program.handle == 0:
+
+    p.buffer0 = myMeshArrayBuffer.view(position_os)
+    p.buffer1 = myMeshArrayBuffer.view(normal_os)
+    p.buffer2 = myMeshArrayBuffer.view(texCoord)
+
+    p.program.handle = glCreateProgram()
+    p.program.attachAndDeleteShader(
       compileShader(GL_VERTEX_SHADER, vertexShaderSrc, lineinfo))
-    program.attachAndDeleteShader(
+    p.program.attachAndDeleteShader(
       compileShader(GL_FRAGMENT_SHADER, fragmentShaderSrc, lineinfo))
 
-    program.linkOrDelete
+    p.program.linkOrDelete
 
-    glCreateVertexArrays(1, vao.handle.addr)
+    glCreateVertexArrays(1, p.vao.handle.addr)
 
-    glCreateBuffers(1, uniformBuffer.handle.addr)
+    glCreateBuffers(1, p.uniformBuffer.handle.addr)
     glNamedBufferStorage(
-      uniformBuffer.handle, sizeof(UniformBufferType), nil,
+      p.uniformBuffer.handle, sizeof(UniformBufferType), nil,
       GL_MAP_WRITE_BIT or GL_DYNAMIC_STORAGE_BIT or GL_MAP_PERSISTENT_BIT
     )
 
-    glEnableVertexArrayAttrib(vao.handle, 0'u32)
-    glVertexArrayBindingDivisor(vao.handle, 0'u32, 0)
-    setFormat(vao, 0, buffer0)
-    glVertexArrayAttribBinding(vao.handle, 0'u32, 0'u32)
+    glEnableVertexArrayAttrib(p.vao.handle, 0'u32)
+    glVertexArrayBindingDivisor(p.vao.handle, 0'u32, 0)
+    setFormat(p.vao, 0, p.buffer0)
+    glVertexArrayAttribBinding(p.vao.handle, 0'u32, 0'u32)
 
-    glEnableVertexArrayAttrib(vao.handle, 1'u32)
-    glVertexArrayBindingDivisor(vao.handle, 1'u32, 0)
-    setFormat(vao, 1, buffer1)
-    glVertexArrayAttribBinding(vao.handle, 1'u32, 1'u32)
+    glEnableVertexArrayAttrib(p.vao.handle, 1'u32)
+    glVertexArrayBindingDivisor(p.vao.handle, 1'u32, 0)
+    setFormat(p.vao, 1, p.buffer1)
+    glVertexArrayAttribBinding(p.vao.handle, 1'u32, 1'u32)
 
-    glEnableVertexArrayAttrib(vao.handle, 2'u32)
-    glVertexArrayBindingDivisor(vao.handle, 2'u32, 0)
-    setFormat(vao, 2, buffer2);
-    glVertexArrayAttribBinding(vao.handle, 2'u32, 2'u32)
+    glEnableVertexArrayAttrib(p.vao.handle, 2'u32)
+    glVertexArrayBindingDivisor(p.vao.handle, 2'u32, 0)
+    setFormat(p.vao, 2, p.buffer2);
+    glVertexArrayAttribBinding(p.vao.handle, 2'u32, 2'u32)
 
   ## passing uniform
-
   let uniformPointer = cast[ptr UniformBufferType](glMapNamedBufferRange(
-    uniformBuffer.handle, 0, sizeof(UniformBufferType),
+    p.uniformBuffer.handle,
+    0, sizeof(UniformBufferType),
     GL_MAP_WRITE_BIT
   ))
 
@@ -989,14 +1101,14 @@ proc manualDrawCode(): void =
   uniformPointer.M = M
   uniformPointer.lights = lights
 
-  doAssert glUnmapNamedBuffer(uniformBuffer.handle)
+  doAssert glUnmapNamedBuffer(p.uniformBuffer.handle)
 
-  glUseProgram(program.handle)
-  glBindVertexArray(vao.handle)
+  glUseProgram(p.program.handle)
+  glBindVertexArray(p.vao.handle)
 
-  glBindBufferBase(GL_UNIFORM_BUFFER, 0, uniformBuffer.handle)
+  glBindBufferBase(GL_UNIFORM_BUFFER, 0, p.uniformBuffer.handle)
 
-  setBuffers(vao, 0, buffer0, buffer1, buffer2)
+  setBuffers(p.vao, 0, p.buffer0, p.buffer1, p.buffer2)
 
   var textureHandles = [myTexture.handle]
   glBindTextures(0, GLsizei(textureHandles.len), textureHandles[0].addr)
