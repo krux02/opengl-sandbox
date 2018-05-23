@@ -690,7 +690,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     result = quote do:
       type
-        `uniformBufferTypeSym` = object
+        UniformBufferType = object
           P: Mat4f
           V: Mat4f
           M: Mat4f
@@ -700,7 +700,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       var `pSym` {.global.}: tuple[
         program: Program,
         vao: VertexArrayObject,
-        `uniformBufferIdent`: UniformBuffer[`uniformBufferTypeSym`],
+        `uniformBufferIdent`: UniformBuffer[UniformBufferType],
         buffer0: ArrayBufferView[MyVertexType, Vec4f],
         buffer1: ArrayBufferView[MyVertexType, Vec4f],
         buffer2: ArrayBufferView[MyVertexType, Vec2f],
@@ -724,7 +724,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
         glCreateBuffers(1, `pSym`.uniformBuffer.handle.addr)
         glNamedBufferStorage(
-          `pSym`.uniformBuffer.handle, sizeof(`uniformBufferTypeSym`), nil,
+          `pSym`.uniformBuffer.handle, sizeof(UniformBufferType), nil,
           GL_MAP_WRITE_BIT or GL_DYNAMIC_STORAGE_BIT or GL_MAP_PERSISTENT_BIT
         )
 
@@ -744,9 +744,9 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         glVertexArrayAttribBinding(`pSym`.vao.handle, 2'u32, 2'u32)
 
       ## passing uniform
-      let uniformPointer = cast[ptr `uniformBufferTypeSym`](glMapNamedBufferRange(
+      let uniformPointer = cast[ptr UniformBufferType](glMapNamedBufferRange(
         `pSym`.uniformBuffer.handle,
-        0, sizeof(`uniformBufferTypeSym`),
+        0, sizeof(UniformBufferType),
         GL_MAP_WRITE_BIT
       ))
 
