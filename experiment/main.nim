@@ -744,6 +744,7 @@ type
   MyFramebuffer = Framebuffer[MyFragmentType]
 
 let (window, context) = defaultSetup()
+discard setRelativeMouseMode(true)
 
 var myTexture: Texture2D = loadTexture2DFromFile(getResourcePath("crate.png"))
 var myMeshArrayBuffer = newArrayBuffer[MyVertexType](boxVertices.len)
@@ -765,16 +766,15 @@ P = perspective(45'f32, window.aspectRatio, 0.1, 100.0)
 var lights: array[4,Light]
 
 
-lights[0].position_ws = vec4f(-4,-4,0,1)
-lights[1].position_ws = vec4f(-4, 4,0,1)
-lights[2].position_ws = vec4f( 4,-4,0,1)
-lights[3].position_ws = vec4f( 4, 4,0,1)
+lights[0].position_ws = vec4f(-4,-4,1,1)
+lights[1].position_ws = vec4f(-4, 4,1,1)
+lights[2].position_ws = vec4f( 4,-4,1,1)
+lights[3].position_ws = vec4f( 4, 4,1,1)
 
 lights[0].color = vec4f(1,0,1,1)
 lights[1].color = vec4f(1,0,0,1)
 lights[2].color = vec4f(0,1,0,1)
 lights[3].color = vec4f(0,0,1,1)
-
 
 framebuffer.renderDebug(mesh) do (v, gl):
   gl.Position     = P * V * M * v.position_os
@@ -809,12 +809,14 @@ proc render2(): void =
   glSwapWindow(window)
 
 var runGame = true
+
 while runGame:
   for evt in events():
-    if evt.kind == QUIT:
+    case evt.kind:
+    of QUIT:
       runGame = false
       break
-    if evt.kind == KeyDown:
+    of KeyDown:
       case evt.key.keysym.scancode
       of SCANCODE_ESCAPE:
         runGame = false
@@ -822,10 +824,18 @@ while runGame:
         window.screenshot
       else:
         discard
+    of MouseMotion:
+      let angleX = float32(evt.motion.yrel) * 0.01f
+      let angleY = float32(evt.motion.xrel) * 0.01f
+      let rotMat = mat4f(1).rotateX(angleX).rotateY(angleY)
+      M = rotMat * M
+    else:
+      discard
 
-
-  M.rotateInplZ(0.01)
-  M.rotateInplX(0.0354)
+  # just some random rotation to make the scene at least a bit interesting
+  # let time = float32(timer.time)
+  # M.rotateInplZ(0.01 * (cos(time*1.234f)+1) )
+  # M.rotateInplX(0.0354 * (sin(time)+1) )
 
   render2()
 
@@ -932,11 +942,6 @@ var
 
 const lineinfo = LineInfo(filename: "main.nim", line: 748, column: 2)
 
-
-echo buffer0
-echo buffer1
-echo buffer2
-
 proc manualDrawCode(): void =
   ## this code block should eventually be generated
 
@@ -959,17 +964,17 @@ proc manualDrawCode(): void =
 
     glEnableVertexArrayAttrib(vao.handle, 0'u32)
     glVertexArrayBindingDivisor(vao.handle, 0'u32, 0)
-    glVertexArrayAttribFormat(vao.handle, 0'u32, attribSize(buffer0.T), attribType(buffer0.T), attribNormalized(buffer0.T), buffer0.relativeoffset);
+    setFormat(vao, 0, buffer0)
     glVertexArrayAttribBinding(vao.handle, 0'u32, 0'u32)
 
     glEnableVertexArrayAttrib(vao.handle, 1'u32)
     glVertexArrayBindingDivisor(vao.handle, 1'u32, 0)
-    glVertexArrayAttribFormat(vao.handle, 1'u32, attribSize(buffer1.T), attribType(buffer1.T), attribNormalized(buffer1.T), buffer1.relativeoffset);
+    setFormat(vao, 1, buffer1)
     glVertexArrayAttribBinding(vao.handle, 1'u32, 1'u32)
 
     glEnableVertexArrayAttrib(vao.handle, 2'u32)
     glVertexArrayBindingDivisor(vao.handle, 2'u32, 0)
-    glVertexArrayAttribFormat(vao.handle, 2'u32, attribSize(buffer2.T), attribType(buffer2.T), attribNormalized(buffer2.T), buffer2.relativeoffset);
+    setFormat(vao, 2, buffer2);
     glVertexArrayAttribBinding(vao.handle, 2'u32, 2'u32)
 
   ## passing uniform

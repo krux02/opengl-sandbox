@@ -25,11 +25,7 @@ let
 
 var hideNormals, hideDeferredShading, flatShading, wireframe: bool
 
-
-## TODO:
-##  erweitere Framebuffer makro um glsl typen for den Fragmentshader
-##  constructor argumente
-
+## TODO: extend framebuffer makro with glsl types, and handle costructor arguments (size)
 
 declareFramebuffer(FirstFramebuffer):
   depth = newDepthTexture2D(windowsize)
