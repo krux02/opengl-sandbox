@@ -618,17 +618,83 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       empty
     )
 
+    let uniformRecList =
+      nnkRecList.newTree()
+
+    let uniformBufTypeSection =
+      nnkTypeSection.newTree(
+        nnkTypeDef.newTree(
+          uniformBufTypeSym,
+          empty,
+          nnkObjectTy.newTree(
+            empty,
+            empty,
+            uniformRecList
+          )
+        )
+      )
+
     # pipelineRecList.add nnkIdentDefs.newTree( ident"program", bindSym"Program", empty )
 
-    let vertexShaderLit = newLit(vertexShader)
-    let fragmentShaderLit = newLit(fragmentShader)
+    ## uniform initialization
 
-    let lineinfoLit = newLit(body.lineinfoObj)
+    let uniformInitialization = newStmtList()
+
+    for uniform in uniformRest:
+      let uniformIdent = ident(uniform.strVal)
+      echo uniform.getTypeInst.repr
+      echo uniform.lispRepr
+
+      uniformRecList.add nnkIdentDefs.newTree(
+        uniformIdent,
+        uniform.getTypeInst,
+        empty,
+      )
+
+      uniformInitialization.add quote do:
+        uniformPointer.`uniformIdent` = uniform
+        newAsgn(nnkDotExpr.newTree())
+
+
+        # nnkIdentDefs.newTree(
+        #   newIdentNode("P"),
+        #   newIdentNode("Mat4f"),
+        #   empty
+        # ),
+        # nnkIdentDefs.newTree(
+        #   newIdentNode("V"),
+        #   newIdentNode("Mat4f"),
+        #   empty
+        # ),
+        # nnkIdentDefs.newTree(
+        #   newIdentNode("M"),
+        #   newIdentNode("Mat4f"),
+        #   empty
+        # ),
+        # nnkIdentDefs.newTree(
+        #   newIdentNode("lights"),
+        #   nnkBracketExpr.newTree(
+        #     newIdentNode("array"),
+        #     nnkInfix.newTree(
+        #       newIdentNode(".."),
+        #       newLit(0),
+        #       newLit(3)
+        #     ),
+        #     newIdentNode("Light")
+        #   ),
+        #   empty
+        # )
+
 
 
     ## attribute initialization
 
     let attribPipelineBuffer = newSeq[NimNode](0)
+
+    let vertexShaderLit = newLit(vertexShader)
+    let fragmentShaderLit = newLit(fragmentShader)
+
+    let lineinfoLit = newLit(body.lineinfoObj)
 
     for i, attrib in allAttributes:
       echo "attrib", i, ": ", attrib.repr
@@ -649,12 +715,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
        let bufferIdent = ident("buffer" & $i)
        pipelineRecList.add nnkIdentDefs.newTree(bufferIdent, genType , empty)
-
-       #echo genType.repr
-       #MyVertexType, Vec4f
-       # buffer0: ArrayBufferView[MyVertexType, Vec4f],
-       # buffer1: ArrayBufferView[MyVertexType, Vec4f],
-       # buffer2: ArrayBufferView[MyVertexType, Vec2f],
 
        # TODO there is no divisor inference
        let divisorLit = newLit(0)
@@ -713,13 +773,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
        discard
 
     result = quote do:
-      type
-        `uniformBufTypeSym` = object
-          P: Mat4f
-          V: Mat4f
-          M: Mat4f
-          lights: array[0 .. 3, Light]
-
+      `uniformBufTypeSection`
       `pipelineTypeSection`
 
       ## this code block should eventually be generated
@@ -968,7 +1022,7 @@ var runGame = true
 let timer = newStopWatch(true)
 var renderer: int = 0
 
-#[
+
 glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 glSwapWindow(window)
 
@@ -987,9 +1041,6 @@ glSwapWindow(window)
 glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 renderSceneManual()
 glSwapWindow(window)
-
-#runGame = false
-]#
 
 while runGame:
 
