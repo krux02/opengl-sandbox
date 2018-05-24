@@ -13,13 +13,13 @@ struct Light{
   vec4 color;
 };
 // uniforms  section
-layout (std140) uniform shader_data {
+layout (std140, binding=0) uniform dynamic_shader_data {
   mat4 P;
   mat4 V;
   mat4 M;
   Light[4] lights;
 };
-layout(binding=0) uniform sampler2D myTexture;
+layout(binding=1) uniform sampler2D myTexture;
 // all attributes
 in layout(location=0) vec4 in_v_positionos;
 in layout(location=1) vec4 in_v_normalos;
@@ -54,13 +54,13 @@ struct Light{
   vec4 color;
 };
 // uniforms section
-layout (std140) uniform shader_data {
+layout (std140, binding=0) uniform dynamic_shader_data {
   mat4 P;
   mat4 V;
   mat4 M;
   Light[4] lights;
 };
-layout(binding=0) uniform sampler2D myTexture;
+layout(binding=1) uniform sampler2D myTexture;
 // fragment output symbols
 out layout(location=0) vec4 result_color;
 // all varyings
@@ -479,14 +479,14 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     # uniforms
     sharedCode.add "// uniforms section\n"
-    sharedCode.add "layout (std140) uniform shader_data {\n"
+    sharedCode.add "layout(std140, binding=0) uniform dynamic_shader_data {\n"
     for uniform in uniformRest:
       sharedCode.add uniform.getTypeInst.glslType, " "
       sharedCode.compileToGlsl(uniform)
       sharedCode.add ";\n"
     sharedCode.add "};\n"
     for i, uniform in uniformSamplers:
-      sharedCode.add "layout(binding=", 0, ") "
+      sharedCode.add "layout(binding=", 1 + i, ") "
       sharedCode.add "uniform ", uniform.getTypeInst.glslType, " "
       sharedCode.compileToGlsl(uniform)
       sharedCode.add ";\n"
@@ -601,15 +601,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     pipelineType.add nnkIdentDefs.newTree( ident"program",       bindSym"Program" , empty)
     pipelineType.add nnkIdentDefs.newTree( ident"vao",           bindSym"VertexArrayObject" , empty)
 
-    vertexShader = indentCode(vertexShader)
-    fragmentShader = indentCode(fragmentShader)
-
-    #echo vertexShader.len
-    #echo vertexShaderSrc.len
-    #for i in 0 .. 100:
-    #  echo vertexShader[i] == vertexShaderSrc[i]
-
-
     echo vertexShader == vertexShaderSrc
     echo fragmentShader == fragmentShaderSrc
 
@@ -696,15 +687,16 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
           M: Mat4f
           lights: array[0 .. 3, Light]
 
+        PipelineType = object
+          program: Program
+          vao: VertexArrayObject
+          `uniformBufferIdent`: UniformBuffer[UniformBufferType]
+          buffer0: ArrayBufferView[MyVertexType, Vec4f]
+          buffer1: ArrayBufferView[MyVertexType, Vec4f]
+          buffer2: ArrayBufferView[MyVertexType, Vec2f]
+
       ## this code block should eventually be generated
-      var `pSym` {.global.}: tuple[
-        program: Program,
-        vao: VertexArrayObject,
-        `uniformBufferIdent`: UniformBuffer[UniformBufferType],
-        buffer0: ArrayBufferView[MyVertexType, Vec4f],
-        buffer1: ArrayBufferView[MyVertexType, Vec4f],
-        buffer2: ArrayBufferView[MyVertexType, Vec2f],
-      ]
+      var `pSym` {.global.}: PipelineType
 
       if `pSym`.program.handle == 0:
 
@@ -765,7 +757,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       setBuffers(`pSym`.vao, 0, `pSym`.buffer0, `pSym`.buffer1, `pSym`.buffer2)
 
       var textureHandles = [myTexture.handle]
-      glBindTextures(0, GLsizei(textureHandles.len), textureHandles[0].addr)
+      glBindTextures(1, GLsizei(textureHandles.len), textureHandles[0].addr)
 
       let numVertices = GLsizei(len(myMeshArrayBuffer))
       glDrawArrays(GL_TRIANGLES, 0, numVertices)
@@ -773,20 +765,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     if debug:
       echo result.repr
       echo "</render_inner>"
-
-    # sharedCode.add "// uniforms section\n"
-    # sharedCode.add "layout (std140) uniform shader_data {\n"
-    # for uniform in uniformRest:
-    #   sharedCode.add uniform.getTypeInst.glslType, " "
-    #   sharedCode.compileToGlsl(uniform)
-    #   sharedCode.add ";\n"
-    # sharedCode.add "};\n"
-    # for i, uniform in uniformSamplers:
-    #   sharedCode.add "layout(binding=", 0, ") "
-    #   sharedCode.add "uniform ", uniform.getTypeInst.glslType, " "
-    #   sharedCode.compileToGlsl(uniform)
-    #   sharedCode.add ";\n"
-
 
 
 proc `or`(arg, alternative: NimNode): NimNode {.compileTime.} =
@@ -1004,7 +982,7 @@ while runGame:
       let v = vec2(evt.motion.yrel.float32, evt.motion.xrel.float32)
       let alpha = v.length * 0.01
       let axis = vec3(v, 0)
-      let rotMat = mat4f(1).rotate(axis, alpha)
+      let rotMat = mat4f(1).rotate(alpha, axis)
       M = rotMat * M
     else:
       discard
@@ -1074,6 +1052,9 @@ proc renderSceneManual(): void =
       GL_MAP_WRITE_BIT or GL_DYNAMIC_STORAGE_BIT or GL_MAP_PERSISTENT_BIT
     )
 
+    let blockIndex = glGetUniformBlockIndex(p.program.handle, "dynamic_shader_data");
+    assert(blockIndex != GL_INVALID_INDEX)
+
     glEnableVertexArrayAttrib(p.vao.handle, 0'u32)
     glVertexArrayBindingDivisor(p.vao.handle, 0'u32, 0)
     setFormat(p.vao, 0, p.buffer0)
@@ -1111,7 +1092,7 @@ proc renderSceneManual(): void =
   setBuffers(p.vao, 0, p.buffer0, p.buffer1, p.buffer2)
 
   var textureHandles = [myTexture.handle]
-  glBindTextures(0, GLsizei(textureHandles.len), textureHandles[0].addr)
+  glBindTextures(1, GLsizei(textureHandles.len), textureHandles[0].addr)
 
   let numVertices = GLsizei(len(myMeshArrayBuffer))
   glDrawArrays(GL_TRIANGLES, 0, numVertices)
