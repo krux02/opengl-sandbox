@@ -451,7 +451,8 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     ## split uniforms into texture/sampler uniforms and non-texture uniforms
 
-    let allAttributes = mergeUnique(attributesFromVS, attributesFromFS)
+    var allAttributes = attributesFromVS & attributesFromFS
+    allAttributes.deduplicate
     let allVaryings   = simpleVaryings & attributesFromFS
 
     ############################################################################
@@ -594,57 +595,91 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     ############################################################################
 
 
-    let pipelineType = nnkTupleTy.newTree
+    let pipelineRecList = nnkRecList.newTree
+    let pipelineTypeSym = genSym(nskType, "Pipeline")
+    let pipelineTypeSection =
+      nnkTypeSection.newTree(
+        nnkTypeDef.newTree(
+          pipelineTypeSym, empty,
+          nnkObjectTy.newTree(empty, empty, pipelineRecList)
+        )
+      )
 
     let pSym = genSym(nskVar, "p")
 
-    pipelineType.add nnkIdentDefs.newTree( ident"program",       bindSym"Program" , empty)
-    pipelineType.add nnkIdentDefs.newTree( ident"vao",           bindSym"VertexArrayObject" , empty)
 
-    echo vertexShader == vertexShaderSrc
-    echo fragmentShader == fragmentShaderSrc
+    let uniformBufTypeSym = genSym(nskType, "UniformBufType")
+
+    pipelineRecList.add nnkIdentDefs.newTree( ident"program",       bindSym"Program" , empty)
+    pipelineRecList.add nnkIdentDefs.newTree( ident"vao",           bindSym"VertexArrayObject" , empty)
+    pipelineRecList.add nnkIdentDefs.newTree(
+      ident"uniformBuf",
+      nnkBracketExpr.newTree(bindSym"UniformBuffer", uniformBufTypeSym),
+      empty
+    )
+
+    # pipelineRecList.add nnkIdentDefs.newTree( ident"program", bindSym"Program", empty )
 
     let vertexShaderLit = newLit(vertexShader)
     let fragmentShaderLit = newLit(fragmentShader)
 
     let lineinfoLit = newLit(body.lineinfoObj)
 
-    let initialization = newStmtList()
 
     ## attribute initialization
 
-    # for i, attrib in allAttributes:
-    #   let iLit = newLit(uint32(i))
-    #   let memberSym = attrib[1]
-    #   let memberType = attrib.getTypeInst.normalizeType
+    let attribPipelineBuffer = newSeq[NimNode](0)
 
-    #   #echo attrib.repr, " -- ", attrib.getTypeInst.normalizeType.repr
-    #   initialization.add quote do:
-    #     # TODO there is no divisor inference
-    #     glVertexArrayBindingDivisor(`vaoSym`.handle, `iLit`, 0)
-    #     let size           = attribSize(`memberType`)
-    #     let typeArg        = attribType(`memberType`)
-    #     let normalized     = attribNormalized(`memberType`)
-    #     let relativeoffset = GLuint(cast[int](`dummySym`.`memberSym`.addr) - cast[int](`dummySym`.addr))
-    #     glVertexArrayAttribFormat(`vaoSym`.handle, `iLit`, size, typeArg, normalized, relativeoffset)
-    #     glVertexArrayAttribBinding(`vaoSym`.handle, `iLit`, `iLit`)
+    for i, attrib in allAttributes:
+      echo "attrib", i, ": ", attrib.repr
+
+    let attribInitialization = newStmtList()
+    for i, attrib in allAttributes:
+       let iLit = newLit(uint32(i))
+       let memberSym = attrib[1]
+
+       let genType = nnkBracketExpr.newTree(
+         bindSym"ArrayBufferView",
+         newCall(bindSym"type", attrib[0].getTypeInst),
+         newCall(bindSym"type", attrib.getTypeInst)
+       )
+
+       echo attrib[0].getTypeInst.lispRepr
+       echo attrib.getTypeInst.lispRepr
+
+       let bufferIdent = ident("buffer" & $i)
+       pipelineRecList.add nnkIdentDefs.newTree(bufferIdent, genType , empty)
+
+       #echo genType.repr
+       #MyVertexType, Vec4f
+       # buffer0: ArrayBufferView[MyVertexType, Vec4f],
+       # buffer1: ArrayBufferView[MyVertexType, Vec4f],
+       # buffer2: ArrayBufferView[MyVertexType, Vec2f],
+
+       # TODO there is no divisor inference
+       let divisorLit = newLit(0)
+
+       #echo attrib.repr, " -- ", attrib.getTypeInst.normalizeType.repr
+       attribInitialization.add quote do:
+         glEnableVertexArrayAttrib(`pSym`.vao.handle, `iLit`)
+         glVertexArrayBindingDivisor(`pSym`.vao.handle, `iLit`, `divisorLit`)
+         setFormat(`pSym`.vao, `iLit`, `pSym`.`bufferIdent`)
+         glVertexArrayAttribBinding(`pSym`.vao.handle, `iLit`, `iLit`)
+
+
+    echo pipelineTypeSection.repr
+
+    echo attribInitialization.repr
 
     # ## uniform initialization
-
-
     # let draw = newStmtList()
-
     # draw.add newCommentStmtNode("passing uniform")
-
 
     let uniformBufferTypeDef = newStmtList()
     let uniformBufferTypeSym = genSym(nskType, "UniformObject")
 
     if uniformRest.len > 0:
       discard
-
-
-
         # let uniformTupleType = nnkTupleTy.newTree
         # for uniform in uniformRest:
         #   uniformTupleType.add nnkIdentDefs.newTree(
@@ -669,40 +704,28 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
         # doAssert glUnmapNamedBuffer(`pSym`.uniformBuffer.handle)
 
-
         # for uniform in uniformRest:
         #   let member = ident(uniform.strVal)
         #   uniformPassing.add newAssignment(newDotExpr(uniformsTupleSym, member), uniform)
 
+
     if uniformSamplers.len > 0:
        discard
 
-    let uniformBufferIdent = ident"uniformBuffer"
-
     result = quote do:
       type
-        UniformBufferType = object
+        `uniformBufTypeSym` = object
           P: Mat4f
           V: Mat4f
           M: Mat4f
           lights: array[0 .. 3, Light]
 
-        PipelineType = object
-          program: Program
-          vao: VertexArrayObject
-          `uniformBufferIdent`: UniformBuffer[UniformBufferType]
-          buffer0: ArrayBufferView[MyVertexType, Vec4f]
-          buffer1: ArrayBufferView[MyVertexType, Vec4f]
-          buffer2: ArrayBufferView[MyVertexType, Vec2f]
+      `pipelineTypeSection`
 
       ## this code block should eventually be generated
-      var `pSym` {.global.}: PipelineType
+      var `pSym` {.global.}: `pipelineTypeSym`
 
       if `pSym`.program.handle == 0:
-
-        `pSym`.buffer0 = myMeshArrayBuffer.view(position_os)
-        `pSym`.buffer1 = myMeshArrayBuffer.view(normal_os)
-        `pSym`.buffer2 = myMeshArrayBuffer.view(texCoord)
 
         `pSym`.program.handle = glCreateProgram()
         `pSym`.program.attachAndDeleteShader(
@@ -714,45 +737,32 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
         glCreateVertexArrays(1, `pSym`.vao.handle.addr)
 
-        glCreateBuffers(1, `pSym`.uniformBuffer.handle.addr)
+        glCreateBuffers(1, `pSym`.uniformBuf.handle.addr)
         glNamedBufferStorage(
-          `pSym`.uniformBuffer.handle, sizeof(UniformBufferType), nil,
-          GL_MAP_WRITE_BIT or GL_DYNAMIC_STORAGE_BIT or GL_MAP_PERSISTENT_BIT
+          `pSym`.uniformBuf.handle, sizeof(`uniformBufTypeSym`), nil,
+          GL_DYNAMIC_STORAGE_BIT
         )
 
-        glEnableVertexArrayAttrib(`pSym`.vao.handle, 0'u32)
-        glVertexArrayBindingDivisor(`pSym`.vao.handle, 0'u32, 0)
-        setFormat(`pSym`.vao, 0, `pSym`.buffer0)
-        glVertexArrayAttribBinding(`pSym`.vao.handle, 0'u32, 0'u32)
+        `pSym`.buffer0 = myMeshArrayBuffer.view(position_os)
+        `pSym`.buffer1 = myMeshArrayBuffer.view(normal_os)
+        `pSym`.buffer2 = myMeshArrayBuffer.view(texCoord)
 
-        glEnableVertexArrayAttrib(`pSym`.vao.handle, 1'u32)
-        glVertexArrayBindingDivisor(`pSym`.vao.handle, 1'u32, 0)
-        setFormat(`pSym`.vao, 1, `pSym`.buffer1)
-        glVertexArrayAttribBinding(`pSym`.vao.handle, 1'u32, 1'u32)
-
-        glEnableVertexArrayAttrib(`pSym`.vao.handle, 2'u32)
-        glVertexArrayBindingDivisor(`pSym`.vao.handle, 2'u32, 0)
-        setFormat(`pSym`.vao, 2, `pSym`.buffer2);
-        glVertexArrayAttribBinding(`pSym`.vao.handle, 2'u32, 2'u32)
+        `attribInitialization`
 
       ## passing uniform
-      let uniformPointer = cast[ptr UniformBufferType](glMapNamedBufferRange(
-        `pSym`.uniformBuffer.handle,
-        0, sizeof(UniformBufferType),
-        GL_MAP_WRITE_BIT
-      ))
+      var uniformPointer: `uniformBufTypeSym`
 
       uniformPointer.P = P
       uniformPointer.V = V
       uniformPointer.M = M
       uniformPointer.lights = lights
 
-      doAssert glUnmapNamedBuffer(`pSym`.uniformBuffer.handle)
+      glNamedBufferSubData(`pSym`.uniformBuf.handle, 0, sizeof(`uniformBufTypeSym`), uniformPointer.addr)
 
       glUseProgram(`pSym`.program.handle)
       glBindVertexArray(`pSym`.vao.handle)
 
-      glBindBufferBase(GL_UNIFORM_BUFFER, 0, `pSym`.uniformBuffer.handle)
+      glBindBufferBase(GL_UNIFORM_BUFFER, 0, `pSym`.uniformBuf.handle)
 
       setBuffers(`pSym`.vao, 0, `pSym`.buffer0, `pSym`.buffer1, `pSym`.buffer2)
 
@@ -918,7 +928,7 @@ var framebuffer: MyFramebuffer = createFramebuffer[MyFragmentType](window.size)
 
 var M,V,P: Mat4f
 
-M = mat4f(1)
+M = mat4f(1).rotateX(0.5).rotateY(0.75)
 V = mat4f(1).translate( 0, 0, -7)
 P = perspective(45'f32, window.aspectRatio, 0.1, 100.0)
 
@@ -955,9 +965,31 @@ proc renderScene(): void =
 
 var runGame = true
 
-
 let timer = newStopWatch(true)
 var renderer: int = 0
+
+#[
+glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+glSwapWindow(window)
+
+glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+renderScene()
+glSwapWindow(window)
+
+glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+renderSceneManual()
+glSwapWindow(window)
+
+glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+renderScene()
+glSwapWindow(window)
+
+glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+renderSceneManual()
+glSwapWindow(window)
+
+#runGame = false
+]#
 
 while runGame:
 
@@ -992,7 +1024,7 @@ while runGame:
 
 
   for i, light in lights.mpairs:
-    let alpha = time + Pi * 0.25f * float32(i)
+    let alpha = time + Pi * 0.5f * float32(i)
     light.position_ws.xy = vec2f(cos(alpha), sin(alpha)) * 4
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
@@ -1014,7 +1046,7 @@ echo "#################### manual code running frome here ####################"
 
 proc renderSceneManual(): void =
   type
-    UniformBufferType = object
+    UniformBufType = object
       P: Mat4f
       V: Mat4f
       M: Mat4f
@@ -1024,7 +1056,7 @@ proc renderSceneManual(): void =
   var p {.global.}: tuple[
     program: Program,
     vao: VertexArrayObject,
-    uniformBuffer: UniformBuffer[UniformBufferType],
+    uniformBuf: UniformBuffer[UniformBufType],
     buffer0: ArrayBufferView[MyVertexType, Vec4f],
     buffer1: ArrayBufferView[MyVertexType, Vec4f],
     buffer2: ArrayBufferView[MyVertexType, Vec2f],
@@ -1046,10 +1078,10 @@ proc renderSceneManual(): void =
 
     glCreateVertexArrays(1, p.vao.handle.addr)
 
-    glCreateBuffers(1, p.uniformBuffer.handle.addr)
+    glCreateBuffers(1, p.uniformBuf.handle.addr)
     glNamedBufferStorage(
-      p.uniformBuffer.handle, sizeof(UniformBufferType), nil,
-      GL_MAP_WRITE_BIT or GL_DYNAMIC_STORAGE_BIT or GL_MAP_PERSISTENT_BIT
+      p.uniformBuf.handle, sizeof(UniformBufType), nil,
+      GL_DYNAMIC_STORAGE_BIT
     )
 
     let blockIndex = glGetUniformBlockIndex(p.program.handle, "dynamic_shader_data");
@@ -1071,23 +1103,19 @@ proc renderSceneManual(): void =
     glVertexArrayAttribBinding(p.vao.handle, 2'u32, 2'u32)
 
   ## passing uniform
-  let uniformPointer = cast[ptr UniformBufferType](glMapNamedBufferRange(
-    p.uniformBuffer.handle,
-    0, sizeof(UniformBufferType),
-    GL_MAP_WRITE_BIT
-  ))
+  var uniformPointer: UniformBufType
 
   uniformPointer.P = P
   uniformPointer.V = V
   uniformPointer.M = M
   uniformPointer.lights = lights
 
-  doAssert glUnmapNamedBuffer(p.uniformBuffer.handle)
+  glNamedBufferSubData(p.uniformBuf.handle, 0, sizeof(UniformBufType), uniformPointer.addr)
 
   glUseProgram(p.program.handle)
   glBindVertexArray(p.vao.handle)
 
-  glBindBufferBase(GL_UNIFORM_BUFFER, 0, p.uniformBuffer.handle)
+  glBindBufferBase(GL_UNIFORM_BUFFER, 0, p.uniformBuf.handle)
 
   setBuffers(p.vao, 0, p.buffer0, p.buffer1, p.buffer2)
 
