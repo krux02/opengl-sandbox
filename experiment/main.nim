@@ -601,6 +601,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       )
 
     let pSym = genSym(nskVar, "p")
+    let uniformObjectSym = genSym(nskVar, "uniformObject")
 
     let uniformBufTypeSym = genSym(nskType, "UniformBufType")
 
@@ -646,40 +647,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       )
 
       uniformInitialization.add quote do:
-        uniformPointer.`uniformIdent` = uniform
-        newAsgn(nnkDotExpr.newTree())
-
-
-        # nnkIdentDefs.newTree(
-        #   newIdentNode("P"),
-        #   newIdentNode("Mat4f"),
-        #   empty
-        # ),
-        # nnkIdentDefs.newTree(
-        #   newIdentNode("V"),
-        #   newIdentNode("Mat4f"),
-        #   empty
-        # ),
-        # nnkIdentDefs.newTree(
-        #   newIdentNode("M"),
-        #   newIdentNode("Mat4f"),
-        #   empty
-        # ),
-        # nnkIdentDefs.newTree(
-        #   newIdentNode("lights"),
-        #   nnkBracketExpr.newTree(
-        #     newIdentNode("array"),
-        #     nnkInfix.newTree(
-        #       newIdentNode(".."),
-        #       newLit(0),
-        #       newLit(3)
-        #     ),
-        #     newIdentNode("Light")
-        #   ),
-        #   empty
-        # )
-
-
+        `uniformObjectSym`.`uniformIdent` = `uniform`
 
     ## attribute initialization
 
@@ -690,8 +658,8 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     let lineinfoLit = newLit(body.lineinfoObj)
 
-    for i, attrib in allAttributes:
-      echo "attrib", i, ": ", attrib.repr
+    #for i, attrib in allAttributes:
+    #  echo "attrib", i, ": ", attrib.repr
 
     let attribInitialization = newStmtList()
     for i, attrib in allAttributes:
@@ -704,8 +672,8 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
          newCall(bindSym"type", attrib.getTypeInst)
        )
 
-       echo attrib[0].getTypeInst.lispRepr
-       echo attrib.getTypeInst.lispRepr
+       #echo attrib[0].getTypeInst.lispRepr
+       #echo attrib.getTypeInst.lispRepr
 
        let bufferIdent = ident("buffer" & $i)
        pipelineRecList.add nnkIdentDefs.newTree(bufferIdent, genType , empty)
@@ -720,11 +688,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
          glVertexArrayBindingDivisor(`pSym`.vao.handle, `iLit`, `divisorLit`)
          setFormat(`pSym`.vao, `iLit`, `pSym`.`bufferIdent`)
          glVertexArrayAttribBinding(`pSym`.vao.handle, `iLit`, `iLit`)
-
-
-    echo pipelineTypeSection.repr
-
-    echo attribInitialization.repr
 
     # ## uniform initialization
     # let draw = newStmtList()
@@ -752,10 +715,10 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         #     GL_MAP_WRITE_BIT
         #   ))
 
-        # uniformPointer.P = P
-        # uniformPointer.V = V
-        # uniformPointer.M = M
-        # uniformPointer.lights = lights
+        # `uniformObjectSym`.P = P
+        # `uniformObjectSym`.V = V
+        # `uniformObjectSym`.M = M
+        # `uniformObjectSym`.lights = lights
 
         # doAssert glUnmapNamedBuffer(`pSym`.uniformBuffer.handle)
 
@@ -788,21 +751,16 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
         glCreateBuffers(1, `pSym`.uniformBuf.handle.addr)
         glNamedBufferStorage(
-          `pSym`.uniformBuf.handle, sizeof(`uniformBufTypeSym`), nil,
-          GL_DYNAMIC_STORAGE_BIT
+          `pSym`.uniformBuf.handle, sizeof(`uniformBufTypeSym`), nil, GL_DYNAMIC_STORAGE_BIT
         )
-
         `attribInitialization`
 
       ## passing uniform
-      var uniformPointer: `uniformBufTypeSym`
+      var `uniformObjectSym`: `uniformBufTypeSym`
 
-      uniformPointer.P = P
-      uniformPointer.V = V
-      uniformPointer.M = M
-      uniformPointer.lights = lights
+      `uniformInitialization`
 
-      glNamedBufferSubData(`pSym`.uniformBuf.handle, 0, sizeof(`uniformBufTypeSym`), uniformPointer.addr)
+      glNamedBufferSubData(`pSym`.uniformBuf.handle, 0, sizeof(`uniformBufTypeSym`), `uniformObjectSym`.addr)
 
       glUseProgram(`pSym`.program.handle)
       glBindVertexArray(`pSym`.vao.handle)
