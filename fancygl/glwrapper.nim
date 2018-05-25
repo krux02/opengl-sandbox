@@ -1030,6 +1030,22 @@ macro setBuffers*(vao: VertexArrayObject; first: uint32; buffers: varargs[untype
       var strides : array[`countLit`, GLsizei]  = `stridesArray`
       glVertexArrayVertexBuffers(`vao`.handle, `first`, GLsizei(`countLit`), buffers[0].addr, offsets[0].addr, strides[0].addr)
 
+macro bindTextures*(first: uint32; textures: varargs[untyped]): untyped =
+  if textures.len == 0:
+    discard
+    # do nothing
+  if textures.len == 1:
+    result = newCall( bindSym"glBindTextureUnit", first, newDotExpr(textures[0], ident"handle"))
+  else:
+    let texturesArrayExpr = nnkBracket.newTree
+    for texture in textures:
+      texturesArrayExpr.add newDotExpr(texture, ident"handle")
+
+    let lengthLit = newLit(GLsizei(textures.len))
+    result = quote do:
+      var textureHandles = `texturesArrayExpr`
+      glBindTextures(first, `lengthLit`, textureHandles[0].addr)
+
 ##########################
 # # transform feedback # #
 ##########################

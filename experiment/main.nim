@@ -1,94 +1,5 @@
 # these constants are temporary
 
-from macros import Lineinfo
-
-const
-  vertexShaderSrc = """
-#version 450
-// types section
-struct Light{
-  vec4 positionws;
-  vec4 color;
-};
-// uniforms  section
-layout (std140, binding=0) uniform dynamic_shader_data {
-  mat4 P;
-  mat4 V;
-  mat4 M;
-  Light[4] lights;
-};
-layout(binding=1) uniform sampler2D myTexture;
-// all attributes
-in layout(location=0) vec4 in_v_positionos;
-in layout(location=1) vec4 in_v_normalos;
-in layout(location=2) vec2 in_v_texCoord;
-// all varyings
-out layout(location=0) vec4 out_positioncs;
-out layout(location=1) vec4 out_normalcs;
-out layout(location=2) vec2 out_v_texCoord;
-void main() {
-  // convert used attributes to local variables (because reasons)
-  vec4 v_positionos = in_v_positionos;
-  vec4 v_normalos = in_v_normalos;
-  // glsl translation of main body
-  gl_Position = (((P * V) * M) * v_positionos);
-  vec4 positioncs = ((V * M) * v_positionos);
-  vec4 normalcs = (inverse(transpose((V * M)) )  * v_normalos);
-  int inout_XXX = 123;
-  // forward attributes that are used in the fragment shader
-  out_v_texCoord = in_v_texCoord;
-  // forward other varyings
-  out_positioncs = positioncs;
-  out_normalcs = normalcs;
-}
-
-"""
-
-  fragmentShaderSrc = """
-#version 450
-// types section
-struct Light{
-  vec4 positionws;
-  vec4 color;
-};
-// uniforms section
-layout (std140, binding=0) uniform dynamic_shader_data {
-  mat4 P;
-  mat4 V;
-  mat4 M;
-  Light[4] lights;
-};
-layout(binding=1) uniform sampler2D myTexture;
-// fragment output symbols
-out layout(location=0) vec4 result_color;
-// all varyings
-in layout(location=0) vec4 in_positioncs;
-in layout(location=1) vec4 in_normalcs;
-in layout(location=2) vec2 in_v_texCoord;
-void main() {
-  // convert varyings to local variables (because reasons)
-  vec4 positioncs = in_positioncs;
-  vec4 normalcs = in_normalcs;
-  vec2 v_texCoord = in_v_texCoord;
-  /// rasterize
-  ;
-  vec4 lighting = vec4(0);
-  for(int i580019 = 0; i580019 < 4; ++i580019) {
-    Light light = lights[i580019];
-    {
-      vec4 lightpositioncs = (V * light.positionws);
-      vec4 lightdirectioncs = (lightpositioncs - positioncs);
-      float lightintensity = max(dot(lightdirectioncs, normalcs) , 0.0) ;
-      (lighting += (lightintensity * light.color));
-
-  }};
-  vec4 textureSample = texture(myTexture, v_texCoord, 0.0) ;
-  result_color = (textureSample * lighting);
-}
-
-"""
-  lineinfo = LineInfo(filename: "main.nim", line: 748, column: 2)
-
 # TODO document current steps
 # TODO frame code generation for rendering
 # TODO optimization for pulling up variables into CPU
@@ -100,7 +11,6 @@ import sugar, algorithm, macros, strutils, tables, sequtils
 import ../fancygl, ast_pattern_matching
 # local stuff
 import normalizeType, glslTranslate, boring_stuff
-
 
 static:
   let empty = newEmptyNode()
@@ -154,7 +64,6 @@ proc validateShader(src: string, sk: ShaderKind): void {.compileTime.} =
 
   else:
     echo "compile ",sk,":"," OK"
-
 
 proc indentCode(arg: string): string =
   result = ""
@@ -601,7 +510,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       )
 
     let pSym = genSym(nskVar, "p")
-    let uniformObjectSym = genSym(nskVar, "uniformObject")
 
     let uniformBufTypeSym = genSym(nskType, "UniformBufType")
 
@@ -631,23 +539,45 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     # pipelineRecList.add nnkIdentDefs.newTree( ident"program", bindSym"Program", empty )
 
+    let initCode = newStmtList()
+
     ## uniform initialization
 
-    let uniformInitialization = newStmtList()
+    let drawCode = newStmtList()
 
-    for uniform in uniformRest:
-      let uniformIdent = ident(uniform.strVal)
-      echo uniform.getTypeInst.repr
-      echo uniform.lispRepr
+    if uniformRest.len > 0:
+      let uniformObjectSym = genSym(nskVar, "uniformObject")
 
-      uniformRecList.add nnkIdentDefs.newTree(
-        uniformIdent,
-        uniform.getTypeInst,
-        empty,
-      )
+      initCode.add quote do:
+        glCreateBuffers(1, `pSym`.uniformBuf.handle.addr)
+        glNamedBufferStorage(
+          `pSym`.uniformBuf.handle, sizeof(`uniformBufTypeSym`), nil, GL_DYNAMIC_STORAGE_BIT
+        )
 
-      uniformInitialization.add quote do:
-        `uniformObjectSym`.`uniformIdent` = `uniform`
+      drawCode.add quote do:
+        var `uniformObjectSym`: `uniformBufTypeSym`
+
+      for uniform in uniformRest:
+        let uniformIdent = ident(uniform.strVal)
+
+        uniformRecList.add nnkIdentDefs.newTree(
+          uniformIdent,
+          uniform.getTypeInst,
+          empty,
+        )
+
+        drawCode.add quote do:
+          `uniformObjectSym`.`uniformIdent` = `uniform`
+
+      drawCode.add quote do:
+        glNamedBufferSubData(`pSym`.uniformBuf.handle, 0, sizeof(`uniformBufTypeSym`), `uniformObjectSym`.addr)
+        glBindBufferBase(GL_UNIFORM_BUFFER, 0, `pSym`.uniformBuf.handle)
+
+    let bindTexturesCall = newCall(bindSym"bindTextures", newLit(1) )
+    for sampler in uniformSamplers:
+      bindTexturesCall.add sampler
+
+    drawCode.add bindTexturesCall
 
     ## attribute initialization
 
@@ -658,77 +588,33 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     let lineinfoLit = newLit(body.lineinfoObj)
 
-    #for i, attrib in allAttributes:
-    #  echo "attrib", i, ": ", attrib.repr
+    if allAttributes.len > 0:
+      let setBuffersCall = newCall(bindSym"setBuffers", newDotExpr(pSym, ident"vao"), newLit(0))
 
-    let attribInitialization = newStmtList()
-    for i, attrib in allAttributes:
-       let iLit = newLit(uint32(i))
-       let memberSym = attrib[1]
+      for i, attrib in allAttributes:
+        let iLit = newLit(uint32(i))
+        let memberSym = attrib[1]
+        let genType = nnkBracketExpr.newTree(
+          bindSym"ArrayBufferView",
+          newCall(bindSym"type", attrib[0].getTypeInst),
+          newCall(bindSym"type", attrib.getTypeInst)
+        )
 
-       let genType = nnkBracketExpr.newTree(
-         bindSym"ArrayBufferView",
-         newCall(bindSym"type", attrib[0].getTypeInst),
-         newCall(bindSym"type", attrib.getTypeInst)
-       )
+        let bufferIdent = ident("buffer" & $i)
+        pipelineRecList.add nnkIdentDefs.newTree(bufferIdent, genType , empty)
+        setBuffersCall.add newDotExpr(pSym, bufferIdent)
 
-       #echo attrib[0].getTypeInst.lispRepr
-       #echo attrib.getTypeInst.lispRepr
+        # TODO there is no divisor inference
+        let divisorLit = newLit(0) # this is a comment
 
-       let bufferIdent = ident("buffer" & $i)
-       pipelineRecList.add nnkIdentDefs.newTree(bufferIdent, genType , empty)
+        initCode.add quote do:
+          `pSym`.`bufferIdent` = myMeshArrayBuffer.view(`memberSym`)
+          glEnableVertexArrayAttrib(`pSym`.vao.handle, `iLit`)
+          glVertexArrayBindingDivisor(`pSym`.vao.handle, `iLit`, `divisorLit`)
+          setFormat(`pSym`.vao, `iLit`, `pSym`.`bufferIdent`)
+          glVertexArrayAttribBinding(`pSym`.vao.handle, `iLit`, `iLit`)
 
-       # TODO there is no divisor inference
-       let divisorLit = newLit(0) # this is a comment
-
-       #echo attrib.repr, " -- ", attrib.getTypeInst.normalizeType.repr
-       attribInitialization.add quote do:
-         `pSym`.`bufferIdent` = myMeshArrayBuffer.view(`memberSym`)
-         glEnableVertexArrayAttrib(`pSym`.vao.handle, `iLit`)
-         glVertexArrayBindingDivisor(`pSym`.vao.handle, `iLit`, `divisorLit`)
-         setFormat(`pSym`.vao, `iLit`, `pSym`.`bufferIdent`)
-         glVertexArrayAttribBinding(`pSym`.vao.handle, `iLit`, `iLit`)
-
-    # ## uniform initialization
-    # let draw = newStmtList()
-    # draw.add newCommentStmtNode("passing uniform")
-
-    let uniformBufferTypeDef = newStmtList()
-    let uniformBufferTypeSym = genSym(nskType, "UniformObject")
-
-    if uniformRest.len > 0:
-      discard
-        # let uniformTupleType = nnkTupleTy.newTree
-        # for uniform in uniformRest:
-        #   uniformTupleType.add nnkIdentDefs.newTree(
-        #     ident(uniform.strVal),
-        #     uniform.getTypeInst,
-        #     empty
-        #   )
-
-        # let uniformsPtrSym = genSym(nskVar, "uniforms")
-
-        # draw.add quote do:
-        #   let `uniformsPointerSym` = cast[ptr `uniformTupleType`](glMapNamedBufferRange(
-        #     `pSym`.uniformBuffer.handle,
-        #     0, sizeof(UniformBufferType),
-        #     GL_MAP_WRITE_BIT
-        #   ))
-
-        # `uniformObjectSym`.P = P
-        # `uniformObjectSym`.V = V
-        # `uniformObjectSym`.M = M
-        # `uniformObjectSym`.lights = lights
-
-        # doAssert glUnmapNamedBuffer(`pSym`.uniformBuffer.handle)
-
-        # for uniform in uniformRest:
-        #   let member = ident(uniform.strVal)
-        #   uniformPassing.add newAssignment(newDotExpr(uniformsTupleSym, member), uniform)
-
-
-    if uniformSamplers.len > 0:
-       discard
+      drawCode.add setBuffersCall
 
     result = quote do:
       `uniformBufTypeSection`
@@ -749,28 +635,13 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
         glCreateVertexArrays(1, `pSym`.vao.handle.addr)
 
-        glCreateBuffers(1, `pSym`.uniformBuf.handle.addr)
-        glNamedBufferStorage(
-          `pSym`.uniformBuf.handle, sizeof(`uniformBufTypeSym`), nil, GL_DYNAMIC_STORAGE_BIT
-        )
-        `attribInitialization`
+        `initCode`
 
-      ## passing uniform
-      var `uniformObjectSym`: `uniformBufTypeSym`
-
-      `uniformInitialization`
-
-      glNamedBufferSubData(`pSym`.uniformBuf.handle, 0, sizeof(`uniformBufTypeSym`), `uniformObjectSym`.addr)
 
       glUseProgram(`pSym`.program.handle)
       glBindVertexArray(`pSym`.vao.handle)
 
-      glBindBufferBase(GL_UNIFORM_BUFFER, 0, `pSym`.uniformBuf.handle)
-
-      setBuffers(`pSym`.vao, 0, `pSym`.buffer0, `pSym`.buffer1, `pSym`.buffer2)
-
-      var textureHandles = [myTexture.handle]
-      glBindTextures(1, GLsizei(textureHandles.len), textureHandles[0].addr)
+      `drawCode`
 
       let numVertices = GLsizei(len(myMeshArrayBuffer))
       glDrawArrays(GL_TRIANGLES, 0, numVertices)
@@ -971,6 +842,10 @@ var runGame = true
 let timer = newStopWatch(true)
 var renderer: int = 0
 
+lights[0].position_ws.xy = vec2f( 4,  0)
+lights[1].position_ws.xy = vec2f( 0,  4)
+lights[2].position_ws.xy = vec2f(-4,  0)
+lights[3].position_ws.xy = vec2f( 0, -4)
 
 glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 glSwapWindow(window)
@@ -1021,8 +896,6 @@ while runGame:
 
 
   let time = float32(timer.time)
-
-
   for i, light in lights.mpairs:
     let alpha = time + Pi * 0.5f * float32(i)
     light.position_ws.xy = vec2f(cos(alpha), sin(alpha)) * 4
@@ -1041,6 +914,96 @@ while runGame:
 ################################################################################
 
 # test code before generating it
+
+from macros import Lineinfo
+
+const
+  vertexShaderSrc = """
+#version 450
+// types section
+struct Light{
+  vec4 positionws;
+  vec4 color;
+};
+// uniforms  section
+layout (std140, binding=0) uniform dynamic_shader_data {
+  mat4 P;
+  mat4 V;
+  mat4 M;
+  Light[4] lights;
+};
+layout(binding=1) uniform sampler2D myTexture;
+// all attributes
+in layout(location=0) vec4 in_v_positionos;
+in layout(location=1) vec4 in_v_normalos;
+in layout(location=2) vec2 in_v_texCoord;
+// all varyings
+out layout(location=0) vec4 out_positioncs;
+out layout(location=1) vec4 out_normalcs;
+out layout(location=2) vec2 out_v_texCoord;
+void main() {
+  // convert used attributes to local variables (because reasons)
+  vec4 v_positionos = in_v_positionos;
+  vec4 v_normalos = in_v_normalos;
+  // glsl translation of main body
+  gl_Position = (((P * V) * M) * v_positionos);
+  vec4 positioncs = ((V * M) * v_positionos);
+  vec4 normalcs = (inverse(transpose((V * M)) )  * v_normalos);
+  int inout_XXX = 123;
+  // forward attributes that are used in the fragment shader
+  out_v_texCoord = in_v_texCoord;
+  // forward other varyings
+  out_positioncs = positioncs;
+  out_normalcs = normalcs;
+}
+
+"""
+
+  fragmentShaderSrc = """
+#version 450
+// types section
+struct Light{
+  vec4 positionws;
+  vec4 color;
+};
+// uniforms section
+layout (std140, binding=0) uniform dynamic_shader_data {
+  mat4 P;
+  mat4 V;
+  mat4 M;
+  Light[4] lights;
+};
+layout(binding=1) uniform sampler2D myTexture;
+// fragment output symbols
+out layout(location=0) vec4 result_color;
+// all varyings
+in layout(location=0) vec4 in_positioncs;
+in layout(location=1) vec4 in_normalcs;
+in layout(location=2) vec2 in_v_texCoord;
+void main() {
+  // convert varyings to local variables (because reasons)
+  vec4 positioncs = in_positioncs;
+  vec4 normalcs = in_normalcs;
+  vec2 v_texCoord = in_v_texCoord;
+  /// rasterize
+  ;
+  vec4 lighting = vec4(0);
+  for(int i580019 = 0; i580019 < 4; ++i580019) {
+    Light light = lights[i580019];
+    {
+      vec4 lightpositioncs = (V * light.positionws);
+      vec4 lightdirectioncs = (lightpositioncs - positioncs);
+      float lightintensity = max(dot(lightdirectioncs, normalcs) , 0.0) ;
+      (lighting += (lightintensity * light.color));
+
+  }};
+  vec4 textureSample = texture(myTexture, v_texCoord, 0.0) ;
+  result_color = (textureSample * lighting);
+}
+
+"""
+  lineinfo = LineInfo(filename: "main.nim", line: 748, column: 2)
+
 
 echo "#################### manual code running frome here ####################"
 

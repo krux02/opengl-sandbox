@@ -8,9 +8,6 @@ proc debugCallback(
     length: GLsizei,
     message: cstring,
     userParam: pointer): void {. cdecl .} =
-  if severity == GL_DEBUG_SEVERITY_NOTIFICATION:
-    return
-
 
   echo "gl-debug-callback:"
   echo "  message: ", message
@@ -93,7 +90,6 @@ proc defaultSetupInternal(windowsize: Vec2i; windowTitle: string): tuple[window:
     else:
       WINDOW_OPENGL
 
-
   let posx = WINDOWPOS_UNDEFINED.cint
   let posy = WINDOWPOS_UNDEFINED.cint
 
@@ -127,15 +123,11 @@ proc defaultSetupInternal(windowsize: Vec2i; windowTitle: string): tuple[window:
       stdout.write "even 1 (synchronized) is not supported: "
       echo sdl.getError()
 
-
   glEnable(GL_DEPTH_TEST)
-
   if glPushDebugGroup != nil:
     glPopDebugGroup()
 
-
-
-template defaultSetup*(windowsize: Vec2i = vec2i(-1, -1), windowTitle: string = nil): tuple[window: Window, context: GlContext] =
-  var name = if windowTitle.isNil: instantiationInfo().filename else: windowTitle
+template defaultSetup*(windowsize: Vec2i = vec2i(-1, -1), windowTitle: string = ""): tuple[window: Window, context: GlContext] =
+  var name = if windowTitle.len == 0: instantiationInfo().filename else: windowTitle
   name.removeSuffix(".nim")
   defaultSetupInternal(windowsize, name)
