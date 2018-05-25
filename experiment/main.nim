@@ -35,7 +35,7 @@ const
 proc deduplicate(arg: var seq[NimNode]): void =
   arg = sequtils.deduplicate(arg)
 
-proc validateShader(src: string, sk: ShaderKind): void {.compileTime.} =
+proc validateShader(src: string, sk: ShaderKind): bool {.compileTime.} =
   let log = staticExec("glslangValidator --stdin -S " & $sk, src, "true")
   if log.len > 0:
     echo "  glsl errors:  ".center(80,'#')
@@ -63,7 +63,7 @@ proc validateShader(src: string, sk: ShaderKind): void {.compileTime.} =
     echo(BarStyle, center(" end Shader Problems ",80,'='), ColorReset)
 
   else:
-    echo "compile ",sk,":"," OK"
+    return true
 
 proc indentCode(arg: string): string =
   result = ""
@@ -485,14 +485,15 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     fragmentShader.compileToGlsl(fragmentPart)
     fragmentShader.add "}\n"
 
-    echo "|> vertex shader <|".center(80,'=')
-    echo vertexShader.indentCode
-    echo "|> fragment shader <|".center(80,'=')
-    echo fragmentShader.indentCode
-    echo "=".repeat(80)
+    if debug:
+      echo "|> vertex shader <|".center(80,'=')
+      echo vertexShader.indentCode
+      echo "|> fragment shader <|".center(80,'=')
+      echo fragmentShader.indentCode
+      echo "=".repeat(80)
 
-    validateShader(vertexShader, skVert)
-    validateShader(fragmentShader, skFrag)
+    discard validateShader(vertexShader, skVert)
+    discard validateShader(fragmentShader, skFrag)
 
     ############################################################################
     ############################# generate nim code ############################
@@ -808,18 +809,14 @@ P = perspective(45'f32, window.aspectRatio, 0.1, 100.0)
 
 var lights: array[4,Light]
 
-
-lights[0].position_ws = vec4f(-4,-4,1,1)
-lights[1].position_ws = vec4f(-4, 4,1,1)
-lights[2].position_ws = vec4f( 4,-4,1,1)
-lights[3].position_ws = vec4f( 4, 4,1,1)
-
 lights[0].color = vec4f(1,0,1,1)
 lights[1].color = vec4f(1,0,0,1)
 lights[2].color = vec4f(0,1,0,1)
 lights[3].color = vec4f(0,0,1,1)
 
-proc renderSceneManual(): void
+
+
+
 proc renderScene(): void =
   framebuffer.renderDebug(mesh) do (v, gl):
     gl.Position     = P * V * M * v.position_os
@@ -827,6 +824,7 @@ proc renderScene(): void =
     let normal_cs   = inverse(transpose(V*M)) * v.normal_os
 
     ## rasterize
+
     var lighting: Vec4f
     for light in lights:
       let light_position_cs = V * light.position_ws
@@ -840,31 +838,6 @@ proc renderScene(): void =
 var runGame = true
 
 let timer = newStopWatch(true)
-var renderer: int = 0
-
-lights[0].position_ws.xy = vec2f( 4,  0)
-lights[1].position_ws.xy = vec2f( 0,  4)
-lights[2].position_ws.xy = vec2f(-4,  0)
-lights[3].position_ws.xy = vec2f( 0, -4)
-
-glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
-glSwapWindow(window)
-
-glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
-renderScene()
-glSwapWindow(window)
-
-glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
-renderSceneManual()
-glSwapWindow(window)
-
-glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
-renderScene()
-glSwapWindow(window)
-
-glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
-renderSceneManual()
-glSwapWindow(window)
 
 while runGame:
 
@@ -879,10 +852,6 @@ while runGame:
         runGame = false
       of SCANCODE_F10:
         window.screenshot
-      of SCANCODE_1:
-        renderer = 0
-      of SCANCODE_2:
-        renderer = 1
       else:
         discard
     of MouseMotion:
@@ -902,10 +871,7 @@ while runGame:
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
 
-  if renderer == 0:
-    renderScene()
-  else:
-    renderSceneManual()
+  renderScene()
 
   glSwapWindow(window)
 
