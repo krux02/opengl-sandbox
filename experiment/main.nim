@@ -1,5 +1,3 @@
-
-
 # these constants are temporary
 
 from macros import Lineinfo
@@ -90,9 +88,6 @@ void main() {
 
 """
   lineinfo = LineInfo(filename: "main.nim", line: 748, column: 2)
-
-
-
 
 # TODO document current steps
 # TODO frame code generation for rendering
@@ -607,7 +602,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     let pSym = genSym(nskVar, "p")
 
-
     let uniformBufTypeSym = genSym(nskType, "UniformBufType")
 
     pipelineRecList.add nnkIdentDefs.newTree( ident"program",       bindSym"Program" , empty)
@@ -717,10 +711,11 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
        pipelineRecList.add nnkIdentDefs.newTree(bufferIdent, genType , empty)
 
        # TODO there is no divisor inference
-       let divisorLit = newLit(0)
+       let divisorLit = newLit(0) # this is a comment
 
        #echo attrib.repr, " -- ", attrib.getTypeInst.normalizeType.repr
        attribInitialization.add quote do:
+         `pSym`.`bufferIdent` = myMeshArrayBuffer.view(`memberSym`)
          glEnableVertexArrayAttrib(`pSym`.vao.handle, `iLit`)
          glVertexArrayBindingDivisor(`pSym`.vao.handle, `iLit`, `divisorLit`)
          setFormat(`pSym`.vao, `iLit`, `pSym`.`bufferIdent`)
@@ -796,10 +791,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
           `pSym`.uniformBuf.handle, sizeof(`uniformBufTypeSym`), nil,
           GL_DYNAMIC_STORAGE_BIT
         )
-
-        `pSym`.buffer0 = myMeshArrayBuffer.view(position_os)
-        `pSym`.buffer1 = myMeshArrayBuffer.view(normal_os)
-        `pSym`.buffer2 = myMeshArrayBuffer.view(texCoord)
 
         `attribInitialization`
 
@@ -1115,9 +1106,6 @@ proc renderSceneManual(): void =
 
   if p.program.handle == 0:
 
-    p.buffer0 = myMeshArrayBuffer.view(position_os)
-    p.buffer1 = myMeshArrayBuffer.view(normal_os)
-    p.buffer2 = myMeshArrayBuffer.view(texCoord)
 
     p.program.handle = glCreateProgram()
     p.program.attachAndDeleteShader(
@@ -1138,16 +1126,19 @@ proc renderSceneManual(): void =
     let blockIndex = glGetUniformBlockIndex(p.program.handle, "dynamic_shader_data");
     assert(blockIndex != GL_INVALID_INDEX)
 
+    p.buffer0 = myMeshArrayBuffer.view(position_os)
     glEnableVertexArrayAttrib(p.vao.handle, 0'u32)
     glVertexArrayBindingDivisor(p.vao.handle, 0'u32, 0)
     setFormat(p.vao, 0, p.buffer0)
     glVertexArrayAttribBinding(p.vao.handle, 0'u32, 0'u32)
 
+    p.buffer1 = myMeshArrayBuffer.view(normal_os)
     glEnableVertexArrayAttrib(p.vao.handle, 1'u32)
     glVertexArrayBindingDivisor(p.vao.handle, 1'u32, 0)
     setFormat(p.vao, 1, p.buffer1)
     glVertexArrayAttribBinding(p.vao.handle, 1'u32, 1'u32)
 
+    p.buffer2 = myMeshArrayBuffer.view(texCoord)
     glEnableVertexArrayAttrib(p.vao.handle, 2'u32)
     glVertexArrayBindingDivisor(p.vao.handle, 2'u32, 0)
     setFormat(p.vao, 2, p.buffer2);
