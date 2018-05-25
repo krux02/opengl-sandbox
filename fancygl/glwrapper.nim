@@ -1006,36 +1006,29 @@ proc setBuffer*(vao: VertexArrayObject; binding: uint32; buffer: ArrayBufferView
   glVertexArrayVertexBuffer(vao.handle, binding, buffer.handle, buffer.absoluteoffset, buffer.stride)
 
 macro setBuffers*(vao: VertexArrayObject; first: uint32; buffers: varargs[untyped]): untyped =
-  when false: # there is a bug in OpenGL that prevents this from working :/
-    if buffers.len > 0:
-
-      let buffersArray = nnkBracket.newTree
-      let offsetsArray = nnkBracket.newTree
-      let stridesArray = nnkBracket.newTree
-
-      for buffer in buffers:
-        buffersArray.add newDotExpr(buffer, ident"handle")
-        offsetsArray.add newDotExpr(buffer, ident"absoluteoffset")
-        stridesArray.add newDotExpr(buffer, ident"stride")
-
-      let countLit = newLit(GLsizei(buffers.len))
-
-      result = quote do:
-        var buffers = `buffersArray`
-        var offsets = `offsetsArray`
-        var strides = `stridesArray`
-
-        for i in 0 ..< `countLit`:
-          glBindVertexBuffer(uint32(`first`) + uint32(i), buffers[i], offsets[i], strides[i])
-
-        ## This command should be able to replace the upper loop, but for some reason it does not work :/
-        # glVertexArrayVertexBuffers(`vao`.handle, `first`, `countLit`, buffers[0].addr, offsets[0].addr, strides[0].addr)
-
+  if buffers.len == 0:
+    discard
+    # do nothing
+  if buffers.len == 1:
+    let buffer = buffers[0]
+    result = newCall(bindSym"setBuffer", vao, first, buffer)
   else:
-    result = newStmtList()
-    for i, buffer in buffers:
-      let binding = newInfix(bindSym"+", first, newLit(i))
-      result.add newCall( bindSym"setBuffer", vao, binding, buffer)
+    let buffersArray = nnkBracket.newTree
+    let offsetsArray = nnkBracket.newTree
+    let stridesArray = nnkBracket.newTree
+
+    for buffer in buffers:
+      buffersArray.add newDotExpr(buffer, ident"handle")
+      offsetsArray.add newCall(bindSym"GLintptr",(newDotExpr(buffer, ident"absoluteoffset")))
+      stridesArray.add newDotExpr(buffer, ident"stride")
+
+    let countLit = newLit(buffers.len)
+
+    result = quote do:
+      var buffers : array[`countLit`, GLuint]   = `buffersArray`
+      var offsets : array[`countLit`, GLintptr] = `offsetsArray`
+      var strides : array[`countLit`, GLsizei]  = `stridesArray`
+      glVertexArrayVertexBuffers(`vao`.handle, `first`, GLsizei(`countLit`), buffers[0].addr, offsets[0].addr, strides[0].addr)
 
 ##########################
 # # transform feedback # #
@@ -1127,7 +1120,6 @@ proc glslLayoutSpecificationRuntime[T](name: string = nil): string =
     result.add ";\n"
 
   result.add "};\n"
-
 
 template glslLayoutSpecification(arg: untyped): string = ""
 
