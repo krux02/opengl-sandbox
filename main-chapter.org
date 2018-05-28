@@ -136,15 +136,15 @@ from all expressions.  For example when ~getTypeInst~ is called on the
 ~Infix~ node in the excerpt above, it will return the type ast of
 exactly that node.  Types are represented in AST form as well.  For
 example the type ~Vec4f~ will be represented after normalization as
-~Vec[4, float32]~.  Symbols also have a tag that is not visible in the
-tree that specifies what kind of symbol it is.  This kind can be used
-to identify if a symbol is a type, a function, a variables, a constant
-etc.  From type and function symbols it is possible to jump to the
-AST of the implementation.
+~Vec[4, float32]~.  Symbols also have a symbol tag (not visible
+in the tree) that specifies what kind of symbol it is.  This tag can
+be used to identify if a symbol is a type, a function, a variables, a
+constant etc.  From type and function symbols it is possible to jump
+to the AST of the implementation.
 
 # TODO reference the type normalization section
 
-From all this information that the AST provides, it is possible to
+From all the information that this AST provides, it is possible to
 generate everything necessary to run that code on the GPU.
 
 ** vertex fragment shader separation
@@ -152,11 +152,11 @@ generate everything necessary to run that code on the GPU.
 At the time of writing this, the magic comment ~## rasterize~ defines
 the split point of vertex and fragment shader.  Everything before that
 comment is defined to be part of the vertex shader, everything behind
-it will be part of the fragment shader.
+it will be compiled into the fragment shader.
 
 I don't necessarily like this magic comment, and I think eventually it
-will go away. But the advantages of this magic comment are that it is
-easy to understand and very easy to implement.  And it serves the
+should go away. But the advantages of this magic comment are that it is
+easy to understand and very easy to implement.  it serves its
 purpose very well to split between vertex shader and fragment shader.
 
 ** Extraction of Meta Information
@@ -189,31 +189,54 @@ that will be used for code generation
 
 # how passing uniforms generally works and what should be taken care of.
 
-When passing uniforms one wants to minimize the amount of calls into
-OpenGL like for most tasks.  All simple data uniforms like matrices
-and vectors can simply be passed to the shader program.  For textures
-though, this does not work.  In OpenGL textures are not passed
-directly to the shader.  Internally there is a list of active textures
-and a texture needs to be bound to an active texture first. Then when
-the texture needs to be used in a shader, the index of that texture in
-the list of active textures is passed as an integer to the uniform.
+When the shader program uses a symbol that is not locally defined
+within the shader block, it has to be a passed to the shader as a
+uniform.  It is known at compile time what symbols are used, how many
+symbols are used, and what their type is, but it is not known at
+compile time what value they have.  A matrix that is used could be a
+new matrix uniform on each draw call, and a texture could be an
+entirely different texture object on each draw call.  This needs to be
+taken care of.  Generally I distinguish between two kinds of uniforms,
+the plain old data uniforms, like matrices, vectors and scalars. And
+texture uniforms that are represented by a handle on the client.  All
+uniforms that are just plain old data can simply be passed to the
+shader program in one block of binary data, the uniform buffer.  For
+textures though, this does not work.  Putting the texture handle into
+the uniform buffer does not work.  In OpenGL textures are not
+passed directly to the shader.
+Internally OpenGL has a list of active textures, the active texture
+array.  A texture needs to be bound to an active texture first.  And
+then the program that uses a textures needs to know the index of the
+texture in the active texture array.  This is simply done by passing
+an integer to the uniform.  I personally think that this list of
+active textures is something the programmer should not need to worry
+about.  The user/programmer should just be able to use a texture
+symbol and it should work in all circumstances.
 
 [[./images/active-texture.png]]
 
 # how I pass my uniforms to the shader
-The way I solve it, is that I split the uniforms into two different
-kinds of uniforms, the /texture/ uniforms, and the /non-texture/
-uniforms. All /non-texture/ uniforms are automatically joined into a
-single uniform buffer, which is then passed to the program in one
-batch.
+So first of all, I split all the used uniform symbols into two
+different kinds of uniforms, the /texture/ uniforms, and the
+/non-texture/ uniforms. All /non-texture/ uniforms are automatically
+joined into a single uniform buffer, which is then passed to the
+program in one batch.
 
-The texture uniforms get their values assigned statically in the
-shader to a consecutive range of indices.  All textures can now be
-bound to the OpenGL state with a single call to ~glBindImageTextures~.
-So there will never be a call to ~glUniform1i~ to set a texture
-uniform at all.  With this solution the programmers can use a
-different textures on each draw call, but they don't need to care
-about the internal array of active textures at all.
+For textures I have a slightly different approach.  Since I know all
+symbols statically, I assign each texture symbol to one position in
+the active texture array at compile time.  So for example the first
+used texture symbol will use ~GL_TEXTIRE0~ the second one will use
+~GL_TEXTURE1~ etc.  This also won't change anymore at run-time, but
+the actual value (handle) of the texture symbol can change at any time
+during run-time, therefore I bind all texture handle on each draw call
+to the list of active textures.  Since all textures are in a
+consecutive array I can set them all at once with
+~glBindImageTextures~.
+
+There will never be a call to ~glUniform1i~ to set a texture
+uniform before a draw call, texture handles can change at any time and
+it will just work, and no programmer needs to spend time thinking
+about the internal list of active textures.
 
 #+BEGIN_SRC glsl
 // here I start at 0, but I could start at any other index.
