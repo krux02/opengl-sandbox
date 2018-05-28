@@ -31,7 +31,6 @@ const
   LineNumberStyle = "\e[33m" # Yellow
   BarStyle = "\e[30m\e[43m" # Black and Yellow
 
-
 proc deduplicate(arg: var seq[NimNode]): void =
   arg = sequtils.deduplicate(arg)
 
@@ -659,17 +658,21 @@ proc `or`(arg, alternative: NimNode): NimNode {.compileTime.} =
     alternative
 
 type
-  Mesh[VertexType] = object
+  Mesh*[VertexType] = object
 
-  Framebuffer[FragmentType] = object
+  Framebuffer*[FragmentType] = object
     handle: GLuint
-    size: Vec2i
+    size*: Vec2i
 
-  GlEnvironment = object
-    Position: Vec4f
-    PointSize: float32
-    ClipDistance: UncheckedArray[float32]
+  GlEnvironment* = object
+    Position*: Vec4f
+    PointSize*: float32
+    ClipDistance*: UncheckedArray[float32]
 
+  DefaultFragmentType* = object
+    color: Vec4f
+
+  DefaultFramebuffer* = Framebuffer[DefaultFragmentType]
 
 proc create[FragmentType](result: var Framebuffer[FragmentType]): void =
   glCreateFramebuffers(1, result.handle.addr)
@@ -808,16 +811,48 @@ V = mat4f(1).translate( 0, 0, -7)
 P = perspective(45'f32, window.aspectRatio, 0.1, 100.0)
 
 var lights: array[4,Light]
-
 lights[0].color = vec4f(1,0,1,1)
 lights[1].color = vec4f(1,0,0,1)
 lights[2].color = vec4f(0,1,0,1)
 lights[3].color = vec4f(0,0,1,1)
 
+let timer = newStopWatch(true)
 
+var runGame = true
+while runGame:
+  for evt in events():
+    case evt.kind:
+    of QUIT:
+      runGame = false
+      break
+    of KeyDown:
+      case evt.key.keysym.scancode
+      of SCANCODE_ESCAPE:
+        runGame = false
+      of SCANCODE_F10:
+        window.screenshot
+      else:
+        discard
+    of MouseWheel:
+      let alpha = float32(evt.wheel.x + evt.wheel.y) * 0.05
+      let rotMat = mat4f(1).rotateZ(alpha)
+      M = rotMat * M
+    of MouseMotion:
+      let v = vec2(evt.motion.yrel.float32, evt.motion.xrel.float32)
+      let alpha = v.length * 0.01
+      let axis = vec3(v, 0)
+      let rotMat = mat4f(1).rotate(alpha, axis)
+      M = rotMat * M
+    else:
+      discard
 
+  let time = float32(timer.time)
+  for i, light in lights.mpairs:
+    let alpha = time + Pi * 0.5f * float32(i)
+    light.position_ws.xy = vec2f(cos(alpha), sin(alpha)) * 4
 
-proc renderScene(): void =
+  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
+
   framebuffer.renderDebug(mesh) do (v, gl):
     gl.Position     = P * V * M * v.position_os
     let position_cs = V*M*v.position_os
@@ -835,221 +870,4 @@ proc renderScene(): void =
     let textureSample = texture(myTexture, v.texCoord)
     result.color = textureSample * lighting
 
-var runGame = true
-
-let timer = newStopWatch(true)
-
-while runGame:
-
-  for evt in events():
-    case evt.kind:
-    of QUIT:
-      runGame = false
-      break
-    of KeyDown:
-      case evt.key.keysym.scancode
-      of SCANCODE_ESCAPE:
-        runGame = false
-      of SCANCODE_F10:
-        window.screenshot
-      else:
-        discard
-    of MouseMotion:
-      let v = vec2(evt.motion.yrel.float32, evt.motion.xrel.float32)
-      let alpha = v.length * 0.01
-      let axis = vec3(v, 0)
-      let rotMat = mat4f(1).rotate(alpha, axis)
-      M = rotMat * M
-    else:
-      discard
-
-
-  let time = float32(timer.time)
-  for i, light in lights.mpairs:
-    let alpha = time + Pi * 0.5f * float32(i)
-    light.position_ws.xy = vec2f(cos(alpha), sin(alpha)) * 4
-
-  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
-
-  renderScene()
-
   glSwapWindow(window)
-
-################################################################################
-################################# manual  code #################################
-################################################################################
-
-# test code before generating it
-
-from macros import Lineinfo
-
-const
-  vertexShaderSrc = """
-#version 450
-// types section
-struct Light{
-  vec4 positionws;
-  vec4 color;
-};
-// uniforms  section
-layout (std140, binding=0) uniform dynamic_shader_data {
-  mat4 P;
-  mat4 V;
-  mat4 M;
-  Light[4] lights;
-};
-layout(binding=1) uniform sampler2D myTexture;
-// all attributes
-in layout(location=0) vec4 in_v_positionos;
-in layout(location=1) vec4 in_v_normalos;
-in layout(location=2) vec2 in_v_texCoord;
-// all varyings
-out layout(location=0) vec4 out_positioncs;
-out layout(location=1) vec4 out_normalcs;
-out layout(location=2) vec2 out_v_texCoord;
-void main() {
-  // convert used attributes to local variables (because reasons)
-  vec4 v_positionos = in_v_positionos;
-  vec4 v_normalos = in_v_normalos;
-  // glsl translation of main body
-  gl_Position = (((P * V) * M) * v_positionos);
-  vec4 positioncs = ((V * M) * v_positionos);
-  vec4 normalcs = (inverse(transpose((V * M)) )  * v_normalos);
-  int inout_XXX = 123;
-  // forward attributes that are used in the fragment shader
-  out_v_texCoord = in_v_texCoord;
-  // forward other varyings
-  out_positioncs = positioncs;
-  out_normalcs = normalcs;
-}
-
-"""
-
-  fragmentShaderSrc = """
-#version 450
-// types section
-struct Light{
-  vec4 positionws;
-  vec4 color;
-};
-// uniforms section
-layout (std140, binding=0) uniform dynamic_shader_data {
-  mat4 P;
-  mat4 V;
-  mat4 M;
-  Light[4] lights;
-};
-layout(binding=1) uniform sampler2D myTexture;
-// fragment output symbols
-out layout(location=0) vec4 result_color;
-// all varyings
-in layout(location=0) vec4 in_positioncs;
-in layout(location=1) vec4 in_normalcs;
-in layout(location=2) vec2 in_v_texCoord;
-void main() {
-  // convert varyings to local variables (because reasons)
-  vec4 positioncs = in_positioncs;
-  vec4 normalcs = in_normalcs;
-  vec2 v_texCoord = in_v_texCoord;
-  /// rasterize
-  ;
-  vec4 lighting = vec4(0);
-  for(int i580019 = 0; i580019 < 4; ++i580019) {
-    Light light = lights[i580019];
-    {
-      vec4 lightpositioncs = (V * light.positionws);
-      vec4 lightdirectioncs = (lightpositioncs - positioncs);
-      float lightintensity = max(dot(lightdirectioncs, normalcs) , 0.0) ;
-      (lighting += (lightintensity * light.color));
-
-  }};
-  vec4 textureSample = texture(myTexture, v_texCoord, 0.0) ;
-  result_color = (textureSample * lighting);
-}
-
-"""
-  lineinfo = LineInfo(filename: "main.nim", line: 748, column: 2)
-
-
-echo "#################### manual code running frome here ####################"
-
-proc renderSceneManual(): void =
-  type
-    UniformBufType = object
-      P: Mat4f
-      V: Mat4f
-      M: Mat4f
-      lights: array[0 .. 3, Light]
-
-  ## this code block should eventually be generated
-  var p {.global.}: tuple[
-    program: Program,
-    vao: VertexArrayObject,
-    uniformBuf: UniformBuffer[UniformBufType],
-    buffer0: ArrayBufferView[MyVertexType, Vec4f],
-    buffer1: ArrayBufferView[MyVertexType, Vec4f],
-    buffer2: ArrayBufferView[MyVertexType, Vec2f],
-  ]
-
-  if p.program.handle == 0:
-
-
-    p.program.handle = glCreateProgram()
-    p.program.attachAndDeleteShader(
-      compileShader(GL_VERTEX_SHADER, vertexShaderSrc, lineinfo))
-    p.program.attachAndDeleteShader(
-      compileShader(GL_FRAGMENT_SHADER, fragmentShaderSrc, lineinfo))
-
-    p.program.linkOrDelete
-
-    glCreateVertexArrays(1, p.vao.handle.addr)
-
-    glCreateBuffers(1, p.uniformBuf.handle.addr)
-    glNamedBufferStorage(
-      p.uniformBuf.handle, sizeof(UniformBufType), nil,
-      GL_DYNAMIC_STORAGE_BIT
-    )
-
-    let blockIndex = glGetUniformBlockIndex(p.program.handle, "dynamic_shader_data");
-    assert(blockIndex != GL_INVALID_INDEX)
-
-    p.buffer0 = myMeshArrayBuffer.view(position_os)
-    glEnableVertexArrayAttrib(p.vao.handle, 0'u32)
-    glVertexArrayBindingDivisor(p.vao.handle, 0'u32, 0)
-    setFormat(p.vao, 0, p.buffer0)
-    glVertexArrayAttribBinding(p.vao.handle, 0'u32, 0'u32)
-
-    p.buffer1 = myMeshArrayBuffer.view(normal_os)
-    glEnableVertexArrayAttrib(p.vao.handle, 1'u32)
-    glVertexArrayBindingDivisor(p.vao.handle, 1'u32, 0)
-    setFormat(p.vao, 1, p.buffer1)
-    glVertexArrayAttribBinding(p.vao.handle, 1'u32, 1'u32)
-
-    p.buffer2 = myMeshArrayBuffer.view(texCoord)
-    glEnableVertexArrayAttrib(p.vao.handle, 2'u32)
-    glVertexArrayBindingDivisor(p.vao.handle, 2'u32, 0)
-    setFormat(p.vao, 2, p.buffer2);
-    glVertexArrayAttribBinding(p.vao.handle, 2'u32, 2'u32)
-
-  ## passing uniform
-  var uniformPointer: UniformBufType
-
-  uniformPointer.P = P
-  uniformPointer.V = V
-  uniformPointer.M = M
-  uniformPointer.lights = lights
-
-  glNamedBufferSubData(p.uniformBuf.handle, 0, sizeof(UniformBufType), uniformPointer.addr)
-
-  glUseProgram(p.program.handle)
-  glBindVertexArray(p.vao.handle)
-
-  glBindBufferBase(GL_UNIFORM_BUFFER, 0, p.uniformBuf.handle)
-
-  setBuffers(p.vao, 0, p.buffer0, p.buffer1, p.buffer2)
-
-  var textureHandles = [myTexture.handle]
-  glBindTextures(1, GLsizei(textureHandles.len), textureHandles[0].addr)
-
-  let numVertices = GLsizei(len(myMeshArrayBuffer))
-  glDrawArrays(GL_TRIANGLES, 0, numVertices)
