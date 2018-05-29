@@ -1,3 +1,5 @@
+## this file contains only stuff that you don't want to know the exact implementation of
+
 import glm, macros
 
 proc makeUniqueData[T](arg: var openarray[T]): int =
@@ -22,7 +24,6 @@ proc makeUniqueData[T](arg: var openarray[T]): int =
       insertionIndex += 1
     readIndex += 1
   insertionIndex
-
 
 proc makeUnique[T](arg: var seq[T]): void =
   ## removes consecutive duplicate elements from `arg`. This works
@@ -75,7 +76,7 @@ iterator arguments*(n: NimNode): NimNode {.inline.} =
   for i in 1 ..< n.len:
     yield n[i]
 
-iterator depthFirstTraversal*(n: NimNode): NimNode =
+iterator depthFirstTraversal(n: NimNode): NimNode =
   var stack = newSeq[tuple[n: NimNode,i: int]](0)
   stack.add((n: n, i: 0))
   yield stack[^1].n
@@ -100,14 +101,21 @@ iterator fields*(typeAst: NimNode): tuple[memberSym, typeSym: NimNode] =
   let parent: NimNode =
     if typeAst.kind == nnkObjectTy:
       typeAst[2]
-    elif typeAst.kind in {nnkLetSection,nnkRecList}:
+    elif typeAst.kind in {nnkLetSection, nnkRecList, nnkFormalParams}:
       typeAst
     else:
       warning("just a guessing game here")
       echo typeAst.treeRepr
       typeAst
 
+  var first = true
   for identDefs in parent:
+    if first:
+      first = false
+      ## the first element in FormalParams is the result type
+      if parent.kind == nnkFormalParams:
+        continue
+
     identDefs.expectKind nnkIdentDefs
     let typeSym = identDefs[^2]
     for i in 0 ..< identDefs.len-2:
@@ -123,13 +131,10 @@ iterator fieldValuePairs*(arg: NimNode): tuple[memberSym, valueSym: NimNode] =
       let memberSym = identDefs[i]
       yield((memberSym: memberSym, valueSym: valueSym))
 
-
 iterator args*(arg: NimNode): NimNode =
   arg.expectKind nnkCallKinds
   for i in 1 ..< arg.len:
     yield arg[i]
-
-
 
 const glslKeywords* = @[
   "active",
@@ -287,3 +292,236 @@ const glslKeywords* = @[
   "volatile",
   "while",
 ]
+
+proc isSwizzle*(funcName: string): bool =
+  if funcName[^1] == '=':
+    if funcName.len > 5:
+      return false
+    for c in funcName[0 .. ^2]:
+      if c notin 'w' .. 'z':
+        return false
+    return true
+  else:
+    if funcName.len > 4:
+      return false
+    for c in funcName:
+      if c notin 'w' .. 'z':
+        return false
+    return true
+
+proc isOperator*(funcName: string): bool =
+  for c in funcName:
+    if c notin "=+-*/<>@$~&%|!?^.:\\":
+      break
+    return true
+
+const glslBuiltInProc* = [
+  "EmitStreamVertex",
+  "EmitVertex",
+  "EndPrimitive",
+  "EndStreamPrimitive",
+  "abs",
+  "acos",
+  "acosh",
+  "all",
+  "any",
+  "asin",
+  "asinh",
+  "atan",
+  "atanh",
+  "atomicAdd",
+  "atomicAnd",
+  "atomicCompSwap",
+  "atomicCounter",
+  "atomicCounterDecrement",
+  "atomicCounterIncrement",
+  "atomicExchange",
+  "atomicMax",
+  "atomicMin",
+  "atomicOr",
+  "atomicXor",
+  "barrier",
+  "bitCount",
+  "bitfieldExtract",
+  "bitfieldInsert",
+  "bitfieldReverse",
+  "ceil",
+  "clamp",
+  "cos",
+  "cosh",
+  "cross",
+  "degrees",
+  "determinant",
+  "dFdx",
+  "dFdxCoarse",
+  "dFdxFine",
+  "dFdy",
+  "dFdyCoarse",
+  "dFdyFine",
+  "distance",
+  "dot",
+  "equal",
+  "exp",
+  "exp2",
+  "faceforward",
+  "findLSB",
+  "findMSB",
+  "floatBitsToInt",
+  "floatBitsToUint",
+  "floor",
+  "fma",
+  "fract",
+  "frexp",
+  "fwidth",
+  "fwidthCoarse",
+  "fwidthFine",
+  "greaterThan",
+  "greaterThanEqual",
+  "groupMemoryBarrier",
+  "imageAtomicAdd",
+  "imageAtomicAnd",
+  "imageAtomicCompSwap",
+  "imageAtomicExchange",
+  "imageAtomicMax",
+  "imageAtomicMin",
+  "imageAtomicOr",
+  "imageAtomicXor",
+  "imageLoad",
+  "imageSamples",
+  "imageSize",
+  "imageStore",
+  "imulExtended",
+  "intBitsToFloat",
+  "interpolateAtCentroid",
+  "interpolateAtOffset",
+  "interpolateAtSample",
+  "inverse",
+  "inversesqrt",
+  "isinf",
+  "isnan",
+  "ldexp",
+  "length",
+  "lessThan",
+  "lessThanEqual",
+  "log",
+  "log2",
+  "matrixCompMult",
+  "max",
+  "memoryBarrier",
+  "memoryBarrierAtomicCounter",
+  "memoryBarrierBuffer",
+  "memoryBarrierImage",
+  "memoryBarrierShared",
+  "min",
+  "mix",
+  "mod",
+  "modf",
+  "noise",
+  "noise1",
+  "noise2",
+  "noise3",
+  "noise4",
+  "normalize",
+  "not",
+  "notEqual",
+  "outerProduct",
+  "packDouble2x32",
+  "packHalf2x16",
+  "packSnorm2x16",
+  "packSnorm4x8",
+  "packUnorm",
+  "packUnorm2x16",
+  "packUnorm4x8",
+  "pow",
+  "radians",
+  "reflect",
+  "refract",
+  "removedTypes",
+  "round",
+  "roundEven",
+  "sign",
+  "sin",
+  "sinh",
+  "smoothstep",
+  "sqrt",
+  "step",
+  "tan",
+  "tanh",
+  "texelFetch",
+  "texelFetchOffset",
+  "texture",
+  "textureGather",
+  "textureGatherOffset",
+  "textureGatherOffsets",
+  "textureGrad",
+  "textureGradOffset",
+  "textureLod",
+  "textureLodOffset",
+  "textureOffset",
+  "textureProj",
+  "textureProjGrad",
+  "textureProjGradOffset",
+  "textureProjLod",
+  "textureProjLodOffset",
+  "textureProjOffset",
+  "textureQueryLevels",
+  "textureQueryLod",
+  "textureSamples",
+  "textureSize",
+  "transpose",
+  "trunc",
+  "uaddCarry",
+  "uintBitsToFloat",
+  "umulExtended",
+  "unpackDouble2x32",
+  "unpackHalf2x16",
+  "unpackSnorm2x16",
+  "unpackSnorm4x8",
+  "unpackUnorm",
+  "unpackUnorm2x16",
+  "unpackUnorm4x8",
+  "usubBorrow",
+]
+
+
+#[
+
+gl_ClipDistance
+gl_CullDistance
+gl_FragCoord
+gl_FragDepth
+gl_FrontFacing
+gl_GlobalInvocationID
+gl_HelperInvocation
+gl_InstanceID
+gl_InvocationID
+gl_Layer
+gl_LocalInvocationID
+gl_LocalInvocationIndex
+gl_NumSamples
+gl_NumWorkGroups
+gl_PatchVerticesIn
+gl_PointCoord
+gl_PointSize
+gl_Position
+gl_PrimitiveID
+gl_PrimitiveIDIn
+gl_SampleID
+gl_SampleMask
+gl_SampleMaskIn
+gl_SamplePosition
+gl_TessCoord
+gl_TessLevelInner
+gl_TessLevelOuter
+gl_VertexID
+gl_ViewportIndex
+gl_WorkGroupID
+gl_WorkGroupSize
+
+]#
+
+
+when isMainModule:
+  import algorithm, sequtils
+  echo binarySearch(glslBuiltInProc, "dot")
+  echo binarySearch(glslBuiltInProc, "EmitStreamVertex")

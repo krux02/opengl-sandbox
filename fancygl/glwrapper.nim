@@ -926,6 +926,64 @@ else:
     stdout.styledWriteLine(fgGreen, "==== end Shader Problems =========================================")
 
 
+proc validateShader*(src: string, shaderType: GLenum): bool {.compileTime.} =
+  ## use command line ``glslangValidator`` to validate if a shader is correct.
+  const
+    ColorReset = "\e[0m" # background and foreground to default
+    ErrorStyle = "\e[31m" # Red
+    ErrorStyle2 = "\e[91m" # LightRed
+    LineNumberStyle = "\e[33m" # Yellow
+    BarStyle = "\e[30m\e[43m" # Black and Yellow
+
+  let sk =
+    case shaderType:
+    of GL_VERTEX_SHADER:
+      "vert"
+    of GL_FRAGMENT_SHADER:
+      "frag"
+    of GL_GEOMETRY_SHADER:
+      "geom"
+    of GL_COMPUTE_SHADER:
+      "comp"
+    of GL_TESS_CONTROL_SHADER:
+      "tesc"
+    of GL_TESS_EVALUATION_SHADER:
+      "tese"
+    else:
+      ""
+
+  assert(sk != "", "illegal argument: " & $shaderType)
+
+  let log = staticExec("glslangValidator --stdin -S " & sk, src, "true")
+  if log.len > 0:
+    echo "  glsl errors:  ".center(80,'#')
+    var problems = newSeq[tuple[lineNr: int, message: string]](0)
+    for line in log.splitLines:
+      if line.startsWith("ERROR: 0:"):
+        var i = 9
+        while line[i].isDigit:
+          i += 1
+        let lineNr = parseInt(line[9 ..< i])
+        let message = line[i .. ^1]
+
+        problems.add((lineNr: lineNr, message: message))
+
+    echo(BarStyle, " start Shader Problems ".center(80,'='), ColorReset)
+    var lineNr = 0
+    for line in src.splitLines:
+      lineNr += 1
+      echo(LineNumberStyle, intToStr(lineNr, 4), " ", ColorReset, line)
+      for problem in problems:
+        if problem.lineNr == lineNr:
+          echo("     ", ErrorStyle, problem.message)
+    echo(BarStyle, repeat("-",80), ColorReset)
+    echo(ErrorStyle2, log)
+    echo(BarStyle, center(" end Shader Problems ",80,'='), ColorReset)
+
+  else:
+    return true
+
+
 proc infoLog(program: Program): string =
   var length: GLint = 0
   glGetProgramiv(program.handle, GL_INFO_LOG_LENGTH, length.addr);
