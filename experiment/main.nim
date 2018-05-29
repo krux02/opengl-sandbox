@@ -36,7 +36,7 @@ var M,V,P: Mat4f
 
 M = mat4f(1).rotateX(0.5).rotateY(0.75)
 V = mat4f(1).translate( 0, 0, -7)
-P = perspective(45'f32, window.aspectRatio, 0.1, 100.0)
+P = perspective(45'f32, window.aspectRatio, 0.01, 100.0)
 
 var lights: array[4,Light]
 lights[0].color = vec4f(1,0,1,1)
@@ -81,10 +81,43 @@ while runGame:
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
+  let timev = vec4f(time)
+
+
+  #[
+
+  ]#
+
+  glDisable(GL_DEPTH_TEST)
+  glDisable(GL_CULL_FACE)
+  glEnable(GL_DEPTH_CLAMP)
+
   renderDebug(mesh) do (vertex, gl):
-    gl.Position     = P * V * M * vertex.position_os
-    let position_ws = M*vertex.position_os
-    let position_cs = V*M*vertex.position_os
+    var position_os = vec4(vertex.position_os.xyz, 0)
+    let position_ws = M*position_os
+    let position_cs = V*position_ws
+    gl.Position = P * position_cs
+
+    #let normal_cs   = inverse(transpose(V*M)) * vertex.normal_os
+
+    ## rasterize
+
+    var textureSample = texture(myTexture, vertex.texCoord)
+    result.color = textureSample
+
+
+  glEnable(GL_DEPTH_TEST)
+
+  renderDebug(mesh) do (vertex, gl):
+    var position_os = vertex.position_os
+    var tmp = 1 - fract(timev.x * 2)
+    tmp *= tmp
+    tmp *= tmp
+    tmp *= tmp
+    position_os.xyz *= 1 + tmp * 0.125
+    let position_ws = M*position_os
+    let position_cs = V*position_ws
+    gl.Position = P * position_cs
     let normal_cs   = inverse(transpose(V*M)) * vertex.normal_os
 
     ## rasterize
@@ -93,13 +126,19 @@ while runGame:
     for light in lights:
       let light_position_cs = V * light.position_ws
       let light_direction_cs = light_position_cs-position_cs
-      let light_intensity = max(dot(light_direction_cs, normal_cs), 0)
+      let light_distance = length(position_cs - light_position_cs)
+      let light_intensity = max(dot(light_direction_cs, normal_cs), 0) * max((10 - light_distance) * 0.1f, 0)
       lighting += light_intensity * light.color
 
-    let n: float32 = simplex(position_ws.xyz * 10)
-    let textureSample = texture(myTexture, vertex.texCoord)
+    var n: Vec2f
+    n.x = simplex( position_ws.xyz * 7 + vec3(timev.x, 0, 0))
+    n.y = simplex(-position_ws.xyz * 7 + vec3(timev.x, 0, 0))
 
+    var textureSample = texture(myTexture, vertex.texCoord + n * 0.025f)
+    #textureSample = mix(textureSample, textureSample.yzxw, n)
 
-    result.color = textureSample * lighting * n
+    result.color = textureSample
+    #result.color = textureSample * lighting
+
 
   glSwapWindow(window)

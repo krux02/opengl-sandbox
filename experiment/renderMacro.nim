@@ -78,10 +78,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       if not isBuiltIn and sym notin usedProcSymbols:
         let implBody = sym.getImpl[6]
 
-        if symName == "mod289":
-          echo implBody.treeRepr
-
-        #echo implBody.repr
         implBody.matchAstRecursive:
         of `call` @ nnkCall |= call[0].kind == nnkSym and call[0].symKind == nskProc:
           processProcSym(call[0])
@@ -345,16 +341,8 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     ############################################################################
 
 
-    let pipelineRecList = nnkRecList.newTree
+    let pipelineRecList = nnkTupleTy.newTree
     let pipelineTypeSym = genSym(nskType, "Pipeline")
-    let pipelineTypeSection =
-      nnkTypeSection.newTree(
-        nnkTypeDef.newTree(
-          pipelineTypeSym, empty,
-          nnkObjectTy.newTree(empty, empty, pipelineRecList)
-        )
-      )
-
     let pSym = genSym(nskVar, "p")
 
     let uniformBufTypeSym = genSym(nskType, "UniformBufType")
@@ -367,19 +355,14 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       empty
     )
 
-    let uniformRecList =
-      nnkRecList.newTree()
+    let uniformRecList = nnkTupleTy.newTree()
 
     let uniformBufTypeSection =
       nnkTypeSection.newTree(
         nnkTypeDef.newTree(
           uniformBufTypeSym,
           empty,
-          nnkObjectTy.newTree(
-            empty,
-            empty,
-            uniformRecList
-          )
+          uniformRecList
         )
       )
 
@@ -464,6 +447,16 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
           glVertexArrayAttribBinding(`pSym`.vao.handle, `iLit`, `iLit`)
 
       drawCode.add setBuffersCall
+
+
+    let pipelineTypeSection =
+      nnkTypeSection.newTree(
+        nnkTypeDef.newTree(
+          pipelineTypeSym, empty,
+          pipelineRecList
+        )
+      )
+
 
     result = quote do:
       `uniformBufTypeSection`
