@@ -83,6 +83,7 @@ while runGame:
 
   renderDebug(mesh) do (vertex, gl):
     gl.Position     = P * V * M * vertex.position_os
+    let position_ws = M*vertex.position_os
     let position_cs = V*M*vertex.position_os
     let normal_cs   = inverse(transpose(V*M)) * vertex.normal_os
 
@@ -95,8 +96,9 @@ while runGame:
       let light_intensity = max(dot(light_direction_cs, normal_cs), 0)
       lighting += light_intensity * light.color
 
+    let n: float32 = simplex(position_ws.xyz * 10)
     let textureSample = texture(myTexture, vertex.texCoord)
-    let n: float32 = simplex(gl.FragCoord.xy)
+
 
     result.color = textureSample * lighting * n
 

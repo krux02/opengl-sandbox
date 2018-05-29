@@ -151,8 +151,16 @@ when isMainModule:
     ## mat4x2
     var i: Mat[4,2, float32]
 
+
+
+## too many local variables, and the compiler goes boom, therefore here is a totally non semanitc split of compileToGlsl.
+
+
+proc compileToGlsl*(result: var string; arg: NimNode): void
+
 var buffer: string
-proc compileToGlsl*(result: var string; arg: NimNode): void =
+
+proc compileToGlslA*(result: var string; arg: NimNode): void =
   arg.matchAst(errorSym):
   of {nnkFloat32Lit,nnkFloat64Lit,nnkFloatLit}:
     result.add arg.floatVal
@@ -189,7 +197,7 @@ proc compileToGlsl*(result: var string; arg: NimNode): void =
     result[^2] = ')'
     result.add "{\n"
     result.compileToGlsl(body)
-    result.add "}\n"
+    result.add ";\n}\n"
   of {nnkIdent, nnkSym}:
     buffer = ""
     for c in arg.repr:
@@ -200,7 +208,6 @@ proc compileToGlsl*(result: var string; arg: NimNode): void =
     else:
       result.add buffer
       result.add "_XXX"
-
   of nnkDotExpr(`lhs`, `rhs`):
     # I am pretty sure this is a big hack
     let symKind = lhs.symKind
@@ -210,6 +217,9 @@ proc compileToGlsl*(result: var string; arg: NimNode): void =
     else:
       result.add '.'
     result.compileToGlsl(rhs)
+
+proc compileToGlslB*(result: var string; arg: NimNode): void =
+  arg.matchAst(errorSym):
   of nnkAsgn(`lhs`, `rhs`):
     result.compileToGlsl(lhs)
     result.add " = "
@@ -218,6 +228,12 @@ proc compileToGlsl*(result: var string; arg: NimNode): void =
     result.compileToGlsl(sym)
   of nnkHiddenStdConv(nnkEmpty, `sym`):
     result.compileToGlsl(sym)
+  of nnkPrefix(`op`, `arg`):
+    result.add op.strVal
+    result.add '('
+    result.compileToGlsl(arg)
+    result.add ')'
+
   of nnkInfix(`op`, `lhs`, `rhs`):
     result.add "("
     result.compileToGlsl(lhs)
@@ -238,6 +254,8 @@ proc compileToGlsl*(result: var string; arg: NimNode): void =
       else:
         result.add typeStr
         result.add "(0)"
+      result.add ";\n"
+    result.setLen(result.len-2)
 
   of nnkCall:
     arg[0].expectKind nnkSym
@@ -340,4 +358,29 @@ proc compileToGlsl*(result: var string; arg: NimNode): void =
     result.compileToGlsl(collectionSym)
     result.add "[", irepr, "];\n{\n"
     result.compileToGlsl body
+
     result.add "\n}}"
+
+const AKinds = {
+  nnkFloat32Lit,
+  nnkFloat64Lit,
+  nnkFloatLit,
+  nnkInt32Lit,
+  nnkInt64Lit,
+  nnkIntLit,
+  nnkEmpty,
+  nnkCommentStmt,
+  nnkIfExpr,
+  nnkStmtList,
+  nnkStmtListExpr,
+  nnkProcDef,
+  nnkIdent,
+  nnkSym,
+  nnkDotExpr
+}
+
+proc compileToGlsl*(result: var string; arg: NimNode): void =
+  if arg.kind in AKinds:
+    result.compileToGlslA(arg)
+  else:
+    result.compileToGlslB(arg)

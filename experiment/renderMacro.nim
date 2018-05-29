@@ -34,7 +34,6 @@ proc indentCode(arg: string): string =
     result.add "\n"
     indentation += line.count("{")
 
-
 macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
   arg.expectKind nnkDo
@@ -71,17 +70,39 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     var symCollection = newSeq[NimNode](0)
     var usedTypes = newSeq[NimNode](0)
 
+    proc processProcSym(sym: NimNode): void =
+      # TODO: this is not really correct
+      let symName = sym.strVal
+      let isBuiltIn = symName.isBuiltIn
+
+      if not isBuiltIn and sym notin usedProcSymbols:
+        let implBody = sym.getImpl[6]
+
+        if symName == "mod289":
+          echo implBody.treeRepr
+
+        #echo implBody.repr
+        implBody.matchAstRecursive:
+        of `call` @ nnkCall |= call[0].kind == nnkSym and call[0].symKind == nskProc:
+          processProcSym(call[0])
+          discard
+
+
+        usedProcSymbols.add sym
+
     body.matchAstRecursive:
     of `sym` @ nnkSym:
       let symKind = sym.symKind
       if symKind == nskProc:
-        usedProcSymbols.add sym
+        processProcSym(sym)
       elif symKind in {nskLet, nskVar, nskForVar}:
         usedVarLetSymbols.add sym
       elif symKind == nskType:
         usedTypes.add sym.normalizeType
       else:
         symCollection.add sym
+
+    echo usedProcSymbols
 
     usedVarLetSymbols.deduplicate
     for sym in usedVarLetSymbols:
@@ -96,18 +117,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         typesToGenerate.add tpe
 
     symCollection.deduplicate   # TODO unused(symCollection)
-    usedProcSymbols.deduplicate # TODO unused(usedProcSymbols)
-
-
-    var proceduresThatNeedToBeGenerated = newSeq[NimNode](0)
-
-    for sym in usedProcSymbols:
-      # TODO: this is not really correct
-      let symName = sym.strVal
-      let isBuiltIn = binarySearch(glslBuiltInProc, symName) >= 0 or
-                        symName.isSwizzle or symName.isOperator
-      if not isBuiltIn:
-        proceduresThatNeedToBeGenerated.add sym
 
     var localSymbolsVS: seq[NimNode] = @[]
     vertexPart.matchAstRecursive:
@@ -224,8 +233,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       result[3] = procType[0]
       result[5] = newEmptyNode()
 
-
-    for sym in proceduresThatNeedToBeGenerated:
+    for sym in usedProcSymbols:
       if sym.strVal != "inc":
         let impl = sym.getProcImpl
         sharedCode.compileToGlsl(impl)

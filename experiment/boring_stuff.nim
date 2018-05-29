@@ -1,6 +1,6 @@
 ## this file contains only stuff that you don't want to know the exact implementation of
 
-import glm, macros
+import glm, macros, algorithm
 
 proc makeUniqueData[T](arg: var openarray[T]): int =
   ## removes consecutive duplicate elements from `arg`. Since this
@@ -309,12 +309,6 @@ proc isSwizzle*(funcName: string): bool =
         return false
     return true
 
-proc isOperator*(funcName: string): bool =
-  for c in funcName:
-    if c notin "=+-*/<>@$~&%|!?^.:\\":
-      break
-    return true
-
 const glslBuiltInProc* = [
   "EmitStreamVertex",
   "EmitVertex",
@@ -416,6 +410,7 @@ const glslBuiltInProc* = [
   "mix",
   "mod",
   "modf",
+  "modulo",
   "noise",
   "noise1",
   "noise2",
@@ -482,6 +477,24 @@ const glslBuiltInProc* = [
   "unpackUnorm4x8",
   "usubBorrow",
 ]
+
+
+proc isBuiltIn*(procName: string): bool {.compileTime.} =
+
+  if binarySearch(glslBuiltInProc, procName) >= 0 :
+    return true
+  if procName.isSwizzle:
+    return true
+  # is operator ?
+  for c in procName:
+    if c notin "=+-*/<>@$~&%|!?^.:\\":
+      break
+    return true
+  # is primitive constructor ?
+  if procname.len == 4 and procName[0..2] == "vec" and procName[3] in "234":
+    return true
+
+  return false
 
 
 #[
