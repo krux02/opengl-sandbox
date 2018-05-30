@@ -18,6 +18,20 @@ type
   MyMesh        = Mesh[MyVertexType]
   #MyFramebuffer = Framebuffer2[MyFragmentType]
 
+proc generateCity(radius: int): seq[MyVertexType] =
+  for x in -radius .. radius:
+    for y in -radius .. radius:
+      let pos = vec2f(x.float32,y.float32)
+
+      for i in 0 ..< boxVertices.len:
+        var vertex: MyVertexType
+        vertex.position_os = boxVertices[i]
+        vertex.normal_os   = boxNormals[i]
+        vertex.texCoord    = boxTexCoords[i]
+        vertex.position_os.x +=  pos.x*3
+        vertex.position_os.z +=  pos.y*3
+        result.add vertex
+
 let (window, context) = defaultSetup()
 discard setRelativeMouseMode(true)
 
@@ -31,15 +45,17 @@ let skyTexture: TextureCubeMap = loadTextureCubeMapFromFiles([
   getResourcePath("skyboxes/darkskies/darkskies_ft.tga"),
 ])
 
+glEnable(GL_CULL_FACE)
 glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS)
+glEnable(GL_DEPTH_CLAMP)
 
 var myMeshArrayBuffer = newArrayBuffer[MyVertexType](boxVertices.len)
-
 for i, vertex in myMeshArrayBuffer.wPairs:
   vertex.position_os = boxVertices[i]
   vertex.normal_os   = boxNormals[i]
   vertex.texCoord    = boxTexCoords[i]
 
+#var myMeshArrayBuffer = arrayBuffer(generateCity(20))
 var mesh: MyMesh
 #var framebuffer: MyFramebuffer = createFramebuffer[MyFragmentType](window.size, GL_)
 
@@ -95,8 +111,7 @@ while runGame:
   let timev = vec4f(time)
 
   glDisable(GL_DEPTH_TEST)
-  glDisable(GL_CULL_FACE)
-  glEnable(GL_DEPTH_CLAMP)
+  glCullFace(GL_FRONT)
 
   render(mesh) do (vertex, gl):
     var position_os = vec4(vertex.position_os.xyz, 0)
@@ -114,10 +129,11 @@ while runGame:
 
 
   glEnable(GL_DEPTH_TEST)
+  glCullFace(GL_BACK)
 
   render(mesh) do (vertex, gl):
     var position_os = vertex.position_os
-    var tmp = 1 - fract(timev.x * 2)
+    var tmp = 1 - fract(timev.x * 2 + floor(float32(gl.VertexID) / 36.0f) * 1.235f)
     tmp *= tmp
     tmp *= tmp
     tmp *= tmp
@@ -129,7 +145,7 @@ while runGame:
 
     ## rasterize
 
-    var lighting: Vec4f
+    var lighting: Vec4f = vec4f(0.2f)
     for light in lights:
       let light_position_cs = V * light.position_ws
       let light_direction_cs = light_position_cs-position_cs
@@ -141,12 +157,10 @@ while runGame:
     n.x = simplex( position_ws.xyz * 7 + vec3(timev.x, 0, 0))
     n.y = simplex(-position_ws.xyz * 7 + vec3(timev.x, 0, 0))
 
-
     var textureSample = texture(myTexture, vertex.texCoord + n * 0.025f)
     #textureSample = mix(textureSample, textureSample.yzxw, n)
 
-    result.color = textureSample
+    result.color = textureSample * lighting
     #result.color = textureSample * lighting
-
 
   glSwapWindow(window)

@@ -217,6 +217,10 @@ proc compileToGlslA*(result: var string; arg: NimNode): void =
     else:
       result.add '.'
     result.compileToGlsl(rhs)
+  of nnkConv(`typ`, `expr`):
+    result.add typ.glslType, '('
+    result.compileToGlsl(expr)
+    result.add ')'
 
 proc compileToGlslB*(result: var string; arg: NimNode): void =
   arg.matchAst(errorSym):
@@ -262,6 +266,7 @@ proc compileToGlslB*(result: var string; arg: NimNode): void =
 
     let funcName = arg[0].strVal
 
+
     if funcName == "[]":
       arg.expectLen(3)
       result.compileToGlsl(arg[1])
@@ -278,7 +283,10 @@ proc compileToGlslB*(result: var string; arg: NimNode): void =
         result.compileToGlsl(arg[1])
         result.add ".", funcName
     else:
-      if funcName == "modulo":
+      if funcName in glslConvProc:
+        # TODO, mention something about this in the documentation
+        result.add arg.getTypeInst.glslType
+      elif funcName == "modulo":
         result.add "mod"
       else:
         result.add funcName
@@ -376,7 +384,8 @@ const AKinds = {
   nnkProcDef,
   nnkIdent,
   nnkSym,
-  nnkDotExpr
+  nnkDotExpr,
+  nnkConv
 }
 
 proc compileToGlsl*(result: var string; arg: NimNode): void =

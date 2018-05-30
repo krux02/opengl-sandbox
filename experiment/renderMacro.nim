@@ -437,6 +437,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         # TODO there is no divisor inference
         let divisorLit = newLit(0) # this is a comment
 
+        # TODO `myMeshArrayBuffer` is fake, it should work on arbitrary meshes.
         initCode.add quote do:
           `pSym`.`bufferIdent` = myMeshArrayBuffer.view(`memberSym`)
           glEnableVertexArrayAttrib(`pSym`.vao.handle, `iLit`)
@@ -509,6 +510,7 @@ type
     PointSize*: float32
     ClipDistance*: UncheckedArray[float32]
     FragCoord*: Vec2f
+    VertexID: int32
 
   DefaultFragmentType* = object
     color: Vec4f

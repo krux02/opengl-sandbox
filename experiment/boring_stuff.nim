@@ -410,7 +410,6 @@ const glslBuiltInProc* = [
   "mix",
   "mod",
   "modf",
-  "modulo",
   "noise",
   "noise1",
   "noise2",
@@ -478,10 +477,46 @@ const glslBuiltInProc* = [
   "usubBorrow",
 ]
 
+const glslConvProc* = [
+  "mat2",
+  "mat2d",
+  "mat2f",
+  "mat2i",
+  "mat3",
+  "mat3d",
+  "mat3f",
+  "mat3i",
+  "mat4",
+  "mat4d",
+  "mat4f",
+  "mat4i",
+  "vec2",
+  "vec2d",
+  "vec2f",
+  "vec2i",
+  "vec3",
+  "vec3d",
+  "vec3f",
+  "vec3i",
+  "vec4",
+  "vec4d",
+  "vec4f",
+  "vec4i",
+]
+
+const glslBuiltInProcSecondary* = [
+  "inc",
+  "modulo",
+]
+
 
 proc isBuiltIn*(procName: string): bool {.compileTime.} =
 
   if binarySearch(glslBuiltInProc, procName) >= 0 :
+    return true
+  if binarySearch(glslConvProc, procname) >= 0:
+    return true
+  if binarySearch(glslBuiltInProcSecondary, procName) >= 0:
     return true
   if procName.isSwizzle:
     return true
