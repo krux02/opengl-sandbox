@@ -98,8 +98,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       else:
         symCollection.add sym
 
-    echo usedProcSymbols
-
     usedVarLetSymbols.deduplicate
     for sym in usedVarLetSymbols:
       usedTypes.add sym.getTypeInst.normalizeType
@@ -208,7 +206,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       sharedCode.add ";\n"
     sharedCode.add "};\n"
     for i, uniform in uniformSamplers:
-      sharedCode.add "layout(binding=", 1 + i, ") "
+      sharedCode.add "layout(binding=", i, ") "
       sharedCode.add "uniform ", uniform.getTypeInst.glslType, " "
       sharedCode.compileToGlsl(uniform)
       sharedCode.add ";\n"
@@ -405,7 +403,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         glNamedBufferSubData(`pSym`.uniformBuf.handle, 0, sizeof(`uniformBufTypeSym`), `uniformObjectSym`.addr)
         glBindBufferBase(GL_UNIFORM_BUFFER, 0, `pSym`.uniformBuf.handle)
 
-    let bindTexturesCall = newCall(bindSym"bindTextures", newLit(1) )
+    let bindTexturesCall = newCall(bindSym"bindTextures", newLit(0) )
     for sampler in uniformSamplers:
       bindTexturesCall.add sampler
 
@@ -599,8 +597,6 @@ proc injectTypes(framebuffer, mesh, arg: NimNode): NimNode {.compileTime.} =
 
   result = arg
   result[3] = newParams
-
-
 
 macro render*[VT,FT](framebuffer: Framebuffer2[FT], mesh: Mesh[VT]; arg: untyped): untyped =
   let arg = injectTypes(framebuffer, mesh, arg)

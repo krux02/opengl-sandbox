@@ -4,9 +4,16 @@
 #### Sampler Types #############################################################
 ################################################################################
 
-proc createErrorSurface*(message: string = nil): sdl.Surface =
+proc createErrorSurface*(message: string = nil, size: Vec2i = vec2i(-1)): sdl.Surface =
   # TODO message is still unsued
-  result = createRGBSurface(0, 512, 512, 32, 0,0,0,0)
+  var w,h: int32 = 512
+
+  if size.x != -1:
+    w = size.x
+  if size.y != -1:
+    h = size.y
+
+  result = createRGBSurface(0, w, h, 32, 0,0,0,0)
   if result.isNil:
     panic "SDL_CreateRGBSurface() failed: ", sdl.getError()
 
@@ -149,6 +156,7 @@ proc delete*(texture: AnyTexture): void =
 proc loadSurfaceFromFile*(filename: string): Surface =
   let surface = img.load(filename)
   defer: freeSurface(surface)
+  ## TODO: well this is bad
   result = surface.convertSurfaceFormat(PIXELFORMAT_RGBA8888, 0)
 
 proc size*(tex: Texture2D): Vec2i =
@@ -329,7 +337,6 @@ proc loadTexture2DFromFile*(filename: string): Texture2D =
   result = texture2D(surface)
   result.label = filename
 
-
 proc saveToBmpFile*(tex: Texture2D | TextureRectangle; filename: string): void =
   let s = tex.size
   var surface = createRGBSurface(0, s.x.int32, s.y.int32, 32, 0xff000000.uint32, 0x00ff0000, 0x0000ff00, 0x000000ff)  # no alpha, rest default
@@ -360,6 +367,50 @@ proc newTexture2D*(size: Vec2i, internalFormat: GLenum = GL_RGBA8; levels: int =
     internalFormat,
     size.x.GLsizei, size.y.GLsizei
   )
+
+
+proc loadTextureCubeMapFromFiles*(filenames: openarray[string]): TextureCubeMap =
+  assert filenames.len == 6
+
+  var surfaces: array[6, sdl.Surface]
+  var size: int32 = -1
+
+  for i, filename in filenames:
+    let surface = img.load(filename)
+    if surface.isNil:
+      echo s"can't load texture $filename: ${sdl.getError()}"
+    else:
+      if surface.w != surface.h:
+        echo s"need square textures for cube maps got ${surface.w}x${surface.h} in $filename"
+        freeSurface(surface)
+      elif size > 0 and size != surface.w:
+        echo s"all surfaces need to be the same size ${size}x${size}, but $filename is ${surface.w}x${surface.h}"
+        freeSurface(surface)
+      else:
+        surfaces[i] = surface
+        size = surface.w
+
+  let arraySurface = sdl.createRGBSurface(0, size, size * 6, 32, 0, 0, 0, 0);
+  var srcRect: Rect = Rect(x: 0, y: 0, w: size, h: size)
+  for i, surface in surfaces.mPairs:
+    # remove nil, make sure the surface is useful
+    if surface == nil:
+      surface = createErrorSurface(filenames[i], vec2i(size))
+
+    var dstRect: Rect = Rect(x: 0, y: i * size, w: size, h: size)
+    discard blitSurface(surface, srcrect.addr, arraySurface, dstrect.addr)
+    freeSurface(surface)
+    surface = nil
+
+  glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, result.handle.addr)
+  let levels = size.float32.log2.floor.GLint
+  glTextureStorage2D(result.handle, levels, GL_RGBA8, size, size)
+  glTextureSubImage3D(result.handle, 0, 0,0,0, size, size, 6, GL_RGBA, GL_UNSIGNED_BYTE, arraySurface.pixels)
+  freeSurface(arraySurface)
+
+  result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+  result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+  result.generateMipmap
 
   # glTextureSubImage2D(tex.GLuint, 0, 0, 0, size.x.GLsizei, size.y.GLsizei, internalFormat,cGL_UNSIGNED_BYTE, nil)
   # result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)

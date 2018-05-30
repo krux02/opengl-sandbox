@@ -17,7 +17,7 @@ proc isSampler*(arg: NimNode): bool =
     return true
   of ident"Texture3D":
     return true
-  of ident"TextureCube":
+  of ident"TextureCubeMap":
     return true
   of ident"Texture2DShadow":
     return true
@@ -62,7 +62,7 @@ proc glslType*(arg: NimNode): string {.compileTime.} =
     return "sampler2D"
   of ident"Texture3D":
     return "sampler3D"
-  of ident"TextureCube":
+  of ident"TextureCubeMap":
     return "samplerCube"
   of ident"Texture2DShadow":
     return "sampler2DShadow"

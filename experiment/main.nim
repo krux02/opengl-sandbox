@@ -21,7 +21,18 @@ type
 let (window, context) = defaultSetup()
 discard setRelativeMouseMode(true)
 
-var myTexture: Texture2D = loadTexture2DFromFile(getResourcePath("crate.png"))
+let myTexture: Texture2D = loadTexture2DFromFile(getResourcePath("crate.png"))
+let skyTexture: TextureCubeMap = loadTextureCubeMapFromFiles([
+  getResourcePath("skyboxes/darkskies/darkskies_rt.tga"),
+  getResourcePath("skyboxes/darkskies/darkskies_lf.tga"),
+  getResourcePath("skyboxes/darkskies/darkskies_up.tga"),
+  getResourcePath("skyboxes/darkskies/darkskies_dn.tga"),
+  getResourcePath("skyboxes/darkskies/darkskies_bk.tga"),
+  getResourcePath("skyboxes/darkskies/darkskies_ft.tga"),
+])
+
+glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS)
+
 var myMeshArrayBuffer = newArrayBuffer[MyVertexType](boxVertices.len)
 
 for i, vertex in myMeshArrayBuffer.wPairs:
@@ -83,16 +94,11 @@ while runGame:
 
   let timev = vec4f(time)
 
-
-  #[
-
-  ]#
-
   glDisable(GL_DEPTH_TEST)
   glDisable(GL_CULL_FACE)
   glEnable(GL_DEPTH_CLAMP)
 
-  renderDebug(mesh) do (vertex, gl):
+  render(mesh) do (vertex, gl):
     var position_os = vec4(vertex.position_os.xyz, 0)
     let position_ws = M*position_os
     let position_cs = V*position_ws
@@ -102,13 +108,14 @@ while runGame:
 
     ## rasterize
 
-    var textureSample = texture(myTexture, vertex.texCoord)
+    #var textureSample = texture(myTexture, vertex.texCoord)
+    var textureSample = texture(skyTexture, vertex.position_os.xyz)
     result.color = textureSample
 
 
   glEnable(GL_DEPTH_TEST)
 
-  renderDebug(mesh) do (vertex, gl):
+  render(mesh) do (vertex, gl):
     var position_os = vertex.position_os
     var tmp = 1 - fract(timev.x * 2)
     tmp *= tmp
@@ -133,6 +140,7 @@ while runGame:
     var n: Vec2f
     n.x = simplex( position_ws.xyz * 7 + vec3(timev.x, 0, 0))
     n.y = simplex(-position_ws.xyz * 7 + vec3(timev.x, 0, 0))
+
 
     var textureSample = texture(myTexture, vertex.texCoord + n * 0.025f)
     #textureSample = mix(textureSample, textureSample.yzxw, n)
