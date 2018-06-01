@@ -387,6 +387,37 @@ Of course types that are used as members here need to be translated to
 glsl as well, when they are not already built-in.  In this example
 this is not necessary though, because ~vec4~ is a built-in type.
 
+# translating procedures to glsl
+
+All used procedures can be found simply by scanning thorough the
+statements of the body. Whenever a call appears in the AST, the first
+argument of that node is the procedure symbol. For each symbol one of
+the following steps needs to be done.
+
+# TODO thin can also be a type constructor
+ * built-in :: The function symbol is a function that is already built
+               into glsl. Nothing needs to be done.
+ * already collected :: It is not the first appearance of this
+      function symbol. Nothing needs to be done.
+ * new function symbol :: This is the first appearance of the function
+      symbol.  Just append this symbol to the list of functions that
+      need to be compiled to glsl.
+
+All function symbols are compiled to glsl like all other functions,
+but they might also use functions which on their own also need to be
+compiled to glsl.  This process is recursive and can create an
+arbitrary amount of dependencies.
+
+# translating generics to glsl
+
+A good very good help from the Nim compiler is, it does the generic
+instanciation for me. So when for example the function foo has one
+generic argument, and I ask for the implementation, I will get a
+different one for `foo(12'f32)`, than I would get for
+`foo(12'f64)`. Also the function symbol will be a different one, with
+the same name though. So when I use both versions of foo, the setup
+above already generates both versions for me.
+
 ** working on the Framebuffer type
 
 a frambeffure needs the following attributes
