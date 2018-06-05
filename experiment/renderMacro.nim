@@ -34,6 +34,27 @@ proc indentCode(arg: string): string =
     result.add "\n"
     indentation += line.count("{")
 
+proc debugUniformBlock*(program: Program, blockIndex: GLuint): void =
+  var numUniforms: GLint
+  glGetActiveUniformBlockiv(program.handle, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, numUniforms.addr)
+  var uniforms = newSeq[GLint](numUniforms)
+  glGetActiveUniformBlockiv(program.handle, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES, uniforms[0].addr)
+
+  var offsets = newSeq[GLint](uniforms.len)
+  glGetActiveUniformsiv(program.handle, GLsizei(uniforms.len), cast[ptr GLuint](uniforms[0].addr), GL_UNIFORM_OFFSET, offsets[0].addr )
+
+  for i, uniformIndex in uniforms:
+    var
+      name: string
+      newLen: GLsizei
+      size: GLint
+      typ: GLenum
+
+    name.setLen(256)
+    glGetActiveUniform(program.handle, GLuint(uniformIndex), GLsizei(256), newLen.addr, size.addr, typ.addr, name[0].addr)
+    name.setLen newLen
+    echo "  ", name, "\toffset: ", offsets[i]
+
 macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
   arg.expectKind nnkDo
@@ -473,6 +494,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
           compileShader(GL_FRAGMENT_SHADER, `fragmentShaderLit`, `lineinfoLit`))
 
         `pSym`.program.linkOrDelete
+        `pSym`.program.debugUniformBlock(0)
 
         glCreateVertexArrays(1, `pSym`.vao.handle.addr)
 

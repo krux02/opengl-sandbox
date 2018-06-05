@@ -151,10 +151,7 @@ when isMainModule:
     ## mat4x2
     var i: Mat[4,2, float32]
 
-
-
 ## too many local variables, and the compiler goes boom, therefore here is a totally non semanitc split of compileToGlsl.
-
 
 proc compileToGlsl*(result: var string; arg: NimNode): void
 
@@ -180,6 +177,23 @@ proc compileToGlslA*(result: var string; arg: NimNode): void =
     result.add " : "
     result.compileToGlsl(elseBody)
     result.add ")"
+  of nnkIfStmt:
+    for i, branch in arg:
+      if branch.kind == nnkElifBranch:
+        if i == 0:
+          result.add "if("
+        else:
+          result.add "else if("
+
+        result.compileToGlsl(branch[0])
+        result.add ") {\n"
+        result.compileToGlsl(branch[1])
+        result.add ";\n}"
+      if branch.kind == nnkElse:
+        result.add " else {\n"
+        result.compileToGlsl(branch[0])
+        result.add ";\n}"
+      result.add "\n"
   of nnkStmtList:
     for stmt in arg:
       result.compileToGlsl(stmt)
@@ -379,6 +393,7 @@ const AKinds = {
   nnkEmpty,
   nnkCommentStmt,
   nnkIfExpr,
+  nnkIfStmt,
   nnkStmtList,
   nnkStmtListExpr,
   nnkProcDef,

@@ -25,7 +25,8 @@ proc normalizeType*(arg: NimNode): NimNode
 proc resolveAliasInternal(typ: NimNode): NimNode =
   typ.matchAst:
   of nnkSym:
-
+    if typ == bindSym"bool":
+      return typ
 
     let impl = typ.getImpl
     if impl.kind == nnkNilLit:
