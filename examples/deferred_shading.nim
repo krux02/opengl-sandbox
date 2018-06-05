@@ -50,8 +50,8 @@ var
   camera = newWorldNode()
   cameraControls : CameraControls
 
-  lightPositions = newArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW)
-  lightColors = newArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW)
+  lightPositions = createArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW)
+  lightColors = createArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW)
 
 camera.pos.z   = hm[0,0] + 10
 cameraControls.speed = 0.4'f32

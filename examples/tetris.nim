@@ -173,8 +173,8 @@ proc fieldRead(pos: Vec2i): int =
 for row in fieldRows.mitems:
   row.fill(-1)
 
-let positionsBuffer = newArrayBuffer[Vec4f](length = NumRows*NumCols, usage = GL_STREAM_DRAW, label = "positions" )
-let colorsBuffer    = newArrayBuffer[Vec4f](length = NumRows*NumCols, usage = GL_STREAM_DRAW, label = "colors")
+let positionsBuffer = createArrayBuffer[Vec4f](length = NumRows*NumCols, usage = GL_STREAM_DRAW, label = "positions" )
+let colorsBuffer    = createArrayBuffer[Vec4f](length = NumRows*NumCols, usage = GL_STREAM_DRAW, label = "colors")
 
 var framePositionsBuffer : ArrayBuffer[Vec4f]
 var frameColorsBuffer    : ArrayBuffer[Vec4f]

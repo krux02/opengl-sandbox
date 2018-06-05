@@ -525,7 +525,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
       glUseProgram(`program`.handle)
 
-      `vao` = newVertexArrayObject()
+      `vao` = createVertexArrayObject()
 
       `afterCompileBlock`
 

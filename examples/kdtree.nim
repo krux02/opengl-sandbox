@@ -230,9 +230,9 @@ let cubeLineIndices = elementArrayBuffer([
   3,7
 ])
 
-var linePositions = newArrayBuffer[Vec4f](1000)
+var linePositions = createArrayBuffer[Vec4f](1000)
 
-let boxesBuffer = newArrayBuffer[Box](1000)
+let boxesBuffer = createArrayBuffer[Box](1000)
 let boxesMinView = boxesBuffer.view(min)
 let boxesMaxView = boxesBuffer.view(max)
 

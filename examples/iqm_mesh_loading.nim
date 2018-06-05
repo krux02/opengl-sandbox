@@ -60,10 +60,10 @@ proc main() =
   let (textSize, _) = textTextures.size
 
   let textPositions =
-    newArrayBuffer[Vec4f](texts.len, GL_DYNAMIC_DRAW, "textPositions")
+    createArrayBuffer[Vec4f](texts.len, GL_DYNAMIC_DRAW, "textPositions")
 
   let textPixelPositions =
-    newArrayBuffer[Vec2i](texts.len, GL_DYNAMIC_DRAW, "textPixelPositions")
+    createArrayBuffer[Vec2i](texts.len, GL_DYNAMIC_DRAW, "textPixelPositions")
 
   #[
   block:

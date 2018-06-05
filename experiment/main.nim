@@ -49,14 +49,14 @@ glEnable(GL_CULL_FACE)
 glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS)
 glEnable(GL_DEPTH_CLAMP)
 
-var myMeshArrayBuffer = newArrayBuffer[MyVertexType](boxVertices.len)
+var myMeshArrayBuffer = createArrayBuffer[MyVertexType](boxVertices.len)
 for i, vertex in myMeshArrayBuffer.wPairs:
   vertex.position_os = boxVertices[i]
   vertex.normal_os   = boxNormals[i]
   vertex.texCoord    = boxTexCoords[i]
 
 #var myMeshArrayBuffer = arrayBuffer(generateCity(20))
-var mesh: MyMesh
+var mesh: Mesh[MyVertexType]
 #var framebuffer: MyFramebuffer = createFramebuffer[MyFragmentType](window.size, GL_)
 
 var M,V,P: Mat4f

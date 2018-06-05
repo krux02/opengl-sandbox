@@ -305,10 +305,10 @@ proc main() =
       echo "invalid halfedge handle in face at index ", i
   echo "brokenHalfedges: ", brokenHalfedges
 
-  var renderPositionBuffer = newArrayBuffer[Vec3f](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
-  var renderNormalBuffer   = newArrayBuffer[Vec3f](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
-  var renderTexCoordBuffer = newArrayBuffer[Vec2f](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
-  var renderColorBuffer    = newArrayBuffer[Color](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
+  var renderPositionBuffer = createArrayBuffer[Vec3f](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
+  var renderNormalBuffer   = createArrayBuffer[Vec3f](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
+  var renderTexCoordBuffer = createArrayBuffer[Vec2f](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
+  var renderColorBuffer    = createArrayBuffer[Color](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
 
   updateRenderBuffers(mymesh, renderPositionBuffer,renderNormalBuffer, renderTexCoordBuffer, renderColorBuffer)
 

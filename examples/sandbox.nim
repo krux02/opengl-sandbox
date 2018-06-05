@@ -13,7 +13,7 @@ type
     color:    Vec4f
     texcoord: Vec2f
 
-var boxBuffer = newArrayBuffer[VertexStruct](boxVertices.len)
+var boxBuffer = createArrayBuffer[VertexStruct](boxVertices.len)
 
 for i, vertex in boxBuffer.wPairs:
   vertex.pos      = boxVertices[i]

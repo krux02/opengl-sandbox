@@ -68,7 +68,7 @@ glBlendFunc(GL_SRC_ALPHA, GL_ONE)
 
 var mouseX  , mouseY  : int32
 var pmouseX , pmouseY : int32
-var transformFeedback = newTransformFeedback[ParticleDataA]()
+var transformFeedback = createTransformFeedback[ParticleDataA]()
 
 var pdir, dir: Vec2f
 
@@ -118,8 +118,6 @@ while running:
       numParticles
       pdir
       dir
-
-
 
     attributes:
       a_pos = posView

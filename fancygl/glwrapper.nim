@@ -491,7 +491,7 @@ type
   VertexArrayObjectBinding* = object
     index*: GLuint
 
-proc newVertexArrayObject*(label: string = nil) : VertexArrayObject =
+proc createVertexArrayObject*(label: string = nil) : VertexArrayObject =
   ## Typed wrapper around `glCreateVertexArrays`.
   glCreateVertexArrays(1, result.handle.addr)
   result.label = label
@@ -537,18 +537,18 @@ proc new*[T](arrayBuffer: var ElementArrayBuffer[T] ) : void =
 proc new*[T](arrayBuffer: var UniformBuffer[T] ) : void =
   glCreateBuffers(1, arrayBuffer.handle.addr)
 
-proc newArrayBuffer*[T](length: int, usage: GLenum = GL_STATIC_DRAW, label: string = nil): ArrayBuffer[T] =
+proc createArrayBuffer*[T](length: int, usage: GLenum = GL_STATIC_DRAW, label: string = nil): ArrayBuffer[T] =
   result.new
   glNamedBufferData(result.handle, length * GLsizeiptr(sizeof(T)), nil, usage)
   #glNamedBufferStorage(result.handle, length * GLsizeiptr(sizeof(T)), nil, 0)
   if not label.isNil:
     result.label = label
 
-proc newElementArrayBuffer*[T](length: int, usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
+proc createElementArrayBuffer*[T](length: int, usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
   result.new
   glNamedBufferData(result.handle, length * GLsizeiptr(sizeof(T)), nil, usage)
 
-proc newUniformBuffer*[T](usage: GLenum = GL_STATIC_DRAW): UniformBuffer[T] =
+proc createUniformBuffer*[T](usage: GLenum = GL_STATIC_DRAW): UniformBuffer[T] =
   result.new
   glNamedBufferData(result.handle, GLsizeiptr(sizeof(T)), nil, usage)
 
@@ -1197,7 +1197,7 @@ proc glslLayoutSpecificationRuntime[T](name: string = nil): string =
 
 template glslLayoutSpecification(arg: untyped): string = ""
 
-proc newTransformFeedback*[T]() : TransformFeedback[T] =
+proc createTransformFeedback*[T]() : TransformFeedback[T] =
   glCreateTransformFeedbacks(GLsizei(1), result.handle.addr)
   result.label = typeName(T)
 

@@ -668,7 +668,7 @@ let cubeLineIndices = elementArrayBuffer([
 let cubeLineIndicesLen = cubeLineIndices.len
 
 var boxes : seq[AABB] = tree.leafNodeBoxes # just for the approximation of the length
-var boxesBuffer = newArrayBuffer[AABB](boxes.len * 2, GL_STREAM_DRAW)
+var boxesBuffer = createArrayBuffer[AABB](boxes.len * 2, GL_STREAM_DRAW)
 
 let boxesMinView = boxesBuffer.view(min)
 let boxesMaxView = boxesBuffer.view(max)
@@ -805,7 +805,7 @@ while runGame:
   if enableNeighbourhoodDrawing:
     drawNeighborhood(proj, modelView)
 
-  var buffer = newArrayBuffer[tuple[offset: Vec3f, color: Color]](tree.data.len)
+  var buffer = createArrayBuffer[tuple[offset: Vec3f, color: Color]](tree.data.len)
   defer:
     buffer.delete
 
