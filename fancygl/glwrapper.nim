@@ -827,28 +827,34 @@ proc uniformBuffer*[T](data : T, usage: GLenum = GL_STATIC_DRAW, label: string =
 ################################################################################
 
 type
-  ArrayBufferView*[S,T] = object
-    buffer*: ArrayBuffer[S]
+  ArrayBufferView*[T] = object
+    handle*: GLuint
     absoluteoffset*: GLsizei
     relativeoffset*: GLuint
     stride*: GLsizei
 
-proc handle*(ab: ArrayBufferView): GLuint = ab.buffer.handle
+proc len*(abv: ArrayBufferView):  int =
+  ## return the amount of elemets stored in the buffer.
+  ## (not correct, ignores offset)
+  if abv.handle != 0:
+    var size: GLint
+    glGetNamedBufferParameteriv(abv.handle, GL_BUFFER_SIZE, size.addr)
+    result = int(size) div int(abv.stride)
 
-proc len*(ab: ArrayBufferView):  int = ab.buffer.len
-proc high*(ab: ArrayBufferView): int = ab.buffer.len - 1
+proc high*(abv: ArrayBufferView): int =
+  abv.len - 1
 
 template view*(buf: ArrayBuffer; member: untyped): untyped =
   var dummyVal : buf.T
-  var res : ArrayBufferView[buf.T, dummyVal.member.type]
-  res.buffer = buf
+  var res : ArrayBufferView[dummyVal.member.type]
+  res.handle = buf.handle
   res.relativeoffset = GLuint(cast[int](dummyVal.member.addr) - cast[int](dummyVal.addr))
   res.stride = GLsizei(sizeof(buf.T))
   res
 
-proc splitView*(buf: ArrayBuffer[Mat4f]): array[4, ArrayBufferView[Mat4f, Vec4f]] =
+proc splitView*(buf: ArrayBuffer[Mat4f]): array[4, ArrayBufferView[Vec4f]] =
   for i in 0 .. 3:
-    result[i].buffer = buf
+    result[i].handle = buf.handle
     result[i].relativeoffset = GLuint(i * 4 * sizeof(float32))
     result[i].stride = 4 * 4 * sizeof(float32)
 
@@ -1054,7 +1060,7 @@ template relativeoffset*[T](arg: ArrayBuffer[T]): untyped = 0
 template setFormat*[T](vao: VertexArrayObject, binding: uint32, buffer: ArrayBuffer[T]) =
   glVertexArrayAttribFormat(vao.handle, binding, attribSize(buffer.T), attribType(buffer.T), attribNormalized(buffer.T), buffer.relativeoffset);
 
-template setFormat*[S,T](vao: VertexArrayObject; binding: uint32; buffer: ArrayBufferView[S,T]): void =
+template setFormat*[T](vao: VertexArrayObject; binding: uint32; buffer: ArrayBufferView[T]): void =
   glVertexArrayAttribFormat(vao.handle, binding, attribSize(buffer.T), attribType(buffer.T), attribNormalized(buffer.T), buffer.relativeoffset);
 
 proc setBuffer*[T](vao: VertexArrayObject; binding: uint32; buffer: ArrayBuffer[T]): void =
