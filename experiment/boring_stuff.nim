@@ -101,7 +101,7 @@ iterator fields*(typeAst: NimNode): tuple[memberSym, typeSym: NimNode] =
   let parent: NimNode =
     if typeAst.kind == nnkObjectTy:
       typeAst[2]
-    elif typeAst.kind in {nnkLetSection, nnkRecList, nnkFormalParams}:
+    elif typeAst.kind in {nnkLetSection, nnkVarSection, nnkTupleTy, nnkRecList, nnkFormalParams}:
       typeAst
     else:
       warning("just a guessing game here")

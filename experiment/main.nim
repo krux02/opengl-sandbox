@@ -15,8 +15,9 @@ type
     position_ws : Vec4f
     color : Vec4f
 
-  MyMesh        = Mesh[MyVertexType]
   #MyFramebuffer = Framebuffer2[MyFragmentType]
+
+genMeshType(MyMesh, MyVertexType)
 
 proc generateCity(radius: int): seq[MyVertexType] =
   for x in -radius .. radius:
@@ -56,7 +57,7 @@ for i, vertex in myMeshArrayBuffer.wPairs:
   vertex.texCoord    = boxTexCoords[i]
 
 #var myMeshArrayBuffer = arrayBuffer(generateCity(20))
-var mesh: Mesh[MyVertexType]
+var mesh: MyMesh
 #var framebuffer: MyFramebuffer = createFramebuffer[MyFragmentType](window.size, GL_)
 
 var M,V,P: Mat4f
@@ -124,7 +125,6 @@ while runGame:
     #var textureSample = texture(myTexture, vertex.texCoord)
     var textureSample = texture(skyTexture, vertex.position_os.xyz)
     result.color = textureSample
-
 
   glEnable(GL_DEPTH_TEST)
   glCullFace(GL_BACK)

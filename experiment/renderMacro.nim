@@ -470,7 +470,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         let memberSym = attrib[1]
         let genType = nnkBracketExpr.newTree(
           bindSym"ArrayBufferView",
-          newCall(bindSym"type", attrib[0].getTypeInst),
           newCall(bindSym"type", attrib.getTypeInst)
         )
 
@@ -543,8 +542,51 @@ proc `or`(arg, alternative: NimNode): NimNode {.compileTime.} =
   else:
     alternative
 
+
+macro genMeshType*(name: untyped; vertexType: typed): untyped =
+  ## expects a symbol to a vertex type. ``name`` will be the name of the new type.
+  ## generates a flexible mesh type for a given vertex type.
+  ##
+  ## .. code-block:: nim
+  ##     genMeshType(MyMesh, MyVertexType)
+
+  vertexType.expectKind nnkSym
+
+  if vertexType.symKind != nskType:
+    error("not a type symbol: ", vertexType)
+
+  let impl = vertexType.getImpl
+  impl.expectKind nnkTypeDef
+  impl[2].expectKind({nnkObjectTy, nnkTupleTy})
+
+  let recList = nnkRecList.newTree
+  for member, typ in impl[2].fields:
+    let ident = ident(member.strVal)
+    let typ2  = nnkBracketExpr.newTree(
+      bindSym"ArrayBufferView", newCall(ident"type",typ)
+    )
+    recList.add nnkIdentDefs.newTree(
+      ident, typ2, newEmptyNode()
+    )
+
+  result = newStmtList()
+
+  result.add nnkTypeSection.newTree(
+    nnkTypeDef.newTree(
+      name, newEmptyNode(),
+      nnkObjectTy.newTree(
+        newEmptyNode(), newEmptyNode(),
+        recList
+      )
+    )
+  )
+
+  result.add quote do:
+    template VertexType(_: typedesc[`name`]): untyped =
+      `vertexType`
+
+
 type
-  Mesh*[VertexType] = object
 
   Framebuffer2*[FragmentType] = object
     handle: GLuint
@@ -645,7 +687,7 @@ proc injectTypes(framebuffer, mesh, arg: NimNode): NimNode {.compileTime.} =
   result = arg
   result[3] = newParams
 
-macro render*[VT,FT](framebuffer: Framebuffer2[FT], mesh: Mesh[VT]; arg: untyped): untyped =
+macro render*[VT,FT](framebuffer: Framebuffer2[FT], mesh, arg: untyped): untyped =
   let arg = injectTypes(framebuffer, mesh, arg)
   result = quote do:
     let fb = `framebuffer`
@@ -653,13 +695,13 @@ macro render*[VT,FT](framebuffer: Framebuffer2[FT], mesh: Mesh[VT]; arg: untyped
     render_inner(false, `mesh`, `arg`)
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
 
-macro render*[VT](mesh: Mesh[VT]; arg: untyped): untyped =
+macro render*(mesh, arg: untyped): untyped =
   let arg = injectTypes(bindSym"defaultFramebuffer", mesh, arg)
   result = quote do:
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
     render_inner(false, `mesh`, `arg`)
 
-macro renderDebug*[VT,FT](framebuffer: Framebuffer2[FT], mesh: Mesh[VT]; arg: untyped): untyped =
+macro renderDebug*[FT](framebuffer: Framebuffer2[FT], mesh, arg: untyped): untyped =
   let arg = injectTypes(framebuffer, mesh, arg)
   result = quote do:
     let fb = `framebuffer`
@@ -667,7 +709,7 @@ macro renderDebug*[VT,FT](framebuffer: Framebuffer2[FT], mesh: Mesh[VT]; arg: un
     render_inner(true, `mesh`, `arg`)
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
 
-macro renderDebug*[VT](mesh: Mesh[VT]; arg: untyped): untyped =
+macro renderDebug*(mesh, arg: untyped): untyped =
   let arg = injectTypes(bindSym"defaultFramebuffer", mesh, arg)
   result = quote do:
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
