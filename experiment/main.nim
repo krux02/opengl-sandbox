@@ -108,8 +108,6 @@ while runGame:
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-  let timev = vec4f(time)
-
   glDisable(GL_DEPTH_TEST)
   glCullFace(GL_FRONT)
 
@@ -131,9 +129,9 @@ while runGame:
   glEnable(GL_DEPTH_TEST)
   glCullFace(GL_BACK)
 
-  render(mesh) do (vertex, gl):
+  renderDebug(mesh) do (vertex, gl):
     var position_os = vertex.position_os
-    var tmp = 1 - fract(timev.x * 2 + floor(float32(gl.VertexID) / 36.0f) * 1.235f)
+    var tmp = 1 - fract(time * 2 + floor(float32(gl.VertexID) / 36.0f) * 1.235f)
     tmp *= tmp
     tmp *= tmp
     tmp *= tmp
@@ -154,8 +152,8 @@ while runGame:
       lighting += light_intensity * light.color
 
     var n: Vec2f
-    n.x = simplex( position_ws.xyz * 7 + vec3(timev.x, 0, 0))
-    n.y = simplex(-position_ws.xyz * 7 + vec3(timev.x, 0, 0))
+    n.x = simplex( position_ws.xyz * 7 + vec3(time, 0, 0))
+    n.y = simplex(-position_ws.xyz * 7 + vec3(time, 0, 0))
 
     var textureSample = texture(myTexture, vertex.texCoord + n * 0.025f)
     #textureSample = mix(textureSample, textureSample.yzxw, n)

@@ -8,9 +8,13 @@ import sugar, algorithm, macros, strutils, tables, sequtils
 # packages
 import ../fancygl, ast_pattern_matching
 # local stuff
-import normalizeType, glslTranslate, boring_stuff
+import normalizeType, glslTranslate, boring_stuff, std140AlignedWrite
 
 export fancygl
+
+# not exporting this results in compilation failure
+# weird bug in nim
+export std140AlignedWrite
 
 static:
   let empty = newEmptyNode()
@@ -33,6 +37,16 @@ proc indentCode(arg: string): string =
     result.add line
     result.add "\n"
     indentation += line.count("{")
+
+
+proc std140WriteBuffer*[T](handle: GLuint; value: T): void =
+
+  let dataPtr = glMapNamedBuffer(handle, GL_WRITE_ONLY)
+
+  echo cast[uint](dataPtr)
+  var tmp: tuple[offset, align: int32]
+  tmp = std140AlignedWrite(dataPtr, 0, value)
+  echo glUnmapNamedBuffer(handle)
 
 proc debugUniformBlock*(program: Program, blockIndex: GLuint): void =
   var numUniforms: GLint
@@ -369,9 +383,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     pipelineRecList.add nnkIdentDefs.newTree( ident"program",       bindSym"Program" , empty)
     pipelineRecList.add nnkIdentDefs.newTree( ident"vao",           bindSym"VertexArrayObject" , empty)
     pipelineRecList.add nnkIdentDefs.newTree(
-      ident"uniformBuf",
-      nnkBracketExpr.newTree(bindSym"UniformBuffer", uniformBufTypeSym),
-      empty
+      ident"uniformBufferHandle", bindSym"GLuint", empty
     )
 
     let uniformRecList = nnkTupleTy.newTree()
@@ -397,9 +409,16 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       let uniformObjectSym = genSym(nskVar, "uniformObject")
 
       initCode.add quote do:
-        glCreateBuffers(1, `pSym`.uniformBuf.handle.addr)
+        # this is not the binding index
+        let uniformBlockIndex = glGetUniformBlockIndex(`pSym`.program.handle, "dynamic_shader_data");
+        doAssert uniformBlockIndex != GL_INVALID_INDEX
+        var blockSize: GLint
+        glGetActiveUniformBlockiv(`pSym`.program.handle, uniformBlockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, blockSize.addr)
+        assert blockSize > 0
+
+        glCreateBuffers(1, `pSym`.uniformBufferHandle.addr)
         glNamedBufferStorage(
-          `pSym`.uniformBuf.handle, sizeof(`uniformBufTypeSym`), nil, GL_DYNAMIC_STORAGE_BIT
+          `pSym`.uniformBufferHandle, GLsizei(blockSize), nil, GL_MAP_WRITE_BIT
         )
 
       drawCode.add quote do:
@@ -421,8 +440,9 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
           `uniformObjectSym`.`uniformIdent` = `uniform`
 
       drawCode.add quote do:
-        glNamedBufferSubData(`pSym`.uniformBuf.handle, 0, sizeof(`uniformBufTypeSym`), `uniformObjectSym`.addr)
-        glBindBufferBase(GL_UNIFORM_BUFFER, 0, `pSym`.uniformBuf.handle)
+        std140WriteBuffer(`pSym`.uniformBufferHandle, `uniformObjectSym`)
+        #glNamedBufferSubData(`pSym`.uniformBuf.handle, 0, sizeof(`uniformBufTypeSym`), `uniformObjectSym`.addr)
+        glBindBufferBase(GL_UNIFORM_BUFFER, 0, `pSym`.uniformBufferHandle)
 
     let bindTexturesCall = newCall(bindSym"bindTextures", newLit(0) )
     for sampler in uniformSamplers:

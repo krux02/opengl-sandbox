@@ -5,103 +5,128 @@ template write[T](dst: pointer; offset: var int32; value: T): untyped =
   (cast[ptr T](cast[uint](dst) + cast[uint](offset)))[] = value
   offset += int32(sizeof(value))
 
-proc align(address, alignment: int32): int32 =
+proc alignFunc(address, alignment: int32): int32 =
   result = (address + (alignment - 1)) and not (alignment - 1)
 
-proc getAlignment(value: bool): int32 =
+func getAlignment(_: typedesc[bool]): int32 {.compileTime.} =
   result = 4
 
-proc getAlignment(value: SomeNumber): int32 =
-  result = int32(sizeof(SomeNumber))
+func getAlignment(_: typedesc[int32]): int32 {.compileTime.} =
+  result = 4
 
-proc getAlignment[T](value: Vec4[T]): int32 =
+func getAlignment(_: typedesc[int64]): int32 {.compileTime.} =
+  result = 8
+
+func getAlignment(_: typedesc[uint32]): int32 {.compileTime.} =
+  result = 4
+
+func getAlignment(_: typedesc[uint64]): int32 {.compileTime.} =
+  result = 8
+
+func getAlignment(_: typedesc[float32]): int32 {.compileTime.} =
+  result = 4
+
+func getAlignment(_: typedesc[float64]): int32 {.compileTime.} =
+  result = 8
+
+func getAlignment[T](_: typedesc[Vec4[T]]): int32 {.compileTime.} =
   result = int32(sizeof(T) * 4)
 
-proc getAlignment[T](value: Vec3[T]): int32 =
+func getAlignment[T](_: typedesc[Vec3[T]]): int32 {.compileTime.} =
   result = int32(sizeof(T) * 4)
 
-proc getAlignment[T](value: Vec2[T]): int32 =
+func getAlignment[T](_: typedesc[Vec2[T]]): int32 {.compileTime.} =
   result = int32(sizeof(T) * 2)
 
-proc getAlignment[N,M,T](value: Mat[N,M,T]): int32 =
-  result = max(16'i32, value.arr[0].getAlignment)
+func getAlignment[M,N,T](_: typedesc[Mat[M,N,T]]): int32 {.compileTime.} =
+  var value: Mat[M,N,T]
+  result = max(16'i32, value.arr[0].type.getAlignment)
 
-proc getAlignment[N,T](value: array[N,T]): int32 =
-  result = max(16'i32, value[0].getAlignment)
+func getAlignment[N,T](_: typedesc[array[N,T]]): int32
 
-proc getAlignment(value : tuple | object): int32 =
+func getAlignment[T: tuple | object](_: typedesc[T]): int32 {.compileTime.} =
   result = 16
+  var value: T
   for x in value.fields:
-    result = max(result, x.getAlignment)
+    result = max(result, x.type.getAlignment)
 
-var offsets = newSeq[int32](0)
+func getAlignment[N,T](_: typedesc[array[N,T]]): int32 {.compileTime.} =
+  var value: array[N,T]
+  result = max(16'i32, value[0].type.getAlignment)
 
-template debug(result: tuple[offset, align: int32]): untyped =
-  when isMainModule:
+when isMainModule:
+  var offsets = newSeq[int32](0)
+  template debug(result: tuple[offset, align: int32]): untyped =
     offsets.add result.offset
+else:
+  template debug(result: tuple[offset, align: int32]): untyped =
+    discard
+
 
 proc std140AlignedWrite*(dst: pointer, offset: int32, value: bool): tuple[offset, align: int32] =
   result.align = 4
-  result.offset = align(offset, 4)
+  result.offset = alignFunc(offset, 4)
 
   debug result
   dst.write(result.offset, value)
 
 proc std140AlignedWrite*(dst: pointer, offset: int32, value: SomeNumber): tuple[offset, align: int32] =
   result.align = max(sizeof(SomeNumber), 4)
-  result.offset = align(offset, result.align)
+  result.offset = alignFunc(offset, result.align)
 
   debug result
   dst.write(result.offset, value)
 
 proc std140AlignedWrite*[T](dst: pointer, offset: int32, value: Vec4[T]): tuple[offset, align: int32] =
   result.align = sizeof(T) * 4
-  result.offset = align(offset, result.align)
+  result.offset = alignFunc(offset, result.align)
 
   debug result
   dst.write(result.offset, value)
 
 proc std140AlignedWrite*[T](dst: pointer, offset: int32, value: Vec3[T]): tuple[offset, align: int32] =
   result.align = sizeof(T) * 4
-  result.offset = align(offset, result.align)
+  result.offset = alignFunc(offset, result.align)
 
   debug result
   dst.write(result.offset, value)
 
 proc std140AlignedWrite*[T](dst: pointer, offset: int32, value: Vec2[T]): tuple[offset, align: int32] =
   result.align = sizeof(T) * 2
-  result.offset = align(offset, result.align)
+  result.offset = alignFunc(offset, result.align)
 
   debug result
   dst.write(result.offset, value)
 
 proc std140AlignedWrite*[N,M,T](dst: pointer, offset: int32, value: Mat[N,M,T]): tuple[offset, align: int32] =
-
-  result.align = getAlignment(value)
-  result.offset = align(offset, result.align)
+  const align = getAlignment(type(value))
+  result.align = align
+  result.offset = alignFunc(offset, result.align)
 
   debug result
   for v in value.arr:
     dst.write(result.offset, v)
-    result.offset = align(result.offset, result.align)
+    result.offset = alignFunc(result.offset, result.align)
 
 proc std140AlignedWrite*[N,T](dst: pointer, offset: int32; value: array[N,T]): tuple[offset, align: int32] =
-  result.align  = getAlignment(value)
-  result.offset = align(offset, result.align)
+  const align = getAlignment(type(value))
+  result.align  = align
+  result.offset = alignFunc(offset, result.align)
 
   for i in 0 ..< len(value):
     let tmp = std140AlignedWrite(dst, result.offset, value[i])
-    result.offset = align(tmp.offset, result.align)
+    result.offset = alignFunc(tmp.offset, result.align)
 
 proc std140AlignedWrite*(dst: pointer, offset: int32, value: tuple | object): tuple[offset, align: int32] =
-  result.align = getAlignment(value)
-  result.offset = align(offset, result.align)
+  const align = getAlignment(type(value))
+  result.align = align
+  result.offset = alignFunc(offset, result.align)
 
   var tmp = result
   for x in value.fields:
     tmp = std140AlignedWrite(dst, tmp.offset, x)
 
-  result.offset = align(tmp.offset, result.align)
+  result.offset = alignFunc(tmp.offset, result.align)
 
 when isMainModule:
   template foo(value: untyped, expectedOffsets: untyped): untyped =
