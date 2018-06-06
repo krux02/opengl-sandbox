@@ -38,16 +38,6 @@ proc indentCode(arg: string): string =
     result.add "\n"
     indentation += line.count("{")
 
-
-proc std140WriteBuffer*[T](handle: GLuint; value: T): void =
-
-  let dataPtr = glMapNamedBuffer(handle, GL_WRITE_ONLY)
-
-  echo cast[uint](dataPtr)
-  var tmp: tuple[offset, align: int32]
-  tmp = std140AlignedWrite(dataPtr, 0, value)
-  echo glUnmapNamedBuffer(handle)
-
 proc debugUniformBlock*(program: Program, blockIndex: GLuint): void =
   var numUniforms: GLint
   glGetActiveUniformBlockiv(program.handle, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, numUniforms.addr)
@@ -385,6 +375,13 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     pipelineRecList.add nnkIdentDefs.newTree(
       ident"uniformBufferHandle", bindSym"GLuint", empty
     )
+    pipelineRecList.add nnkIdentDefs.newTree(
+      ident"uniformBufferData", bindSym"pointer", empty
+    )
+    pipelineRecList.add nnkIdentDefs.newTree(
+      ident"uniformBufferSize", bindSym"GLint", empty
+    )
+
 
     let uniformRecList = nnkTupleTy.newTree()
 
@@ -414,11 +411,13 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         doAssert uniformBlockIndex != GL_INVALID_INDEX
         var blockSize: GLint
         glGetActiveUniformBlockiv(`pSym`.program.handle, uniformBlockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, blockSize.addr)
+        `pSym`.uniformBufferSize = blockSize
+        `pSym`.uniformBufferData = alloc(blockSize)
         assert blockSize > 0
 
         glCreateBuffers(1, `pSym`.uniformBufferHandle.addr)
         glNamedBufferStorage(
-          `pSym`.uniformBufferHandle, GLsizei(blockSize), nil, GL_MAP_WRITE_BIT
+          `pSym`.uniformBufferHandle, GLsizei(blockSize), nil, GL_DYNAMIC_STORAGE_BIT
         )
 
       drawCode.add quote do:
@@ -440,8 +439,12 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
           `uniformObjectSym`.`uniformIdent` = `uniform`
 
       drawCode.add quote do:
-        std140WriteBuffer(`pSym`.uniformBufferHandle, `uniformObjectSym`)
-        #glNamedBufferSubData(`pSym`.uniformBuf.handle, 0, sizeof(`uniformBufTypeSym`), `uniformObjectSym`.addr)
+        discard `pSym`.uniformBufferData.std140AlignedWrite(0, `uniformObjectSym`)
+        glNamedBufferSubData(
+          `pSym`.uniformBufferHandle,
+          0, GLsizei(`pSym`.uniformBufferSize),
+          `pSym`.uniformBufferData
+        )
         glBindBufferBase(GL_UNIFORM_BUFFER, 0, `pSym`.uniformBufferHandle)
 
     let bindTexturesCall = newCall(bindSym"bindTextures", newLit(0) )
