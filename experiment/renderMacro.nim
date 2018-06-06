@@ -411,13 +411,17 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         doAssert uniformBlockIndex != GL_INVALID_INDEX
         var blockSize: GLint
         glGetActiveUniformBlockiv(`pSym`.program.handle, uniformBlockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, blockSize.addr)
-        `pSym`.uniformBufferSize = blockSize
-        `pSym`.uniformBufferData = alloc(blockSize)
         assert blockSize > 0
+        `pSym`.uniformBufferSize = blockSize
 
         glCreateBuffers(1, `pSym`.uniformBufferHandle.addr)
         glNamedBufferStorage(
-          `pSym`.uniformBufferHandle, GLsizei(blockSize), nil, GL_DYNAMIC_STORAGE_BIT
+          `pSym`.uniformBufferHandle, GLsizei(blockSize), nil,
+          GL_MAP_WRITE_BIT or GL_MAP_PERSISTENT_BIT
+        )
+        `pSym`.uniformBufferData = glMapNamedBufferRange(
+          `pSym`.uniformBufferHandle, 0, blockSize,
+          GL_MAP_WRITE_BIT or GL_MAP_PERSISTENT_BIT or GL_MAP_FLUSH_EXPLICIT_BIT
         )
 
       drawCode.add quote do:
@@ -439,12 +443,8 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
           `uniformObjectSym`.`uniformIdent` = `uniform`
 
       drawCode.add quote do:
-        discard `pSym`.uniformBufferData.std140AlignedWrite(0, `uniformObjectSym`)
-        glNamedBufferSubData(
-          `pSym`.uniformBufferHandle,
-          0, GLsizei(`pSym`.uniformBufferSize),
-          `pSym`.uniformBufferData
-        )
+        discard std140AlignedWrite(`pSym`.uniformBufferData, 0, `uniformObjectSym`)
+        glFlushMappedNamedBufferRange(`pSym`.uniformBufferHandle, 0, `pSym`.uniformBufferSize)
         glBindBufferBase(GL_UNIFORM_BUFFER, 0, `pSym`.uniformBufferHandle)
 
     let bindTexturesCall = newCall(bindSym"bindTextures", newLit(0) )
@@ -517,7 +517,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
           compileShader(GL_FRAGMENT_SHADER, `fragmentShaderLit`, `lineinfoLit`))
 
         `pSym`.program.linkOrDelete
-        `pSym`.program.debugUniformBlock(0)
+        # `pSym`.program.debugUniformBlock(0)
 
         glCreateVertexArrays(1, `pSym`.vao.handle.addr)
 
