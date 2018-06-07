@@ -328,6 +328,11 @@ another operating on your machine that allows you to use modern
 drivers. There hardware is not the limitation. Sorry for the
 inconvenience.
 
+## EDIT
+
+MacOS is now deprecated.  I recommend you to upgrade to a free
+alternative operating system.  A personal recommendation is Manjaro.
+
 # ideas for other names
 
 The name is not fix yet, these are valid naming ideas:
