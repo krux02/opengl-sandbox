@@ -19,6 +19,7 @@ type
 
 genMeshType(MyMesh, MyVertexType)
 
+#[
 proc generateCity(radius: int): seq[MyVertexType] =
   for x in -radius .. radius:
     for y in -radius .. radius:
@@ -32,7 +33,7 @@ proc generateCity(radius: int): seq[MyVertexType] =
         vertex.position_os.x +=  pos.x*3
         vertex.position_os.z +=  pos.y*3
         result.add vertex
-
+]#
 let (window, context) = defaultSetup()
 discard setRelativeMouseMode(true)
 
@@ -57,24 +58,34 @@ mesh1.buffers.position_os = arrayBuffer(boxVertices)
 mesh1.buffers.normal_os   = arrayBuffer(boxNormals)
 mesh1.buffers.texCoord    = arrayBuffer(boxTexCoords)
 
+echo tetraederTexCoords
+
 var tetraederArrayBuffer = createArrayBuffer[MyVertexType](tetraederVertices.len)
 for i, vertex in tetraederArrayBuffer.wPairs:
   vertex.position_os = tetraederVertices[i]
   vertex.normal_os   = tetraederNormals[i]
   vertex.texCoord    = tetraederTexCoords[i]
+  echo vertex.texCoord
+
+
 
 var mesh2: MyMesh
 mesh2.mode = GL_TRIANGLES
 mesh2.numVertices = tetraederVertices.len
-mesh2.buffers.position_os = tetraederArrayBuffer.view(position_os)
-mesh2.buffers.normal_os   = tetraederArrayBuffer.view(normal_os)
-mesh2.buffers.texCoord    = tetraederArrayBuffer.view(texCoord)
+mesh2.buffers.position_os = arrayBuffer(tetraederVertices)
+mesh2.buffers.normal_os   = arrayBuffer(tetraederNormals)
+mesh2.buffers.texCoord    = arrayBuffer(tetraederTexCoords)
 
-var M,V,P: Mat4f
 
-M = mat4f(1).rotateX(0.5).rotateY(0.75)
-V = mat4f(1).translate( 0, 0, -7)
-P = perspective(45'f32, window.aspectRatio, 0.01, 100.0)
+# TODO relative offset needs to be baked in at compile time, so this
+# would be illegal and should be prevented from working
+#
+# mesh2.buffers.position_os = tetraederArrayBuffer.view(position_os)
+# mesh2.buffers.normal_os = tetraederArrayBuffer.view(normal_os)
+# mesh2.buffers.texCoord = tetraederArrayBuffer.view(texCoord)
+
+
+let P = perspective(45'f32, window.aspectRatio, 0.01, 100.0)
 
 var lights: array[4,Light]
 lights[0].color = vec4f(1,0,1,1)
@@ -83,9 +94,11 @@ lights[2].color = vec4f(0,1,0,1)
 lights[3].color = vec4f(0,0,1,1)
 
 let timer = newStopWatch(true)
-
-
 var currentMesh = mesh1
+
+var objRot  = mat4f(1).rotateX(0.5).rotateY(0.75)
+var viewRot = mat4f(1)
+var toggle: bool
 
 var runGame = true
 while runGame:
@@ -109,15 +122,28 @@ while runGame:
     of MouseWheel:
       let alpha = float32(evt.wheel.x + evt.wheel.y) * 0.05
       let rotMat = mat4f(1).rotateZ(alpha)
-      M = rotMat * M
+
+      if toggle:
+        viewRot = rotMat * viewRot
+      else:
+        objRot = rotMat * objRot
     of MouseMotion:
       let v = vec2(evt.motion.yrel.float32, evt.motion.xrel.float32)
       let alpha = v.length * 0.01
       let axis = vec3(v, 0)
       let rotMat = mat4f(1).rotate(alpha, axis)
-      M = rotMat * M
+
+      if toggle:
+        viewRot = rotMat * viewRot
+      else:
+        objRot = rotMat * objRot
+    of MouseButtonDown:
+      toggle = not toggle
     else:
       discard
+
+  let M = objRot
+  let V = mat4f(1).translate( 0, 0, -7) * viewRot
 
   let time = float32(timer.time)
   for i, light in lights.mpairs:
@@ -131,8 +157,7 @@ while runGame:
 
   render(mesh1) do (vertex, gl):
     var position_os = vec4(vertex.position_os.xyz, 0)
-    let position_ws = M*position_os
-    let position_cs = V*position_ws
+    let position_cs = V*position_os
     gl.Position = P * position_cs
 
     #let normal_cs   = inverse(transpose(V*M)) * vertex.normal_os
@@ -177,5 +202,6 @@ while runGame:
 
     result.color = textureSample * lighting
     #result.color = textureSample * lighting
+    #result.color = vec4f(fract(vertex.texCoord), 0, 1)
 
   glSwapWindow(window)
