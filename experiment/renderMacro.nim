@@ -321,7 +321,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     fragmentShader.add "// fragment output symbols\n"
     var i = 0
-    for memberSym,typeSym in resultSym.getTypeImpl.fields:
+    for memberSym, typeSym in resultSym.getTypeImpl.fields:
       fragmentShader.add "out layout(location=", i,") ", typeSym.glslType, " "
       fragmentShader.compileToGlsl(resultSym)
       fragmentShader.add "_"
@@ -468,24 +468,27 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       for i, attrib in allAttributes:
         let iLit = newLit(uint32(i))
         let memberSym = attrib[1]
+
         let genType = nnkBracketExpr.newTree(
           bindSym"ArrayBufferView",
           newCall(bindSym"type", attrib.getTypeInst)
         )
+        let bufferExpr = mesh.newDotExpr(ident"buffers").newDotExpr(ident(memberSym.strVal))
 
-        let bufferIdent = ident("buffer" & $i)
-        pipelineRecList.add nnkIdentDefs.newTree(bufferIdent, genType , empty)
-        setBuffersCall.add newDotExpr(pSym, bufferIdent)
+        # let bufferIdent = ident("buffer" & $i)
+        # pipelineRecList.add nnkIdentDefs.newTree(bufferIdent, genType , empty)
+
+        setBuffersCall.add bufferExpr
 
         # TODO there is no divisor inference
         let divisorLit = newLit(0) # this is a comment
 
         # TODO `myMeshArrayBuffer` is fake, it should work on arbitrary meshes.
         initCode.add quote do:
-          `pSym`.`bufferIdent` = myMeshArrayBuffer.view(`memberSym`)
+          #`pSym`.`bufferIdent` = myMeshArrayBuffer.view(`memberSym`)
           glEnableVertexArrayAttrib(`pSym`.vao.handle, `iLit`)
           glVertexArrayBindingDivisor(`pSym`.vao.handle, `iLit`, `divisorLit`)
-          setFormat(`pSym`.vao, `iLit`, `pSym`.`bufferIdent`)
+          setFormat(`pSym`.vao, `iLit`, `bufferExpr`)
           glVertexArrayAttribBinding(`pSym`.vao.handle, `iLit`, `iLit`)
 
       drawCode.add setBuffersCall
@@ -498,7 +501,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
           pipelineRecList
         )
       )
-
 
     result = quote do:
       `uniformBufTypeSection`
@@ -528,12 +530,15 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
       `drawCode`
 
-      let numVertices = GLsizei(len(myMeshArrayBuffer))
-      glDrawArrays(GL_TRIANGLES, 0, numVertices)
+      let numVertices = GLsizei(`mesh`.len)
+      glDrawArrays(`mesh`.mode, 0, numVertices)
 
     if debug:
       echo result.repr
       echo "</render_inner>"
+      result.add quote do:
+        if `mesh`.len == 0:
+          echo "WARNING: mesh.len == 0"
 
 
 proc `or`(arg, alternative: NimNode): NimNode {.compileTime.} =
@@ -559,32 +564,31 @@ macro genMeshType*(name: untyped; vertexType: typed): untyped =
   impl.expectKind nnkTypeDef
   impl[2].expectKind({nnkObjectTy, nnkTupleTy})
 
-  let recList = nnkRecList.newTree
+  let bufferTuple = nnkTupleTy.newTree
   for member, typ in impl[2].fields:
     let ident = ident(member.strVal)
     let typ2  = nnkBracketExpr.newTree(
       bindSym"ArrayBufferView", newCall(ident"type",typ)
     )
-    recList.add nnkIdentDefs.newTree(
-      ident, typ2, newEmptyNode()
+    bufferTuple.add nnkIdentDefs.newTree(
+      ident, typ2, empty
     )
 
   result = newStmtList()
 
-  result.add nnkTypeSection.newTree(
-    nnkTypeDef.newTree(
-      name, newEmptyNode(),
-      nnkObjectTy.newTree(
-        newEmptyNode(), newEmptyNode(),
-        recList
-      )
-    )
-  )
+  result.add quote do:
+    type
+      `name` = object
+        mode*: GLenum
+        numVertices: int
+        buffers: `bufferTuple`
 
   result.add quote do:
     template VertexType(_: typedesc[`name`]): untyped =
       `vertexType`
 
+    proc len*(arg: `name`): int =
+      arg.numVertices
 
 type
 

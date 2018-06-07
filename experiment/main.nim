@@ -50,15 +50,25 @@ glEnable(GL_CULL_FACE)
 glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS)
 glEnable(GL_DEPTH_CLAMP)
 
-var myMeshArrayBuffer = createArrayBuffer[MyVertexType](boxVertices.len)
-for i, vertex in myMeshArrayBuffer.wPairs:
-  vertex.position_os = boxVertices[i]
-  vertex.normal_os   = boxNormals[i]
-  vertex.texCoord    = boxTexCoords[i]
+var mesh1: MyMesh
+mesh1.mode = GL_TRIANGLES
+mesh1.numVertices = boxVertices.len
+mesh1.buffers.position_os = arrayBuffer(boxVertices)
+mesh1.buffers.normal_os   = arrayBuffer(boxNormals)
+mesh1.buffers.texCoord    = arrayBuffer(boxTexCoords)
 
-#var myMeshArrayBuffer = arrayBuffer(generateCity(20))
-var mesh: MyMesh
-#var framebuffer: MyFramebuffer = createFramebuffer[MyFragmentType](window.size, GL_)
+var tetraederArrayBuffer = createArrayBuffer[MyVertexType](tetraederVertices.len)
+for i, vertex in tetraederArrayBuffer.wPairs:
+  vertex.position_os = tetraederVertices[i]
+  vertex.normal_os   = tetraederNormals[i]
+  vertex.texCoord    = tetraederTexCoords[i]
+
+var mesh2: MyMesh
+mesh2.mode = GL_TRIANGLES
+mesh2.numVertices = tetraederVertices.len
+mesh2.buffers.position_os = tetraederArrayBuffer.view(position_os)
+mesh2.buffers.normal_os   = tetraederArrayBuffer.view(normal_os)
+mesh2.buffers.texCoord    = tetraederArrayBuffer.view(texCoord)
 
 var M,V,P: Mat4f
 
@@ -74,6 +84,9 @@ lights[3].color = vec4f(0,0,1,1)
 
 let timer = newStopWatch(true)
 
+
+var currentMesh = mesh1
+
 var runGame = true
 while runGame:
   for evt in events():
@@ -87,6 +100,10 @@ while runGame:
         runGame = false
       of SCANCODE_F10:
         window.screenshot
+      of SCANCODE_1:
+        currentMesh = mesh1
+      of SCANCODE_2:
+        currentMesh = mesh2
       else:
         discard
     of MouseWheel:
@@ -112,7 +129,7 @@ while runGame:
   glDisable(GL_DEPTH_TEST)
   glCullFace(GL_FRONT)
 
-  render(mesh) do (vertex, gl):
+  render(mesh1) do (vertex, gl):
     var position_os = vec4(vertex.position_os.xyz, 0)
     let position_ws = M*position_os
     let position_cs = V*position_ws
@@ -129,7 +146,7 @@ while runGame:
   glEnable(GL_DEPTH_TEST)
   glCullFace(GL_BACK)
 
-  renderDebug(mesh) do (vertex, gl):
+  renderDebug(currentMesh) do (vertex, gl):
     var position_os = vertex.position_os
     var tmp = 1 - fract(time * 2 + floor(float32(gl.VertexID) / 36.0f) * 1.235f)
     tmp *= tmp

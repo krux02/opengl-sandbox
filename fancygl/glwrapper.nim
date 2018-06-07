@@ -858,6 +858,12 @@ proc splitView*(buf: ArrayBuffer[Mat4f]): array[4, ArrayBufferView[Vec4f]] =
     result[i].relativeoffset = GLuint(i * 4 * sizeof(float32))
     result[i].stride = 4 * 4 * sizeof(float32)
 
+converter toView*[T](buf: ArrayBuffer[T]): ArrayBufferView[T] =
+  result.handle = buf.handle
+  result.absoluteoffset = 0
+  result.relativeoffset = 0
+  result.stride = sizeof(T)
+
 #### shader
 
 proc shaderSource(shader: Shader, source: string) =
