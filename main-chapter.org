@@ -763,7 +763,6 @@ generated:
  * etc (details you don't wanna know, but I have to fill pages, maybe
    you will get to know them even if you don't want to)
 
-
 * other example
 
 #+BEGIN_SRC nim
@@ -818,3 +817,58 @@ render myVA: (vs, gl) ->
         endPrimitive(GL_LINE_STRIP)
 
 #+END_SRC
+* mesh type
+
+
+
+what the Mesh needs to provide
+
+ * hold references to all its per vertex data
+ * provide an automatic way to bind its data to the shader program
+ * provide metainformation for the compiler, for example the vertex
+   type for the shader interface.
+ * allow flexibility for attributes, interleaved, separate buffers,
+   and Hybrid.
+
+OpenGL has kind of a solution for this concept, the
+VertexArrayObject. So in theory everything is specified in the vertex
+array object and everything can be set with a single call to
+~glBindVertexArray~. But there is a problem. The format that is set
+with ~glVertexAttribFormat~ for each vertex attribute index /format/
+sets a state in the VertexArrayObject.  For me this is a conflict,
+because the program should be responsible for allocating attribute
+indices, not a vertex array object.  When the mesh type is defined, it
+is not yet known with how many attributes it will later be rendered.
+Only the program (the render macro) knows all of the attributes.  I
+would like to keep the option open for the program to pull in more
+attributes than the ones that are specified by a single mesh.
+
+Just an example for this use case is the following.  Imagine you would
+like to render a sphere on each vertex of the rocker arm mesh (this is
+done in OpenFlipper).  The ideal solution would be to use the vertex
+array of the rocker arm mesh and use it as instancing information for
+the shpere mesh.  But when both meshes independently gave away
+attribute 0, then things might become a bit ugly.  I would not want to
+offload the attribute index allocation to the user.  But there is a
+solution that works for my system.  There is a solution for this
+problem though.
+
+I always take the program and a vertex array object as an indivisible
+pair, and call that my program.  Then the format and index is again an
+attribute of the program.  But then the mesh explicitly does not have
+a vertex array object, only a list of buffers and a way to provide
+metainformation to it.  The actual buffers that are used for rendering
+are bound on each frame with ~glVertexArrayVertexBuffers~.  This allows
+to bind all attribute buffers fast and per frame in a
+single call, the only constraint is that all buffers that I bind this
+way need to bound to a continuous ranged of binding points (currently
+for simplicity attribute binding points and attribute indices are set
+to be identical, this makes things simpler, and no they don't help
+here either).
+
+void glVertexArrayVertexBuffers(	GLuint vaobj,
+ 	GLuint first,
+ 	GLsizei count,
+ 	const GLuint *buffers,
+ 	const GLintptr *offsets,
+ 	const GLsizei *strides);
