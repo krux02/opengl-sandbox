@@ -19,21 +19,6 @@ type
 
 genMeshType(MyMesh, MyVertexType)
 
-#[
-proc generateCity(radius: int): seq[MyVertexType] =
-  for x in -radius .. radius:
-    for y in -radius .. radius:
-      let pos = vec2f(x.float32,y.float32)
-
-      for i in 0 ..< boxVertices.len:
-        var vertex: MyVertexType
-        vertex.position_os = boxVertices[i]
-        vertex.normal_os   = boxNormals[i]
-        vertex.texCoord    = boxTexCoords[i]
-        vertex.position_os.x +=  pos.x*3
-        vertex.position_os.z +=  pos.y*3
-        result.add vertex
-]#
 let (window, context) = defaultSetup()
 discard setRelativeMouseMode(true)
 
@@ -58,14 +43,11 @@ mesh1.buffers.position_os = arrayBuffer(boxVertices)
 mesh1.buffers.normal_os   = arrayBuffer(boxNormals)
 mesh1.buffers.texCoord    = arrayBuffer(boxTexCoords)
 
-echo tetraederTexCoords
-
 var tetraederArrayBuffer = createArrayBuffer[MyVertexType](tetraederVertices.len)
 for i, vertex in tetraederArrayBuffer.wPairs:
   vertex.position_os = tetraederVertices[i]
   vertex.normal_os   = tetraederNormals[i]
   vertex.texCoord    = tetraederTexCoords[i]
-  echo vertex.texCoord
 
 var mesh2: MyMesh
 mesh2.mode = GL_TRIANGLES
@@ -73,14 +55,6 @@ mesh2.numVertices = tetraederVertices.len
 mesh2.buffers.position_os = tetraederArrayBuffer.view(position_os)
 mesh2.buffers.normal_os   = tetraederArrayBuffer.view(normal_os)
 mesh2.buffers.texCoord    = tetraederArrayBuffer.view(texCoord)
-
-# TODO relative offset needs to be baked in at compile time, so this
-# would be illegal and should be prevented from working
-#
-# mesh2.buffers.position_os = tetraederArrayBuffer.view(position_os)
-# mesh2.buffers.normal_os = tetraederArrayBuffer.view(normal_os)
-# mesh2.buffers.texCoord = tetraederArrayBuffer.view(texCoord)
-
 
 let P = perspective(45'f32, window.aspectRatio, 0.01, 100.0)
 
@@ -95,7 +69,7 @@ var currentMesh = mesh1
 
 var objRot  = mat4f(1).rotateX(0.5).rotateY(0.75)
 var viewRot = mat4f(1)
-var toggle: bool
+var toggleA, toggleB: bool
 
 var runGame = true
 while runGame:
@@ -114,13 +88,15 @@ while runGame:
         currentMesh = mesh1
       of SCANCODE_2:
         currentMesh = mesh2
+      of SCANCODE_SPACE:
+        toggleB = not toggleB
       else:
         discard
     of MouseWheel:
       let alpha = float32(evt.wheel.x + evt.wheel.y) * 0.05
       let rotMat = mat4f(1).rotateZ(alpha)
 
-      if toggle:
+      if toggleA:
         viewRot = rotMat * viewRot
       else:
         objRot = rotMat * objRot
@@ -130,12 +106,12 @@ while runGame:
       let axis = vec3(v, 0)
       let rotMat = mat4f(1).rotate(alpha, axis)
 
-      if toggle:
+      if toggleA:
         viewRot = rotMat * viewRot
       else:
         objRot = rotMat * objRot
     of MouseButtonDown:
-      toggle = not toggle
+      toggleA = not toggleA
     else:
       discard
 
@@ -168,37 +144,66 @@ while runGame:
   glEnable(GL_DEPTH_TEST)
   glCullFace(GL_BACK)
 
-  renderDebug(currentMesh) do (vertex, gl):
-    var position_os = vertex.position_os
-    var tmp = 1 - fract(time * 2 + floor(float32(gl.VertexID) / 36.0f) * 1.235f)
-    tmp *= tmp
-    tmp *= tmp
-    tmp *= tmp
-    position_os.xyz *= 1 + tmp * 0.125
-    let position_ws = M*position_os
-    let position_cs = V*position_ws
-    gl.Position = P * position_cs
-    let normal_cs   = inverse(transpose(V*M)) * vertex.normal_os
+  if toggleB:
+    currentMesh.render do (vertex, gl):
+      var position_os = vertex.position_os
+      var tmp = 1 - fract(time * 2 + floor(float32(gl.VertexID) / 36.0f) * 1.235f)
+      tmp *= tmp
+      tmp *= tmp
+      tmp *= tmp
+      position_os.xyz *= 1 + tmp * 0.125
+      let position_ws = M*position_os
+      let position_cs = V*position_ws
+      gl.Position = P * position_cs
+      let normal_cs   = inverse(transpose(V*M)) * vertex.normal_os
 
-    ## rasterize
+      ## rasterize
 
-    var lighting: Vec4f = vec4f(0.2f)
-    for light in lights:
-      let light_position_cs = V * light.position_ws
-      let light_direction_cs = light_position_cs-position_cs
-      let light_distance = length(position_cs - light_position_cs)
-      let light_intensity = max(dot(light_direction_cs, normal_cs), 0) * max((10 - light_distance) * 0.1f, 0)
-      lighting += light_intensity * light.color
+      var lighting: Vec4f = vec4f(0.2f)
+      for light in lights:
+        let light_position_cs = V * light.position_ws
+        let light_direction_cs = light_position_cs-position_cs
+        let light_distance = length(position_cs - light_position_cs)
+        let light_intensity = max(dot(light_direction_cs, normal_cs), 0) * max((10 - light_distance) * 0.1f, 0)
+        lighting += light_intensity * light.color
 
-    var n: Vec2f
-    n.x = simplex( position_ws.xyz * 7 + vec3(time, 0, 0))
-    n.y = simplex(-position_ws.xyz * 7 + vec3(time, 0, 0))
+      var n: Vec2f
+      n.x = simplex( position_ws.xyz * 7 + vec3(time, 0, 0))
+      n.y = simplex(-position_ws.xyz * 7 + vec3(time, 0, 0))
 
-    var textureSample = texture(myTexture, vertex.texCoord + n * 0.025f)
-    #textureSample = mix(textureSample, textureSample.yzxw, n)
+      var textureSample = texture(myTexture, vertex.texCoord + n * 0.025f)
+      #textureSample = mix(textureSample, textureSample.yzxw, n)
 
-    result.color = textureSample * lighting
-    #result.color = textureSample * lighting
-    #result.color = vec4f(fract(vertex.texCoord), 0, 1)
+      result.color = textureSample * lighting
+      #result.color = textureSample * lighting
+      #result.color = vec4f(fract(vertex.texCoord), 0, 1)
+  else:
+
+    let invV = inverse(V)
+    let cameraPos_ws =     invV * vec4f(0,0,0,1)
+
+    currentMesh.render do (vertex, gl):
+      var position_os = vertex.position_os
+      var tmp = 1 - fract(time * 2 + floor(float32(gl.VertexID) / 36.0f) * 1.235f)
+      tmp *= tmp
+      tmp *= tmp
+      tmp *= tmp
+      position_os.xyz *= 1 + tmp * 0.125
+      let position_ws = M*position_os
+      let position_cs = V*position_ws
+      gl.Position = P * position_cs
+      let normal_cs   = inverse(transpose(V*M)) * vertex.normal_os
+
+      ## rasterize
+
+      var textureSample = texture(myTexture, vertex.texCoord)
+      var dir_cs = vec4(position_cs.xyz, 0)
+      dir_cs.xyz = reflect(dir_cs.xyz, normal_cs.xyz)
+      let dir_ws = invV * dir_cs
+      var skySample = texture(skyTexture, dir_ws.xyz)
+
+      let alpha = (textureSample.r + textureSample.g + textureSample.b) * 0.3333
+      result.color = mix(skySample, textureSample, alpha)
+
 
   glSwapWindow(window)

@@ -547,6 +547,11 @@ proc `or`(arg, alternative: NimNode): NimNode {.compileTime.} =
   else:
     alternative
 
+type
+  DynamicElementArrayBuffer* = object
+    ## This is like ElementArrayBuffer, but it does not store at
+    ## compile time the type of the elements.
+    handle*: GLuint
 
 macro genMeshType*(name: untyped; vertexType: typed): untyped =
   ## expects a symbol to a vertex type. ``name`` will be the name of the new type.
@@ -581,6 +586,7 @@ macro genMeshType*(name: untyped; vertexType: typed): untyped =
       `name` = object
         mode*: GLenum
         numVertices: int
+        elementBufferHandle: DynamicElementArrayBuffer
         buffers: `bufferTuple`
 
   result.add quote do:
