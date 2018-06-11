@@ -67,15 +67,12 @@ for i, vertex in tetraederArrayBuffer.wPairs:
   vertex.texCoord    = tetraederTexCoords[i]
   echo vertex.texCoord
 
-
-
 var mesh2: MyMesh
 mesh2.mode = GL_TRIANGLES
 mesh2.numVertices = tetraederVertices.len
-mesh2.buffers.position_os = arrayBuffer(tetraederVertices)
-mesh2.buffers.normal_os   = arrayBuffer(tetraederNormals)
-mesh2.buffers.texCoord    = arrayBuffer(tetraederTexCoords)
-
+mesh2.buffers.position_os = tetraederArrayBuffer.view(position_os)
+mesh2.buffers.normal_os   = tetraederArrayBuffer.view(normal_os)
+mesh2.buffers.texCoord    = tetraederArrayBuffer.view(texCoord)
 
 # TODO relative offset needs to be baked in at compile time, so this
 # would be illegal and should be prevented from working

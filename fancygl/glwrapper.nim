@@ -833,6 +833,9 @@ type
     relativeoffset*: GLuint
     stride*: GLsizei
 
+proc totalOffset*(arg: ArrayBufferView): GLsizei =
+  arg.absoluteoffset + GLsizei(arg.relativeoffset)
+
 proc len*(abv: ArrayBufferView):  int =
   ## return the amount of elemets stored in the buffer.
   ## (not correct, ignores offset)
@@ -1064,16 +1067,16 @@ proc readPixel*(pos: Vec2i) : Color = readPixel(pos.x.int, pos.y.int)
 template relativeoffset*[T](arg: ArrayBuffer[T]): untyped = 0
 
 template setFormat*[T](vao: VertexArrayObject, binding: uint32, buffer: ArrayBuffer[T]) =
-  glVertexArrayAttribFormat(vao.handle, binding, attribSize(buffer.T), attribType(buffer.T), attribNormalized(buffer.T), buffer.relativeoffset);
+  glVertexArrayAttribFormat(vao.handle, binding, attribSize(buffer.T), attribType(buffer.T), attribNormalized(buffer.T), 0);
 
 template setFormat*[T](vao: VertexArrayObject; binding: uint32; buffer: ArrayBufferView[T]): void =
-  glVertexArrayAttribFormat(vao.handle, binding, attribSize(buffer.T), attribType(buffer.T), attribNormalized(buffer.T), buffer.relativeoffset);
+  glVertexArrayAttribFormat(vao.handle, binding, attribSize(buffer.T), attribType(buffer.T), attribNormalized(buffer.T), 0);
 
 proc setBuffer*[T](vao: VertexArrayObject; binding: uint32; buffer: ArrayBuffer[T]): void =
-  glVertexArrayVertexBuffer(vao.handle, binding, buffer.handle, buffer.absoluteoffset, buffer.stride)
+  glVertexArrayVertexBuffer(vao.handle, binding, buffer.handle, buffer.totaloffset, buffer.stride)
 
 proc setBuffer*(vao: VertexArrayObject; binding: uint32; buffer: ArrayBufferView): void =
-  glVertexArrayVertexBuffer(vao.handle, binding, buffer.handle, buffer.absoluteoffset, buffer.stride)
+  glVertexArrayVertexBuffer(vao.handle, binding, buffer.handle, buffer.totaloffset, buffer.stride)
 
 macro setBuffers*(vao: VertexArrayObject; first: uint32; buffers: varargs[untyped]): untyped =
   if buffers.len == 0:
@@ -1089,7 +1092,7 @@ macro setBuffers*(vao: VertexArrayObject; first: uint32; buffers: varargs[untype
 
     for buffer in buffers:
       buffersArray.add newDotExpr(buffer, ident"handle")
-      offsetsArray.add newCall(bindSym"GLintptr",(newDotExpr(buffer, ident"absoluteoffset")))
+      offsetsArray.add newCall(bindSym"GLintptr",(newDotExpr(buffer, ident"totaloffset")))
       stridesArray.add newDotExpr(buffer, ident"stride")
 
     let countLit = newLit(buffers.len)
