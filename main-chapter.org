@@ -827,6 +827,7 @@ what the Mesh needs to provide
  * Provide the vertex type to the render macro as compile time meta
    information.
  * Hold references to all its per vertex data.
+ * Have an option for vertex indices.
  * Provide an automatic way to bind the data fast to an OpenGL shader
    program.
  * Allow flexibility for the attributes: interleaved, separate buffers,

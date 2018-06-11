@@ -1117,7 +1117,7 @@ macro bindTextures*(first: uint32; textures: varargs[untyped]): untyped =
     let lengthLit = newLit(GLsizei(textures.len))
     result = quote do:
       var textureHandles = `texturesArrayExpr`
-      glBindTextures(first, `lengthLit`, textureHandles[0].addr)
+      glBindTextures(`first`, `lengthLit`, textureHandles[0].addr)
 
 ##########################
 # # transform feedback # #

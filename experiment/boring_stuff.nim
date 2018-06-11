@@ -294,18 +294,36 @@ const glslKeywords* = @[
 ]
 
 proc isSwizzle*(funcName: string): bool =
+  if funcName.len == 0:
+    return false
+
+  const
+    setA = {'x','y','z','w'}
+    setB = {'r','g','b','a'}
+    setC = {'s','t','p','q'}
+
+  let c = funcName[0]
+
+  let swizzleSet =
+    if c in setA:
+      setA
+    elif c in setB:
+      setB
+    else:
+      setC
+
   if funcName[^1] == '=':
     if funcName.len > 5:
       return false
     for c in funcName[0 .. ^2]:
-      if c notin 'w' .. 'z':
+      if c notin swizzleSet:
         return false
     return true
   else:
     if funcName.len > 4:
       return false
     for c in funcName:
-      if c notin 'w' .. 'z':
+      if c notin swizzleSet:
         return false
     return true
 

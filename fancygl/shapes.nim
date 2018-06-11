@@ -345,7 +345,7 @@ proc genTetraederVertices(): array[12, Vec4f] {.compileTime.} =
     pos = verts[vertIndices[i]]
 
 proc genTetraederNormals(): array[12, Vec4f] {.compileTime.} =
-  let s = sqrt(3.0'f32)
+  let s = 1.0f / sqrt(3.0'f32)
   let normals    = [ vec4f(-s, s,-s,0), vec4f(-s,-s, s,0), vec4f( s,-s,-s,0), vec4f( s, s, s,0)]
   let normIndices = [ 0, 0, 0,  1,1,1,  2,2,2,  3,3,3]
 
