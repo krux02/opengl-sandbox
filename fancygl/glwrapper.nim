@@ -1107,7 +1107,7 @@ macro bindTextures*(first: uint32; textures: varargs[untyped]): untyped =
   if textures.len == 0:
     discard
     # do nothing
-  if textures.len == 1:
+  elif textures.len == 1:
     result = newCall( bindSym"glBindTextureUnit", first, newDotExpr(textures[0], ident"handle"))
   else:
     let texturesArrayExpr = nnkBracket.newTree
@@ -1115,6 +1115,7 @@ macro bindTextures*(first: uint32; textures: varargs[untyped]): untyped =
       texturesArrayExpr.add newDotExpr(texture, ident"handle")
 
     let lengthLit = newLit(GLsizei(textures.len))
+
     result = quote do:
       var textureHandles = `texturesArrayExpr`
       glBindTextures(`first`, `lengthLit`, textureHandles[0].addr)

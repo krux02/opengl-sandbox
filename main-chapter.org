@@ -13,6 +13,7 @@
 ** TODO AST pattern matching
 ** TODO matching the for construct
 
+** TODO mention the reason to restrict the vertex type to tuple
 * base example
 
 # Why I chose an example for explanation?

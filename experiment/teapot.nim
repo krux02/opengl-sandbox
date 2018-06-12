@@ -48,7 +48,7 @@ Graphics, Inc., 2011 N.  Shoreline Blvd., Mountain View, CA
 
 import glm
 
-let patchdata: seq[array[16,int32]] = @[
+let patchdata*: seq[array[16,int32]] = @[
     #[ rim ]#
   [102'i32, 103, 104, 105, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     #[ body ]#
@@ -65,8 +65,15 @@ let patchdata: seq[array[16,int32]] = @[
     #[ spout ]#
   [68'i32, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83],
   [80'i32, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95]
-];
+]
+
 #[ *INDENT-OFF* ]#
+
+type
+  MyVertexType = tuple
+    position_os: Vec4f
+    normal_os: Vec4f
+    texCoord: Vec2f
 
 var cpdata* = [
     vec3f( 0.2000f,  0.0000f,  2.70000f),
@@ -207,7 +214,6 @@ let tex: array[2, array[2, array[2, float32]]] = [
 
 #[ *INDENT-ON* ]#
 
-
 import algorithm
 
 proc binom*(n,k: int): int =
@@ -228,24 +234,24 @@ when isMainModule:
 proc bernstein(i,n: int; u: float32): float32 =
   result = binom(n,i).float32 * pow(u, float32(i)) * pow(1-u,float32(n-i))
 
-proc teapot(grid: int32; scale: float32; typ: uint32): void =
+proc teapot*(grid: int32; scale: float32): seq[MyVertexType] =
   var
     p: array[4, array[4, Vec3f]]
     q: array[4, array[4, Vec3f]]
     r: array[4, array[4, Vec3f]]
     s: array[4, array[4, Vec3f]]
 
-  glPushAttrib(GL_ENABLE_BIT or GL_EVAL_BIT)
-  glEnable(GL_AUTO_NORMAL)
-  glEnable(GL_NORMALIZE)
+  #glPushAttrib(GL_ENABLE_BIT or GL_EVAL_BIT)
+  #glEnable(GL_AUTO_NORMAL)
+  #glEnable(GL_NORMALIZE)
 
-  glEnable(GL_MAP2_VERTEX_3)
-  glEnable(GL_MAP2_TEXTURE_COORD_2)
+  #glEnable(GL_MAP2_VERTEX_3)
+  #glEnable(GL_MAP2_TEXTURE_COORD_2)
 
-  glPushMatrix()
-  glRotatef(270.0, 1.0, 0.0, 0.0)
-  glScalef(0.5 * scale, 0.5 * scale, 0.5 * scale)
-  glTranslatef(0.0, 0.0, -1.5)
+  #glPushMatrix()
+  #glRotatef(270.0, 1.0, 0.0, 0.0)
+  #glScalef(0.5 * scale, 0.5 * scale, 0.5 * scale)
+  #glTranslatef(0.0, 0.0, -1.5)
 
   for i in 0 ..< 10:
     for j in 0 ..< 4:
@@ -260,67 +266,74 @@ proc teapot(grid: int32; scale: float32; typ: uint32): void =
           s[j][k] = cpdata[patchdata[i][j * 4 + k]]
           s[j][k].xy *= -1.0f
 
-    glMap2f(GL_MAP2_TEXTURE_COORD_2, 0, 1, 2, 2, 0, 1, 2*2, 2, tex[0][0][0].addr)
+    #glMap2f(GL_MAP2_TEXTURE_COORD_2, 0, 1, 2, 2, 0, 1, 2*2, 2, tex[0][0][0].addr)
 
     # glMapGrid2f(grid, 0.0, 1.0, grid, 0.0, 1.0)
     let
       un = grid
       vn = grid
-      u1 = 0
-      u2 = 1
-      v1 = 0
-      v2 = 1
+      u1 = 0'f32
+      u2 = 1'f32
+      v1 = 0'f32
+      v2 = 1'f32
 
-      du = (u2 - u1) / un
-      dv = (v2 - v1) / vn
-
-    var positions = newSeq[Vec4f]
-    var texCoords = newSeq[Vec2f]
-
-    for i in 0 ..< grid:
-      # glEvalMesh2(typ, 0, grid, 0, grid)
-      glBegin( GL_QUAD_STRIP )
-      for j in 0 ..< grid:
-        let u =   u1 + i * du
-        let va = [v1 + j * dv, v1 + j * dv + dv]
-        for v in va:
-          # eval tex coord
-          let texCoord = vec2f(u,v)
-          var position: Vec3f
-
-          #p(uˆ,vˆ)=Σi=0nΣj=0mBin(uˆ)Bjm(vˆ)Rij
-          for i in 0 .. n:
-            for j in 0 .. n:
-              position += bernstein(i,n,u) * bernstean(j,m,v) * p[i][j]
-
-          positions.add position
-          texCoords.add texCoord
-
-      glEnd( GL_QUAD_STRIP )
+      du = (u2 - u1) / float32(un)
+      dv = (v2 - v1) / float32(vn)
 
 
     for i in 0 ..< grid:
       # glEvalMesh2(typ, 0, grid, 0, grid)
-      glBegin( GL_QUAD_STRIP )
+      # glBegin( GL_QUAD_STRIP )
       for j in 0 ..< grid:
-        let u =   u1 + i * du
-        let va = [v1 + j * dv, v1 + j * dv + dv]
+        let u =   u1 + float32(i) * du
+        let va = [v1 + float32(j) * dv, v1 + float32(j) * dv + dv]
         for v in va:
           # eval tex coord
           let texCoord = vec2f(u,v)
-          var position: Vec3f
+          var position: Vec4f
 
-          #p(uˆ,vˆ)=Σi=0nΣj=0mBin(uˆ)Bjm(vˆ)Rij
+          let n,m = 3
+          for i in 0 .. n:
+            for j in 0 .. m:
+              position.xyz += bernstein(i,n,u) * bernstein(j,m,v) * p[i][j]
+
+          position.w = 1
+
+          # TODO normal not calculated yet
+          var normal: Vec4f
+
+          result.add( (position, normal, texCoord ) )
+
+      #glEnd( GL_QUAD_STRIP )
+
+
+    for i in 0 ..< grid:
+      # glEvalMesh2(typ, 0, grid, 0, grid)
+      # glBegin( GL_QUAD_STRIP )
+      for j in 0 ..< grid:
+        let u =   u1 + float32(i) * du
+        let va = [v1 + float32(j) * dv, v1 + float32(j) * dv + dv]
+        for v in va:
+          # eval tex coord
+          let texCoord = vec2f(u,v)
+          var position: Vec4f
+
+          let n,m = 3
           for i in 0 .. n:
             for j in 0 .. n:
-              position += bernstein(i,n,u) * bernstean(j,m,v) * q[i][j]
+              position.xyz += bernstein(i,n,u) * bernstein(j,m,v) * q[i][j]
 
-          positions.add position
-          texCoords.add texCoord
+          position.w = 1
 
-      glEnd( GL_QUAD_STRIP )
+          # TODO normal not calculated yet
+          var normal: Vec4f
+
+          result.add( (position, normal, texCoord ) )
+
+      # glEnd( GL_QUAD_STRIP )
 
     if i < 6:
+      discard
       # glMap2f(GL_MAP2_VERTEX_3, 0, 1, 3, 4, 0, 1, 12, 4,
       #   &r[0][0][0])
       # glEvalMesh2(typ, 0, grid, 0, grid)
@@ -331,19 +344,5 @@ proc teapot(grid: int32; scale: float32; typ: uint32): void =
   #glPopMatrix()
   #glPopAttrib()
 
-
-#[ CENTRY ]#
-
-# void GLUTAPIENTRY
-# glutSolidTeapot(GLdouble scale)
-# {
-#   teapot(7, scale, GL_FILL)
-# }
-
-# void GLUTAPIENTRY
-# glutWireTeapot(GLdouble scale)
-# {
-#   teapot(10, scale, GL_LINE)
-# }
-
-#[ ENDCENTRY ]#
+#teapot(7, scale)
+#teapot(10, scale)

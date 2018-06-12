@@ -76,10 +76,17 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       echo "<render_inner>"
       #echo arg.treeRepr
 
-    # this is really a hack because arguments are not symbols for some reason
-    # ¯\_(ツ)_/¯
-    let vertexSym = body.findSymbolWithName(vertexDef[0].strVal)
-    let glSym     = body.findSymbolWithName(glDef[0].strVal)
+
+    let typeInst = arg.getTypeInst
+
+    echo typeInst.treeRepr
+
+    typeInst.expectKind nnkProcTy
+    typeInst[0].expectKind nnkFormalParams
+    typeInst[0][1].expectKind nnkIdentDefs
+    typeInst[0][2].expectKind nnkIdentDefs
+    let vertexSym = typeInst[0][1][0]
+    let glSym     = typeInst[0][2][0]
 
     let vertexPart = nnkStmtList.newTree
     let fragmentPart = nnkStmtList.newTree
@@ -560,17 +567,20 @@ macro genMeshType*(name: untyped; vertexType: typed): untyped =
   ## .. code-block:: nim
   ##     genMeshType(MyMesh, MyVertexType)
 
-  vertexType.expectKind nnkSym
+  let impl =
+    if vertexType.kind == nnkTupleTy:
+      vertexType
+    else:
+      vertexType.expectKind(nnkSym)
+      if vertexType.symKind != nskType:
+        error("not a type symbol: ", vertexType)
 
-  if vertexType.symKind != nskType:
-    error("not a type symbol: ", vertexType)
-
-  let impl = vertexType.getImpl
-  impl.expectKind nnkTypeDef
-  impl[2].expectKind({nnkObjectTy, nnkTupleTy})
+      let typeDef = vertexType.getImpl
+      typeDef[2].expectKind nnkTupleTy
+      typeDef[2]
 
   let bufferTuple = nnkTupleTy.newTree
-  for member, typ in impl[2].fields:
+  for member, typ in impl.fields:
     let ident = ident(member.strVal)
     let typ2  = nnkBracketExpr.newTree(
       bindSym"ArrayBufferView", newCall(ident"type",typ)
@@ -607,7 +617,7 @@ type
     PointSize*: float32
     ClipDistance*: UncheckedArray[float32]
     FragCoord*: Vec2f
-    VertexID: int32
+    VertexID*: int32
 
   DefaultFragmentType* = object
     color: Vec4f
