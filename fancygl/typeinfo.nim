@@ -37,6 +37,14 @@ template attribType*(t: typedesc[uint8   ]) : GLenum = GL_UNSIGNED_BYTE
 template attribType*(t: typedesc[uint16  ]) : GLenum = GL_UNSIGNED_SHOR
 template attribType*(t: typedesc[uint32  ]) : GLenum = GL_UNSIGNED_INT
 
+# singed index types are just interpreted as unsigend index types.
+template indexTypeTag*(arg: typedesc[uint8 ]): GLenum = GL_UNSIGNED_BYTE
+template indexTypeTag*(arg: typedesc[ int8 ]): GLenum = GL_UNSIGNED_BYTE
+template indexTypeTag*(arg: typedesc[uint16]): GLenum = GL_UNSIGNED_SHORT
+template indexTypeTag*(arg: typedesc[ int16]): GLenum = GL_UNSIGNED_SHORT
+template indexTypeTag*(arg: typedesc[uint32]): GLenum = GL_UNSIGNED_INT
+template indexTypeTag*(arg: typedesc[ int32]): GLenum = GL_UNSIGNED_INT
+
 template attribSize*[N,T](t: typedesc[Vec[N,T]]): GLint      = GLint(N)
 template attribType*[N,T](t: typedesc[Vec[N,T]]): GLenum    = T.attribType
 template attribNormalized*[N,T](t: typedesc[Vec[N,T]]): bool = false

@@ -79,8 +79,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     let typeInst = arg.getTypeInst
 
-    echo typeInst.treeRepr
-
     typeInst.expectKind nnkProcTy
     typeInst[0].expectKind nnkFormalParams
     typeInst[0][1].expectKind nnkIdentDefs
@@ -103,7 +101,8 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     var usedTypes = newSeq[NimNode](0)
 
     proc processProcSym(sym: NimNode): void =
-      # TODO: this is not really correct
+      # TODO: this is not really correct, it only checks for names.
+
       let symName = sym.strVal
       let isBuiltIn = symName.isBuiltIn
 
@@ -501,6 +500,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       drawCode.add setBuffersCall
 
 
+
     let pipelineTypeSection =
       nnkTypeSection.newTree(
         nnkTypeDef.newTree(
@@ -535,10 +535,14 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       glUseProgram(`pSym`.program.handle)
       glBindVertexArray(`pSym`.vao.handle)
 
-      `drawCode`
+      glVertexArrayElementBuffer(`pSym`.vao.handle, `mesh`.elementBuffer.handle)
 
+      `drawCode`
       let numVertices = GLsizei(`mesh`.len)
-      glDrawArrays(`mesh`.mode, 0, numVertices)
+      if `mesh`.elementBuffer.handle == 0:
+        glDrawArrays(`mesh`.mode, 0, numVertices)
+      else:
+        glDrawElements(`mesh`.mode, numVertices, `mesh`.elementBuffer.typ, nil)
 
     if debug:
       echo result.repr
@@ -557,8 +561,15 @@ proc `or`(arg, alternative: NimNode): NimNode {.compileTime.} =
 type
   DynamicElementArrayBuffer* = object
     ## This is like ElementArrayBuffer, but it does not store at
-    ## compile time the type of the elements.
+    ## compile time the type of the elements.  The type is stored as a
+    ## member in the field `typ`.
     handle*: GLuint
+    typ*: GLenum
+
+converter toDynamic*[T](arg: ElementArrayBuffer[T]): DynamicElementArrayBuffer =
+  result.handle = arg.handle
+  result.typ    = indexTypeTag(T)
+
 
 macro genMeshType*(name: untyped; vertexType: typed): untyped =
   ## expects a symbol to a vertex type. ``name`` will be the name of the new type.
@@ -596,7 +607,7 @@ macro genMeshType*(name: untyped; vertexType: typed): untyped =
       `name` = object
         mode*: GLenum
         numVertices: int
-        elementBufferHandle: DynamicElementArrayBuffer
+        elementBuffer*: DynamicElementArrayBuffer
         buffers: `bufferTuple`
 
   result.add quote do:
@@ -605,6 +616,7 @@ macro genMeshType*(name: untyped; vertexType: typed): untyped =
 
     proc len*(arg: `name`): int =
       arg.numVertices
+
 
 type
 

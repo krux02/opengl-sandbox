@@ -36,7 +36,7 @@ let skyTexture: TextureCubeMap = loadTextureCubeMapFromFiles([
   getResourcePath("skyboxes/darkskies/darkskies_ft.tga"),
 ])
 
-glEnable(GL_CULL_FACE)
+#glEnable(GL_CULL_FACE)
 glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS)
 glEnable(GL_DEPTH_CLAMP)
 
@@ -62,8 +62,6 @@ mesh2.buffers.texCoord    = tetraederArrayBuffer.view(texCoord)
 
 let P = perspective(45'f32, window.aspectRatio, 0.01, 100.0)
 
-
-
 var mesh3: MyMesh
 var mesh4: ControlPointMesh
 
@@ -71,7 +69,7 @@ block initTeapot:
   var teapotData = teapot(10, 2.0f)
   var teapotBuffer = arrayBuffer(teapotData)
 
-  mesh3.mode = GL_TRIANGLES
+  mesh3.mode = GL_POINTS
   mesh3.numVertices = teapotData.len
   mesh3.buffers.position_os = teapotBuffer.view(position_os)
   mesh3.buffers.normal_os   = teapotBuffer.view(normal_os)
@@ -109,18 +107,57 @@ while runGame:
       case evt.key.keysym.scancode
       of SCANCODE_ESCAPE:
         runGame = false
-      of SCANCODE_F10:
-        window.screenshot
+      #of SCANCODE_F10:
+      #  window.screenshot
       of SCANCODE_1:
         currentMesh = mesh1
       of SCANCODE_2:
         currentMesh = mesh2
       of SCANCODE_3:
-        currentMesh = mesh3
+        currentMesh.mode = 0
+        toggleB = true
       of SCANCODE_4:
         currentMesh.mode = 0
+        toggleB = false
       of SCANCODE_SPACE:
         toggleB = not toggleB
+
+
+      of SCANCODE_F1:
+        mesh4.elementBuffer = elementArrayBuffer(patchdata[0])
+        mesh4.numVertices = patchdata[0].len
+      of SCANCODE_F2:
+        mesh4.elementBuffer = elementArrayBuffer(patchdata[1])
+        mesh4.numVertices = patchdata[0].len
+      of SCANCODE_F3:
+        mesh4.elementBuffer = elementArrayBuffer(patchdata[2])
+        mesh4.numVertices = patchdata[0].len
+      of SCANCODE_F4:
+        mesh4.elementBuffer = elementArrayBuffer(patchdata[3])
+        mesh4.numVertices = patchdata[0].len
+      of SCANCODE_F5:
+        mesh4.elementBuffer = elementArrayBuffer(patchdata[4])
+        mesh4.numVertices = patchdata[0].len
+      of SCANCODE_F6:
+        mesh4.elementBuffer = elementArrayBuffer(patchdata[5])
+        mesh4.numVertices = patchdata[0].len
+      of SCANCODE_F7:
+        mesh4.elementBuffer = elementArrayBuffer(patchdata[6])
+        mesh4.numVertices = patchdata[0].len
+      of SCANCODE_F8:
+        mesh4.elementBuffer = elementArrayBuffer(patchdata[7])
+        mesh4.numVertices = patchdata[0].len
+      of SCANCODE_F9:
+        mesh4.elementBuffer = elementArrayBuffer(patchdata[8])
+        mesh4.numVertices = patchdata[0].len
+      of SCANCODE_F10:
+        mesh4.numVertices = patchdata[0].len
+        mesh4.elementBuffer = elementArrayBuffer(patchdata[9])
+      of SCANCODE_F11:
+        mesh4.numVertices = cpdata.len
+        mesh4.elementBuffer.handle = 0
+
+
       else:
         discard
     of MouseWheel:
@@ -209,6 +246,7 @@ while runGame:
         result.color = textureSample * lighting
         #result.color = textureSample * lighting
         #result.color = vec4f(fract(vertex.texCoord), 0, 1)
+
     else:
 
       let invV = inverse(V)
@@ -237,14 +275,36 @@ while runGame:
         let alpha = (textureSample.r + textureSample.g + textureSample.b) * 0.3333
         result.color = mix(skySample, textureSample, alpha)
   else:
-    mesh4.render do (vertex, gl):
-      var position_os = vec4f(vertex.position_os, 1)
-      let position_ws = M*position_os
-      let position_cs = V*position_ws
-      gl.Position = P * position_cs
+    if toggleB:
+      mesh3.renderDebug do (vertex, gl):
+        var position_os = vec4f(vertex.position_os.xyz, 1)
+        let position_ws = M*position_os
+        let position_cs = V*position_ws
+        gl.Position = P * position_cs
 
-      ## rasterize
+        var color: Vec4f
 
-      result.color = vec4f(0,1,1,1)
+        color.r = float32((gl.VertexID and (3 shl 0)) shr 0) * 0.33f
+        color.g = float32((gl.VertexID and (3 shl 2)) shr 2) * 0.33f
+        color.b = float32((gl.VertexID and (3 shl 4)) shr 4) * 0.33f
+
+        ## rasterize
+        result.color = color
+
+    else:
+      mesh4.renderDebug do (vertex, gl):
+        var position_os = vec4f(vertex.position_os.xyz, 1)
+        let position_ws = M*position_os
+        let position_cs = V*position_ws
+        gl.Position = P * position_cs
+
+        var color: Vec4f
+
+        color.r = float32((gl.VertexID and (3 shl 0)) shr 0) * 0.33f
+        color.g = float32((gl.VertexID and (3 shl 2)) shr 2) * 0.33f
+        color.b = float32((gl.VertexID and (3 shl 4)) shr 4) * 0.33f
+
+        ## rasterize
+        result.color = color
 
   glSwapWindow(window)

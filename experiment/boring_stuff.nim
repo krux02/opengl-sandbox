@@ -523,10 +523,13 @@ const glslConvProc* = [
 ]
 
 const glslBuiltInProcSecondary* = [
+  "and",
   "inc",
   "modulo",
+  "or",
+  "shl",
+  "shr",
 ]
-
 
 proc isBuiltIn*(procName: string): bool {.compileTime.} =
 

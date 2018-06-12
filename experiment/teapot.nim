@@ -235,6 +235,8 @@ proc bernstein(i,n: int; u: float32): float32 =
   result = binom(n,i).float32 * pow(u, float32(i)) * pow(1-u,float32(n-i))
 
 proc teapot*(grid: int32; scale: float32): seq[MyVertexType] =
+  var res: seq[MyVertexType]
+
   var
     p: array[4, array[4, Vec3f]]
     q: array[4, array[4, Vec3f]]
@@ -253,6 +255,47 @@ proc teapot*(grid: int32; scale: float32): seq[MyVertexType] =
   #glScalef(0.5 * scale, 0.5 * scale, 0.5 * scale)
   #glTranslatef(0.0, 0.0, -1.5)
 
+  proc evalCoord(u,v: float32, controlPoints: array[4, array[4, Vec3f]]): void =
+    let texCoord = vec2f(u,v)
+    var position: Vec4f
+
+    let n,m = 3
+    for i in 0 .. n:
+      for j in 0 .. m:
+        position.xyz += bernstein(i,n,u) * bernstein(j,m,v) * controlPoints[i][j]
+
+    position.w = 1
+
+    # TODO normal not calculated yet
+    var normal: Vec4f
+    res.add( (position, normal, texCoord ) )
+
+  proc evalMesh(controlPoints: array[4, array[4, Vec3f]], n: Vec2i, uv1, uv2: Vec2f): void =
+
+    let
+      un = n.x
+      vn = n.y
+      u1 = uv1.x
+      u2 = uv2.x
+      v1 = uv1.y
+      v2 = uv2.y
+
+      du = (u2 - u1) / float32(un)
+      dv = (v2 - v1) / float32(vn)
+
+    for i in 0 ..< un:
+      # glEvalMesh2(typ, 0, grid, 0, grid)
+      # glBegin( GL_QUAD_STRIP )
+      for j in 0 ..< vn:
+        let u = u1 + float32(i) * du
+        let v = v1 + float32(j) * dv
+
+        evalCoord(u,v,controlPoints)
+        # for triangle strips:
+        evalCoord(u,v+dv, p)
+
+      #glEnd( GL_QUAD_STRIP )
+
   for i in 0 ..< 10:
     for j in 0 ..< 4:
       for k in 0 ..< 4:
@@ -269,80 +312,17 @@ proc teapot*(grid: int32; scale: float32): seq[MyVertexType] =
     #glMap2f(GL_MAP2_TEXTURE_COORD_2, 0, 1, 2, 2, 0, 1, 2*2, 2, tex[0][0][0].addr)
 
     # glMapGrid2f(grid, 0.0, 1.0, grid, 0.0, 1.0)
-    let
-      un = grid
-      vn = grid
-      u1 = 0'f32
-      u2 = 1'f32
-      v1 = 0'f32
-      v2 = 1'f32
 
-      du = (u2 - u1) / float32(un)
-      dv = (v2 - v1) / float32(vn)
+    evalMesh(p, vec2i(grid), vec2f(0), vec2f(1))
+    evalMesh(q, vec2i(grid), vec2f(0), vec2f(1))
 
-
-    for i in 0 ..< grid:
-      # glEvalMesh2(typ, 0, grid, 0, grid)
-      # glBegin( GL_QUAD_STRIP )
-      for j in 0 ..< grid:
-        let u =   u1 + float32(i) * du
-        let va = [v1 + float32(j) * dv, v1 + float32(j) * dv + dv]
-        for v in va:
-          # eval tex coord
-          let texCoord = vec2f(u,v)
-          var position: Vec4f
-
-          let n,m = 3
-          for i in 0 .. n:
-            for j in 0 .. m:
-              position.xyz += bernstein(i,n,u) * bernstein(j,m,v) * p[i][j]
-
-          position.w = 1
-
-          # TODO normal not calculated yet
-          var normal: Vec4f
-
-          result.add( (position, normal, texCoord ) )
-
-      #glEnd( GL_QUAD_STRIP )
-
-
-    for i in 0 ..< grid:
-      # glEvalMesh2(typ, 0, grid, 0, grid)
-      # glBegin( GL_QUAD_STRIP )
-      for j in 0 ..< grid:
-        let u =   u1 + float32(i) * du
-        let va = [v1 + float32(j) * dv, v1 + float32(j) * dv + dv]
-        for v in va:
-          # eval tex coord
-          let texCoord = vec2f(u,v)
-          var position: Vec4f
-
-          let n,m = 3
-          for i in 0 .. n:
-            for j in 0 .. n:
-              position.xyz += bernstein(i,n,u) * bernstein(j,m,v) * q[i][j]
-
-          position.w = 1
-
-          # TODO normal not calculated yet
-          var normal: Vec4f
-
-          result.add( (position, normal, texCoord ) )
-
-      # glEnd( GL_QUAD_STRIP )
-
+    # only the first six surfaces are mirrored
     if i < 6:
-      discard
-      # glMap2f(GL_MAP2_VERTEX_3, 0, 1, 3, 4, 0, 1, 12, 4,
-      #   &r[0][0][0])
-      # glEvalMesh2(typ, 0, grid, 0, grid)
-      # glMap2f(GL_MAP2_VERTEX_3, 0, 1, 3, 4, 0, 1, 12, 4,
-      #   &s[0][0][0])
-      # glEvalMesh2(typ, 0, grid, 0, grid)
+      evalMesh(r, vec2i(grid), vec2f(0), vec2f(1))
+      evalMesh(s, vec2i(grid), vec2f(0), vec2f(1))
 
-  #glPopMatrix()
-  #glPopAttrib()
+
+  return res
 
 #teapot(7, scale)
 #teapot(10, scale)

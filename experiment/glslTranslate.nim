@@ -247,7 +247,15 @@ proc compileToGlslB*(result: var string; arg: NimNode): void =
   of nnkHiddenStdConv(nnkEmpty, `sym`):
     result.compileToGlsl(sym)
   of nnkPrefix(`op`, `arg`):
-    result.add op.strVal
+    let strVal = op.strVal
+    if strVal == "-":
+      result.add strVal
+    elif strVal == "+":
+      result.add strVal
+    elif strVal == "not":
+      result.add "!"
+    else:
+      error("unknown prefix operator: ", op)
     result.add '('
     result.compileToGlsl(arg)
     result.add ')'
@@ -256,7 +264,27 @@ proc compileToGlslB*(result: var string; arg: NimNode): void =
     result.add "("
     result.compileToGlsl(lhs)
     result.add " "
-    result.add op.strVal
+
+
+    let strVal = op.strVal
+    if strVal == "and":
+      if arg.getTypeInst == bindSym"bool":
+        result.add "&&"
+      else:
+        result.add "&"
+    elif strVal == "or":
+      if arg.getTypeInst == bindSym"bool":
+        result.add "||"
+      else:
+        result.add "|"
+    elif strVal == "mod":
+      result.add "%"
+    elif strVal == "shl":
+      result.add "<<"
+    elif strVal == "shr":
+      result.add ">>"
+    else:
+      result.add strVal
     result.add " "
     result.compileToGlsl(rhs)
     result.add ")"

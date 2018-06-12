@@ -188,6 +188,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
       if tpe[0].repr != "ElementArrayBuffer":
         error("need ElementArrayBuffer type for indices, got: " & tpe.repr, value)
 
+      # TODO this could use the typeinfo.indexTypeTag template
       case tpe[1].typeKind
       of ntyInt8, ntyUInt8:
         indexType = bindSym"GL_UNSIGNED_BYTE"
