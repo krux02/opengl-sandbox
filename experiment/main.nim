@@ -36,7 +36,7 @@ let skyTexture: TextureCubeMap = loadTextureCubeMapFromFiles([
   getResourcePath("skyboxes/darkskies/darkskies_ft.tga"),
 ])
 
-#glEnable(GL_CULL_FACE)
+glEnable(GL_CULL_FACE)
 glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS)
 glEnable(GL_DEPTH_CLAMP)
 
@@ -63,7 +63,6 @@ mesh2.buffers.texCoord    = tetraederArrayBuffer.view(texCoord)
 let P = perspective(45'f32, window.aspectRatio, 0.01, 100.0)
 
 var mesh3: MyMesh
-var mesh4: ControlPointMesh
 
 block initTeapot:
   var teapotData = teapot(10, 2.0f)
@@ -75,9 +74,10 @@ block initTeapot:
   mesh3.buffers.normal_os   = teapotBuffer.view(normal_os)
   mesh3.buffers.texCoord    = teapotBuffer.view(texCoord)
 
-  mesh4.mode = GL_POINTS
-  mesh4.numVertices = cpdata.len
-  mesh4.buffers.position_os = arrayBuffer(cpdata)
+
+var mesh4: MyMesh = mesh3
+mesh4.mode = GL_TRIANGLES
+
 
 
 var lights: array[4,Light]
@@ -107,8 +107,8 @@ while runGame:
       case evt.key.keysym.scancode
       of SCANCODE_ESCAPE:
         runGame = false
-      #of SCANCODE_F10:
-      #  window.screenshot
+      of SCANCODE_F10:
+        window.screenshot
       of SCANCODE_1:
         currentMesh = mesh1
       of SCANCODE_2:
@@ -121,42 +121,6 @@ while runGame:
         toggleB = false
       of SCANCODE_SPACE:
         toggleB = not toggleB
-
-
-      of SCANCODE_F1:
-        mesh4.elementBuffer = elementArrayBuffer(patchdata[0])
-        mesh4.numVertices = patchdata[0].len
-      of SCANCODE_F2:
-        mesh4.elementBuffer = elementArrayBuffer(patchdata[1])
-        mesh4.numVertices = patchdata[0].len
-      of SCANCODE_F3:
-        mesh4.elementBuffer = elementArrayBuffer(patchdata[2])
-        mesh4.numVertices = patchdata[0].len
-      of SCANCODE_F4:
-        mesh4.elementBuffer = elementArrayBuffer(patchdata[3])
-        mesh4.numVertices = patchdata[0].len
-      of SCANCODE_F5:
-        mesh4.elementBuffer = elementArrayBuffer(patchdata[4])
-        mesh4.numVertices = patchdata[0].len
-      of SCANCODE_F6:
-        mesh4.elementBuffer = elementArrayBuffer(patchdata[5])
-        mesh4.numVertices = patchdata[0].len
-      of SCANCODE_F7:
-        mesh4.elementBuffer = elementArrayBuffer(patchdata[6])
-        mesh4.numVertices = patchdata[0].len
-      of SCANCODE_F8:
-        mesh4.elementBuffer = elementArrayBuffer(patchdata[7])
-        mesh4.numVertices = patchdata[0].len
-      of SCANCODE_F9:
-        mesh4.elementBuffer = elementArrayBuffer(patchdata[8])
-        mesh4.numVertices = patchdata[0].len
-      of SCANCODE_F10:
-        mesh4.numVertices = patchdata[0].len
-        mesh4.elementBuffer = elementArrayBuffer(patchdata[9])
-      of SCANCODE_F11:
-        mesh4.numVertices = cpdata.len
-        mesh4.elementBuffer.handle = 0
-
 
       else:
         discard

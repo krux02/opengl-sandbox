@@ -290,9 +290,14 @@ proc teapot*(grid: int32; scale: float32): seq[MyVertexType] =
         let u = u1 + float32(i) * du
         let v = v1 + float32(j) * dv
 
-        evalCoord(u,v,controlPoints)
-        # for triangle strips:
-        evalCoord(u,v+dv, p)
+        evalCoord(u   ,v   , controlPoints)
+        evalCoord(u   ,v+dv, controlPoints)
+        evalCoord(u+du,v   , controlPoints)
+
+        evalCoord(u+du,v+dv, controlPoints)
+        evalCoord(u+du,v   , controlPoints)
+        evalCoord(u   ,v+dv, controlPoints)
+
 
       #glEnd( GL_QUAD_STRIP )
 
