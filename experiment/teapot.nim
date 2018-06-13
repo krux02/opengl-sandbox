@@ -48,6 +48,23 @@ Graphics, Inc., 2011 N.  Shoreline Blvd., Mountain View, CA
 
 import glm
 
+type
+  Grid[T] = object
+    size: Vec2i
+    dataseq: seq[T]
+
+
+proc createGrid[T](size:Vec2i): Grid[T] =
+  result.size = size
+  result.dataseq.setLen size.x * size.y
+
+proc `[]`[T](grid: Grid[T]; pos: Vec2i): T {. inline .} =
+  grid.dataseq[pos.x + pos.y * grid.size.x]
+
+proc `[]=`[T](grid: var Grid[T]; pos: Vec2i; value: T): void {. inline .} =
+  grid.dataseq[pos.x + pos.y * grid.size.x] = value
+
+
 let patchdata*: seq[array[16,int32]] = @[
     #[ rim ]#
   [102'i32, 103, 104, 105, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
@@ -214,16 +231,23 @@ let tex: array[2, array[2, array[2, float32]]] = [
 
 #[ *INDENT-ON* ]#
 
-import algorithm
+static:
+  var buffer: seq[seq[int]]
+  buffer.add @[1]
+
+  var current: seq[int]
+  for i in 0 ..< 64:
+    current.add 1
+    for i in 1 ..< buffer[^1].len:
+      current.add buffer[^1][i-1] + buffer[^1][i]
+    current.add 1
+    buffer.add current
+    current.setLen(0)
+
+const binomBuffer = buffer
 
 proc binom*(n,k: int): int =
-  var buffer: array[64,int]
-  buffer[0] = 1
-  for i in 0 .. n:
-    for j in 0 ..< i:
-      buffer[j] = buffer[j] + buffer[j+1]
-    discard buffer.rotateLeft(-1)
-  result = buffer[k+1]
+  binomBuffer[n][k]
 
 when isMainModule:
   doAssert binom(10,0) == 1
@@ -231,11 +255,13 @@ when isMainModule:
   doAssert binom(10,6) == 210
   doAssert binom(49,6) == 13983816
 
-proc bernstein(i,n: int; u: float32): float32 =
+proc bernsteinPoly(i,n: int; u: float32): float32 =
   result = binom(n,i).float32 * pow(u, float32(i)) * pow(1-u,float32(n-i))
 
-proc teapot*(grid: int32; scale: float32): seq[MyVertexType] =
-  var res: seq[MyVertexType]
+proc teapot*(grid: int32): tuple[data: seq[MyVertexType], indices: seq[int32]] =
+
+  var data: seq[MyVertexType]
+  var indices: seq[int32]
 
   var
     p: array[4, array[4, Vec3f]]
@@ -243,35 +269,29 @@ proc teapot*(grid: int32; scale: float32): seq[MyVertexType] =
     r: array[4, array[4, Vec3f]]
     s: array[4, array[4, Vec3f]]
 
-  #glPushAttrib(GL_ENABLE_BIT or GL_EVAL_BIT)
-  #glEnable(GL_AUTO_NORMAL)
-  #glEnable(GL_NORMALIZE)
+  proc evalCoord[UN,VN](u,v: float32, controlPoints: array[UN, array[VN, Vec3f]]): MyVertexType =
 
-  #glEnable(GL_MAP2_VERTEX_3)
-  #glEnable(GL_MAP2_TEXTURE_COORD_2)
-
-  #glPushMatrix()
-  #glRotatef(270.0, 1.0, 0.0, 0.0)
-  #glScalef(0.5 * scale, 0.5 * scale, 0.5 * scale)
-  #glTranslatef(0.0, 0.0, -1.5)
-
-  proc evalCoord(u,v: float32, controlPoints: array[4, array[4, Vec3f]]): void =
     let texCoord = vec2f(u,v)
     var position: Vec4f
 
-    let n,m = 3
-    for i in 0 .. n:
-      for j in 0 .. m:
-        position.xyz += bernstein(i,n,u) * bernstein(j,m,v) * controlPoints[i][j]
+    for i in low(UN) .. high(UN):
+      for j in low(VN) .. high(VN):
+        # bernstein
+        let Bi = binom(high(UN),i).float32 * pow(u, float32(i)) * pow(1-u,float32(high(UN)-i)) # bernsteinPoly(i,high(UN),u)
+        let Bj = binom(high(VN),j).float32 * pow(v, float32(j)) * pow(1-v,float32(high(VN)-j)) # bernsteinPoly(j,high(VN),v)
+        position.xyz += Bi * Bj * controlPoints[i][j]
 
     position.w = 1
 
     # TODO normal not calculated yet
     var normal: Vec4f
-    res.add( (position, normal, texCoord ) )
 
-  proc evalMesh(controlPoints: array[4, array[4, Vec3f]], n: Vec2i, uv1, uv2: Vec2f): void =
+    # diff(bernstein_poly(i,n,u) * bernstein_poly(j,m,v), u);
+    # diff(bernstein_poly(i,n,u) * bernstein_poly(j,m,v), v);
 
+    result = (position, normal, texCoord)
+
+  proc evalMesh[UN,VN](controlPoints: array[UN, array[VN, Vec3f]], n: Vec2i, uv1, uv2: Vec2f): void =
     let
       un = n.x
       vn = n.y
@@ -283,21 +303,26 @@ proc teapot*(grid: int32; scale: float32): seq[MyVertexType] =
       du = (u2 - u1) / float32(un)
       dv = (v2 - v1) / float32(vn)
 
-    for i in 0 ..< un:
-      # glEvalMesh2(typ, 0, grid, 0, grid)
-      # glBegin( GL_QUAD_STRIP )
-      for j in 0 ..< vn:
+    var grid = createGrid[MyVertexType](n + 1)
+
+    for i in 0 .. un:
+      for j in 0 .. vn:
         let u = u1 + float32(i) * du
         let v = v1 + float32(j) * dv
+        grid[vec2i(i,j)] = evalCoord(u, v, controlPoints)
 
-        evalCoord(u   ,v   , controlPoints)
-        evalCoord(u   ,v+dv, controlPoints)
-        evalCoord(u+du,v   , controlPoints)
+    for i in 0 ..< un:
+      # glEvalMesh2(typ, 0, grid, 0, grid)
+      # glBegin( GL_Triangle_STRIP )
 
-        evalCoord(u+du,v+dv, controlPoints)
-        evalCoord(u+du,v   , controlPoints)
-        evalCoord(u   ,v+dv, controlPoints)
-
+      for j in 0 .. vn:
+        let idx = vec2i(int32(i),int32(j))
+        data.add grid[idx + vec2i(0,0)]
+        if j == 0:
+          data.add data[^1]
+        data.add grid[idx + vec2i(1,0)]
+        if j == vn:
+          data.add data[^1]
 
       #glEnd( GL_QUAD_STRIP )
 
@@ -327,7 +352,4 @@ proc teapot*(grid: int32; scale: float32): seq[MyVertexType] =
       evalMesh(s, vec2i(grid), vec2f(0), vec2f(1))
 
 
-  return res
-
-#teapot(7, scale)
-#teapot(10, scale)
+  return (data, indices)

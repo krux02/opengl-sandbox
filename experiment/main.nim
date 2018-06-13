@@ -65,18 +65,24 @@ let P = perspective(45'f32, window.aspectRatio, 0.01, 100.0)
 var mesh3: MyMesh
 
 block initTeapot:
-  var teapotData = teapot(10, 2.0f)
-  var teapotBuffer = arrayBuffer(teapotData)
+  echo " creating teapot "
+  let timer = newStopWatch(true)
+  var teapotData = teapot(7)
+  echo "teapot created in ", timer.time, "s"
+  # teapot 7 in 1.313054411s
+  # teapot 7 in 0.312588133s (precalculate grid)
+  # teapot 7 in 0.016067872s (precalculate binomials)
+  var teapotBuffer = arrayBuffer(teapotData.data)
 
   mesh3.mode = GL_POINTS
-  mesh3.numVertices = teapotData.len
+  mesh3.numVertices = teapotData.data.len
   mesh3.buffers.position_os = teapotBuffer.view(position_os)
   mesh3.buffers.normal_os   = teapotBuffer.view(normal_os)
   mesh3.buffers.texCoord    = teapotBuffer.view(texCoord)
 
 
 var mesh4: MyMesh = mesh3
-mesh4.mode = GL_TRIANGLES
+mesh4.mode = GL_TRIANGLE_STRIP
 
 
 
@@ -87,7 +93,7 @@ lights[2].color = vec4f(0,1,0,1)
 lights[3].color = vec4f(0,0,1,1)
 
 let timer = newStopWatch(true)
-var currentMesh = mesh1
+var currentMesh = mesh3
 
 var objRot  = mat4f(1).rotateX(0.5).rotateY(0.75)
 var viewRot = mat4f(1)
