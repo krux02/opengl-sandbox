@@ -67,22 +67,26 @@ var mesh3: MyMesh
 block initTeapot:
   echo " creating teapot "
   let timer = newStopWatch(true)
-  var teapotData = teapot(7)
+  var teapotData = teapot(11)
   echo "teapot created in ", timer.time, "s"
-  # teapot 7 in 1.313054411s
-  # teapot 7 in 0.312588133s (precalculate grid)
-  # teapot 7 in 0.016067872s (precalculate binomials)
+  # teapot  7 in 1.313054411s
+  # teapot  7 in 0.312588133s (precalculate grid)
+  # teapot  7 in 0.016067872s (precalculate binomials)
+  # teapot 11 in 0.0349098s   (more details)
+  # teapot 11 in 0.01723968s (precalculate bernstein polynom weights)
+  # teapot 11 in 0.204542387s (added analytic normals)
   var teapotBuffer = arrayBuffer(teapotData.data)
 
-  mesh3.mode = GL_POINTS
+  mesh3.mode = GL_TRIANGLE_STRIP
   mesh3.numVertices = teapotData.data.len
   mesh3.buffers.position_os = teapotBuffer.view(position_os)
   mesh3.buffers.normal_os   = teapotBuffer.view(normal_os)
   mesh3.buffers.texCoord    = teapotBuffer.view(texCoord)
 
 
+
 var mesh4: MyMesh = mesh3
-mesh4.mode = GL_TRIANGLE_STRIP
+mesh4.mode = GL_POINTS # GL_TRIANGLE_STRIP
 
 
 
@@ -120,7 +124,7 @@ while runGame:
       of SCANCODE_2:
         currentMesh = mesh2
       of SCANCODE_3:
-        currentMesh.mode = 0
+        currentMesh = mesh3
         toggleB = true
       of SCANCODE_4:
         currentMesh.mode = 0
@@ -186,7 +190,7 @@ while runGame:
     if toggleB:
       currentMesh.render do (vertex, gl):
         var position_os = vertex.position_os
-        var tmp = 1 - fract(time * 2 + floor(float32(gl.VertexID) / 36.0f) * 1.235f)
+        var tmp = 1 - fract(time * 2)  # + floor(float32(gl.VertexID) / 36.0f) * 1.235f
         tmp *= tmp
         tmp *= tmp
         tmp *= tmp
@@ -224,7 +228,7 @@ while runGame:
 
       currentMesh.render do (vertex, gl):
         var position_os = vertex.position_os
-        var tmp = 1 - fract(time * 2 + floor(float32(gl.VertexID) / 36.0f) * 1.235f)
+        var tmp = 1 - fract(time * 2)  # + floor(float32(gl.VertexID) / 36.0f) * 1.235f
         tmp *= tmp
         tmp *= tmp
         tmp *= tmp
@@ -275,6 +279,7 @@ while runGame:
         color.b = float32((gl.VertexID and (3 shl 4)) shr 4) * 0.33f
 
         ## rasterize
-        result.color = color
+        #result.color = color
+        result.color = vertex.normal_os
 
   glSwapWindow(window)

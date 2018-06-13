@@ -246,17 +246,25 @@ static:
 
 const binomBuffer = buffer
 
-proc binom*(n,k: int): int =
+proc binomial*(n,k: int): int =
   binomBuffer[n][k]
 
+proc binomial*(n,k: float32): float32 =
+  float32(binomBuffer[int(n)][int(k)])
+
+
 when isMainModule:
-  doAssert binom(10,0) == 1
-  doAssert binom(10,10) == 1
-  doAssert binom(10,6) == 210
-  doAssert binom(49,6) == 13983816
+  doAssert binomial(10,0) == 1
+  doAssert binomial(10,10) == 1
+  doAssert binomial(10,6) == 210
+  doAssert binomial(49,6) == 13983816
 
 proc bernsteinPoly(i,n: int; u: float32): float32 =
-  result = binom(n,i).float32 * pow(u, float32(i)) * pow(1-u,float32(n-i))
+  echo "i:",i, " n:",n, " u:",u
+  result = binomial(n,i).float32 * pow(u, float32(i)) * pow(1-u,float32(n-i))
+
+
+converter tofloat32(arg: int): float32 = float32(arg)
 
 proc teapot*(grid: int32): tuple[data: seq[MyVertexType], indices: seq[int32]] =
 
@@ -270,26 +278,60 @@ proc teapot*(grid: int32): tuple[data: seq[MyVertexType], indices: seq[int32]] =
     s: array[4, array[4, Vec3f]]
 
   proc evalCoord[UN,VN](u,v: float32, controlPoints: array[UN, array[VN, Vec3f]]): MyVertexType =
+    assert low(UN) == 0
+    assert low(VN) == 0
 
     let texCoord = vec2f(u,v)
-    var position: Vec4f
+    var position: Vec3f
+    var position_du: Vec3f
+    var position_dv: Vec3f
 
-    for i in low(UN) .. high(UN):
-      for j in low(VN) .. high(VN):
+    var weightsU: array[UN, float32]
+    var weightsV: array[VN, float32]
+
+    let n = high(UN)
+    let m = high(VN)
+
+    for i, weight in weightsU.mpairs:
+      weight = pow(u, float32(i)) * pow(1-u,float32(n-i))
+    for j, weight in weightsV.mpairs:
+      weight = pow(v, float32(j)) * pow(1-v,float32(m-j))
+
+
+    for i in 0 .. n:
+      for j in 0 .. m:
         # bernstein
-        let Bi = binom(high(UN),i).float32 * pow(u, float32(i)) * pow(1-u,float32(high(UN)-i)) # bernsteinPoly(i,high(UN),u)
-        let Bj = binom(high(VN),j).float32 * pow(v, float32(j)) * pow(1-v,float32(high(VN)-j)) # bernsteinPoly(j,high(VN),v)
-        position.xyz += Bi * Bj * controlPoints[i][j]
+        let Bi = binomial(high(UN),i).float32 * weightsU[i] # bernsteinPoly(i,n,u)
+        let Bj = binomial(high(VN),j).float32 * weightsV[j] # bernsteinPoly(j,m,v)
+        let cp = controlPoints[i][j]
+        position += Bi * Bj * cp
 
-    position.w = 1
+        #[
+        # diff(bernstein_poly(i,n,u) * bernstein_poly(j,m,v) * controlPoints[i][j], u);
+        if i > 0:
+          position_du += cp*(bernstein_poly(i-1,n-1,u)-bernstein_poly(i,n-1,u))*bernstein_poly(j,m,v)*float32(n)
+        # diff(bernstein_poly(i,n,u) * bernstein_poly(j,m,v), v);
+        if j > 0:
+          position_dv += cp*bernstein_poly(i,n,u)*(bernstein_poly(j-1,m-1,v)-bernstein_poly(j,m-1,v))*float32(m)
+        ]#
 
-    # TODO normal not calculated yet
-    var normal: Vec4f
+        let i = float32(i)
+        let j = float32(j)
+        let n = float32(n)
+        let m = float32(m)
 
-    # diff(bernstein_poly(i,n,u) * bernstein_poly(j,m,v), u);
-    # diff(bernstein_poly(i,n,u) * bernstein_poly(j,m,v), v);
 
-    result = (position, normal, texCoord)
+        position_du +=
+          i * cp * binomial(m,j) * binomial(n,i) * pow(1-u,n-i) * pow(u,i-1) * pow(1-v,m-j) * pow(v,j) -
+              cp * binomial(m,j) * (n-i) * binomial(n,i) * pow(1-u,n-i-1) * pow(u,i) * pow(1-v, m-j) * pow(v,j)
+
+        position_dv +=
+          cp * j     * binomial(m,j) * binomial(n,i) * pow(1-u,n-i) * pow(u,i) * pow(1-v,m-j) * pow(v, j-1) -
+          cp * (m-j) * binomial(m,j) * binomial(n,i) * pow(1-u,n-i) * pow(u,i) * pow(1-v,m-j-1) * pow(v,j)
+
+    let normal = normalize(cross( position_du, position_dv ))
+
+    result = (vec4f(position,1), vec4f(normal,0), texCoord)
 
   proc evalMesh[UN,VN](controlPoints: array[UN, array[VN, Vec3f]], n: Vec2i, uv1, uv2: Vec2f): void =
     let
