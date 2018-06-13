@@ -103,6 +103,8 @@ var objRot  = mat4f(1).rotateX(0.5).rotateY(0.75)
 var viewRot = mat4f(1)
 var toggleA, toggleB: bool
 
+var renderMode: int = 0
+
 
 glPointSize(20)
 
@@ -125,9 +127,16 @@ while runGame:
         currentMesh = mesh2
       of SCANCODE_3:
         currentMesh = mesh3
-      of SCANCODE_4:
-        currentMesh.mode = 0
-        toggleB = false
+
+      of SCANCODE_F1:
+        renderMode = 0
+      of SCANCODE_F2:
+        renderMode = 1
+      of SCANCODE_F3:
+        renderMode = 2
+      of SCANCODE_F4:
+        renderMode = 3
+
       of SCANCODE_SPACE:
         toggleB = not toggleB
 
@@ -185,8 +194,15 @@ while runGame:
   glEnable(GL_DEPTH_TEST)
   glCullFace(GL_BACK)
 
-  if currentMesh.mode != 0:
+  block rendering:
+
+    let oldMode = currentMesh.mode
     if toggleB:
+      currentMesh.mode = GL_POINTS
+
+    case renderMode
+    of 0:
+
       currentMesh.render do (vertex, gl):
         var position_os = vertex.position_os
         var tmp = 1 - fract(time * 2)  # + floor(float32(gl.VertexID) / 36.0f) * 1.235f
@@ -220,7 +236,7 @@ while runGame:
         #result.color = textureSample * lighting
         #result.color = vec4f(fract(vertex.texCoord), 0, 1)
 
-    else:
+    of 1:
 
       let invV = inverse(V)
       let cameraPos_ws =     invV * vec4f(0,0,0,1)
@@ -247,9 +263,8 @@ while runGame:
 
         let alpha = (textureSample.r + textureSample.g + textureSample.b) * 0.3333
         result.color = mix(skySample, textureSample, alpha)
-  else:
-    if toggleB:
-      mesh3.renderDebug do (vertex, gl):
+    of 2:
+      currentMesh.render do (vertex, gl):
         var position_os = vec4f(vertex.position_os.xyz, 1)
         let position_ws = M*position_os
         let position_cs = V*position_ws
@@ -264,21 +279,19 @@ while runGame:
         ## rasterize
         result.color = color
 
-    else:
-      mesh4.renderDebug do (vertex, gl):
+    of 3:
+      currentMesh.renderDebug do (vertex, gl):
         var position_os = vec4f(vertex.position_os.xyz, 1)
         let position_ws = M*position_os
         let position_cs = V*position_ws
         gl.Position = P * position_cs
 
-        var color: Vec4f
-
-        color.r = float32((gl.VertexID and (3 shl 0)) shr 0) * 0.33f
-        color.g = float32((gl.VertexID and (3 shl 2)) shr 2) * 0.33f
-        color.b = float32((gl.VertexID and (3 shl 4)) shr 4) * 0.33f
-
         ## rasterize
-        #result.color = color
+
         result.color = vertex.normal_os
+    else:
+      discard
+
+    currentMesh.mode = oldMode
 
   glSwapWindow(window)
