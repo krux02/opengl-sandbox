@@ -259,10 +259,8 @@ when isMainModule:
   doAssert binomial(10,6) == 210
   doAssert binomial(49,6) == 13983816
 
-proc bernsteinPoly(i,n: int; u: float32): float32 =
-  echo "i:",i, " n:",n, " u:",u
-  result = binomial(n,i).float32 * pow(u, float32(i)) * pow(1-u,float32(n-i))
-
+proc bernsteinPoly(i,n, u: float32): float32 =
+  result = binomial(n,i) * pow(u, i) * pow(1-u, n-i)
 
 converter tofloat32(arg: int): float32 = float32(arg)
 
@@ -300,10 +298,15 @@ proc teapot*(grid: int32): tuple[data: seq[MyVertexType], indices: seq[int32]] =
 
     for i in 0 .. n:
       for j in 0 .. m:
-        # bernstein
-        let Bi = binomial(high(UN),i).float32 * weightsU[i] # bernsteinPoly(i,n,u)
-        let Bj = binomial(high(VN),j).float32 * weightsV[j] # bernsteinPoly(j,m,v)
         let cp = controlPoints[i][j]
+        let i = float32(i)
+        let j = float32(j)
+        let n = float32(n)
+        let m = float32(m)
+
+        # bernstein
+        let Bi = binomial(n,i) * weightsU[int(i)] # bernsteinPoly(i,n,u)
+        let Bj = binomial(m,j) * weightsV[int(j)] # bernsteinPoly(j,m,v)
         position += Bi * Bj * cp
 
         #[
@@ -315,21 +318,35 @@ proc teapot*(grid: int32): tuple[data: seq[MyVertexType], indices: seq[int32]] =
           position_dv += cp*bernstein_poly(i,n,u)*(bernstein_poly(j-1,m-1,v)-bernstein_poly(j,m-1,v))*float32(m)
         ]#
 
-        let i = float32(i)
-        let j = float32(j)
-        let n = float32(n)
-        let m = float32(m)
+        template kron_delta(a,b: float32): float32 =
+          if a == b: 1.0f else: 0.0f
 
+        if u == 0:
+          position_du +=
+            (kron_delta(0,i-1)-kron_delta(0,i))*cp*bernstein_poly(j,m,v) * n
+        elif u == 1:
+          position_du +=
+            (kron_delta(i-1,n-1)-kron_delta(i,n-1))*cp*bernstein_poly(j,m,v) * n
+        else:
+          position_du +=
+            i * cp * binomial(m,j) * binomial(n,i) * pow(1-u,n-i) * pow(u,i-1) * pow(1-v,m-j) * pow(v,j) -
+                cp * binomial(m,j) * (n-i) * binomial(n,i) * pow(1-u,n-i-1) * pow(u,i) * pow(1-v, m-j) * pow(v,j)
 
-        position_du +=
-          i * cp * binomial(m,j) * binomial(n,i) * pow(1-u,n-i) * pow(u,i-1) * pow(1-v,m-j) * pow(v,j) -
-              cp * binomial(m,j) * (n-i) * binomial(n,i) * pow(1-u,n-i-1) * pow(u,i) * pow(1-v, m-j) * pow(v,j)
+        if v == 0:
+          position_dv +=
+            (kron_delta(0,j-1)-kron_delta(0,j))*cp*bernstein_poly(i,n,u) * m
+        elif v == 1:
+          position_dv +=
+            cp*bernstein_poly(i,n,u)*(kron_delta(j-1,m-1)-kron_delta(j,m-1)) * m
+        else:
+          position_dv +=
+            cp * j     * binomial(m,j) * binomial(n,i) * pow(1-u,n-i) * pow(u,i) * pow(1-v,m-j) * pow(v, j-1) -
+            cp * (m-j) * binomial(m,j) * binomial(n,i) * pow(1-u,n-i) * pow(u,i) * pow(1-v,m-j-1) * pow(v,j)
 
-        position_dv +=
-          cp * j     * binomial(m,j) * binomial(n,i) * pow(1-u,n-i) * pow(u,i) * pow(1-v,m-j) * pow(v, j-1) -
-          cp * (m-j) * binomial(m,j) * binomial(n,i) * pow(1-u,n-i) * pow(u,i) * pow(1-v,m-j-1) * pow(v,j)
+    var normal = normalize(cross( position_du, position_dv ))
 
-    let normal = normalize(cross( position_du, position_dv ))
+    if normal != normal:
+      normal = vec3f(0,0,1)
 
     result = (vec4f(position,1), vec4f(normal,0), texCoord)
 

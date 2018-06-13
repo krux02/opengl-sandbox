@@ -125,7 +125,6 @@ while runGame:
         currentMesh = mesh2
       of SCANCODE_3:
         currentMesh = mesh3
-        toggleB = true
       of SCANCODE_4:
         currentMesh.mode = 0
         toggleB = false
