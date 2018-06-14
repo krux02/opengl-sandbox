@@ -252,7 +252,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       result = procSym.getImpl
       result.expectKind nnkProcDef
       result[3].expectKind nnkFormalParams
-      result[5].expectKind nnkBracket
+      #result[5].expectKind nnkBracket
 
       result[0] = procSym
       result[3] = procType[0]
@@ -670,8 +670,6 @@ proc create[FragmentType](result: var Framebuffer2[FragmentType]): void =
 
   let status = glCheckNamedFramebufferStatus(result.handle, GL_FRAMEBUFFER)
   assert status == GL_FRAMEBUFFER_COMPLETE
-
-  echo "creating framebuffer is ok"
 
 proc createFramebuffer*[FragmentType](size: Vec2i): Framebuffer2[FragmentType] =
   result.size = size

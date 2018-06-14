@@ -10,7 +10,6 @@ flycheck*
 .nfs*
 
 #binaries
-fancygl
 .vscode
 scratch
 /resolveAlias

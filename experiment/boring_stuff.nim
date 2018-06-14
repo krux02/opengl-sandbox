@@ -523,6 +523,7 @@ const glslConvProc* = [
 ]
 
 const glslBuiltInProcSecondary* = [
+  "[]",
   "and",
   "inc",
   "modulo",

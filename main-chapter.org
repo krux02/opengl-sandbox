@@ -14,6 +14,8 @@
 ** TODO matching the for construct
 
 ** TODO mention the reason to restrict the vertex type to tuple
+** TODO explain strided view
+
 * base example
 
 # Why I chose an example for explanation?

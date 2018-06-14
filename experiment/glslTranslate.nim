@@ -210,7 +210,14 @@ proc compileToGlslA*(result: var string; arg: NimNode): void =
       result.add ", "
     result[^2] = ')'
     result.add "{\n"
+    result.add glslType(resultSym.getTypeInst), " "
+    result.compileToGlsl(resultSym)
+    result.add ";\n"
     result.compileToGlsl(body)
+    if body.kind != nnkStmtList:
+      result.add ";\n"
+    result.add "return "
+    result.compileToGlsl(resultSym)
     result.add ";\n}\n"
   of {nnkIdent, nnkSym}:
     buffer = ""

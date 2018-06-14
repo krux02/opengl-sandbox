@@ -1,3 +1,6 @@
+
+import os, strutils
+
 import renderMacro
 
 import glm/noise
@@ -27,6 +30,7 @@ let (window, context) = defaultSetup()
 discard setRelativeMouseMode(true)
 
 let myTexture: Texture2D = loadTexture2DFromFile(getResourcePath("crate.png"))
+#[
 let skyTexture: TextureCubeMap = loadTextureCubeMapFromFiles([
   getResourcePath("skyboxes/darkskies/darkskies_rt.tga"),
   getResourcePath("skyboxes/darkskies/darkskies_lf.tga"),
@@ -35,6 +39,39 @@ let skyTexture: TextureCubeMap = loadTextureCubeMapFromFiles([
   getResourcePath("skyboxes/darkskies/darkskies_bk.tga"),
   getResourcePath("skyboxes/darkskies/darkskies_ft.tga"),
 ])
+]#
+
+var skyboxes : seq[TextureCubeMap] = @[]
+
+for kind, path in walkDir(getResourcePath("skyboxes")):
+  if kind == pcDir:
+    var names: array[6,string]
+
+    for kind, path in walkDir(path):
+      if kind == pcFile:
+        if path[^4] == '.':
+          let suffix = toLowerASCII(path[^3 .. ^1])
+          if suffix == "tga" or suffix == "jpg" or suffix == "png":
+            let suffix = toLowerASCII(path[^6 .. ^5])
+
+            let idx = find(["rt","lf","up","dn","bk","ft"], suffix)
+            if idx >= 0:
+              names[idx] = path
+            else:
+              echo "fail for ", suffix
+
+    if find(names,"") == -1:
+      skyboxes.add loadTextureCubeMapFromFiles(names)
+    else:
+      echo path, " (FAIL) ", names
+
+echo " loaded ", skyboxes.len, " cube map textures."
+
+var skyIndex = 0
+
+
+var skyTexture = skyboxes[0]
+
 
 glEnable(GL_CULL_FACE)
 glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS)
@@ -63,6 +100,7 @@ mesh2.buffers.texCoord    = tetraederArrayBuffer.view(texCoord)
 let P = perspective(45'f32, window.aspectRatio, 0.01, 100.0)
 
 var mesh3: MyMesh
+var mesh4: MyMesh
 
 block initTeapot:
   echo " creating teapot "
@@ -76,6 +114,8 @@ block initTeapot:
   # teapot 11 in 0.01723968s (precalculate bernstein polynom weights)
   # teapot 11 in 0.204542387s (added analytic normals)
   var teapotBuffer = arrayBuffer(teapotData.data)
+  for vertex in teapotData.data.mitems:
+    vertex.normal_os *= -1
 
   mesh3.mode = GL_TRIANGLE_STRIP
   mesh3.numVertices = teapotData.data.len
@@ -83,12 +123,16 @@ block initTeapot:
   mesh3.buffers.normal_os   = teapotBuffer.view(normal_os)
   mesh3.buffers.texCoord    = teapotBuffer.view(texCoord)
 
+  for vertex in teapotData.data.mitems:
+    vertex.position_os += vertex.normal_os * 0.05
 
+  teapotBuffer = arrayBuffer(teapotData.data)
 
-var mesh4: MyMesh = mesh3
-mesh4.mode = GL_POINTS # GL_TRIANGLE_STRIP
-
-
+  mesh4.mode = GL_TRIANGLE_STRIP
+  mesh4.numVertices = teapotData.data.len
+  mesh4.buffers.position_os = teapotBuffer.view(position_os)
+  mesh4.buffers.normal_os   = teapotBuffer.view(normal_os)
+  mesh4.buffers.texCoord    = teapotBuffer.view(texCoord)
 
 var lights: array[4,Light]
 lights[0].color = vec4f(1,0,1,1)
@@ -97,9 +141,10 @@ lights[2].color = vec4f(0,1,0,1)
 lights[3].color = vec4f(0,0,1,1)
 
 let timer = newStopWatch(true)
-var currentMesh = mesh3
+var currentMesh = mesh1
 
 var objRot  = mat4f(1).rotateX(0.5).rotateY(0.75)
+var objScale = 1.0f
 var viewRot = mat4f(1)
 var toggleA, toggleB: bool
 
@@ -107,6 +152,28 @@ var renderMode: int = 0
 
 
 glPointSize(20)
+
+
+proc normalTransform(n,p:Vec4f, invMV: Mat4f): Vec4f =
+  ## transforms normal vector in eye space
+  let q = if p.w == 0: 0.0f else: dot(p.xyz, n.xyz) / -p.w
+
+  result = vec4f(n.xyz, q) * invMV
+
+  # rescaling
+  let f = 1 / length(vec3f(invMV[0][2], invMV[1][2], invMV[2][2]))
+
+  result.xyz *= f
+
+  # normalization
+
+  result.xyz /= length(result.xyz)
+
+
+proc shear(arg: Mat4f; value: float32): Mat4f =
+  var tmp = mat4f(1)
+  tmp[0,1] = value
+  result = tmp * arg
 
 var runGame = true
 while runGame:
@@ -127,6 +194,8 @@ while runGame:
         currentMesh = mesh2
       of SCANCODE_3:
         currentMesh = mesh3
+      of SCANCODE_4:
+        currentMesh = mesh4
 
       of SCANCODE_F1:
         renderMode = 0
@@ -136,20 +205,27 @@ while runGame:
         renderMode = 2
       of SCANCODE_F4:
         renderMode = 3
+      of SCANCODE_F5:
+        renderMode = 4
 
       of SCANCODE_SPACE:
         toggleB = not toggleB
+
+      of SCANCODE_KP_PLUS:
+        skyIndex += 1
+        skyTexture = skyboxes[skyIndex mod skyboxes.len]
+
+      of SCANCODE_KP_MINUS:
+        skyIndex += skyboxes.high
+        skyTexture = skyboxes[skyIndex mod skyboxes.len]
+
 
       else:
         discard
     of MouseWheel:
       let alpha = float32(evt.wheel.x + evt.wheel.y) * 0.05
-      let rotMat = mat4f(1).rotateZ(alpha)
+      objScale *= (1 + alpha)
 
-      if toggleA:
-        viewRot = rotMat * viewRot
-      else:
-        objRot = rotMat * objRot
     of MouseMotion:
       let v = vec2(evt.motion.yrel.float32, evt.motion.xrel.float32)
       let alpha = v.length * 0.01
@@ -165,7 +241,7 @@ while runGame:
     else:
       discard
 
-  let M = objRot
+  let M = objRot.scale(objScale)
   let V = mat4f(1).translate( 0, 0, -7) * viewRot
 
   let time = float32(timer.time)
@@ -178,23 +254,48 @@ while runGame:
   glDisable(GL_DEPTH_TEST)
   glCullFace(GL_FRONT)
 
+  # render skybox
   render(mesh1) do (vertex, gl):
     var position_os = vec4(vertex.position_os.xyz, 0)
     let position_cs = V*position_os
     gl.Position = P * position_cs
-
-    #let normal_cs   = inverse(transpose(V*M)) * vertex.normal_os
-
     ## rasterize
-
-    #var textureSample = texture(myTexture, vertex.texCoord)
-    var textureSample = texture(skyTexture, vertex.position_os.xyz)
-    result.color = textureSample
+    result.color = texture(skyTexture, vertex.position_os.xyz)
 
   glEnable(GL_DEPTH_TEST)
   glCullFace(GL_BACK)
 
   block rendering:
+    let beat = floor(time * 2)
+    let beatFract = fract(time * 2)
+    let subBeat = floor(beat) * 0.25
+
+    let M =
+      if int(beat) mod 4 == 0:
+        var shearMat = mat4f(1)
+        let idx = int(subBeat) mod 6
+
+        if   idx == 0:
+          shearmat[0,1] = beatFract
+        elif idx == 1:
+          shearmat[0,2] = beatFract
+        elif idx == 2:
+          shearmat[1,0] = beatFract
+        elif idx == 3:
+          shearmat[1,2] = beatFract
+        elif idx == 4:
+          shearmat[2,0] = beatFract
+        elif idx == 5:
+          shearmat[2,1] = beatFract
+
+        shearMat * M
+      else:
+        var tmp = 1 - beatFract  # + floor(float32(gl.VertexID) / 36.0f) * 1.235f
+        tmp *= tmp
+        tmp *= tmp
+        tmp *= tmp
+        tmp = 1 + tmp * 0.125
+        M.scale(tmp)
 
     let oldMode = currentMesh.mode
     if toggleB:
@@ -202,18 +303,17 @@ while runGame:
 
     case renderMode
     of 0:
-
       currentMesh.render do (vertex, gl):
         var position_os = vertex.position_os
-        var tmp = 1 - fract(time * 2)  # + floor(float32(gl.VertexID) / 36.0f) * 1.235f
-        tmp *= tmp
-        tmp *= tmp
-        tmp *= tmp
-        position_os.xyz *= 1 + tmp * 0.125
         let position_ws = M*position_os
         let position_cs = V*position_ws
         gl.Position = P * position_cs
-        let normal_cs   = inverse(transpose(V*M)) * vertex.normal_os
+        let normal_cs : Vec4f = normalTransform(
+          vertex.normal_os,
+          vertex.position_os,
+          inverse(V*M)
+        )
+
 
         ## rasterize
 
@@ -243,15 +343,16 @@ while runGame:
 
       currentMesh.render do (vertex, gl):
         var position_os = vertex.position_os
-        var tmp = 1 - fract(time * 2)  # + floor(float32(gl.VertexID) / 36.0f) * 1.235f
-        tmp *= tmp
-        tmp *= tmp
-        tmp *= tmp
-        position_os.xyz *= 1 + tmp * 0.125
         let position_ws = M*position_os
         let position_cs = V*position_ws
         gl.Position = P * position_cs
-        let normal_cs   = inverse(transpose(V*M)) * vertex.normal_os
+
+
+        var normal_cs : Vec4f = normalTransform(
+          vertex.normal_os,
+          vertex.position_os,
+          inverse(V*M)
+        )
 
         ## rasterize
 
@@ -280,15 +381,32 @@ while runGame:
         result.color = color
 
     of 3:
-      currentMesh.renderDebug do (vertex, gl):
+      currentMesh.render do (vertex, gl):
         var position_os = vec4f(vertex.position_os.xyz, 1)
         let position_ws = M*position_os
         let position_cs = V*position_ws
         gl.Position = P * position_cs
 
         ## rasterize
-
         result.color = vertex.normal_os
+
+    of 4:
+      currentMesh.render do (vertex, gl):
+
+        var position_os = vec4f(vertex.position_os.xyz, 1)
+        let position_ws = M*position_os
+        let position_cs = V*position_ws
+        gl.Position = P * position_cs
+
+        let normal_cs : Vec4f = normalTransform(
+          vertex.normal_os,
+          vertex.position_os,
+          inverse(V*M)
+        )
+
+        ## rasterize
+
+        result.color = normal_cs
     else:
       discard
 
