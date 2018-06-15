@@ -303,6 +303,12 @@ proc teapot*(grid: int32): tuple[data: seq[MyVertexType], indices: seq[int32]] =
     for j, weight in weightsV.mpairs:
       weight = pow(v, float32(j)) * pow(1-v,float32(m-j))
 
+    #template bernsteinPoly(i,n,u: untyped): untyped =
+    #  if i < 0 or n < i:
+    #    0.0f
+    #  else:
+    #    binomial(n,i) * weightsU[int(i)]
+
     for i in 0 .. n:
       for j in 0 .. m:
         let cp = controlPoints[i][j]

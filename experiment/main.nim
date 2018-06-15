@@ -113,6 +113,9 @@ block initTeapot:
   # teapot 11 in 0.0349098s   (more details)
   # teapot 11 in 0.01723968s (precalculate bernstein polynom weights)
   # teapot 11 in 0.204542387s (added analytic normals)
+  # teapot 11 in 0.060911777s (use precalculated weights also for normals)
+  # teapot 11 in 0.074394525s (precalculated weights don't work as expected :[ )
+
   var teapotBuffer = arrayBuffer(teapotData.data)
   for vertex in teapotData.data.mitems:
     vertex.normal_os *= -1
@@ -150,9 +153,7 @@ var toggleA, toggleB: bool
 
 var renderMode: int = 0
 
-
 glPointSize(20)
-
 
 proc normalTransform(n,p:Vec4f, invMV: Mat4f): Vec4f =
   ## transforms normal vector in eye space
@@ -270,32 +271,34 @@ while runGame:
     let beatFract = fract(time * 2)
     let subBeat = floor(beat) * 0.25
 
-    let M =
-      if int(beat) mod 4 == 0:
-        var shearMat = mat4f(1)
-        let idx = int(subBeat) mod 6
 
-        if   idx == 0:
-          shearmat[0,1] = beatFract
-        elif idx == 1:
-          shearmat[0,2] = beatFract
-        elif idx == 2:
-          shearmat[1,0] = beatFract
-        elif idx == 3:
-          shearmat[1,2] = beatFract
-        elif idx == 4:
-          shearmat[2,0] = beatFract
-        elif idx == 5:
-          shearmat[2,1] = beatFract
 
-        shearMat * M
-      else:
-        var tmp = 1 - beatFract  # + floor(float32(gl.VertexID) / 36.0f) * 1.235f
-        tmp *= tmp
-        tmp *= tmp
-        tmp *= tmp
-        tmp = 1 + tmp * 0.125
-        M.scale(tmp)
+    # let M =
+    #   if int(beat) mod 4 == 0:
+    #     var shearMat = mat4f(1)
+    #     let idx = int(subBeat) mod 6
+
+    #     if   idx == 0:
+    #       shearmat[0,1] = beatFract
+    #     elif idx == 1:
+    #       shearmat[0,2] = beatFract
+    #     elif idx == 2:
+    #       shearmat[1,0] = beatFract
+    #     elif idx == 3:
+    #       shearmat[1,2] = beatFract
+    #     elif idx == 4:
+    #       shearmat[2,0] = beatFract
+    #     elif idx == 5:
+    #       shearmat[2,1] = beatFract
+
+    #     shearMat * M
+    #   else:
+    #     var tmp = 1 - beatFract  # + floor(float32(gl.VertexID) / 36.0f) * 1.235f
+    #     tmp *= tmp
+    #     tmp *= tmp
+    #     tmp *= tmp
+    #     tmp = 1 + tmp * 0.125
+    #     M.scale(tmp)
 
     let oldMode = currentMesh.mode
     if toggleB:
