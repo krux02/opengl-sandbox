@@ -1,48 +1,3 @@
-
-#[ Copyright (c) Mark J. Kilgard, 1994, 2001. ]#
-
-#[
-(c) Copyright 1993, Silicon Graphics, Inc.
-
-ALL RIGHTS RESERVED
-
-Permission to use, copy, modify, and distribute this software
-for any purpose and without fee is hereby granted, provided
-that the above copyright notice appear in all copies and that
-both the copyright notice and this permission notice appear in
-supporting documentation, and that the name of Silicon
-Graphics, Inc. not be used in advertising or publicity
-pertaining to distribution of the software without specific,
-written prior permission.
-
-THE MATERIAL EMBODIED ON THIS SOFTWARE IS PROVIDED TO YOU
-"AS-IS" AND WITHOUT WARRANTY OF ANY KIND, EXPRESS, IMPLIED OR
-OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY WARRANTY OF
-MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.  IN NO
-EVENT SHALL SILICON GRAPHICS, INC.  BE LIABLE TO YOU OR ANYONE
-ELSE FOR ANY DIRECT, SPECIAL, INCIDENTAL, INDIRECT OR
-CONSEQUENTIAL DAMAGES OF ANY KIND, OR ANY DAMAGES WHATSOEVER,
-INCLUDING WITHOUT LIMITATION, LOSS OF PROFIT, LOSS OF USE,
-SAVINGS OR REVENUE, OR THE CLAIMS OF THIRD PARTIES, WHETHER OR
-NOT SILICON GRAPHICS, INC.  HAS BEEN ADVISED OF THE POSSIBILITY
-OF SUCH LOSS, HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-ARISING OUT OF OR IN CONNECTION WITH THE POSSESSION, USE OR
-PERFORMANCE OF THIS SOFTWARE.
-
-US Government Users Restricted Rights
-
-Use, duplication, or disclosure by the Government is subject to
-restrictions set forth in FAR 52.227.19(c)(2) or subparagraph
-(c)(1)(ii) of the Rights in Technical Data and Computer
-Software clause at DFARS 252.227-7013 and/or in similar or
-successor clauses in the FAR or the DOD or NASA FAR
-Supplement.  Unpublished-- rights reserved under the copyright
-laws of the United States.  Contractor/manufacturer is Silicon
-Graphics, Inc., 2011 N.  Shoreline Blvd., Mountain View, CA
-94039-7311.
-]#
-
-
 #[ Rim, body, lid, and bottom data must be reflected in x and
    y; handle and spout data across the y axis only.  ]#
 
@@ -272,7 +227,26 @@ proc bernsteinPoly(i,n, u: float32): float32 =
 
 converter tofloat32(arg: int): float32 = float32(arg)
 
+
+
+proc bernsteinPoly(i,n: float32, powU, powOneMinusU: openarray[float32]): float32 =
+  if i < 0 or n < i:
+    return 0.0
+  else:
+    return binomial(n,i) * powU[int(i)] * powOneMinusU[int(n-i)]
+
+proc precalcPowers(arg: var openarray[float32], value: float32): void =
+  arg[0] = 1.0f
+  for i in 1 ..< arg.len:
+    arg[i] = arg[i-1] * value
+
 proc teapot*(grid: int32): tuple[data: seq[MyVertexType], indices: seq[int32]] =
+  ## this is not the fastest implementation of the teapot, but it is a
+  ## direct port of the glutTeapot, that was originally written with
+  ## the OpenGL fixed function pipeline, that is not available anymore
+  ## in core OpenGL.  I implemented those features according to the
+  ## OpenGL 1.5 specification, to get the exact same result as the
+  ## glutTeapot.
 
   var data: seq[MyVertexType]
   var indices: seq[int32]
@@ -295,37 +269,42 @@ proc teapot*(grid: int32): tuple[data: seq[MyVertexType], indices: seq[int32]] =
     var weightsU: array[UN, float32]
     var weightsV: array[VN, float32]
 
-    let n = high(UN)
-    let m = high(VN)
+    let n = int(high(UN))
+    let m = int(high(VN))
 
-    for i, weight in weightsU.mpairs:
-      weight = pow(u, float32(i)) * pow(1-u,float32(n-i))
-    for j, weight in weightsV.mpairs:
-      weight = pow(v, float32(j)) * pow(1-v,float32(m-j))
+    var powU:         array[UN, float32]
+    var powOneMinusU: array[UN, float32]
+    var powV:         array[VN, float32]
+    var powOneMinusV: array[VN, float32]
 
-    #template bernsteinPoly(i,n,u: untyped): untyped =
-    #  if i < 0 or n < i:
-    #    0.0f
-    #  else:
-    #    binomial(n,i) * weightsU[int(i)]
+    precalcPowers(powU, u)
+    precalcPowers(powOneMinusU, 1-u)
+    precalcPowers(powV, v)
+    precalcPowers(powOneMinusV, 1-v)
 
     for i in 0 .. n:
       for j in 0 .. m:
         let cp = controlPoints[i][j]
+
         let i = float32(i)
         let j = float32(j)
         let n = float32(n)
         let m = float32(m)
 
         # bernstein
-        let Bi = binomial(n,i) * weightsU[int(i)] # bernsteinPoly(i,n,u)
-        let Bj = binomial(m,j) * weightsV[int(j)] # bernsteinPoly(j,m,v)
+        let Bi = bernsteinPoly(i,n, powU, powOneMinusU)
+        let Bj = bernsteinPoly(j,m, powV, powOneMinusV)
         position += Bi * Bj * cp
 
         # diff(bernstein_poly(i,n,u) * bernstein_poly(j,m,v) * cp, u);
-        position_du += cp*(bernstein_poly(i-1,n-1,u)-bernstein_poly(i,n-1,u))*bernstein_poly(j,m,v)*float32(n)
+        let a = bernstein_poly(i-1,n-1, powU, powOneMinusU)
+        let b = bernstein_poly(i,n-1,powU, powOneMinusU)
+        position_du += cp*(a-b)*Bj*n
+
         # diff(bernstein_poly(i,n,u) * bernstein_poly(j,m,v) * cp, v);
-        position_dv += cp*bernstein_poly(i,n,u)*(bernstein_poly(j-1,m-1,v)-bernstein_poly(j,m-1,v))*float32(m)
+        let c = bernstein_poly(j-1,m-1,powV, powOneMinusV)
+        let d = bernstein_poly(j,m-1,powV, powOneMinusV)
+        position_dv += cp*Bi*(c-d)*float32(m)
 
     var normal = normalize(cross( position_du, position_dv ))
 

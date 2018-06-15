@@ -115,7 +115,8 @@ block initTeapot:
   # teapot 11 in 0.204542387s (added analytic normals)
   # teapot 11 in 0.060911777s (use precalculated weights also for normals)
   # teapot 11 in 0.074394525s (precalculated weights don't work as expected :[ )
-
+  # teapot 11 in 0.066273446s (reuse one vertex)
+  # teapot 11 in 0.058945103s (use precalc powers in normals)
   var teapotBuffer = arrayBuffer(teapotData.data)
   for vertex in teapotData.data.mitems:
     vertex.normal_os *= -1
