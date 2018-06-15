@@ -259,8 +259,16 @@ when isMainModule:
   doAssert binomial(10,6) == 210
   doAssert binomial(49,6) == 13983816
 
+
+template kron_delta(a,b: float32): float32 =
+  if a == b: 1.0f else: 0.0f
+
+
 proc bernsteinPoly(i,n, u: float32): float32 =
-  result = binomial(n,i) * pow(u, i) * pow(1-u, n-i)
+  if i < 0 or n < i:
+    return 0.0
+  else:
+    return binomial(n,i) * pow(u, i) * pow(1-u, n-i)
 
 converter tofloat32(arg: int): float32 = float32(arg)
 
@@ -295,7 +303,6 @@ proc teapot*(grid: int32): tuple[data: seq[MyVertexType], indices: seq[int32]] =
     for j, weight in weightsV.mpairs:
       weight = pow(v, float32(j)) * pow(1-v,float32(m-j))
 
-
     for i in 0 .. n:
       for j in 0 .. m:
         let cp = controlPoints[i][j]
@@ -309,44 +316,15 @@ proc teapot*(grid: int32): tuple[data: seq[MyVertexType], indices: seq[int32]] =
         let Bj = binomial(m,j) * weightsV[int(j)] # bernsteinPoly(j,m,v)
         position += Bi * Bj * cp
 
-        #[
-        # diff(bernstein_poly(i,n,u) * bernstein_poly(j,m,v) * controlPoints[i][j], u);
-        if i > 0:
-          position_du += cp*(bernstein_poly(i-1,n-1,u)-bernstein_poly(i,n-1,u))*bernstein_poly(j,m,v)*float32(n)
-        # diff(bernstein_poly(i,n,u) * bernstein_poly(j,m,v), v);
-        if j > 0:
-          position_dv += cp*bernstein_poly(i,n,u)*(bernstein_poly(j-1,m-1,v)-bernstein_poly(j,m-1,v))*float32(m)
-        ]#
-
-        template kron_delta(a,b: float32): float32 =
-          if a == b: 1.0f else: 0.0f
-
-        if u == 0:
-          position_du +=
-            (kron_delta(0,i-1)-kron_delta(0,i))*cp*bernstein_poly(j,m,v) * n
-        elif u == 1:
-          position_du +=
-            (kron_delta(i-1,n-1)-kron_delta(i,n-1))*cp*bernstein_poly(j,m,v) * n
-        else:
-          position_du +=
-            i * cp * binomial(m,j) * binomial(n,i) * pow(1-u,n-i) * pow(u,i-1) * pow(1-v,m-j) * pow(v,j) -
-                cp * binomial(m,j) * (n-i) * binomial(n,i) * pow(1-u,n-i-1) * pow(u,i) * pow(1-v, m-j) * pow(v,j)
-
-        if v == 0:
-          position_dv +=
-            (kron_delta(0,j-1)-kron_delta(0,j))*cp*bernstein_poly(i,n,u) * m
-        elif v == 1:
-          position_dv +=
-            cp*bernstein_poly(i,n,u)*(kron_delta(j-1,m-1)-kron_delta(j,m-1)) * m
-        else:
-          position_dv +=
-            cp * j     * binomial(m,j) * binomial(n,i) * pow(1-u,n-i) * pow(u,i) * pow(1-v,m-j) * pow(v, j-1) -
-            cp * (m-j) * binomial(m,j) * binomial(n,i) * pow(1-u,n-i) * pow(u,i) * pow(1-v,m-j-1) * pow(v,j)
+        # diff(bernstein_poly(i,n,u) * bernstein_poly(j,m,v) * cp, u);
+        position_du += cp*(bernstein_poly(i-1,n-1,u)-bernstein_poly(i,n-1,u))*bernstein_poly(j,m,v)*float32(n)
+        # diff(bernstein_poly(i,n,u) * bernstein_poly(j,m,v) * cp, v);
+        position_dv += cp*bernstein_poly(i,n,u)*(bernstein_poly(j-1,m-1,v)-bernstein_poly(j,m-1,v))*float32(m)
 
     var normal = normalize(cross( position_du, position_dv ))
 
     if normal != normal:
-      normal = vec3f(0,0,1)
+      normal = vec3f(0,0,0)
 
     result = (vec4f(position,1), vec4f(normal,0), texCoord)
 
