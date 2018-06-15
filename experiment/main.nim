@@ -54,7 +54,7 @@ for kind, path in walkDir(getResourcePath("skyboxes")):
           if suffix == "tga" or suffix == "jpg" or suffix == "png":
             let suffix = toLowerASCII(path[^6 .. ^5])
 
-            let idx = find(["rt","lf","up","dn","bk","ft"], suffix)
+            let idx = find(["ft","bk","up","dn","rt","lf"], suffix)
             if idx >= 0:
               names[idx] = path
             else:
