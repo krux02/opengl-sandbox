@@ -20,7 +20,10 @@ static:
   let empty = newEmptyNode()
 
 proc deduplicate(arg: var seq[NimNode]): void =
+  let l = arg.len
   arg = sequtils.deduplicate(arg)
+  if arg.len != l:
+    echo "reomved something from", arg.repr
 
 proc symKind(arg: NimNode): NimSymKind =
   if arg.kind == nnkHiddenDeref:
@@ -58,6 +61,10 @@ proc debugUniformBlock*(program: Program, blockIndex: GLuint): void =
     glGetActiveUniform(program.handle, GLuint(uniformIndex), GLsizei(256), newLen.addr, size.addr, typ.addr, name[0].addr)
     name.setLen newLen
     echo "  ", name, "\toffset: ", offsets[i]
+
+proc addIfNew[T](s: var seq[T], item:T): void =
+  if item notin s:
+    s.add item
 
 macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
@@ -125,13 +132,14 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       elif symKind in {nskLet, nskVar, nskForVar}:
         usedVarLetSymbols.add sym
       elif symKind == nskType:
-        usedTypes.add sym.normalizeType
+        usedTypes.addIfNew sym.normalizeType
       else:
-        symCollection.add sym
+        symCollection.addIfNew sym
 
     usedVarLetSymbols.deduplicate
     for sym in usedVarLetSymbols:
-      usedTypes.add sym.getTypeInst.normalizeType
+      usedTypes.addIfNew sym.getTypeInst.normalizeType
+    echo "usedTypes"
     usedTypes.deduplicate
 
     var typesToGenerate = newSeq[NimNode](0)
@@ -141,6 +149,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       if tpe.eqIdent "Light":
         typesToGenerate.add tpe
 
+    echo "symCollection"
     symCollection.deduplicate   # TODO unused(symCollection)
 
     var localSymbolsVS: seq[NimNode] = @[]
@@ -155,14 +164,15 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     var attributesFromVS = newSeq[NimNode](0)
     vertexPart.matchAstRecursive:
     of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == vertexSym:
-      attributesFromVS.add attribAccess
+      if attribAccess notin attributesFromVS:
+        attributesFromVS.add attribAccess
     of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == glSym:
       discard
     of `sym` @ nnkSym |= sym.symKind in {nskLet, nskVar} and sym notin localSymbolsVS:
       if sym.isSampler:
         uniformSamplers.add sym
       else:
-        uniformRest.add sym
+        uniformRest.addIfNew sym
     # TODO this is O(n^2), why does sortAndUnique fail?
     attributesFromVS.deduplicate
 
@@ -187,12 +197,13 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         if sym.isSampler:
           uniformSamplers.add sym
         else:
-          uniformRest.add sym
+          uniformRest.addIfNew sym
 
     of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == glSym:
       discard
     of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == vertexSym:
-      attributesFromFS.add attribAccess
+      if attribAccess notin attributesFromFS:
+        attributesFromFS.add attribAccess
 
     attributesFromFS.deduplicate
     simpleVaryings.deduplicate
@@ -202,6 +213,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     ## split uniforms into texture/sampler uniforms and non-texture uniforms
 
     var allAttributes = attributesFromVS & attributesFromFS
+    echo "allAttributes"
     allAttributes.deduplicate
     let allVaryings   = simpleVaryings & attributesFromFS
 

@@ -42,6 +42,7 @@ let skyTexture: TextureCubeMap = loadTextureCubeMapFromFiles([
 ]#
 
 var skyboxes : seq[TextureCubeMap] = @[]
+var skyboxNames : seq[string] = @[]
 
 for kind, path in walkDir(getResourcePath("skyboxes")):
   if kind == pcDir:
@@ -61,7 +62,13 @@ for kind, path in walkDir(getResourcePath("skyboxes")):
               echo "fail for ", suffix
 
     if find(names,"") == -1:
+      let path0 = names[0]
+      let idx = rfind(path0, '/') + 1
+      let name = path0[idx .. ^7]
+
       skyboxes.add loadTextureCubeMapFromFiles(names)
+      skyboxNames.add name
+      echo "loaded ", name
     else:
       echo path, " (FAIL) ", names
 
@@ -272,8 +279,6 @@ while runGame:
     let beatFract = fract(time * 2)
     let subBeat = floor(beat) * 0.25
 
-
-
     # let M =
     #   if int(beat) mod 4 == 0:
     #     var shearMat = mat4f(1)
@@ -317,7 +322,6 @@ while runGame:
           vertex.position_os,
           inverse(V*M)
         )
-
 
         ## rasterize
 
