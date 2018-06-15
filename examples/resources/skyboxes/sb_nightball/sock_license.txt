@@ -1,0 +1,3 @@
+For all Sock ('sb_') skyboxes:
+------------------------------
+Distributed under the CC license 'Attribution-Noncommercial-Share Alike 3.0'
