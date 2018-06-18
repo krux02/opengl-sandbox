@@ -26,8 +26,10 @@ genMeshType(MyMesh, MyVertexType)
 
 genMeshType(ControlPointMesh, tuple[position_os: Vec3f])
 
-let (window, context) = defaultSetup(vec2i(640,480))
+#let (window, context) = defaultSetup(vec2i(640,480))
+let (window, context) = defaultSetup()
 discard setRelativeMouseMode(true)
+
 
 let myTexture: Texture2D = loadTexture2DFromFile(getResourcePath("crate.png"))
 #[
@@ -44,43 +46,69 @@ let skyTexture: TextureCubeMap = loadTextureCubeMapFromFiles([
 var skyboxes : seq[TextureCubeMap] = @[]
 var skyboxNames : seq[string] = @[]
 
-block loadTextures:
-  var timerFull = newStopWatch(true)
+block uitarenuiatren:
   for kind, path in walkDir(getResourcePath("skyboxes")):
     if kind == pcDir:
-      let timer = newStopWatch(true)
-      var names: array[6,string]
-      for kind, path in walkDir(path):
-        if kind == pcFile:
-          if path[^4] == '.':
-            let suffix = toLowerASCII(path[^3 .. ^1])
-            if suffix == "tga" or suffix == "jpg" or suffix == "png":
+      skyboxNames.add path
+  skyboxes.setLen skyboxNames.len
 
-              let suffix = toLowerASCII(path[^6 .. ^5])
+proc loadTextureCubeMapFromDir(path: string): TextureCubeMap =
+  let timer = newStopWatch(true)
+  var names: array[6,string]
+  for kind, path in walkDir(path):
+    if kind == pcFile:
+      if path[^4] == '.':
+        let suffix = toLowerASCII(path[^3 .. ^1])
+        if suffix == "tga" or suffix == "jpg" or suffix == "png":
 
-              let idx = find(["ft","bk","up","dn","rt","lf"], suffix)
-              if idx >= 0:
-                names[idx] = path
-              else:
-                echo path, ":"
-                echo "fail for ", suffix
+          let suffix = toLowerASCII(path[^6 .. ^5])
 
-      if find(names,"") == -1:
-        let path0 = names[0]
-        let idx = rfind(path0, '/') + 1
-        let name = path0[idx .. ^8]
+          let idx = find(["ft","bk","up","dn","rt","lf"], suffix)
+          if idx >= 0:
+            names[idx] = path
+          else:
+            echo path, ":"
+            echo "fail for ", suffix
 
-        skyboxes.add loadTextureCubeMapFromFiles(names)
-        skyboxNames.add name
-        echo "loaded skybox ", alignLeft(name, 20), " in ", timer.time, "s."
-      else:
-        echo path, " (FAIL) ", names
+  if find(names,"") == -1:
+    let path0 = names[0]
+    let idx = rfind(path0, '/') + 1
+    let name = path0[idx .. ^8]
 
-  echo " loaded ", skyboxes.len, " cube map textures in ", timerFull.time, "s."
+    result = loadTextureCubeMapFromFiles(names)
+  else:
+    echo "failed to load texture cube map from dir: ", path
 
-var skyIndex = 0
+var skyIndex: int
 
-var skyTexture = skyboxes[0]
+
+block findInterstellar:
+  for i, path in skyboxNames:
+    if path[rfind(path, '/')+1 ..< path.len] == "interstellar":
+      skyIndex = i
+      break findInterstellar
+
+var skyTexture: TextureCubeMap
+
+proc lazyLoadCurrentSkybox(): void =
+  let path = skyboxNames[skyIndex]
+  if skyboxes[skyIndex].handle == 0:
+    echo "loading ", path
+    var timer = newStopWatch(true)
+    skyboxes[skyIndex] = loadTextureCubeMapFromDir(path)
+    echo timer.time, "s"
+  skyTexture = skyboxes[skyIndex]
+  window.title = path[rfind(path, '/')+1 ..< path.len]
+
+proc nextSky(): void =
+  skyIndex =   (skyIndex + 1) mod skyboxes.len
+  lazyLoadCurrentSkybox()
+
+proc prevSky(): void =
+  skyIndex = (skyIndex + skyboxes.high) mod skyboxes.len
+  lazyLoadCurrentSkybox()
+
+lazyLoadCurrentSkybox()
 
 glEnable(GL_CULL_FACE)
 glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS)
@@ -126,9 +154,32 @@ block initTeapot:
   # teapot 11 in 0.074394525s (precalculated weights don't work as expected :[ )
   # teapot 11 in 0.066273446s (reuse one vertex)
   # teapot 11 in 0.058945103s (use precalc powers in normals)
-  var teapotBuffer = arrayBuffer(teapotData.data)
+
+  # fixing teapot normals, very hacky
+
+
+  var position_os_mean: Vec4f
   for vertex in teapotData.data.mitems:
+    # I don't know why normals are flipped
+    position_os_mean += vertex.position_os
+
+  position_os_mean /= position_os_mean.w
+  position_os_mean.w = 1.0f
+
+  echo position_os_mean
+
+  for vertex in teapotData.data.mitems:
+    # I don't know why normals are flipped
     vertex.normal_os *= -1
+    position_os_mean += vertex.position_os
+
+    if not (length(vertex.normal_os) > 0.5f):
+      vertex.normal_os.xyz =
+        normalize(vertex.position_os.xyz - position_os_mean.xyz)
+      echo vertex
+
+
+  var teapotBuffer = arrayBuffer(teapotData.data)
 
   mesh3.mode = GL_TRIANGLE_STRIP
   mesh3.numVertices = teapotData.data.len
@@ -220,14 +271,10 @@ while runGame:
         toggleB = not toggleB
 
       of SCANCODE_KP_PLUS:
-        skyIndex =   (skyIndex + 1) mod skyboxes.len
-        skyTexture = skyboxes[skyIndex]
-        window.title = skyboxNames[skyIndex]
+        nextSky()
 
       of SCANCODE_KP_MINUS:
-        skyIndex = (skyIndex + skyboxes.high) mod skyboxes.len
-        skyTexture = skyboxes[skyIndex]
-        window.title = skyboxNames[skyIndex]
+        prevSky()
 
       else:
         discard
@@ -362,6 +409,8 @@ while runGame:
           inverse(V*M)
         )
 
+        let fresnel = max(normal_cs.z,0)
+
         ## rasterize
 
         var textureSample = texture(myTexture, vertex.texCoord)
@@ -370,8 +419,7 @@ while runGame:
         let dir_ws = invV * dir_cs
         var skySample = texture(skyTexture, dir_ws.xyz)
 
-        let alpha = (textureSample.r + textureSample.g + textureSample.b) * 0.3333
-        result.color = mix(skySample, textureSample, alpha)
+        result.color = mix(skySample, textureSample, fresnel)
     of 2:
       currentMesh.render do (vertex, gl):
         var position_os = vec4f(vertex.position_os.xyz, 1)
