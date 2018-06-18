@@ -26,7 +26,7 @@ genMeshType(MyMesh, MyVertexType)
 
 genMeshType(ControlPointMesh, tuple[position_os: Vec3f])
 
-let (window, context) = defaultSetup()
+let (window, context) = defaultSetup(vec2i(640,480))
 discard setRelativeMouseMode(true)
 
 let myTexture: Texture2D = loadTexture2DFromFile(getResourcePath("crate.png"))
@@ -44,41 +44,43 @@ let skyTexture: TextureCubeMap = loadTextureCubeMapFromFiles([
 var skyboxes : seq[TextureCubeMap] = @[]
 var skyboxNames : seq[string] = @[]
 
-for kind, path in walkDir(getResourcePath("skyboxes")):
-  if kind == pcDir:
-    var names: array[6,string]
+block loadTextures:
+  var timerFull = newStopWatch(true)
+  for kind, path in walkDir(getResourcePath("skyboxes")):
+    if kind == pcDir:
+      let timer = newStopWatch(true)
+      var names: array[6,string]
+      for kind, path in walkDir(path):
+        if kind == pcFile:
+          if path[^4] == '.':
+            let suffix = toLowerASCII(path[^3 .. ^1])
+            if suffix == "tga" or suffix == "jpg" or suffix == "png":
 
-    for kind, path in walkDir(path):
-      if kind == pcFile:
-        if path[^4] == '.':
-          let suffix = toLowerASCII(path[^3 .. ^1])
-          if suffix == "tga" or suffix == "jpg" or suffix == "png":
-            let suffix = toLowerASCII(path[^6 .. ^5])
+              let suffix = toLowerASCII(path[^6 .. ^5])
 
-            let idx = find(["ft","bk","up","dn","rt","lf"], suffix)
-            if idx >= 0:
-              names[idx] = path
-            else:
-              echo "fail for ", suffix
+              let idx = find(["ft","bk","up","dn","rt","lf"], suffix)
+              if idx >= 0:
+                names[idx] = path
+              else:
+                echo path, ":"
+                echo "fail for ", suffix
 
-    if find(names,"") == -1:
-      let path0 = names[0]
-      let idx = rfind(path0, '/') + 1
-      let name = path0[idx .. ^7]
+      if find(names,"") == -1:
+        let path0 = names[0]
+        let idx = rfind(path0, '/') + 1
+        let name = path0[idx .. ^8]
 
-      skyboxes.add loadTextureCubeMapFromFiles(names)
-      skyboxNames.add name
-      echo "loaded ", name
-    else:
-      echo path, " (FAIL) ", names
+        skyboxes.add loadTextureCubeMapFromFiles(names)
+        skyboxNames.add name
+        echo "loaded skybox ", alignLeft(name, 20), " in ", timer.time, "s."
+      else:
+        echo path, " (FAIL) ", names
 
-echo " loaded ", skyboxes.len, " cube map textures."
+  echo " loaded ", skyboxes.len, " cube map textures in ", timerFull.time, "s."
 
 var skyIndex = 0
 
-
 var skyTexture = skyboxes[0]
-
 
 glEnable(GL_CULL_FACE)
 glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS)
@@ -178,12 +180,6 @@ proc normalTransform(n,p:Vec4f, invMV: Mat4f): Vec4f =
 
   result.xyz /= length(result.xyz)
 
-
-proc shear(arg: Mat4f; value: float32): Mat4f =
-  var tmp = mat4f(1)
-  tmp[0,1] = value
-  result = tmp * arg
-
 var runGame = true
 while runGame:
   for evt in events():
@@ -217,17 +213,21 @@ while runGame:
       of SCANCODE_F5:
         renderMode = 4
 
+      of SCANCODE_DELETE:
+        echo "delete this: ", skyboxNames[skyIndex]
+
       of SCANCODE_SPACE:
         toggleB = not toggleB
 
       of SCANCODE_KP_PLUS:
-        skyIndex += 1
-        skyTexture = skyboxes[skyIndex mod skyboxes.len]
+        skyIndex =   (skyIndex + 1) mod skyboxes.len
+        skyTexture = skyboxes[skyIndex]
+        window.title = skyboxNames[skyIndex]
 
       of SCANCODE_KP_MINUS:
-        skyIndex += skyboxes.high
-        skyTexture = skyboxes[skyIndex mod skyboxes.len]
-
+        skyIndex = (skyIndex + skyboxes.high) mod skyboxes.len
+        skyTexture = skyboxes[skyIndex]
+        window.title = skyboxNames[skyIndex]
 
       else:
         discard

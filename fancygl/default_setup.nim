@@ -1,5 +1,18 @@
 # included from fancygl.nim
 
+
+#proc write*(f: File, c: cstring)
+
+proc debugCallbackPrintMessage(
+    source: GLenum,
+    `type`: GLenum,
+    id: GLuint,
+    severity: GLenum,
+    length: GLsizei,
+    message: cstring,
+    userParam: pointer): void {. cdecl .} =
+  stdout.styledWriteLine(fgYellow, message)
+
 proc debugCallback(
     source: GLenum,
     `type`: GLenum,
@@ -8,6 +21,8 @@ proc debugCallback(
     length: GLsizei,
     message: cstring,
     userParam: pointer): void {. cdecl .} =
+
+
 
   echo "gl-debug-callback:"
   echo "  message: ", message
@@ -61,14 +76,15 @@ proc debugCallback(
     echo "medium"
   of GL_DEBUG_SEVERITY_HIGH_ARB:
     echo "high"
-  #of GL_DEBUG_SEVERITY_NOTIFICATION:
-  #  echo "notification"
+  of GL_DEBUG_SEVERITY_NOTIFICATION:
+    echo "notification"
   else:
     echo "¿ ", severity.int, " ?"
 
 proc enableDefaultDebugCallback*() =
   glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB)
-  glDebugMessageCallbackARB(cast[GLdebugProc](debugCallback), nil);
+  #glDebugMessageCallbackARB(cast[GLdebugProc](debugCallback), nil)
+  glDebugMessageCallbackARB(cast[GLdebugProc](debugCallbackPrintMessage), nil)
 
 proc defaultSetupInternal(windowsize: Vec2i; windowTitle: string): tuple[window: Window, context: GlContext] =
   discard sdl.init(INIT_EVERYTHING)
