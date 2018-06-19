@@ -67,8 +67,8 @@ proc loadTextureCubeMapFromDir(path: string): TextureCubeMap =
           if idx >= 0:
             names[idx] = path
           else:
-            echo path, ":"
-            echo "fail for ", suffix
+            echo "can't do anything with ", path, "."
+            echo "It does not end on ft/bk/up/dn/rt/lf, therefore ignored"
 
   if find(names,"") == -1:
     let path0 = names[0]
@@ -157,46 +157,21 @@ block initTeapot:
 
   # fixing teapot normals, very hacky
 
-
-  var position_os_mean: Vec4f
-  for vertex in teapotData.data.mitems:
-    # I don't know why normals are flipped
-    position_os_mean += vertex.position_os
-
-  position_os_mean /= position_os_mean.w
-  position_os_mean.w = 1.0f
-
-  echo position_os_mean
-
-  for vertex in teapotData.data.mitems:
-    # I don't know why normals are flipped
-    vertex.normal_os *= -1
-    position_os_mean += vertex.position_os
-
-    if not (length(vertex.normal_os) > 0.5f):
-      vertex.normal_os.xyz =
-        normalize(vertex.position_os.xyz - position_os_mean.xyz)
-      echo vertex
-
-
   var teapotBuffer = arrayBuffer(teapotData.data)
 
   mesh3.mode = GL_TRIANGLE_STRIP
-  mesh3.numVertices = teapotData.data.len
   mesh3.buffers.position_os = teapotBuffer.view(position_os)
   mesh3.buffers.normal_os   = teapotBuffer.view(normal_os)
   mesh3.buffers.texCoord    = teapotBuffer.view(texCoord)
+  mesh3.elementBuffer       = elementArrayBuffer(teapotData.indices)
+  mesh3.numVertices         = teapotData.indices.len
 
-  for vertex in teapotData.data.mitems:
-    vertex.position_os += vertex.normal_os * 0.05
+  var displacedPositions = newSeq[Vec4f](teapotData.data.len)
+  for i, vertex in teapotData.data.mpairs:
+    displacedPositions[i] = vertex.position_os + vertex.normal_os * 0.05
 
-  teapotBuffer = arrayBuffer(teapotData.data)
-
-  mesh4.mode = GL_TRIANGLE_STRIP
-  mesh4.numVertices = teapotData.data.len
-  mesh4.buffers.position_os = teapotBuffer.view(position_os)
-  mesh4.buffers.normal_os   = teapotBuffer.view(normal_os)
-  mesh4.buffers.texCoord    = teapotBuffer.view(texCoord)
+  mesh4 = mesh3
+  mesh4.buffers.position_os = arrayBuffer(displacedPositions)
 
 var lights: array[4,Light]
 lights[0].color = vec4f(1,0,1,1)
@@ -219,23 +194,49 @@ glPointSize(20)
 proc normalTransform(n,p:Vec4f, invMV: Mat4f): Vec4f =
   ## transforms normal vector in eye space
   let q = if p.w == 0: 0.0f else: dot(p.xyz, n.xyz) / -p.w
-
   result = vec4f(n.xyz, q) * invMV
-
   # rescaling
   let f = 1 / length(vec3f(invMV[0][2], invMV[1][2], invMV[2][2]))
-
   result.xyz *= f
-
   # normalization
-
   result.xyz /= length(result.xyz)
+
+# DO NOT MULTIPLY BY COS THETA
+proc shadingSpecularGGX(N, V, L: Vec3f; roughness: float32; F0: Vec3f): Vec3f =
+  # ported from material/shader/glow-material/material-ggx.glsl
+  # see http://www.filmicworlds.com/2014/04/21/optimizing-ggx-shaders-with-dotlh/
+  let H = normalize(V + L);
+
+  let dotLH = max(dot(L, H), 0.0f);
+  let dotNH = max(dot(N, H), 0.0f);
+  let dotNL = max(dot(N, L), 0.0f);
+  let dotNV = max(dot(N, V), 0.0f);
+
+  let alpha = roughness * roughness;
+
+  # D (GGX normal distribution)
+  let alphaSqr = alpha * alpha;
+  let denom = dotNH * dotNH * (alphaSqr - 1.0f) + 1.0f;
+  let D = alphaSqr / (denom * denom);
+  # no pi because BRDF -> lighting
+
+  # F (Fresnel term)
+  let F_a = 1.0f;
+  let F_b = pow(1.0f - dotLH, 5.0f); # manually?
+  let F = mix(vec3f(F_b), vec3f(F_a), F0);
+
+  # G (remapped hotness, see Unreal Shading)
+  let k = (alpha + 2 * roughness + 1) / 8.0;
+  let G = dotNL / (mix(dotNL, 1, k) * mix(dotNV, 1, k));
+  # '* dotNV' - canceled by normalization
+
+  return D * F * G / 4.0;
 
 var runGame = true
 while runGame:
   for evt in events():
     case evt.kind:
-    of QUIT:
+    of Quit:
       runGame = false
       break
     of KeyDown:
@@ -419,7 +420,7 @@ while runGame:
         let dir_ws = invV * dir_cs
         var skySample = texture(skyTexture, dir_ws.xyz)
 
-        result.color = mix(skySample, textureSample, fresnel)
+        result.color = mix(skySample, vec4(vec3(fresnel), 1.0f), fresnel)
     of 2:
       currentMesh.render do (vertex, gl):
         var position_os = vec4f(vertex.position_os.xyz, 1)

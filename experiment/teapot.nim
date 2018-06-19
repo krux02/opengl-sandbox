@@ -248,8 +248,8 @@ proc teapot*(grid: int32): tuple[data: seq[MyVertexType], indices: seq[int32]] =
   ## OpenGL 1.5 specification, to get the exact same result as the
   ## glutTeapot.
 
-  var data: seq[MyVertexType]
-  var indices: seq[int32]
+  var data: seq[MyVertexType] = @[]
+  var indices: seq[int32] = @[]
 
   var
     p: array[4, array[4, Vec3f]]
@@ -306,10 +306,7 @@ proc teapot*(grid: int32): tuple[data: seq[MyVertexType], indices: seq[int32]] =
         let d = bernstein_poly(j,m-1,powV, powOneMinusV)
         position_dv += cp*Bi*(c-d)*float32(m)
 
-    var normal = normalize(cross( position_du, position_dv ))
-
-    if normal != normal:
-      normal = vec3f(0,0,0)
+    var normal = cross(position_du, position_dv)
 
     result = (vec4f(position,1), vec4f(normal,0), texCoord)
 
@@ -325,13 +322,30 @@ proc teapot*(grid: int32): tuple[data: seq[MyVertexType], indices: seq[int32]] =
       du = (u2 - u1) / float32(un)
       dv = (v2 - v1) / float32(vn)
 
-    var grid = createGrid[MyVertexType](n + 1)
+    let baseIndex = data.len
+
+    let gridWidth = n.x+1
 
     for i in 0 .. un:
       for j in 0 .. vn:
         let u = u1 + float32(i) * du
         let v = v1 + float32(j) * dv
-        grid[vec2i(i,j)] = evalCoord(u, v, controlPoints)
+        data.add evalCoord(u, v, controlPoints)
+
+    # for i in 0 ..< un:
+    #   # glEvalMesh2(typ, 0, grid, 0, grid)
+    #   # glBegin( GL_Triangle_STRIP )
+
+    #   for j in 0 .. vn:
+    #     let idx = vec2i(int32(i),int32(j))
+    #     data.add grid[idx + vec2i(0,0)]
+    #     if j == 0:
+    #       data.add data[^1]
+    #     data.add grid[idx + vec2i(1,0)]
+    #     if j == vn:
+    #       data.add data[^1]
+
+    #   #glEnd( GL_QUAD_STRIP )
 
     for i in 0 ..< un:
       # glEvalMesh2(typ, 0, grid, 0, grid)
@@ -339,14 +353,17 @@ proc teapot*(grid: int32): tuple[data: seq[MyVertexType], indices: seq[int32]] =
 
       for j in 0 .. vn:
         let idx = vec2i(int32(i),int32(j))
-        data.add grid[idx + vec2i(0,0)]
+        indices.add int32(baseIndex + j + gridWidth * i)
         if j == 0:
-          data.add data[^1]
-        data.add grid[idx + vec2i(1,0)]
+          # repeat first vertex of strip
+          indices.add indices[^1]
+        indices.add int32(baseIndex + j + gridWidth * (i+1))
         if j == vn:
-          data.add data[^1]
+          # repeat last vertext of strip
+          indices.add indices[^1]
 
       #glEnd( GL_QUAD_STRIP )
+
 
   for i in 0 ..< 10:
     for j in 0 ..< 4:
@@ -374,4 +391,20 @@ proc teapot*(grid: int32): tuple[data: seq[MyVertexType], indices: seq[int32]] =
       evalMesh(s, vec2i(grid), vec2f(0), vec2f(1))
 
 
+
+  # some post process fixes for correct normals (specific to this mesh)
+  for vertex in data.mitems:
+    # I don't know why normals are flipped
+    vertex.normal_os *= -1
+    # normals at the top and at the bottom are undefined because
+    # control points overlap
+    if vertex.position_os.xy == vec2f(0):
+      if vertex.position_os.z == 0:
+        vertex.normal_os = vec4f(0,0,-1,0)
+      else:
+        vertex.normal_os = vec4f(0,0, 1,0)
+    else:
+      vertex.normal_os = normalize(vertex.normal_os)
+
+  echo "teapot datalen: ", data.len
   return (data, indices)
