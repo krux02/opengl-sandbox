@@ -107,6 +107,9 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     var symCollection = newSeq[NimNode](0)
     var usedTypes = newSeq[NimNode](0)
 
+    var uniformSamplers = newSeq[NimNode](0)
+    var uniformRest = newSeq[NimNode](0)
+
     proc processProcSym(sym: NimNode): void =
       # TODO: this is not really correct, it only checks for names.
 
@@ -116,11 +119,27 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       if not isBuiltIn and sym notin usedProcSymbols:
         let implBody = sym.getImpl[6]
 
+        var localSymbols = newSeq[NimNode](0)
+
         implBody.matchAstRecursive:
         of `call` @ nnkCall |= call[0].kind == nnkSym and call[0].symKind == nskProc:
           processProcSym(call[0])
-          discard
 
+        of `section` @ {nnkVarSection, nnkLetSection}:
+          for sym, _ in section.fieldValuePairs:
+            localSymbols.add sym
+            usedTypes.addIfNew sym.getTypeInst.normalizeType
+
+        of `sym` @ nnkSym:
+          if sym.symKind in {nskLet,nskVar}:
+            if sym notin localSymbols:
+              if sym.isSampler:
+                uniformSamplers.addIfNew sym
+              else:
+                uniformRest.addIfNew sym
+
+          elif sym.symKind == nskType:
+            usedTypes.addIfNew sym.normalizeType
 
         usedProcSymbols.add sym
 
@@ -130,7 +149,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       if symKind == nskProc:
         processProcSym(sym)
       elif symKind in {nskLet, nskVar, nskForVar}:
-        usedVarLetSymbols.add sym
+        usedVarLetSymbols.addIfNew sym
       elif symKind == nskType:
         usedTypes.addIfNew sym.normalizeType
       else:
@@ -139,8 +158,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     usedVarLetSymbols.deduplicate
     for sym in usedVarLetSymbols:
       usedTypes.addIfNew sym.getTypeInst.normalizeType
-    echo "usedTypes"
-    usedTypes.deduplicate
 
     var typesToGenerate = newSeq[NimNode](0)
     for tpe in usedTypes:
@@ -149,8 +166,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       if tpe.eqIdent "Light":
         typesToGenerate.add tpe
 
-    echo "symCollection"
-    symCollection.deduplicate   # TODO unused(symCollection)
+    # TODO unused(symCollection)
 
     var localSymbolsVS: seq[NimNode] = @[]
     vertexPart.matchAstRecursive:
@@ -158,14 +174,10 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       for sym, _ in section.fieldValuePairs:
         localSymbolsVS.add sym
 
-    var uniformSamplers = newSeq[NimNode](0)
-    var uniformRest = newSeq[NimNode](0)
-
     var attributesFromVS = newSeq[NimNode](0)
     vertexPart.matchAstRecursive:
     of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == vertexSym:
-      if attribAccess notin attributesFromVS:
-        attributesFromVS.add attribAccess
+      attributesFromVS.addIfNew attribAccess
     of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == glSym:
       discard
     of `sym` @ nnkSym |= sym.symKind in {nskLet, nskVar} and sym notin localSymbolsVS:
@@ -213,8 +225,10 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     ## split uniforms into texture/sampler uniforms and non-texture uniforms
 
     var allAttributes = attributesFromVS & attributesFromFS
-    echo "allAttributes"
+    echo "allAttributes["
     allAttributes.deduplicate
+    echo "]"
+
     let allVaryings   = simpleVaryings & attributesFromFS
 
     ############################################################################
@@ -274,7 +288,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       if sym.strVal != "inc":
         let impl = sym.getProcImpl
         sharedCode.compileToGlsl(impl)
-        #let impl = sym.getProcImpl
 
     ############################################################################
     ########################## generate vertex shader ##########################

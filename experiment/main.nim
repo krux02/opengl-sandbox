@@ -179,6 +179,15 @@ lights[1].color = vec4f(1,0,0,1)
 lights[2].color = vec4f(0,1,0,1)
 lights[3].color = vec4f(0,0,1,1)
 
+proc calcBaseLighting(V: Mat4f, position_cs, normal_cs: Vec4f): Vec4f =
+  result = vec4f(0.2f)
+  for light in lights:
+    let light_position_cs = V * light.position_ws
+    let light_direction_cs = light_position_cs-position_cs
+    let light_distance = length(position_cs - light_position_cs)
+    let light_intensity = max(dot(light_direction_cs, normal_cs), 0) * max((10 - light_distance) * 0.1f, 0)
+    result += light_intensity * light.color
+
 let timer = newStopWatch(true)
 var currentMesh = mesh1
 
@@ -373,13 +382,8 @@ while runGame:
 
         ## rasterize
 
-        var lighting: Vec4f = vec4f(0.2f)
-        for light in lights:
-          let light_position_cs = V * light.position_ws
-          let light_direction_cs = light_position_cs-position_cs
-          let light_distance = length(position_cs - light_position_cs)
-          let light_intensity = max(dot(light_direction_cs, normal_cs), 0) * max((10 - light_distance) * 0.1f, 0)
-          lighting += light_intensity * light.color
+        let lighting = calcBaseLighting(V, position_cs, normal_cs)
+
 
         var n: Vec2f
         n.x = simplex( position_ws.xyz * 7 + vec3(time, 0, 0))
@@ -402,7 +406,6 @@ while runGame:
         let position_ws = M*position_os
         let position_cs = V*position_ws
         gl.Position = P * position_cs
-
 
         var normal_cs : Vec4f = normalTransform(
           vertex.normal_os,

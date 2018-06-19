@@ -155,9 +155,35 @@ when isMainModule:
 
 proc compileToGlsl*(result: var string; arg: NimNode): void
 
-var buffer: string
 
-proc compileToGlslA*(result: var string; arg: NimNode): void =
+static:
+  var buffer: string = ""
+  var procCache: seq[tuple[sym: NimNode; code: string]] = @[]
+
+proc compileProcToGlsl(result: var string; arg: NimNode): void {.compileTime.} =
+  matchAst(arg):
+  of nnkProcDef(`nameSym`, _, _, `params` @ nnkFormalParams, _, _, `body`, `resultSym`):
+    result.add glslType(params[0]), " "
+    result.compileToGlsl(nameSym)
+    result.add "("
+    for memberSym, typeSym in params.fields:
+      result.add glslType(typeSym), " "
+      result.compileToGlsl(memberSym)
+      result.add ", "
+    result[^2] = ')'
+    result.add "{\n"
+    result.add glslType(resultSym.getTypeInst), " "
+    result.compileToGlsl(resultSym)
+    result.add ";\n"
+    result.compileToGlsl(body)
+    if body.kind != nnkStmtList:
+      result.add ";\n"
+    result.add "return "
+    result.compileToGlsl(resultSym)
+    result.add ";\n}\n"
+
+
+proc compileToGlslA*(result: var string; arg: NimNode): void {.compileTime} =
   arg.matchAst(errorSym):
   of {nnkFloat32Lit,nnkFloat64Lit,nnkFloatLit}:
     result.add arg.floatVal
@@ -200,27 +226,20 @@ proc compileToGlslA*(result: var string; arg: NimNode): void =
       result.add ";\n"
   of nnkStmtListExpr( nnkCommentStmt, `expr`):
     result.compileToGlsl expr
-  of nnkProcDef(`nameSym`, nnkEmpty, nnkEmpty, `params` @ nnkFormalParams, nnkEmpty, nnkEmpty, `body`, `resultSym`):
-    result.add glslType(params[0]), " "
-    result.compileToGlsl(nameSym)
-    result.add "("
-    for memberSym, typeSym in params.fields:
-      result.add glslType(typeSym), " "
-      result.compileToGlsl(memberSym)
-      result.add ", "
-    result[^2] = ')'
-    result.add "{\n"
-    result.add glslType(resultSym.getTypeInst), " "
-    result.compileToGlsl(resultSym)
-    result.add ";\n"
-    result.compileToGlsl(body)
-    if body.kind != nnkStmtList:
-      result.add ";\n"
-    result.add "return "
-    result.compileToGlsl(resultSym)
-    result.add ";\n}\n"
+  of nnkProcDef:
+    let argSym = arg[0]
+    argSym.expectKind nnkSym
+    for sym, code in procCache.items:
+      if sym == argSym:
+        result.add code
+        return
+
+    var code: string = ""
+    code.compileProcToGlsl(arg)
+    procCache.add((argSym, code))
+    result.add code
   of {nnkIdent, nnkSym}:
-    buffer = ""
+    buffer.setLen 0
     for c in arg.repr:
       if c != '_': # underscore is my personal separator
         buffer.add c
