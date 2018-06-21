@@ -381,9 +381,7 @@ while runGame:
         )
 
         ## rasterize
-
         let lighting = calcBaseLighting(V, position_cs, normal_cs)
-
 
         var n: Vec2f
         n.x = simplex( position_ws.xyz * 7 + vec3(time, 0, 0))

@@ -110,6 +110,14 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     var uniformSamplers = newSeq[NimNode](0)
     var uniformRest = newSeq[NimNode](0)
 
+
+    proc processType(node: NimNode): void =
+      ## Append the normalized version of `node` to `usedTypes` if
+      ## necessary.
+      let normalizedType = node.normalizeType
+      if not normalizedType.isBuiltIn:
+        usedTypes.addIfNew normalizedType
+
     proc processProcSym(sym: NimNode): void =
       # TODO: this is not really correct, it only checks for names.
 
@@ -128,7 +136,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         of `section` @ {nnkVarSection, nnkLetSection}:
           for sym, _ in section.fieldValuePairs:
             localSymbols.add sym
-            usedTypes.addIfNew sym.getTypeInst.normalizeType
+            processType(sym.getTypeInst)
 
         of `sym` @ nnkSym:
           if sym.symKind in {nskLet,nskVar}:
@@ -139,7 +147,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
                 uniformRest.addIfNew sym
 
           elif sym.symKind == nskType:
-            usedTypes.addIfNew sym.normalizeType
+            processType(sym)
 
         usedProcSymbols.add sym
 
@@ -151,20 +159,12 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       elif symKind in {nskLet, nskVar, nskForVar}:
         usedVarLetSymbols.addIfNew sym
       elif symKind == nskType:
-        usedTypes.addIfNew sym.normalizeType
+        processType(sym)
       else:
         symCollection.addIfNew sym
 
-    usedVarLetSymbols.deduplicate
     for sym in usedVarLetSymbols:
-      usedTypes.addIfNew sym.getTypeInst.normalizeType
-
-    var typesToGenerate = newSeq[NimNode](0)
-    for tpe in usedTypes:
-      # TODO, well this is not really a correct filtering mechanism for gathering types.
-      # There must be a smartey way to find out what is defined in glsl and what is not.
-      if tpe.eqIdent "Light":
-        typesToGenerate.add tpe
+      processType(sym.getTypeInst)
 
     # TODO unused(symCollection)
 
@@ -225,9 +225,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     ## split uniforms into texture/sampler uniforms and non-texture uniforms
 
     var allAttributes = attributesFromVS & attributesFromFS
-    echo "allAttributes["
     allAttributes.deduplicate
-    echo "]"
 
     let allVaryings   = simpleVaryings & attributesFromFS
 
@@ -239,7 +237,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     # generate types
     sharedCode.add "// types section\n"
-    for tpe in typesToGenerate:
+    for tpe in usedTypes:
       let impl = tpe.getTypeImpl
 
       impl.matchAst:

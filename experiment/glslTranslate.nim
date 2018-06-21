@@ -17,13 +17,33 @@ proc isSampler*(arg: NimNode): bool =
     return true
   of ident"Texture3D":
     return true
+  of ident"Texture1DArray":
+    return true
+  of ident"Texture2DArray":
+    return true
+  of ident"TextureRectangle":
+    return true
   of ident"TextureCubeMap":
+    return true
+  of ident"TextureCubeMapArray":
+    return true
+  of ident"TextureBuffer":
+    return true
+  of ident"Texture2DMultisample":
+    return true
+  of ident"Texture2DMultisampleArray":
+    return true
+  of ident"Texture1DShadow":
     return true
   of ident"Texture2DShadow":
     return true
   of ident"TextureCubeShadow":
     return true
-  of ident"Texture2DArray":
+  of ident"TextureCubeArrayShadow":
+    return true
+  of ident"Texture2DRectShadow":
+    return true
+  of ident"Texture1DArrayShadow":
     return true
   of ident"Texture2DArrayShadow":
     return true

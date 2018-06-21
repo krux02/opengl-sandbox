@@ -532,6 +532,55 @@ const glslBuiltInProcSecondary* = [
   "shr",
 ]
 
+const scalarTypeNames* = [
+  "bool",
+  "float",
+  "float32",
+  "float64",
+  "int32",
+  "uint32",
+]
+
+const samplerTypeNames* = [
+  "Texture1D",
+  "Texture1DArray",
+  "Texture1DArrayShadow",
+  "Texture1DShadow",
+  "Texture2D",
+  "Texture2DArray",
+  "Texture2DArrayShadow",
+  "Texture2DMultisample",
+  "Texture2DMultisampleArray",
+  "Texture2DRectShadow",
+  "Texture2DShadow",
+  "Texture3D",
+  "TextureBuffer",
+  "TextureCubeArrayShadow",
+  "TextureCubeMap",
+  "TextureCubeMapArray",
+  "TextureCubeShadow",
+  "TextureRectangle",
+]
+
+proc isBuiltIn*(sym: NimNode): bool {.compileTime.} =
+  sym.expectKind({nnkSym,nnkBracketExpr})
+  case sym.kind:
+  of nnkBracketExpr:
+    if sym[0].eqIdent("Vec"):
+      return true
+    if sym[0].eqIdent("Mat"):
+      return true
+  of nnkSym:
+    let typename = sym.strVal
+    if binarySearch(samplerTypeNames, typename) >= 0:
+      return true
+    if binarySearch(scalarTypeNames, typename) >= 0:
+      return true
+  else:
+    discard
+
+  return false
+
 proc isBuiltIn*(procName: string): bool {.compileTime.} =
 
   if binarySearch(glslBuiltInProc, procName) >= 0 :
