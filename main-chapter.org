@@ -29,6 +29,31 @@ leaving several draws with the identical uniform data.  This leads to
 the situation that all object that should be drawn at different
 locations end to be rendered all at the exact same location.
 
+** instance array
+
+A special kind of loop that initializes some local variables and then
+renders from those local variables.  But in reality it creates an
+attribute buffer for all used local variables and renders everything
+is just one draw call.
+
+Here is some pseudo code, but this loop in a loop should be compiled
+with automatic data serialization to a single draw call.
+
+#+BEGIN_SRC nim
+
+for mesh in mymeshes:
+  let numInstances = 10
+  let a = 123
+  let #[ ... some locals ... ]#
+  for instance in mesh.instanciate(numInstances):
+    let b = 321
+    let #[ ... some other locals ... ]#
+    mesh.render (v, gl) do:
+      result.color.r = a
+      result.color.g = b
+
+#+END_SRC
+
 * base example
 
 # Why I chose an example for explanation?
