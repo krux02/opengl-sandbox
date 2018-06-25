@@ -49,19 +49,18 @@ block init:
       newVertices, newNormals, newColors: openarray[Vec4f];
       newIndices: openarray[int16]): void =
 
-    var elementBuffer: DynamicElementArrayBuffer
+    var indices: DynamicElementArrayBuffer
     ## This is like ElementArrayBuffer, but it does not store at
     ## compile time the type of the elements.  The type is stored as a
     ## member in the field `typ`.
-    #elementBuffer.handle     = indices.handle
-    elementBuffer.typ        = GL_UNSIGNED_SHORT
-    elementBuffer.baseVertex = verticesSeq.len
-    elementBuffer.baseIndex  = indicesSeq.len
 
-    meshes[id].numVertices  = newIndices.len
-    meshes[id].elementBuffer = elementBuffer
-    meshes[id].numVertices   = newIndices.len
-    meshes[id].mode          = GL_TRIANGLES
+    indices.typ         = GL_UNSIGNED_SHORT
+    indices.baseIndex   = indicesSeq.len
+    indices.baseVertex  = verticesSeq.len
+    indices.numVertices = newIndices.len
+    indices.mode        = GL_TRIANGLES
+
+    meshes[id].vertexIndices = indices
 
     verticesSeq.add(newVertices)
     normalsSeq.add(newNormals)
@@ -138,7 +137,7 @@ block init:
   let indices = elementArrayBuffer(indicesSeq)
 
   for mesh in meshes.mitems:
-    mesh.elementBuffer  = indices
+    mesh.vertexIndices.handle  = indices.handle
     mesh.buffers.vertex = vertices
     mesh.buffers.normal = normals
     mesh.buffers.color  = colors
@@ -155,9 +154,9 @@ type Position = tuple[position: Vec4f]
 genMeshType(PlaneMesh, Position)
 
 var planeMesh: PlaneMesh
-planeMesh.mode = GL_TRIANGLES
 planeMesh.buffers.position = planeVertices
-planeMesh.numVertices = planeVertices.len
+planeMesh.vertexIndices.mode = GL_TRIANGLES
+planeMesh.vertexIndices.numVertices = planeVertices.len
 
 # for each mesh create one node in the world to Draw it there
 var worldNodes : array[IdMesh, WorldNode] = [
@@ -183,6 +182,8 @@ for x in noiseArray.mitems:
 
 
 var timer = newStopWatch(true)
+
+var currentMeshId : IdMesh
 
 while runGame:
   frame += 1
@@ -218,9 +219,10 @@ while runGame:
   worldNodes[Idtorus].turnRelativeY(noiseArray[19])
   worldNodes[Idtorus].turnRelativeZ(noiseArray[20])
 
-  # the plane on the ground is rotating the camera is still.  It
+  # The plane on the ground is rotating the camera is still.  It
   # really provides the illusion the camera would rotate around the
   # shapes though
+
   planeNode.turnAbsoluteZ(0.0001)
 
   for evt in events():
@@ -236,6 +238,12 @@ while runGame:
       of SCANCODE_F10:
         window.screenshot
 
+      of SCANCODE_KP_PLUS:
+        currentMeshId = IdMesh((ord(currentMeshId) + 1) mod (ord(high(IdMesh)) + 1))
+
+      of SCANCODE_KP_MINUS:
+        currentMeshId = IdMesh((ord(currentMeshId) + ord(high(IdMesh))) mod (ord(high(IdMesh)) + 1))
+
       else:
         discard
 
@@ -246,8 +254,11 @@ while runGame:
 
   glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, 1, "a")
 
-  for i, node in worldNodes:
-    let mesh = meshes[IdCylinder]
+  #for i, node in worldNodes:
+  #  let mesh = meshes[IdTorus]
+  block renderWorldNodes:
+    let node = worldNodes[currentMeshId]
+    let mesh = meshes[currentMeshId]
 
     let proj = projection_mat
     let modelView = camera.viewMat * node.modelMat
@@ -258,57 +269,9 @@ while runGame:
       ## rasterize
       result.color = normal_cs.z * v.color
 
-    break
+    #break
 
   glPopDebugGroup()
-
-  #[
-
-  for i, node in worldNodes:
-    let mesh = meshes[i]
-
-    let proj = projection_mat
-    let modelView = camera.viewMat * node.modelMat
-
-
-    shadingDsl:
-      primitiveMode = mesh.mode
-      numVertices = mesh.numVertices
-      vertexOffset = mesh.elementBuffer.baseIndex
-      baseVertex = mesh.elementBuffer.baseVertex
-      indices = mesh.elementBuffer
-
-      uniforms:
-        proj = projection_mat
-        modelView = camera.viewMat * node.modelMat
-        magic
-
-      attributes:
-        a_vertex = vertices
-        a_normal = normals
-        a_color  = colors
-
-      vertexMain:
-        """
-        gl_Position = proj * modelView * a_vertex;
-        v_vertex = a_vertex;
-        v_normal = modelView * a_normal;
-        v_color = a_color;
-        """
-      vertexOut:
-        "out vec4 v_vertex"
-        "out vec4 v_normal"
-        "out vec4 v_color"
-
-      fragmentMain:
-        """
-        // cheap fake lighting from camera direction
-        color = v_color * v_normal.z;
-        """
-    break
-    ]#
-
-
 
   let modelViewProj = projection_mat * camera.viewMat * planeNode.modelMat
 

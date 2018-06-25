@@ -554,16 +554,22 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         `initCode`
 
 
-      glVertexArrayElementBuffer(`pSym`.vao.handle, `mesh`.elementBuffer.handle)
+      glVertexArrayElementBuffer(`pSym`.vao.handle, `mesh`.vertexIndices.handle)
       glUseProgram(`pSym`.program.handle)
       glBindVertexArray(`pSym`.vao.handle)
 
       `drawCode`
+
+      # this could really be generic
       let numVertices = GLsizei(`mesh`.len)
-      if `mesh`.elementBuffer.handle == 0:
-        glDrawArrays(`mesh`.mode, 0, numVertices)
+      if `mesh`.vertexIndices.handle == 0:
+        glDrawArrays(`mesh`.vertexIndices.mode, 0, numVertices)
       else:
-        glDrawElements(`mesh`.mode, numVertices, `mesh`.elementBuffer.typ, nil)
+        glDrawElementsBaseVertex(
+          `mesh`.vertexIndices.mode,
+          numVertices, `mesh`.vertexIndices.typ,
+          cast[pointer](`mesh`.vertexIndices.byteOffset),
+          GLint(`mesh`.vertexIndices.baseVertex))
 
     if debug:
       echo result.repr
@@ -578,9 +584,11 @@ type
     ## compile time the type of the elements.  The type is stored as a
     ## member in the field `typ`.
     handle*: GLuint
+    mode*: GLenum
     typ*: GLenum
-    baseVertex*: int
-    baseIndex*: int
+    baseVertex*:  int
+    baseIndex*:   int
+    numVertices*: int
 
 proc elementsByteOffset*(arg: DynamicElementArrayBuffer): int =
   if arg.typ == GL_UNSIGNED_SHORT:
@@ -590,6 +598,9 @@ proc elementsByteOffset*(arg: DynamicElementArrayBuffer): int =
   if arg.typ == GL_UNSIGNED_BYTE:
     return 1
   assert(false, "illegal element type: " & $arg.typ)
+
+proc byteOffset*(arg: DynamicElementArrayBuffer): int =
+  arg.baseIndex * arg.elementsByteOffset
 
 converter toDynamic*[T](arg: ElementArrayBuffer[T]): DynamicElementArrayBuffer =
   result.handle = arg.handle
@@ -635,9 +646,7 @@ macro genMeshType*(name: untyped; vertexType: typed): untyped =
   result.add quote do:
     type
       `name` = object
-        mode*: GLenum
-        numVertices*: int
-        elementBuffer*: DynamicElementArrayBuffer
+        vertexIndices*: DynamicElementArrayBuffer
         buffers*: `bufferTuple`
 
   result.add quote do:
@@ -645,7 +654,7 @@ macro genMeshType*(name: untyped; vertexType: typed): untyped =
       `vertexType`
 
     proc len*(arg: `name`): int =
-      arg.numVertices
+      arg.vertexIndices.numVertices
 
 # TODO mesh seq type (multimesh)
 

@@ -151,7 +151,7 @@ block initTeapot:
   mesh3.buffers.position_os = teapotBuffer.view(position_os)
   mesh3.buffers.normal_os   = teapotBuffer.view(normal_os)
   mesh3.buffers.texCoord    = teapotBuffer.view(texCoord)
-  mesh3.elementBuffer       = elementArrayBuffer(teapotData.indices)
+  mesh3.vertexIndices       = elementArrayBuffer(teapotData.indices)
   mesh3.numVertices         = teapotData.indices.len
 
   var displacedPositions = newSeq[Vec4f](teapotData.data.len)
