@@ -20,36 +20,28 @@ type
     IdTetraeder,
     IdTorus
 
-
 type
-  #SimpleMesh = object
-  #  vertexOffset: int
-  #  numVertices: int
-  #  baseVertex: int
-
   SimpleVertexType = tuple[vertex,normal,color: Vec4f]
 
 genMeshType(SimpleMesh, SimpleVertexType)
 
 var meshes: array[IdMesh, SimpleMesh]
+var renderAll: bool = false
 
 block init:
-
   #var vertices,normals,colors: ArrayBuffer[Vec4f]
   #var indices: ElementArrayBuffer[int16]
 
   const numSegments = 32
 
-  var verticesSeq = newSeq[Vec4f](0)
-  var normalsSeq  = newSeq[Vec4f](0)
-  var colorsSeq   = newSeq[Vec4f](0)
+  var verticesSeq = newSeq[SimpleVertexType](0)
   var indicesSeq  = newSeq[int16](0)
 
   proc insertMesh(id: IdMesh,
       newVertices, newNormals, newColors: openarray[Vec4f];
       newIndices: openarray[int16]): void =
 
-    var indices: DynamicElementArrayBuffer
+    var indices: VertexIndexBuffer
     ## This is like ElementArrayBuffer, but it does not store at
     ## compile time the type of the elements.  The type is stored as a
     ## member in the field `typ`.
@@ -62,9 +54,9 @@ block init:
 
     meshes[id].vertexIndices = indices
 
-    verticesSeq.add(newVertices)
-    normalsSeq.add(newNormals)
-    colorsSeq.add(newColors)
+    for vertex,normal,color in zip(newVertices, newNormals, newColors):
+      verticesSeq.add((vertex,normal,color))
+
     indicesSeq.add(newIndices)
 
   IdCone.insertMesh(
@@ -131,9 +123,11 @@ block init:
     torusColors(numSegments, numSegments div 2),
     torusIndicesTriangles(numSegments, numSegments div 2).map(proc(x: int32): int16 = int16(x)))
 
-  let vertices = arrayBuffer(verticesSeq)
-  let normals = arrayBuffer(normalsSeq)
-  let colors = arrayBuffer(colorsSeq)
+  let verticesBuffer = arrayBuffer(verticesSeq)
+
+  let vertices = verticesBuffer.view(vertex)
+  let normals = verticesBuffer.view(normal)
+  let colors = verticesBuffer.view(color)
   let indices = elementArrayBuffer(indicesSeq)
 
   for mesh in meshes.mitems:
@@ -180,9 +174,7 @@ var noiseArray: array[21, float32]
 for x in noiseArray.mitems:
   x = (rand_f32()*2-1) * 0.01f;
 
-
 var timer = newStopWatch(true)
-
 var currentMeshId : IdMesh
 
 while runGame:
@@ -244,6 +236,9 @@ while runGame:
       of SCANCODE_KP_MINUS:
         currentMeshId = IdMesh((ord(currentMeshId) + ord(high(IdMesh))) mod (ord(high(IdMesh)) + 1))
 
+      of SCANCODE_SPACE:
+        renderAll = not renderAll
+
       else:
         discard
 
@@ -251,27 +246,19 @@ while runGame:
 
   let magic = int32(frame mod 2)
 
-
-  glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, 1, "a")
-
-  #for i, node in worldNodes:
-  #  let mesh = meshes[IdTorus]
-  block renderWorldNodes:
-    let node = worldNodes[currentMeshId]
-    let mesh = meshes[currentMeshId]
-
-    let proj = projection_mat
-    let modelView = camera.viewMat * node.modelMat
-
-    mesh.render do (v, gl):
-      gl.Position = proj * modelView * v.vertex
-      let normal_cs = modelView * v.normal
-      ## rasterize
-      result.color = normal_cs.z * v.color
-
-    #break
-
-  glPopDebugGroup()
+  #block renderWorldNodes:
+  #  let node = worldNodes[currentMeshId]
+  #  let mesh = meshes[currentMeshId]
+  for i, node in worldNodes:
+    let mesh = meshes[i]
+    if i == currentMeshId or renderAll:
+      let proj = projection_mat
+      let modelView = camera.viewMat * node.modelMat
+      mesh.render do (v, gl):
+        gl.Position = proj * modelView * v.vertex
+        let normal_cs = modelView * v.normal
+        ## rasterize
+        result.color = normal_cs.z * v.color
 
   let modelViewProj = projection_mat * camera.viewMat * planeNode.modelMat
 
@@ -283,7 +270,7 @@ while runGame:
   let invModelViewProj = inverse(modelViewProj)
   let invWindowSize    = vec2f(1 / float32(windowSize.x), 1 / float32(windowSize.y))
 
-  planeMesh.renderDebug do (v, gl):
+  planeMesh.render do (v, gl):
     gl.Position = modelViewProj * v.position
 
     ## rasterize

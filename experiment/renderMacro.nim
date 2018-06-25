@@ -12,6 +12,8 @@ import normalizeType, glslTranslate, boring_stuff, std140AlignedWrite
 
 export fancygl
 
+export boring_stuff.zip
+
 # not exporting this results in compilation failure
 # weird bug in nim
 export std140AlignedWrite
@@ -579,7 +581,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
           echo "WARNING: mesh.len == 0"
 
 type
-  DynamicElementArrayBuffer* = object
+  VertexIndexBuffer* = object
     ## This is like ElementArrayBuffer, but it does not store at
     ## compile time the type of the elements.  The type is stored as a
     ## member in the field `typ`.
@@ -590,7 +592,7 @@ type
     baseIndex*:   int
     numVertices*: int
 
-proc elementsByteOffset*(arg: DynamicElementArrayBuffer): int =
+proc elementsByteOffset*(arg: VertexIndexBuffer): int =
   if arg.typ == GL_UNSIGNED_SHORT:
     return 2
   if arg.typ == GL_UNSIGNED_INT:
@@ -599,12 +601,14 @@ proc elementsByteOffset*(arg: DynamicElementArrayBuffer): int =
     return 1
   assert(false, "illegal element type: " & $arg.typ)
 
-proc byteOffset*(arg: DynamicElementArrayBuffer): int =
+proc byteOffset*(arg: VertexIndexBuffer): int =
   arg.baseIndex * arg.elementsByteOffset
 
-converter toDynamic*[T](arg: ElementArrayBuffer[T]): DynamicElementArrayBuffer =
-  result.handle = arg.handle
-  result.typ    = indexTypeTag(T)
+converter toVertexIndexBuffer*[T](arg: ElementArrayBuffer[T]): VertexIndexBuffer =
+  result.handle      = arg.handle
+  result.typ         = indexTypeTag(T)
+  result.mode        = GL_POINTS
+  result.numVertices = arg.len
 
 proc `or`(arg, alternative: NimNode): NimNode {.compileTime.} =
   if arg.kind != nnkEmpty:
@@ -646,7 +650,7 @@ macro genMeshType*(name: untyped; vertexType: typed): untyped =
   result.add quote do:
     type
       `name` = object
-        vertexIndices*: DynamicElementArrayBuffer
+        vertexIndices*: VertexIndexBuffer
         buffers*: `bufferTuple`
 
   result.add quote do:

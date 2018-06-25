@@ -631,8 +631,14 @@ gl_WorkGroupSize
 
 ]#
 
-
 when isMainModule:
   import algorithm, sequtils
   echo binarySearch(glslBuiltInProc, "dot")
   echo binarySearch(glslBuiltInProc, "EmitStreamVertex")
+
+iterator zip*[A,B,C](a:openArray[A]; b:openArray[B]; c:openArray[C]): (A,B,C) =
+  let maxLen = max(a.len, b.len).max(c.len)
+  var i = 0
+  while i < maxLen:
+    yield((a[i],b[i],c[i]))
+    i.inc

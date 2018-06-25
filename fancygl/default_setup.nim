@@ -22,8 +22,6 @@ proc debugCallback(
     message: cstring,
     userParam: pointer): void {. cdecl .} =
 
-
-
   echo "gl-debug-callback:"
   echo "  message: ", message
 
