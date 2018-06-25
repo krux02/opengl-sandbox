@@ -11,7 +11,7 @@ proc debugCallbackPrintMessage(
     length: GLsizei,
     message: cstring,
     userParam: pointer): void {. cdecl .} =
-  stdout.styledWriteLine(fgYellow, message)
+  stdout.styledWriteLine(fgYellow, $message)
 
 proc debugCallback(
     source: GLenum,

@@ -76,7 +76,7 @@ iterator arguments*(n: NimNode): NimNode {.inline.} =
   for i in 1 ..< n.len:
     yield n[i]
 
-iterator depthFirstTraversal(n: NimNode): NimNode =
+iterator depthFirstTraversal*(n: NimNode): NimNode =
   var stack = newSeq[tuple[n: NimNode,i: int]](0)
   stack.add((n: n, i: 0))
   yield stack[^1].n
@@ -89,13 +89,6 @@ iterator depthFirstTraversal(n: NimNode): NimNode =
       stack.add((n: child, i: 0))
       yield stack[^1].n
     discard stack.pop
-
-proc findSymbolWithName*(arg: NimNode; symName: string): NimNode =
-  ## searches though a tree and returns the first symbol node with the
-  ## given identifier, on nil if no such symbol could be found.
-  for node in arg.depthFirstTraversal:
-    if node.kind == nnkSym and eqIdent(node, symName):
-      return node
 
 iterator fields*(typeAst: NimNode): tuple[memberSym, typeSym: NimNode] =
   let parent: NimNode =
@@ -604,7 +597,6 @@ proc isBuiltIn*(procName: string): bool {.compileTime.} =
 
 
 #[
-
 gl_ClipDistance
 gl_CullDistance
 gl_FragCoord

@@ -23,30 +23,19 @@ type
   #MyFramebuffer = Framebuffer2[MyFragmentType]
 
 genMeshType(MyMesh, MyVertexType)
-
 genMeshType(ControlPointMesh, tuple[position_os: Vec3f])
 
-#let (window, context) = defaultSetup(vec2i(640,480))
-let (window, context) = defaultSetup()
+
+let (window, context) = defaultSetup(vec2i(640,480))
+# let (window, context) = defaultSetup(vec2i(320,200))
+# let (window, context) = defaultSetup()
 discard setRelativeMouseMode(true)
 
-
 let myTexture: Texture2D = loadTexture2DFromFile(getResourcePath("crate.png"))
-#[
-let skyTexture: TextureCubeMap = loadTextureCubeMapFromFiles([
-  getResourcePath("skyboxes/darkskies/darkskies_rt.tga"),
-  getResourcePath("skyboxes/darkskies/darkskies_lf.tga"),
-  getResourcePath("skyboxes/darkskies/darkskies_up.tga"),
-  getResourcePath("skyboxes/darkskies/darkskies_dn.tga"),
-  getResourcePath("skyboxes/darkskies/darkskies_bk.tga"),
-  getResourcePath("skyboxes/darkskies/darkskies_ft.tga"),
-])
-]#
-
 var skyboxes : seq[TextureCubeMap] = @[]
 var skyboxNames : seq[string] = @[]
 
-block uitarenuiatren:
+block readSkyboxesDir:
   for kind, path in walkDir(getResourcePath("skyboxes")):
     if kind == pcDir:
       skyboxNames.add path
@@ -80,7 +69,6 @@ proc loadTextureCubeMapFromDir(path: string): TextureCubeMap =
     echo "failed to load texture cube map from dir: ", path
 
 var skyIndex: int
-
 
 block findInterstellar:
   for i, path in skyboxNames:
@@ -336,32 +324,32 @@ while runGame:
     let beatFract = fract(time * 2)
     let subBeat = floor(beat) * 0.25
 
-    # let M =
-    #   if int(beat) mod 4 == 0:
-    #     var shearMat = mat4f(1)
-    #     let idx = int(subBeat) mod 6
+    let M =
+      if int(beat) mod 4 == 0:
+        var shearMat = mat4f(1)
+        let idx = int(subBeat) mod 6
 
-    #     if   idx == 0:
-    #       shearmat[0,1] = beatFract
-    #     elif idx == 1:
-    #       shearmat[0,2] = beatFract
-    #     elif idx == 2:
-    #       shearmat[1,0] = beatFract
-    #     elif idx == 3:
-    #       shearmat[1,2] = beatFract
-    #     elif idx == 4:
-    #       shearmat[2,0] = beatFract
-    #     elif idx == 5:
-    #       shearmat[2,1] = beatFract
+        if   idx == 0:
+          shearmat[0,1] = beatFract
+        elif idx == 1:
+          shearmat[0,2] = beatFract
+        elif idx == 2:
+          shearmat[1,0] = beatFract
+        elif idx == 3:
+          shearmat[1,2] = beatFract
+        elif idx == 4:
+          shearmat[2,0] = beatFract
+        elif idx == 5:
+          shearmat[2,1] = beatFract
 
-    #     shearMat * M
-    #   else:
-    #     var tmp = 1 - beatFract  # + floor(float32(gl.VertexID) / 36.0f) * 1.235f
-    #     tmp *= tmp
-    #     tmp *= tmp
-    #     tmp *= tmp
-    #     tmp = 1 + tmp * 0.125
-    #     M.scale(tmp)
+        shearMat * M
+      else:
+        var tmp = 1 - beatFract  # + floor(float32(gl.VertexID) / 36.0f) * 1.235f
+        tmp *= tmp
+        tmp *= tmp
+        tmp *= tmp
+        tmp = 1 + tmp * 0.125
+        M.scale(tmp)
 
     let oldMode = currentMesh.mode
     if toggleB:
@@ -380,8 +368,9 @@ while runGame:
           inverse(V*M)
         )
 
-        ## rasterize
         let lighting = calcBaseLighting(V, position_cs, normal_cs)
+
+        ## rasterize
 
         var n: Vec2f
         n.x = simplex( position_ws.xyz * 7 + vec3(time, 0, 0))

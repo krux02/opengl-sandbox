@@ -1,5 +1,8 @@
 #+TITLE: Implementation
 
+
+
+
 * TODO
 ** TODO glm port for the typechecker
 ** TODO typed and untyped macros
@@ -15,6 +18,16 @@
 
 ** TODO mention the reason to restrict the vertex type to tuple
 ** TODO explain strided view
+
+** TODO symbol disambiguation (resolve symbol collisions)
+
+* log
+
+It is not suitable to use the persistently mapped buffer to render
+from a loop.  The buffer content will not be synced on each draw call,
+leaving several draws with the identical uniform data.  This leads to
+the situation that all object that should be drawn at different
+locations end to be rendered all at the exact same location.
 
 * base example
 

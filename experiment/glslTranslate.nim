@@ -176,6 +176,25 @@ when isMainModule:
 proc compileToGlsl*(result: var string; arg: NimNode): void
 
 
+
+const
+  cb64 = [
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N",
+    "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+    "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n",
+    "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+    "A_", "B_"]
+
+proc pseudoBase64*(dst: var string; arg: int): void {.compileTime.} =
+  ## Encode `arg` into pseudo base64 representation and append it to
+  ## `dst`.  This pseudoBase64 should never be decoded again, it is
+  ## just for appending symbol identifiers.
+  var arg = cast[uint64](arg)
+  while 0'u64 < arg:
+    dst.add cb64[arg and 0x3f]
+    arg = arg shr 6
+
 static:
   var buffer: string = ""
   var procCache: seq[tuple[sym: NimNode; code: string]] = @[]
@@ -263,11 +282,14 @@ proc compileToGlslA*(result: var string; arg: NimNode): void {.compileTime} =
     for c in arg.repr:
       if c != '_': # underscore is my personal separator
         buffer.add c
-    if glslKeywords.binarySearch(buffer) < 0:
-      result.add buffer
-    else:
-      result.add buffer
-      result.add "_XXX"
+
+    result.add buffer
+    if arg.symKind in {nskVar, nskLet, nskForVar}:
+      # this should prevent keyword collisions and collisions with
+      # symbols that are introduced through templates and iterators.
+      result.add '_'
+      result.pseudoBase64(arg.symId)
+
   of nnkDotExpr(`lhs`, `rhs`):
     # I am pretty sure this is a big hack
     let symKind = lhs.symKind
@@ -277,6 +299,7 @@ proc compileToGlslA*(result: var string; arg: NimNode): void {.compileTime} =
     else:
       result.add '.'
     result.compileToGlsl(rhs)
+
   of nnkConv(`typ`, `expr`):
     result.add typ.glslType, '('
     result.compileToGlsl(expr)
@@ -284,7 +307,7 @@ proc compileToGlslA*(result: var string; arg: NimNode): void {.compileTime} =
 
 proc compileToGlslB*(result: var string; arg: NimNode): void =
   arg.matchAst(errorSym):
-  of nnkAsgn(`lhs`, `rhs`):
+  of {nnkAsgn,nnkFastAsgn}(`lhs`, `rhs`):
     result.compileToGlsl(lhs)
     result.add " = "
     result.compileToGlsl(rhs)
@@ -456,6 +479,51 @@ proc compileToGlslB*(result: var string; arg: NimNode): void =
     result.compileToGlsl body
 
     result.add "\n}}"
+
+  of nnkBlockStmt(_, `body`):
+    result.add "{\n"
+    result.compileToGlsl(body)
+    result.add "}\n"
+  of nnkWhileStmt(`cond`, `body`):
+    result.add "while("
+    result.compileToGlsl(cond)
+    result.add ") {"
+    result.compileToGlsl(body)
+    result.add "}"
+  of nnkCommand( ident"inc", `a`, `b`):
+    result.compileToGlsl(a)
+    result.add " += "
+    result.compileToGlsl(b)
+
+  # of nnkBlockStmt(
+  #   `sym1` @ nnkSym,
+  #   nnkStmtList(
+  #     nnkVarSection(
+  #       nnkIdentDefs( `loopVar` @ nnkSym, nnkEmpty, nnkEmpty)
+  #     ),
+  #     nnkStmtList(
+  #       nnkVarSection(
+  #         nnkIdentDefs(
+  #           nnkSym "i",
+  #           nnkEmpty,
+  #           nnkInt32Lit 0
+  #         )
+  #       ),
+  #       nnkBlockStmt(
+  #         `sym2` @ nnkSym
+  #         nnkWhileStmt
+  #           nnkInfix
+  #             nnkSym "<"
+  #             nnkSym "i"
+  #             nnkInt32Lit 4
+  #           nnkStmtList
+  #             nnkStmtList
+  #               nnkFastAsgn
+  #                 nnkSym "i"
+  #                 nnkSym "i"
+  #               `body` @ nnkStmtList
+  #   )
+  # ):
 
 const AKinds = {
   nnkFloat32Lit,

@@ -316,12 +316,6 @@ logic for `let s = v1 + v2`:
 
 const shaderHeader = "#version 440\n"
 
-
-proc validateShader(arg: string, kind: string): void =
-  discard
-
-
-
 proc flatDotExpr(arg: NimNode): string {.compileTime.} =
   if arg.kind == nnkDotExpr:
     result = arg[0].repr & "_" & arg[1].repr

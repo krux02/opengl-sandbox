@@ -103,7 +103,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         currentNode.add stmt
 
     var usedProcSymbols   = newSeq[NimNode](0)
-    var usedVarLetSymbols = newSeq[NimNode](0)
     var symCollection = newSeq[NimNode](0)
     var usedTypes = newSeq[NimNode](0)
 
@@ -128,26 +127,31 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         let implBody = sym.getImpl[6]
 
         var localSymbols = newSeq[NimNode](0)
+        implBody.recursiveNodeVisiting do (node: NimNode) -> bool:
+          node.matchAst:
+          of `call` @ nnkCall |= call[0].kind == nnkSym and call[0].symKind == nskProc:
+            processProcSym(call[0])
 
-        implBody.matchAstRecursive:
-        of `call` @ nnkCall |= call[0].kind == nnkSym and call[0].symKind == nskProc:
-          processProcSym(call[0])
+          of `section` @ {nnkVarSection, nnkLetSection}:
+            for sym, _ in section.fieldValuePairs:
+              localSymbols.add sym
+              processType(sym.getTypeInst)
 
-        of `section` @ {nnkVarSection, nnkLetSection}:
-          for sym, _ in section.fieldValuePairs:
-            localSymbols.add sym
-            processType(sym.getTypeInst)
+          of `sym` @ nnkSym:
+            if sym.symKind in {nskLet,nskVar}:
+              if sym notin localSymbols:
+                if sym.isSampler:
+                  uniformSamplers.addIfNew sym
+                else:
+                  uniformRest.addIfNew sym
 
-        of `sym` @ nnkSym:
-          if sym.symKind in {nskLet,nskVar}:
-            if sym notin localSymbols:
-              if sym.isSampler:
-                uniformSamplers.addIfNew sym
-              else:
-                uniformRest.addIfNew sym
+            elif sym.symKind == nskType:
+              processType(sym)
 
-          elif sym.symKind == nskType:
-            processType(sym)
+          else:
+            discard
+
+          return true
 
         usedProcSymbols.add sym
 
@@ -157,14 +161,11 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       if symKind == nskProc:
         processProcSym(sym)
       elif symKind in {nskLet, nskVar, nskForVar}:
-        usedVarLetSymbols.addIfNew sym
+        processType(sym.getTypeInst)
       elif symKind == nskType:
         processType(sym)
       else:
         symCollection.addIfNew sym
-
-    for sym in usedVarLetSymbols:
-      processType(sym.getTypeInst)
 
     # TODO unused(symCollection)
 
@@ -239,7 +240,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     sharedCode.add "// types section\n"
     for tpe in usedTypes:
       let impl = tpe.getTypeImpl
-
       impl.matchAst:
       of nnkObjectTy(
         nnkEmpty, nnkEmpty,
@@ -276,7 +276,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       result = procSym.getImpl
       result.expectKind nnkProcDef
       result[3].expectKind nnkFormalParams
-      #result[5].expectKind nnkBracket
 
       result[0] = procSym
       result[3] = procType[0]
@@ -555,10 +554,9 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         `initCode`
 
 
+      glVertexArrayElementBuffer(`pSym`.vao.handle, `mesh`.elementBuffer.handle)
       glUseProgram(`pSym`.program.handle)
       glBindVertexArray(`pSym`.vao.handle)
-
-      glVertexArrayElementBuffer(`pSym`.vao.handle, `mesh`.elementBuffer.handle)
 
       `drawCode`
       let numVertices = GLsizei(`mesh`.len)
@@ -574,13 +572,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         if `mesh`.len == 0:
           echo "WARNING: mesh.len == 0"
 
-
-proc `or`(arg, alternative: NimNode): NimNode {.compileTime.} =
-  if arg.kind != nnkEmpty:
-    arg
-  else:
-    alternative
-
 type
   DynamicElementArrayBuffer* = object
     ## This is like ElementArrayBuffer, but it does not store at
@@ -588,11 +579,27 @@ type
     ## member in the field `typ`.
     handle*: GLuint
     typ*: GLenum
+    baseVertex*: int
+    baseIndex*: int
+
+proc elementsByteOffset*(arg: DynamicElementArrayBuffer): int =
+  if arg.typ == GL_UNSIGNED_SHORT:
+    return 2
+  if arg.typ == GL_UNSIGNED_INT:
+    return 4
+  if arg.typ == GL_UNSIGNED_BYTE:
+    return 1
+  assert(false, "illegal element type: " & $arg.typ)
 
 converter toDynamic*[T](arg: ElementArrayBuffer[T]): DynamicElementArrayBuffer =
   result.handle = arg.handle
   result.typ    = indexTypeTag(T)
 
+proc `or`(arg, alternative: NimNode): NimNode {.compileTime.} =
+  if arg.kind != nnkEmpty:
+    arg
+  else:
+    alternative
 
 macro genMeshType*(name: untyped; vertexType: typed): untyped =
   ## expects a symbol to a vertex type. ``name`` will be the name of the new type.
@@ -629,9 +636,9 @@ macro genMeshType*(name: untyped; vertexType: typed): untyped =
     type
       `name` = object
         mode*: GLenum
-        numVertices: int
+        numVertices*: int
         elementBuffer*: DynamicElementArrayBuffer
-        buffers: `bufferTuple`
+        buffers*: `bufferTuple`
 
   result.add quote do:
     template VertexType(_: typedesc[`name`]): untyped =
@@ -640,9 +647,9 @@ macro genMeshType*(name: untyped; vertexType: typed): untyped =
     proc len*(arg: `name`): int =
       arg.numVertices
 
+# TODO mesh seq type (multimesh)
 
 type
-
   Framebuffer2*[FragmentType] = object
     handle: GLuint
     size*: Vec2i

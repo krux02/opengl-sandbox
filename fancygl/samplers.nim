@@ -454,3 +454,41 @@ proc texture*(sampler: Texture2DArray;       P: Vec3f; bias: float32 = 0): Vec4f
 
 proc texture*(sampler: Texture2DArrayShadow; P: Vec4f): Vec4f =
   quit("only implemented in shader")
+
+proc fwidth*(p: SomeFloat): SomeFloat =
+  quit("only implemented in shader")
+proc fwidthCoarse*(p: SomeFloat): SomeFloat =
+  quit("only implemented in shader")
+proc fwidthFine*(p: SomeFloat): SomeFloat =
+  quit("only implemented in shader")
+proc dFdx*(p: SomeFloat): SomeFloat =
+  quit("only implemented in shader")
+proc dFdy*(p: SomeFloat): SomeFloat =
+  quit("only implemented in shader")
+proc dFdxCoarse*(p: SomeFloat): SomeFloat =
+  quit("only implemented in shader")
+proc dFdyCoarse*(p: SomeFloat): SomeFloat =
+  quit("only implemented in shader")
+proc dFdxFine*(p: SomeFloat): SomeFloat =
+  quit("only implemented in shader")
+proc dFdyFine*(p: SomeFloat): SomeFloat =
+  quit("only implemented in shader")
+
+proc fwidth*[N,T](p: Vec[N,T]): Vec[N,T] =
+  quit("only implemented in shader")
+proc fwidthCoarse*[N,T](p: Vec[N,T]): Vec[N,T] =
+  quit("only implemented in shader")
+proc fwidthFine*[N,T](p: Vec[N,T]): Vec[N,T] =
+  quit("only implemented in shader")
+proc dFdx*[N,T](p: Vec[N,T]): Vec[N,T] =
+  quit("only implemented in shader")
+proc dFdy*[N,T](p: Vec[N,T]): Vec[N,T] =
+  quit("only implemented in shader")
+proc dFdxCoarse*[N,T](p: Vec[N,T]): Vec[N,T] =
+  quit("only implemented in shader")
+proc dFdyCoarse*[N,T](p: Vec[N,T]): Vec[N,T] =
+  quit("only implemented in shader")
+proc dFdxFine*[N,T](p: Vec[N,T]): Vec[N,T] =
+  quit("only implemented in shader")
+proc dFdyFine*[N,T](p: Vec[N,T]): Vec[N,T] =
+  quit("only implemented in shader")

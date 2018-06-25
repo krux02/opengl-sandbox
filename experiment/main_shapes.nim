@@ -1,9 +1,12 @@
-import ../fancygl
+import renderMacro
 
 import sequtils
 
 let (window, context) = defaultSetup()
 let windowsize = window.size
+
+# disable debug notifications
+glDebugMessageControl(GL_DONT_CARE,GL_DONT_CARE,GL_DEBUG_SEVERITY_NOTIFICATION, 0, nil, false)
 
 let projection_mat : Mat4f = perspective(45'f32, window.aspectRatio, 0.1, 100.0)
 
@@ -17,32 +20,48 @@ type
     IdTetraeder,
     IdTorus
 
-var vertices,normals,colors: ArrayBuffer[Vec4f]
-var indices: ElementArrayBuffer[int16]
 
 type
-  SimpleMesh = object
-    baseVertex: int
-    baseIndex: int
-    numVertices: int
+  #SimpleMesh = object
+  #  vertexOffset: int
+  #  numVertices: int
+  #  baseVertex: int
+
+  SimpleVertexType = tuple[vertex,normal,color: Vec4f]
+
+genMeshType(SimpleMesh, SimpleVertexType)
 
 var meshes: array[IdMesh, SimpleMesh]
 
 block init:
+
+  #var vertices,normals,colors: ArrayBuffer[Vec4f]
+  #var indices: ElementArrayBuffer[int16]
+
   const numSegments = 32
 
   var verticesSeq = newSeq[Vec4f](0)
   var normalsSeq  = newSeq[Vec4f](0)
   var colorsSeq   = newSeq[Vec4f](0)
-  var indicesSeq  = newSeq[indices.T](0)
+  var indicesSeq  = newSeq[int16](0)
 
   proc insertMesh(id: IdMesh,
       newVertices, newNormals, newColors: openarray[Vec4f];
       newIndices: openarray[int16]): void =
 
-    meshes[id].baseIndex    = indicesSeq.len
-    meshes[id].baseVertex   = verticesSeq.len
+    var elementBuffer: DynamicElementArrayBuffer
+    ## This is like ElementArrayBuffer, but it does not store at
+    ## compile time the type of the elements.  The type is stored as a
+    ## member in the field `typ`.
+    #elementBuffer.handle     = indices.handle
+    elementBuffer.typ        = GL_UNSIGNED_SHORT
+    elementBuffer.baseVertex = verticesSeq.len
+    elementBuffer.baseIndex  = indicesSeq.len
+
     meshes[id].numVertices  = newIndices.len
+    meshes[id].elementBuffer = elementBuffer
+    meshes[id].numVertices   = newIndices.len
+    meshes[id].mode          = GL_TRIANGLES
 
     verticesSeq.add(newVertices)
     normalsSeq.add(newNormals)
@@ -80,7 +99,6 @@ block init:
     normal.w = 0
     normal = normalize(normal)
     unrolledNormals.add([normal,normal,normal])
-
     let color = vec4f(rand_f32(), rand_f32(), rand_f32(), 1'f32)
     unrolledColors.add([color,color,color])
 
@@ -114,10 +132,16 @@ block init:
     torusColors(numSegments, numSegments div 2),
     torusIndicesTriangles(numSegments, numSegments div 2).map(proc(x: int32): int16 = int16(x)))
 
-  vertices = arrayBuffer(verticesSeq)
-  normals = arrayBuffer(normalsSeq)
-  colors = arrayBuffer(colorsSeq)
-  indices = elementArrayBuffer(indicesSeq)
+  let vertices = arrayBuffer(verticesSeq)
+  let normals = arrayBuffer(normalsSeq)
+  let colors = arrayBuffer(colorsSeq)
+  let indices = elementArrayBuffer(indicesSeq)
+
+  for mesh in meshes.mitems:
+    mesh.elementBuffer  = indices
+    mesh.buffers.vertex = vertices
+    mesh.buffers.normal = normals
+    mesh.buffers.color  = colors
 
 var planeVertices = arrayBuffer([
   vec4f(0,0,0,1), vec4f( 1, 0,0,0), vec4f( 0, 1,0,0),
@@ -125,6 +149,15 @@ var planeVertices = arrayBuffer([
   vec4f(0,0,0,1), vec4f(-1, 0,0,0), vec4f( 0,-1,0,0),
   vec4f(0,0,0,1), vec4f( 0,-1,0,0), vec4f( 1, 0,0,0)
 ])
+
+type Position = tuple[position: Vec4f]
+
+genMeshType(PlaneMesh, Position)
+
+var planeMesh: PlaneMesh
+planeMesh.mode = GL_TRIANGLES
+planeMesh.buffers.position = planeVertices
+planeMesh.numVertices = planeVertices.len
 
 # for each mesh create one node in the world to Draw it there
 var worldNodes : array[IdMesh, WorldNode] = [
@@ -210,16 +243,40 @@ while runGame:
 
   let magic = int32(frame mod 2)
 
+
+  glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 1, 1, "a")
+
+  for i, node in worldNodes:
+    let mesh = meshes[IdCylinder]
+
+    let proj = projection_mat
+    let modelView = camera.viewMat * node.modelMat
+
+    mesh.render do (v, gl):
+      gl.Position = proj * modelView * v.vertex
+      let normal_cs = modelView * v.normal
+      ## rasterize
+      result.color = normal_cs.z * v.color
+
+    break
+
+  glPopDebugGroup()
+
+  #[
+
   for i, node in worldNodes:
     let mesh = meshes[i]
 
+    let proj = projection_mat
+    let modelView = camera.viewMat * node.modelMat
+
+
     shadingDsl:
-      debug
-      primitiveMode = GL_TRIANGLES
+      primitiveMode = mesh.mode
       numVertices = mesh.numVertices
-      vertexOffset = mesh.baseIndex
-      baseVertex = mesh.baseVertex
-      indices = indices
+      vertexOffset = mesh.elementBuffer.baseIndex
+      baseVertex = mesh.elementBuffer.baseVertex
+      indices = mesh.elementBuffer
 
       uniforms:
         proj = projection_mat
@@ -248,6 +305,10 @@ while runGame:
         // cheap fake lighting from camera direction
         color = v_color * v_normal.z;
         """
+    break
+    ]#
+
+
 
   let modelViewProj = projection_mat * camera.viewMat * planeNode.modelMat
 
@@ -256,51 +317,38 @@ while runGame:
   # The matrix transformation of can be inverted in the fragment shader, so that that in this case
   # object space coordinates can be recontructed.
 
-  shadingDsl:
-    primitiveMode = GL_TRIANGLES
-    numVertices = planeVertices.len
-    uniforms:
-      modelViewProj
-      invModelViewProj = inverse(modelViewProj)
-      invWindowSize    = vec2f(1 / float32(windowSize.x), 1 / float32(windowSize.y))
+  let invModelViewProj = inverse(modelViewProj)
+  let invWindowSize    = vec2f(1 / float32(windowSize.x), 1 / float32(windowSize.y))
 
-    attributes:
-      a_vertex   = planeVertices
+  planeMesh.renderDebug do (v, gl):
+    gl.Position = modelViewProj * v.position
 
-    vertexMain:
-      """
-      gl_Position = modelViewProj * a_vertex;
-      """
+    ## rasterize
 
-    fragmentMain:
-      """
-      color = vec4(1,0,1,0);
-      vec4 tmp = gl_FragCoord;
+    #result.color = vec4f(1,0,1,0)
 
-      // reconstructing normalized device coordinates from fragment depth, fragment position.
-      vec4 ndc_pos;
-      ndc_pos.xy = gl_FragCoord.xy * invWindowSize * 2 - 1;
-      ndc_pos.z  = gl_FragCoord.z                  * 2 - 1;
-      ndc_pos.w = 1;
+    # reconstructing normalized device coordinates from fragment depth, fragment position.
+    var ndc_pos: Vec4f
+    ndc_pos.xy = gl.FragCoord.xy * invWindowSize * 2 - 1;
+    ndc_pos.z  = gl.FragCoord.z                  * 2 - 1;
+    ndc_pos.w = 1;
 
-      // coordinate in object space coordinate
-      vec4 objPos = invModelViewProj * ndc_pos;
-      // the projection part of this operation alternates the w component of the vector
-      // in order to make xyz components meaningful, a normalization is required
-      objPos /= objPos.w;
+    # coordinate in object space coordinate
+    var objPos: Vec4f = invModelViewProj * ndc_pos;
+    # the projection part of this operation alternates the w component of the vector
+    # in order to make xyz components meaningful, a normalization is required
+    objPos /= objPos.w;
 
-      // objPos.z is expected to be 0, fract on an almost 0 value would lead to weird patterns
-      // an optimization would be to shrinkthe matrices, so that it isn't calculated anymore.
-      vec2 texcoord = objPos.xy;
-      vec2 texcoord_dx = fwidth(texcoord);
-      //vec2 texcoord_dy = dFdy(texcoord);
-      color = vec4(0,0,0,1);
-      // antialiasing
-      for(int i = 0; i <= 4; ++i) {
-        vec2 offset = texcoord_dx * 0.5 * (float(i-2) / 2.0);
-        color.rg += fract(texcoord + offset) / 5;
-      }
+    # objPos.z is expected to be 0, fract on an almost 0 value would lead to weird patterns
+    # an optimization would be to shrinkthe matrices, so that it isn't calculated anymore.
+    let texcoord : Vec2f = objPos.xy;
+    let texcoord_dx : Vec2f = fwidth(texcoord);
+    #vec2 texcoord_dy = dFdy(texcoord);
+    result.color = vec4f(0,0,0,1);
 
-      """
+    # antialiasing
+    for i in 0'i32 ..< 4'i32:
+      let offset : Vec2f = texcoord_dx * 0.5 * (float32(i-2) / 2.0);
+      result.color.rg += fract(texcoord + offset) / 5;
 
   glSwapWindow(window)

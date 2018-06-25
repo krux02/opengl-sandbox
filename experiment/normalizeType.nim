@@ -30,6 +30,20 @@ proc resolveAliasInternal(typ: NimNode): NimNode =
 
     let impl = typ.getImpl
     if impl.kind == nnkNilLit:
+      # this is just bad design on the Nim side of things: if the type
+      # of the type is the type itself, it is a builtin type,
+      # otherwise it is is the broken typedesc type. I just hate this
+      # design.
+
+      let typeInst = typ.getTypeInst
+      if typeInst.kind == nnkBracketExpr:
+        if typeInst[0].eqIdent "typeDesc":
+          return typeInst[1].resolveAliasInternal
+        else:
+          error("expected typedes here", typ)
+      else:
+        return typ
+
       return typ
 
     result = impl.resolveAliasInternal
