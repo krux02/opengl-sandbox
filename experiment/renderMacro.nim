@@ -14,6 +14,8 @@ export fancygl
 
 export boring_stuff.zip
 
+const persistentMappedBuffers* = false
+
 # not exporting this results in compilation failure
 # weird bug in nim
 export std140AlignedWrite
@@ -412,7 +414,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       ident"uniformBufferSize", bindSym"GLint", empty
     )
 
-
     let uniformRecList = nnkTupleTy.newTree()
 
     let uniformBufTypeSection =
@@ -445,14 +446,20 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         `pSym`.uniformBufferSize = blockSize
 
         glCreateBuffers(1, `pSym`.uniformBufferHandle.addr)
-        glNamedBufferStorage(
-          `pSym`.uniformBufferHandle, GLsizei(blockSize), nil,
-          GL_MAP_WRITE_BIT or GL_MAP_PERSISTENT_BIT
-        )
-        `pSym`.uniformBufferData = glMapNamedBufferRange(
-          `pSym`.uniformBufferHandle, 0, blockSize,
-          GL_MAP_WRITE_BIT or GL_MAP_PERSISTENT_BIT or GL_MAP_FLUSH_EXPLICIT_BIT
-        )
+
+        when persistentMappedBuffers:
+          glNamedBufferStorage(
+            `pSym`.uniformBufferHandle, GLsizei(blockSize), nil,
+            GL_MAP_WRITE_BIT or GL_MAP_PERSISTENT_BIT
+          )
+          `pSym`.uniformBufferData = glMapNamedBufferRange(
+            `pSym`.uniformBufferHandle, 0, blockSize,
+            GL_MAP_WRITE_BIT or GL_MAP_PERSISTENT_BIT or GL_MAP_FLUSH_EXPLICIT_BIT
+          )
+        else:
+          glNamedBufferStorage(`pSym`.uniformBufferHandle, GLsizei(blockSize), nil, GL_DYNAMIC_STORAGE_BIT)
+          `pSym`.uniformBufferData = alloc(blockSize)
+
 
       drawCode.add quote do:
         var `uniformObjectSym`: `uniformBufTypeSym`
@@ -474,7 +481,10 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
       drawCode.add quote do:
         discard std140AlignedWrite(`pSym`.uniformBufferData, 0, `uniformObjectSym`)
-        glFlushMappedNamedBufferRange(`pSym`.uniformBufferHandle, 0, `pSym`.uniformBufferSize)
+        when persistentMappedBuffers:
+          glFlushMappedNamedBufferRange(`pSym`.uniformBufferHandle, 0, `pSym`.uniformBufferSize)
+        else:
+          glNamedBufferSubData(`pSym`.uniformBufferHandle, 0, `pSym`.uniformBufferSize, `pSym`.uniformBufferData)
         glBindBufferBase(GL_UNIFORM_BUFFER, 0, `pSym`.uniformBufferHandle)
 
     let bindTexturesCall = newCall(bindSym"bindTextures", newLit(0) )
