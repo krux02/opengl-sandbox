@@ -21,6 +21,7 @@
 
 ** TODO symbol disambiguation (resolve symbol collisions)
 
+** TODO mention support for gdb pretty printers (lot of time wasted getting it to work).
 * log
 
 It is not suitable to use the persistently mapped buffer to render
