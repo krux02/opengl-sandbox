@@ -26,7 +26,7 @@ type
 genMeshType(SimpleMesh, SimpleVertexType)
 
 var meshes: array[IdMesh, SimpleMesh]
-var renderAll: bool = false
+var renderAll: bool = true
 
 block init:
   #var vertices,normals,colors: ArrayBuffer[Vec4f]
@@ -54,8 +54,8 @@ block init:
 
     meshes[id].vertexIndices = indices
 
-    for vertex,normal,color in zip(newVertices, newNormals, newColors):
-      verticesSeq.add((vertex,normal,color))
+    for vertex in zip(newVertices, newNormals, newColors):
+      verticesSeq.add(vertex)
 
     indicesSeq.add(newIndices)
 
