@@ -196,7 +196,7 @@ class NimSetPrinter:
       return DollarPrintFunction.invoke_static(self.val)
     except:
       gdb.write("RTI information not found for set, likely removed by dead code elimination: " + str(self.val.type) + "\n", gdb.STDERR)
-
+      return str(int(self.val))
 
 ################################################################
 
@@ -223,57 +223,57 @@ class NimSeqPrinter:
 
 ################################################################
 
-class NimObjectPrinter:
 
-  pattern = re.compile(r'^tyObject_.*$')
+# class NimObjectPrinter:
+#   pattern = re.compile(r'^tyObject_.*$')
 
-  def __init__(self, val):
-    self.val = val
+#   def __init__(self, val):
+#     self.val = val
 
-  def display_hint(self):
-    return 'object'
+#   def display_hint(self):
+#     return 'object'
 
-  def to_string(self):
-    return str(self.val.type)
+#   def to_string(self):
+#     return str(self.val.type)
 
-  def children(self):
-    if not self.val:
-      yield "object", "<nil>"
-      raise StopIteration
+#   def children(self):
+#     if not self.val:
+#       yield "object", "<nil>"
+#       raise StopIteration
 
-    for (i, field) in enumerate(self.val.type.fields()):
-      if field.type.code == gdb.TYPE_CODE_UNION:
-        yield _union_field
-      else:
-        yield (field.name, self.val[field])
+#     for (i, field) in enumerate(self.val.type.fields()):
+#       if field.type.code == gdb.TYPE_CODE_UNION:
+#         yield _union_field
+#       else:
+#         yield (field.name, self.val[field])
 
-  def _union_field(self, i, field):
-    rti = NimTypePrinter.rti(self.val.type.name)
-    if rti is None:
-      return (field.name, "UNION field can't be displayed without RTI")
+#   def _union_field(self, i, field):
+#     rti = NimTypePrinter.rti(self.val.type.name)
+#     if rti is None:
+#       return (field.name, "UNION field can't be displayed without RTI")
 
-    node_sons = rti['node'].dereference()['sons']
-    prev_field = self.val.type.fields()[i - 1]
+#     node_sons = rti['node'].dereference()['sons']
+#     prev_field = self.val.type.fields()[i - 1]
 
-    descriminant_node = None
-    for i in range(int(node['len'])):
-      son = node_sons[i].dereference()
-      if son['name'].string("utf-8", "ignore") == str(prev_field.name):
-        descriminant_node = son
-        break
-    if descriminant_node is None:
-      raise ValueError("Can't find union descriminant field in object RTI")
+#     descriminant_node = None
+#     for i in range(int(node['len'])):
+#       son = node_sons[i].dereference()
+#       if son['name'].string("utf-8", "ignore") == str(prev_field.name):
+#         descriminant_node = son
+#         break
+#     if descriminant_node is None:
+#       raise ValueError("Can't find union descriminant field in object RTI")
 
-    if descriminant_node is None: raise ValueError("Can't find union field in object RTI")
-    union_node = descriminant_node['sons'][int(self.val[prev_field])].dereference()
-    union_val = self.val[field]
+#     if descriminant_node is None: raise ValueError("Can't find union field in object RTI")
+#     union_node = descriminant_node['sons'][int(self.val[prev_field])].dereference()
+#     union_val = self.val[field]
 
-    for f1 in union_val.type.fields():
-      for f2 in union_val[f1].type.fields():
-        if str(f2.name) == union_node['name'].string("utf-8", "ignore"):
-           return (str(f2.name), union_val[f1][f2])
+#     for f1 in union_val.type.fields():
+#       for f2 in union_val[f1].type.fields():
+#         if str(f2.name) == union_node['name'].string("utf-8", "ignore"):
+#            return (str(f2.name), union_val[f1][f2])
 
-    raise ValueError("RTI is absent or incomplete, can't find union definition in RTI")
+#     raise ValueError("RTI is absent or incomplete, can't find union definition in RTI")
 
 
 ################################################################################
