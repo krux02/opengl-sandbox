@@ -145,7 +145,8 @@ when isMainModule:
         let identDefs = varSection[0]
         let sym = identDefs[0]
 
-        let glslType = sym.getTypeInst.glslType
+        let typeInst = sym.getTypeInst
+        let glslType = typeInst.glslType
         echo glslType
         assert glslType == expected
       else:
@@ -183,8 +184,7 @@ const
     "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
     "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n",
     "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
-    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-    "A_", "B_"]
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9a","9b","9c"]
 
 proc pseudoBase64*(dst: var string; arg: int): void {.compileTime.} =
   ## Encode `arg` into pseudo base64 representation and append it to

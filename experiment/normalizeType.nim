@@ -65,7 +65,18 @@ proc resolveAliasInternal(typ: NimNode): NimNode =
     # substitute all generic parameters with the corresponding generic
     # argument
     for i, sym in result[1]:
-      let arg = typ[i+1]
+      let arg = typ[1 + i]
+      result = result.substitute(sym, arg)
+
+  of nnkCall |= typ[0].kind == nnkOpenSymChoice and typ[0][0].eqIdent("[]") and typ[1].kind == nnkSym:
+
+    result = typ[1].resolveAliasInternal
+    result.expectKind nnkTypeDef
+
+    # substitute all generic parameters with the corresponding generic
+    # argument
+    for i, sym in result[1]:
+      let arg = typ[2 + i]
       result = result.substitute(sym, arg)
 
   of {nnkObjectTy, nnkTupleTy, nnkDistinctTy}:
@@ -82,8 +93,8 @@ proc sequenceTransform(arg: NimNode): seq[NimNode] =
 
   result.newSeq(0)
   while arg.kind == nnkTypeDef:
-    arg[0].expectKind nnkSym
-    let sym = arg[0]
+    let sym = if arg[0].kind == nnkPragmaExpr: arg[0][0] else: arg[0]
+    sym.expectKind nnkSym
     case arg[1].kind
     of nnkEmpty:
       # no genric parameter, so no bracket expression generated
@@ -151,6 +162,7 @@ when isMainModule:
 
   macro foobar(arg: typed): untyped =
     let typ = arg.getTypeInst.normalizeType
+    echo typ.repr
 
   var
     a: MyObjectSubAlias
