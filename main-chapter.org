@@ -22,6 +22,7 @@
 ** TODO symbol disambiguation (resolve symbol collisions)
 
 ** TODO mention support for gdb pretty printers (lot of time wasted getting it to work).
+** TODO mention problems with AST. For loop is eleminated, maybe?
 * log
 
 It is not suitable to use the persistently mapped buffer to render
@@ -498,7 +499,7 @@ a Framebuffer as a depth
 
 
 ** the two layer macro
-<<sec:two-layer-macro>>
+   <<sec:two-layer-macro>>
 
 # how the nim typechecker works, and why I create the outer macro.
 The typechecker in Nim can only check types of the Nim programming

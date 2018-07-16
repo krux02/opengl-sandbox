@@ -103,8 +103,8 @@ glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS)
 glEnable(GL_DEPTH_CLAMP)
 
 var mesh1: MyMesh
-mesh1.mode = GL_TRIANGLES
-mesh1.numVertices = boxVertices.len
+mesh1.vertexIndices.mode = GL_TRIANGLES
+mesh1.vertexIndices.numVertices = boxVertices.len
 mesh1.buffers.position_os = arrayBuffer(boxVertices)
 mesh1.buffers.normal_os   = arrayBuffer(boxNormals)
 mesh1.buffers.texCoord    = arrayBuffer(boxTexCoords)
@@ -116,8 +116,8 @@ for i, vertex in tetraederArrayBuffer.wPairs:
   vertex.texCoord    = tetraederTexCoords[i]
 
 var mesh2: MyMesh
-mesh2.mode = GL_TRIANGLES
-mesh2.numVertices = tetraederVertices.len
+mesh2.vertexIndices.mode = GL_TRIANGLES
+mesh2.vertexIndices.numVertices = tetraederVertices.len
 mesh2.buffers.position_os = tetraederArrayBuffer.view(position_os)
 mesh2.buffers.normal_os   = tetraederArrayBuffer.view(normal_os)
 mesh2.buffers.texCoord    = tetraederArrayBuffer.view(texCoord)
@@ -147,12 +147,11 @@ block initTeapot:
 
   var teapotBuffer = arrayBuffer(teapotData.data)
 
-  mesh3.mode = GL_TRIANGLE_STRIP
-  mesh3.buffers.position_os = teapotBuffer.view(position_os)
-  mesh3.buffers.normal_os   = teapotBuffer.view(normal_os)
-  mesh3.buffers.texCoord    = teapotBuffer.view(texCoord)
-  mesh3.vertexIndices       = elementArrayBuffer(teapotData.indices)
-  mesh3.numVertices         = teapotData.indices.len
+  mesh3.buffers.position_os       = teapotBuffer.view(position_os)
+  mesh3.buffers.normal_os         = teapotBuffer.view(normal_os)
+  mesh3.buffers.texCoord          = teapotBuffer.view(texCoord)
+  mesh3.vertexIndices             = elementArrayBuffer(teapotData.indices)
+  mesh3.vertexIndices.mode        = GL_TRIANGLE_STRIP
 
   var displacedPositions = newSeq[Vec4f](teapotData.data.len)
   for i, vertex in teapotData.data.mpairs:
@@ -198,6 +197,7 @@ proc normalTransform(n,p:Vec4f, invMV: Mat4f): Vec4f =
   # normalization
   result.xyz /= length(result.xyz)
 
+#[
 # DO NOT MULTIPLY BY COS THETA
 proc shadingSpecularGGX(N, V, L: Vec3f; roughness: float32; F0: Vec3f): Vec3f =
   # ported from material/shader/glow-material/material-ggx.glsl
@@ -228,6 +228,7 @@ proc shadingSpecularGGX(N, V, L: Vec3f; roughness: float32; F0: Vec3f): Vec3f =
   # '* dotNV' - canceled by normalization
 
   return D * F * G / 4.0;
+]#
 
 var runGame = true
 while runGame:
@@ -351,13 +352,13 @@ while runGame:
         tmp = 1 + tmp * 0.125
         M.scale(tmp)
 
-    let oldMode = currentMesh.mode
+    let oldMode = currentMesh.vertexIndices.mode
     if toggleB:
-      currentMesh.mode = GL_POINTS
+      currentMesh.vertexIndices.mode = GL_POINTS
 
     case renderMode
     of 0:
-      currentMesh.render do (vertex, gl):
+      currentMesh.renderDebug do (vertex, gl):
         var position_os = vertex.position_os
         let position_ws = M*position_os
         let position_cs = V*position_ws
@@ -457,6 +458,6 @@ while runGame:
     else:
       discard
 
-    currentMesh.mode = oldMode
+    currentMesh.vertexIndices.mode = oldMode
 
   glSwapWindow(window)

@@ -3,6 +3,8 @@
 
 import normalizeType, glm, ast_pattern_matching, macros, algorithm, boring_stuff
 
+import hashes
+
 proc symKind(arg: NimNode): NimSymKind =
   if arg.kind == nnkHiddenDeref:
     symKind(arg[0])
@@ -285,10 +287,13 @@ proc compileToGlslA*(result: var string; arg: NimNode): void {.compileTime} =
 
     result.add buffer
     if arg.symKind in {nskVar, nskLet, nskForVar}:
+      discard
       # this should prevent keyword collisions and collisions with
       # symbols that are introduced through templates and iterators.
-      result.add '_'
-      result.pseudoBase64(arg.symId)
+      #result.add '_'
+      #let li = arg.lineinfoobj
+      #let id = hash((li.filename, li.line, li.column))
+      #result.pseudoBase64(id)
 
   of nnkDotExpr(`lhs`, `rhs`):
     # I am pretty sure this is a big hack
