@@ -31,6 +31,13 @@ leaving several draws with the identical uniform data.  This leads to
 the situation that all object that should be drawn at different
 locations end to be rendered all at the exact same location.
 
+
+it is horrible for me to write this document, because I am always
+procrastinating the whole day long and then in the evening I have
+don't nothing and still extremely exhausted. Then I won't go to bed
+because I feel I did not accomplish enough and then the next day I
+already start being exhausted without even having written anything.
+
 ** instance array
 
 A special kind of loop that initializes some local variables and then
@@ -894,18 +901,23 @@ render myVA: (vs, gl) ->
 * mesh type
 
 
-Designing a flexible concept of a mesh type is not easy. I would want to
-what the Mesh needs to provide
+Designing a flexible concept of a mesh type is not easy.  A generic
+mesh type should have the following attributes:
 
- * Allow an arbitrary vertex type (any plain old data type).
- * Provide the vertex type to the render macro as compile time meta
-   information.
- * Hold references to all its per vertex data.
- * Have an option for vertex indices.
- * Provide an automatic way to bind the data fast to an OpenGL shader
-   program.
- * Allow flexibility for the attributes: interleaved, separate buffers,
-   and hybrid.
+ * Allow arbitrary vertex attributes.  So not only only a subset of
+   predefined attribute names like Position Color
+   Normal, etc but completely custom attributes with user defined
+   identifiers. (any plain old data type).
+ * Provide a vertex type (POD) at compile time that will be used for
+   semantic checking of the vertex shader.
+ * Allow to bind each vertex attribute data to any buffer. This means
+   interleaved attributes, non interleaved attributes, different
+   buffer positions and completely different buffers.
+ * a flexible vertex indices field for arbitrary connectivity.
+ * Performance does matter.  So connecting a Mesh data with a shader
+   program should not take too long.
+
+TODO: explain vertex indices constraints.
 
 OpenGL has kind of a solution for this concept, the
 VertexArrayObject. So in theory everything is specified in the vertex
