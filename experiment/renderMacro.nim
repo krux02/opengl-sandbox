@@ -620,11 +620,12 @@ converter toVertexIndexBuffer*[T](arg: ElementArrayBuffer[T]): VertexIndexBuffer
   result.mode        = GL_POINTS
   result.numVertices = arg.len
 
-proc `or`(arg, alternative: NimNode): NimNode {.compileTime.} =
+template `or`(a,b: NimNode): NimNode =
+  let arg = a
   if arg.kind != nnkEmpty:
     arg
   else:
-    alternative
+    b
 
 macro genMeshType*(name: untyped; vertexType: typed): untyped =
   ## expects a symbol to a vertex type. ``name`` will be the name of the new type.

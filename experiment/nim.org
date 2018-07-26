@@ -151,30 +151,50 @@ exception.  Macros should not be all over the code, they should be the
 exception, and if writing a macro is really necessary, then it should
 be explained in detail what it does.  Because it is never obvious what
 a macro does, unlike what a procedure does.
+
 ** editor support.
+
+My goal is that every editor that utilizes numsuggest has correct
+syntax highlighting and code completion.  *No* editor or project
+*setup* should ever be necessary *necessary*, no matter what editor is
+in use.  There should be no "you have to start nimsuggest with the
+right parameter".  New users have no idea where when and how
+nimsuggest needs to be started and how that process is integrated in
+their IDE.  Nimsuggest should just work out of the box and gather all
+necessary information from the file system or the file directly.
+
+**
+
 I am using emacs as my text editor of choice.  I would not want to
 convince anybody that this is a good editor or a better editor than
 others, but I think its support should be as good as possible.  Same
-goes for vim and vscode.  I don't think that nimedit has a bright
-future.  I have used far too many IDEs that worked quite nice for one
-language, but everything else they failed and I had to relearn
-basically everything.  People who come to Nim probably tried out many
-programming languages as I did, and they might have settled with an
-editor that really supports a lot of languages, so that they do not
-need to relearn everything when they want to try out something new.
-Nimedit feels like it is yet again one of these editors for just one
-language.  Same goes for nimgrep.  It might have been developed to be a
-general tool, but people either already know how to use ~grep~,
-~git grep~, or ~ag~ (silver searcher).  They just don't want to
-change the tool that already works and is integrated in their
-workflow/editor.
-** editor should just work without any setup necessary.
+goes for vim or VScode.
+
 Especially in the Nim project itself it is very hard to get the editor
 configured correctly, so that errors can be highlighted correctly.
 This should not be necessary.  from opening a file in Nim it should be
 possible to get all configurations automatically.  No setup should be
 necessary at all in any editor at all, never.
+
 *** preview macro expansions in editor
-I have seen this feature for C/C++ macros and it is really helpful to
-be able to see what a macro actually expands into.  This should become
-a very well supported nimsuggest feature.
+
+I have seen macro expansion in KDevelop for C/C++. It really got me
+hooked, I want this for Nim as well.  It would be great if nimsuggest
+could visualize expanded macros.
+
+*** why nimedit won't have a bright future
+
+I don't think that nimedit has a bright future.  I have used far too
+many IDEs that worked quite nice for one language, but using them for
+anything else they failed.  So I learned at least one new IDE for any
+programming language that I touched.  And with that I had to relearn
+almost everything every time.  People who come to Nim probably tried
+out many programming languages as I did, and they might have settled
+with an editor that really supports a lot of languages, so that they
+do not need to relearn everything when they want to try out something
+new.  Nimedit feels like it is yet again one of these editors for just
+one language.  Same goes for ~nimgrep~.  It might have been developed
+to be a general tool, but people either already know how to use
+~grep~, ~git grep~, or ~ag~ (silver searcher).  They just don't want
+to change the tool that already works and is integrated in their
+workflow/editor.
