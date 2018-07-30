@@ -67,16 +67,18 @@ for mesh in mymeshes:
 
 # Why I chose an example for explanation?
 To my knowledge it is easiest to understand a new topic with a
-concrete example.  Therefore I would like to explain the inernals of
+concrete example.  Therefore I would like to explain the internals of
 the compiler with an example.  The example that I choose should be an
-example that is easy to understand, could be part of a real program
-and it should cover many features that I want to support.
+example that is easy to understand in terms of complexity, could be
+part of a real rendering program, should cover many features that I want
+to support and last but not least the example should give the reader
+an impression of what is this approach is able to accomplish.
 
 # What is the example about?
-In listing ref:base-example I show an example that I want to make
-executable over the course of this mater thesis.  It renders a mesh
-with texture mapping and vertex-normals.  In the vertex shader the
-lighting is calculated by a loop that iterates all light sources.
+In listing ref:base-example I show an example that I made executable
+over the course of this mater thesis.  It renders a mesh with texture
+mapping and vertex-normals.  In the vertex shader the lighting is
+calculated by a simple loop that iterates over all light sources.
 
 Features this example covers:
 
@@ -214,22 +216,25 @@ purpose very well to split between vertex shader and fragment shader.
 From all the information the AST provides several lists are extracted
 that will be used for code generation
 
- * Uniforms :: Symbols of variables that appear in the body, but are
-               not declared locally in that body, but come from
-               somewhere else in the program.  These symbols need to
-               be passed as uniforms to the program.
+ * Uniforms :: Variable symbols used in the body automatically become
+               /uniform/ variables, when their declaration lies outside of the
+               body.  The values of these symbols need to
+               be serialized and passed as /uniform/ to the /program/.
 
- * Attributes :: Each access to the vertex symbol is an access to an
-                 attribute.  With this approach there won't be any
-                 attribute passed to the shader that isn't used.
+ * Attributes :: Every member of the vertex object automatically
+                 becomes an /attribute/, when it is used in the
+                 /body/.  A /program/ that does not access the vertex
+                 object will not have attributes.
 
- * Types :: Types of symbols and expressions that are used within the
-            body.  Types that are not built-in types of glsl need to
-            be compiled to glsl.
+ * Types :: Locals variables and /uniforms/ may have a type that is
+            not already defined in GLSL.  These types will need a type
+            declaration so that they can be used in GLSL.
 
- * Procedures :: Procedure symbols that are used within the
-                 body. Procedures that are not built-in need to be
-                 compiled to glsl as well.
+ * Procedures :: Similar to /types/ used procedures that are not built
+                 into GLSL need to bo compiled ot GLSL as well.  To
+                 compile procedures the procedure body needs to be
+                 scanned recursively for more /uniforms/, /types/
+                 and /procedures/.
 
  * Varyings :: Symbols that are declared in the vertex shader, but are
                accessed from the fragment shader are symbols that need
@@ -252,16 +257,17 @@ texture uniforms that are represented by a handle on the client.  All
 uniforms that are just plain old data can simply be passed to the
 shader program in one block of binary data, the uniform buffer.  For
 textures though, this does not work.  Putting the texture handle into
-the uniform buffer does not work.  In OpenGL textures are not
-passed directly to the shader.
-Internally OpenGL has a list of active textures, the active texture
-array.  A texture needs to be bound to an active texture first.  And
-then the program that uses a textures needs to know the index of the
-texture in the active texture array.  This is simply done by passing
-an integer to the uniform.  I personally think that this list of
-active textures is something the programmer should not need to worry
-about.  The user/programmer should just be able to use a texture
-symbol and it should work in all circumstances.
+the uniform buffer does not work.  In OpenGL textures are not passed
+directly to the /shader/.  Internally OpenGL has a list of active
+textures, the active textures list.  A texture needs to be bound to a
+spot in this active texture list first.  Then the program that uses a
+textures needs to know the index of the texture in the active texture
+list.  This can be done for example by passing an integer to the
+/uniform/ variable.  I personally think that this list of active
+textures is an unnecessary indirection that causes way too much
+confusion.  So I found a way that the programmer does not need to
+worry about it anymore.  He will be able to use texture variables in
+the /shader/ directly, as if this indirection would not exist.
 
 [[./images/active-texture.png]]
 
@@ -272,21 +278,23 @@ different kinds of uniforms, the /texture/ uniforms, and the
 joined into a single uniform buffer, which is then passed to the
 program in one batch.
 
+# TODO reference the struggles of serializing uniforms.
+
 For textures I have a slightly different approach.  Since I know all
 symbols statically, I assign each texture symbol to one position in
 the active texture array at compile time.  So for example the first
 used texture symbol will use ~GL_TEXTIRE0~ the second one will use
 ~GL_TEXTURE1~ etc.  This also won't change anymore at run-time, but
-the actual value (handle) of the texture symbol can change at any time
-during run-time, therefore I bind all texture handle on each draw call
-to the list of active textures.  Since all textures are in a
-consecutive array I can set them all at once with
-~glBindImageTextures~.
+the actual value (handle) of the texture symbol can change at any,
+even between every draw call.  Therefore I bind every used texture
+/symbol/ to its active texture unit every time before the draw call.
+Since all used texture units are in a consecutive array they can be
+set in one batch with ~glBindImageTextures~.
 
-There will never be a call to ~glUniform1i~ to set a texture
-uniform before a draw call, texture handles can change at any time and
-it will just work, and no programmer needs to spend time thinking
-about the internal list of active textures.
+It will not be necessary any more to change the active texture unit
+with a call like ~glUniform1i~ after initial setup.  And yet every
+texture variables is usable from the /shader/, no matter how often the
+value changes.
 
 #+BEGIN_SRC glsl
 // here I start at 0, but I could start at any other index.
@@ -300,11 +308,19 @@ var handles = [reflection.handle, color.hanle, skybox.handle]
 glBindTextures(0, GLsizei(handles.len), handles[0].addr)
 #+END_SRC
 
-A possible optimization to this method would be to reserve some active
-textures at compile time for textures that are known to be used in
-many shader programs.  These textures would be bound to active textures at
-initialization stage and never unbound again.  For example just assume
-a font atlas would be used by many programs.
+# possible optimization
+
+I would like to discuss a theoretical optimization.  When there is a
+single constant texture used in a majority of the /shaders/, this
+texture can be bound permanently to a texture unit.  So there will be
+two different ranges in the active textures list.  At the beginning
+there will be the array of constant active textures that will never be
+unbound, and after that there will be all the be the texture unites
+that will be rebound on every draw call. Every program would need to
+know at initialization about all global textures, because otherwise it
+would override the global texture units with it's own used textures.
+For some cases this would prevent binding textures before the draw
+call at all.
 
 #+BEGIN_SRC glsl
   // here are all used texture uniforms from the statically reserved
@@ -328,17 +344,17 @@ glBindTextures(2, GLsizei(handles.len), handles[0].addr)
 
 The advantage here is that statically reserved active texture units
 don't need any OpenGL state change at all.  But I have no measurement
-at all on how much performance gain there is or much much performance
-gain might be possible.
+at all on how much performance gain there is nor how much performance
+gain might even be possible.
 
-The disadvantage is for the mostly that the programmer needs to take
-active care of these statically reserved active textures.  He needs to
-be aware on how many there are. The limits are at least 48 by the
-standard, and on my computer there cannot be more than 192 combined
-texture image units. Also all texture unit reservation needs to take
-place before the first shader program is compiled, because otherwise
-the offset for the dynamically bound active textures won't be correct
-anymore.
+The disadvantage here is mostly that the programmer needs to take
+active care of these statically reserved active texture units.  He
+needs to be aware on how many there are.  The limits are at least 48 by
+the standard, and on my computer there cannot be more than 192
+combined texture image units.  Also all texture unit reservation needs
+to take place before the first shader program is compiled, because
+otherwise the offset for the dynamically bound active textures won't
+be correct anymore.
 
 Because of the disadvantages and no guarantee for a performance gain,
 this has not been implemented yet.  But this technique will be picked
@@ -354,38 +370,42 @@ hard to read.  And I would really like to be able to read the
 generated code, just to verify that it is correct.  Whenever something
 doesn't work and I need to check manually what went wrong in the code
 generation process, it helps a lot when the generated code is readable
-and maintains the names of the original symbols.
+and maintains the names of the original symbols.  Eventually if
+everything works 100% correct, it does not matter how the generated
+code looks like, but at the current state of development I can't
+guarantee that.
 
 # underscores
 Nim has a very weird rule for identifier equality.  First of all it is
 case insensitive (except for the first character), and it ignores
 underscores in names.  so ~foo_bar~ and ~fooBar~ are equal according
-to Nim identifier comparison.  I don't necessarily like this but I can
-use it to my advantage.  First of all I can remove all underscores
-from identifires without creating name clashes from Nim symbols.  Then
-the underscore becomes free for me to create prefixes and postfixes
-that cannot clash at all anymore with other Nim symbols. For example I
-can generate ~in_foobar~ and it cannot clash with a symbol from the
-ast, because if ~in_foobar~ would be used inside of the body, it would
-be translated without the ~_~, it would be translated as ~infoobar~.
+to Nim identifier comparison, but ~foobar~ and ~Foobar~ are not.  I
+don't necessarily like this but I can use it to my advantage.  First
+of all I can remove all underscores from identifiers without creating
+name clashes from Nim symbols.  Then the underscore becomes free for
+me to use as a separator for symbol disambiguation. For example I can
+generate ~in_foobar~ and it cannot clash with a symbol from the ast,
+because if ~in_foobar~ would be used inside of the body, it would be
+translated to ~infoobar~.
 
 # resolving keyword conflicts
-Nim allows symbols to be named like keywords of glsl. This is
-simply resolved with a list of all glsl keywords.  Whenever a symbol
-name is a keyword in glsl, I will know that by looking in that list,
-and I will append a post-fix to the generated symbol in glsl.
+Nim allows symbols to be named like keywords of glsl. This is simply
+resolved with a list of all glsl keywords.  Whenever a symbol name is
+a keyword in glsl, I will know that by looking in that list, and I
+will append a post-fix to the generated symbol in glsl for
+disambiguation.
 
 ** Translating Types to glsl
 
 # translating simple types to glsl
 Most types that are used in the code block should be built-in types of
-glsl, just the correct mapping of the types should be done. For
+glsl, just the correct mapping of the types should be done.  For
 example the Nim type ~int32~ will be translated to ~int~ and ~float32~
-will be translated to ~float~. A bit more complicated are the
+will be translated to ~float~.  A bit more complex are the
 vec-types.  For example the type ~Vec4f~ is an alias to
 ~Vec4[float32]~ which is also just an alias to ~Vec[4,float32]~.  For
 this alias resolution I implemented a ~normalizeType~ function that
-resolves all alias types to their original name.  In this case all of
+resolves all alias types to their non alias name.  In this case all of
 the three representations would be mapped to ~Vec[4,float32]~.  The
 generic Vec types are easy to map to the built-in types of glsl.  For
 example ~Vec[4,float32]~ is translated to ~vec4~ and ~Vec[2, int32]~
@@ -398,7 +418,7 @@ glsl as well.  In the given example that would be the type ~Light~
 that is used by iterating the lights array.  A simple check of that
 symbol is a built-in types should verify that this type is a user
 defined type.  With ~getImpl~ on the ~Light~ type symbol I can get to
-the implementation and use it to translate it to glsl.  Here is an
+the implementation and use it to translate it to GLSL.  Here is an
 example how the translation of that type looks like.
 
 #+caption: Light Type Definition in Nim
@@ -434,7 +454,7 @@ struct Light {
 #+END_SRC
 
 Of course types that are used as members here need to be translated to
-glsl as well, when they are not already built-in.  In this example
+GLSL as well, when they are not already built-in.  In this example
 this is not necessary though, because ~vec4~ is a built-in type.
 
 # translating procedures to glsl
@@ -983,3 +1003,56 @@ theory ~glVertexAttribBinding~ allows for such a mapping, but it sets
 the state for the Vertex Array Object, not the program.  Thus I can't
 generate the mapping as an initialization of the program.  I did not
 find a procedure to set such a mapping in one bulk operation.
+* glm port and extensions
+
+In order to be able to have a language that can be translated to both
+GLSL for the GPU and C code for the CPU, I wanted to have a mirror
+that reflects everything that you can typically do in glsl in a
+library for Nim.  The C++ project GLM does already a very good job and
+providing the vector math part of glm on the CPU side.  So I looked if
+there was something like glm already in Nim.  I found a project called
+glm, but this project was very bare bone and written in an almost
+unmaintainable style, but I wanted that name. So I fixed that port and
+changed almost everything in it. My port is an almost one to one
+source port of the original c++ version of glm. Most changes are pure syntax
+related.
+
+But since I wanted to program everything in Nim, even the shaders, I
+also need to have the GLSL features ported that work on the GPU only.
+This is texture sampling.  In order to have texture sampling working,
+I need to have all sampler types from GLSL representive in Nim.  For
+example sampling from a texture of type ~Texture2D~ will cause a
+uniform of type ~sampler2D~ in GLSL.  The whole family of sampler
+types is supported though, including /1D/, /3D/, /cube/ and /shadow
+samplers/.
+
+Texture sampling itself I implemented with moc procedures. The family
+of ~texture~ procedures that is used in GLSL to sample a texture is
+implemented in nim just by an empty procedure that instantly throws an
+exception.
+
+#+BEGIN_SRC nim
+proc texture*(sampler: Texture2D; P: Vec2f; bias: float32 = 0): Vec4f =
+  quit("only implemented in shader")
+#+END_SRC
+
+So when you call this procedure from the CPU side it will crash your
+program, but when you call this procedure from the body of the /shader/,
+it will be compiled to the ~texture~ call is very well known to the
+glsl compiler.  The nim implementation of ~texture~ will not be
+translated to GLSL. It is filtered out as already known by GLSL.
+
+* serialization
+
+I wanted to have a one to one representation of GLSL in Nim.
+Semantically I could do it, but I was not able to have binary
+compatibility.  The ~vec3~ type in GLSL has an alignment like the type
+~vec4~ of 16 bytes, but it is only 12 bytes in size.  This is not
+allowed for any type in C, it would break pointer arithmetic (Nim
+compiles to C).  GLSL works with this behavior by rounding up the
+alignment of every array element and every struct by a multiple of 16
+bytes.  But that is not something I have control over in Nim. In order
+to work with this alignment differences, I reserialize every Nim
+object when I pass it down to GLSL. This way I have control of the
+full memory layout, and I can inject all the alignment bytes, where
+needed.
