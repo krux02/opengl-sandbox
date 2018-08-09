@@ -214,7 +214,6 @@ while runGame:
     let mesh = meshes[i]
 
     shadingDsl:
-      debug
       primitiveMode = GL_TRIANGLES
       numVertices = mesh.numVertices
       vertexOffset = mesh.baseIndex

@@ -180,7 +180,6 @@ void main() {
   glEnable(GL_BLEND)
 
   shadingDsl:
-    #debug
     primitiveMode = GL_POINTS
     numVertices   = numParticles
 
@@ -235,7 +234,6 @@ void main() {
   glDisable(GL_BLEND)
 
   shadingDsl:
-    #debug
     primitiveMode = GL_POINTS
     numVertices   = numParticles
 

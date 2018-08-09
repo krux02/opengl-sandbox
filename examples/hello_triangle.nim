@@ -49,7 +49,6 @@ while runGame:
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
   shadingDsl:
-    debug
     primitiveMode = GL_TRIANGLES
     numVertices = 3
     uniforms:

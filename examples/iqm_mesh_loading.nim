@@ -386,7 +386,6 @@ proc main() =
     if renderNormalMap:
       for i, mesh in meshes:
         shadingDsl:
-          debug
           primitiveMode = GL_POINTS
           numVertices = mesh.num_vertexes
           vertexOffset = mesh.first_vertex
@@ -470,7 +469,6 @@ proc main() =
     if renderMesh:
       for i, mesh in meshes:
         shadingDsl:
-          debug
           primitiveMode = GL_TRIANGLES
           numVertices = mesh.num_triangles * 3
           vertexOffset = mesh.first_triangle * 3
