@@ -1,0 +1,188 @@
+* Example of a Variable that is Modified in Every Shader Stage
+
+#+BEGIN_SRC nim
+const myConstant = 0.123456
+var myUniform = -0.123456
+
+framebuffer.render(mesh) do (v, gl):
+  result.color.r = 0.0f                              #       | | | |
+  result.color.r += myConstant                       # const-' | | |
+  result.color.r += myUniform                        #     CPU-' | |
+  result.color.r += v.position.x {.VS.}              #        VS-' |
+  result.color.r += texture(myTexture, v.texcoord).r #          FS-'
+
+#+END_SRC
+
+
+#+caption: Generated Nim Code
+#+BEGIN_SRC nim
+const myConstant: float32 = 0.123456
+
+const const_result_color = (block:
+  var const_result_color: Vec4f
+  const_result_color.r += myConstant
+  const_result_color
+)
+
+cpu:
+  var cpu_result_color = const_result_color
+  cpu_result_color.r += myUniform
+
+  glAttrib("attrib_position", ...)
+  glUniform("uniform_result_color", cpu_result_color)
+
+#+END_SRC
+
+#+caption: Generated Vertex Shader
+#+BEGIN_SRC glsl
+#version 440
+
+uniform vec4 uniform_result_color;
+in vec4 in_position;
+in vec2 in_texcoord;
+
+out vec2 layout(location = 0) out_texcoord;
+out vec4 layout(location = 1) out_result_color;
+
+void main() {
+  // assign local names
+  vec4 vert_result_color = uniform_result_color;
+  vec4 vert_position = in_position;
+  vec2 vert_texcoord = in_texcoord;
+
+  // vertex shader body
+  vert_result_color.r += vert_position.x;
+
+  // forwarding for next shader stage:
+  // this section might look different when geometry or tesselation shader is present.
+  out_texcoord     = vert_texcoord;
+  out_result_color = vert_result_color;
+}
+
+#+END_SRC
+
+#+caption: Generated Fragment Shader
+#+BEGIN_SRC glsl
+#version 440
+
+uniform sampler2D myTexture;
+
+in vec2 layout(location=0) in_texcoord;
+in vec4 layout(location=0) in_result_color;
+
+// there is no next shader stage, so assignment to final variable names is possible
+out vec4 frag_result_color;
+
+void main() {
+  // assign local names
+  vec2 frag_texcoord = vert2frag_texcoord;
+  frag_result_color   = vert2frag_result_color;
+
+  // fragment shader body
+  frag_result_color.r +=  texture(myTexture, frag_texcoord).r;
+
+  // no forwarding section required anymore
+}
+
+#+END_SRC
+
+* Examples of Mistakes that Should Be Detected
+
+#+caption: Example Mistakes
+#+BEGIN_SRC nim
+
+framebuffer.render(mesh) do (v, gl):
+  gl.Position     = result.color.r
+  # OK
+  # Should be OK, because vert_result_color can be introduced without creating any conflicts.
+
+framebuffer.render(mesh) do (v, gl):
+  gl.Position     = result.color.r                   # assignment from vert_result_color
+  result.color.r  = texture(myTexture, v.texcoord).r # assignment to frag_result_color
+  # Still ok, just forward result.color after it is used for gl.Position
+
+framebuffer.render(mesh) do (v, gl):
+  result.color.r  = texture(myTexture, v.texcoord).r # assignment to frag_result_color
+  gl.Position     = result.color.r                   # error
+  # gl.Position needs to be assigned to from the vertex shader, but vert_result_color is invalid now.
+
+framebuffer.render(mesh) do (v, gl):
+  result.color.r  = texture(myTexture, v.texcoord).r # assignment to frag_result_color
+  gl.Position     = result.color.r
+  # now it is ok agin because explicit interpolation of result.color
+  # is requested.  The conflict is resolve manually.
+  interpolate(result.color)
+
+framebuffer.render(mesh) do (v, gl):
+  interpolaten(result.color.r) # error
+  # interpolation of individual vector components should not be allowed.
+
+# reorder statement
+var mvp: Mat4f
+
+framebuffer.render(mesh) do (v, gl):
+  result.color.r  = texture(myTexture, v.texcoord).r # assignment to frag_result_color
+  gl.Position     = mvp * v.position                 # OK even though
+  # this statement is after a statement that has to be executed in the
+  # fragment shader, it has no dependency on any value that has to be
+  # executed in the fragment shader. Therefore the order can be
+  # changed so that this line is evaluated in the vertex shader without breaking any semantic.
+
+#+END_SRC
+
+  + What would this thing generate?
+
+* Example of Branching Statement that Was on the Whiteboard
+
+#+BEGIN_SRC nim
+framebuffer.render(mesh) do (v, gl):
+  let tmp0 = gl.Position > 0.5f
+  interpolate(tmp0, iqFlat)
+  if tmp0:
+    result.color.rgb = vec3f(1,0,0)
+  else:
+    result.color.rgb = vec3f(0,1,0)
+#+END_SRC
+
+#+caption: Vertex Shader
+#+BEGIN_SRC glsl
+#version 440
+
+out flat int vert2frag_tmp0;
+
+void main() {
+  // assign local names
+  bool vert_tmp0;
+
+  // vertex shader body
+  vert_tmp0 = gl_Position.z > 0.5f;
+
+  // forwarding for next shader stage:
+  // this section might look different when geometry or tesselation shader is present.
+  vert2frag_tmp0 = vert_tmp0 ? 1 : 0;
+}
+#+END_SRC
+
+#+caption: Fragment Shader
+#+BEGIN_SRC glsl
+#version 440
+
+flat in int vert2frag_tmp0;
+
+// there is no next shader stage, so assignment to final variable names is possible
+out vec4 frag_result_color;
+
+void main() {
+  // assign local names
+  bool frag_tmp0 = vert2frag_tmp0 != 0;
+
+  // fragment shader body
+  if ( frag_tmp0 ) {
+    frag_result_color.rgb = vec3(1,0,0);
+  } else {
+    frag_result_color.rgb = vec3(0,1,0);
+  }
+  // no forwarding section required anymore
+}
+
+#+END_SRC
