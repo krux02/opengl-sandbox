@@ -52,8 +52,8 @@ type
   GLintptrARB* = int
   GLshort* = int16
   GLsizei* = int32
-  GLsizeiptr* = int32
-  GLsizeiptrARB* = int32
+  GLsizeiptr* = int
+  GLsizeiptrARB* = int
   GLsync* = distinct pointer
   GLubyte* = uint8
   GLuint* = uint32
@@ -100,7 +100,7 @@ type
 
 # Enums
 const
-  GL_FALSE* = 0
+  GL_FALSE* = false
   GL_INVALID_INDEX*: uint32 = uint32(0xFFFFFFFF)
   GL_NONE* = 0
   GL_NONE_OES* = 0
@@ -108,7 +108,7 @@ const
   GL_ONE* = 1
   GL_TIMEOUT_IGNORED*: uint64 = uint64(0xFFFFFFFFFFFFFFFF)
   GL_TIMEOUT_IGNORED_APPLE*: uint64 = uint64(0xFFFFFFFFFFFFFFFF)
-  GL_TRUE* = 1
+  GL_TRUE* = true
   GL_VERSION_ES_CL_1_0* = 1
   GL_VERSION_ES_CL_1_1* = 1
   GL_VERSION_ES_CM_1_1* = 1
