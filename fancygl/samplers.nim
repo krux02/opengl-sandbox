@@ -4,7 +4,7 @@
 #### Sampler Types #############################################################
 ################################################################################
 
-proc createErrorSurface*(message: string = nil, size: Vec2i = vec2i(-1)): sdl.Surface =
+proc createErrorSurface*(message: string = "", size: Vec2i = vec2i(-1)): sdl.Surface =
   # TODO message is still unsued
   var w,h: int32 = 512
 

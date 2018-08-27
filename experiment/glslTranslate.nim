@@ -197,9 +197,9 @@ proc pseudoBase64*(dst: var string; arg: int): void {.compileTime.} =
     dst.add cb64[arg and 0x3f]
     arg = arg shr 6
 
-static:
-  var buffer: string = ""
-  var procCache: seq[tuple[sym: NimNode; code: string]] = @[]
+#static:
+#  var buffer: string = ""
+#  var procCache: seq[tuple[sym: NimNode; code: string]] = @[]
 
 proc compileProcToGlsl(result: var string; arg: NimNode): void {.compileTime.} =
   matchAst(arg):
@@ -270,17 +270,17 @@ proc compileToGlslA*(result: var string; arg: NimNode): void {.compileTime} =
   of nnkProcDef:
     let argSym = arg[0]
     argSym.expectKind nnkSym
-    for sym, code in procCache.items:
-      if sym == argSym:
-        result.add code
-        return
+    #for sym, code in procCache.items:
+    #  if sym == argSym:
+    #    result.add code
+    #    return
 
     var code: string = ""
     code.compileProcToGlsl(arg)
-    procCache.add((argSym, code))
+    #procCache.add((argSym, code))
     result.add code
   of {nnkIdent, nnkSym}:
-    buffer.setLen 0
+    var buffer = ""# buffer.setLen 0
     for c in arg.repr:
       if c != '_': # underscore is my personal separator
         buffer.add c

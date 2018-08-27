@@ -83,7 +83,7 @@ proc forwardVertexShaderSource(sourceHeader: string,
     result.add("VertexOut." & name & " = " & name & ";\n")
   result.add("}\n")
 
-  echo "forwardVertexShaderSource:\n", result
+  #echo "forwardVertexShaderSource:\n", result
 
 type
   RenderObject*[N: static[int]] = object
@@ -308,7 +308,6 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
         numLocations += 1
         binding += 1
 
-      echo setBuffersCall.repr
       drawBlock.add(setBuffersCall)
 
     of "vertexOut":

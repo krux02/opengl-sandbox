@@ -16,8 +16,7 @@ proc label*(arg: DepthRenderBuffer): string =
 
 proc `label=`*(arg: DepthRenderBuffer; label: string): void =
     ## does nothing when label is nil (allows nil checks on other places)
-    if not isNil label:
-      glLabelObjectEXT(GL_FRAMEBUFFER, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
+    glLabelObjectEXT(GL_FRAMEBUFFER, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
 
 proc label*(arg: FrameBuffer): string =
   if glGetObjectLabel != nil:
@@ -31,12 +30,15 @@ proc label*(arg: FrameBuffer): string =
 
 proc `label=`*(arg: FrameBuffer; label: string): void =
     ## does nothing when label is nil (allows nil checks on other places)
-    if label != nil and glObjectLabel != nil:
+    if glObjectLabel != nil:
       glObjectLabel(GL_FRAMEBUFFER, arg.handle, GLsizei(label.len), label[0].unsafeAddr)
 
-proc newDepthRenderBuffer*(size: Vec2i, label: string = nil) : DepthRenderbuffer =
+proc newDepthRenderBuffer*(size: Vec2i) : DepthRenderbuffer =
   glCreateRenderbuffers(1, cast[ptr GLuint](result.addr))
   glNamedRenderbufferStorage(result.handle, GL_DEPTH_COMPONENT, size.x.GLsizei, size.y.GLsizei)
+
+proc newDepthRenderBuffer*(size: Vec2i, label: string) : DepthRenderbuffer =
+  result = newDepthRenderBuffer(size)
   result.label = label
 
 proc bindDraw*(fb: FrameBuffer): void =

@@ -491,10 +491,12 @@ type
   VertexArrayObjectBinding* = object
     index*: GLuint
 
-proc createVertexArrayObject*(label: string = nil) : VertexArrayObject =
+
+proc createVertexArrayObject*(label: string = "") : VertexArrayObject =
   ## Typed wrapper around `glCreateVertexArrays`.
   glCreateVertexArrays(1, result.handle.addr)
-  result.label = label
+  if label.len > 0:
+    result.label = label
 
 proc delete*(vao: VertexArrayObject) =
   ## Typed wrapper around `glDeleteVertexArrays`.
@@ -537,16 +539,18 @@ proc new*[T](arrayBuffer: var ElementArrayBuffer[T] ) : void =
 proc new*[T](arrayBuffer: var UniformBuffer[T] ) : void =
   glCreateBuffers(1, arrayBuffer.handle.addr)
 
-proc createArrayBuffer*[T](length: int, usage: GLenum = GL_STATIC_DRAW, label: string = nil): ArrayBuffer[T] =
+proc createArrayBuffer*[T](length: int, usage: GLenum = GL_STATIC_DRAW, label: string = ""): ArrayBuffer[T] =
   result.new
   glNamedBufferData(result.handle, length * GLsizeiptr(sizeof(T)), nil, usage)
   #glNamedBufferStorage(result.handle, length * GLsizeiptr(sizeof(T)), nil, 0)
-  if not label.isNil:
+  if label.len > 0:
     result.label = label
 
-proc createElementArrayBuffer*[T](length: int, usage: GLenum = GL_STATIC_DRAW): ElementArrayBuffer[T] =
+proc createElementArrayBuffer*[T](length: int, usage: GLenum = GL_STATIC_DRAW, label: string = ""): ElementArrayBuffer[T] =
   result.new
   glNamedBufferData(result.handle, length * GLsizeiptr(sizeof(T)), nil, usage)
+  if label.len > 0:
+    result.label = label
 
 proc createUniformBuffer*[T](usage: GLenum = GL_STATIC_DRAW): UniformBuffer[T] =
   result.new
@@ -795,32 +799,37 @@ macro mapReadWriteBlock*(buffer: ArrayBuffer, blck: untyped) : untyped =
         discard `buffer`.unmap
       `blck`
 
-proc arrayBuffer*[T](data : openarray[T], usage: GLenum = GL_STATIC_DRAW, label: string = nil): ArrayBuffer[T] =
+proc arrayBuffer*[T](data : openarray[T], usage: GLenum = GL_STATIC_DRAW, label: string = ""): ArrayBuffer[T] =
   result.new
   result.bufferData(data, usage)
-  result.label = label
+  if label.len > 0:
+    result.label = label
 
-proc arrayBuffer*[T](data : DataView[T], usage: GLenum = GL_STATIC_DRAW, label: string = nil): ArrayBuffer[T] =
+proc arrayBuffer*[T](data : DataView[T], usage: GLenum = GL_STATIC_DRAW, label: string = ""): ArrayBuffer[T] =
   if not data.isNil:
     result.new
     result.bufferData(data, usage)
-    result.label = label
+    if label.len > 0:
+      result.label = label
 
-proc elementArrayBuffer*[T](data : openarray[T]; usage: GLenum = GL_STATIC_DRAW; label: string = nil): ElementArrayBuffer[T] =
+proc elementArrayBuffer*[T](data : openarray[T]; usage: GLenum = GL_STATIC_DRAW; label: string = ""): ElementArrayBuffer[T] =
   result.new
   result.bufferData(data, usage)
-  result.label = label
+  if label.len > 0:
+    result.label = label
 
-proc elementArrayBuffer*[T](data : DataView[T], usage: GLenum = GL_STATIC_DRAW, label: string = nil): ElementArrayBuffer[T] =
+proc elementArrayBuffer*[T](data : DataView[T], usage: GLenum = GL_STATIC_DRAW, label: string = ""): ElementArrayBuffer[T] =
   if not data.isNil:
     result.new
     result.bufferData(data, usage)
-    result.label = label
+    if label.len > 0:
+      result.label = label
 
-proc uniformBuffer*[T](data : T, usage: GLenum = GL_STATIC_DRAW, label: string = nil): UniformBuffer[T] =
+proc uniformBuffer*[T](data : T, usage: GLenum = GL_STATIC_DRAW, label: string = ""): UniformBuffer[T] =
   result.new
   result.bufferData(data, usage)
-  result.label = label
+  if label.len > 0:
+    result.label = label
 
 ################################################################################
 ################################ ArrayBufferView ###############################
@@ -1192,7 +1201,7 @@ template stride*[T](self: TransformFeedback[T]): int =
 
 import typetraits
 
-proc glslLayoutSpecificationRuntime[T](name: string = nil): string =
+proc glslLayoutSpecificationRuntime[T](name: string = ""): string =
   let stride = sizeof(T)
   let name = $T
   var tmp: T
@@ -1265,7 +1274,6 @@ proc label*[T](arg: T): string =
     result = "<object label not supported>"
 
 proc `label=`*[T](arg: T; label: string): void =
-  ## Typed wraper around `glObjectLabel`.  does nothing when label is
-  ## empty/nil.
-  if glObjectLabel != nil and label.len != 0:
+  ## Typed wrapper around `glObjectLabel`.
+  if glObjectLabel != nil:
     glObjectLabel(glNamespace(arg.type), arg.handle, GLsizei(label.len), label[0].unsafeAddr)

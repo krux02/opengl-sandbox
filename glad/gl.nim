@@ -1534,7 +1534,7 @@ var
   glGetError*: proc (): GLenum {.cdecl.}
   glGetFloatv*: proc (pname: GLenum, data: ptr GLfloat) {.cdecl.}
   glGetIntegerv*: proc (pname: GLenum, data: ptr GLint) {.cdecl.}
-  glGetString*: proc (name: GLenum): ptr GLubyte {.cdecl.}
+  glGetString*: proc (name: GLenum): cstring {.cdecl.}
   glGetTexImage*: proc (target: GLenum, level: GLint, format: GLenum, `type`: GLenum, pixels: pointer) {.cdecl.}
   glGetTexParameterfv*: proc (target: GLenum, pname: GLenum, params: ptr GLfloat) {.cdecl.}
   glGetTexParameteriv*: proc (target: GLenum, pname: GLenum, params: ptr GLint) {.cdecl.}
@@ -1753,7 +1753,7 @@ var
   glClearBufferuiv*: proc (buffer: GLenum, drawbuffer: GLint, value: ptr GLuint) {.cdecl.}
   glClearBufferfv*: proc (buffer: GLenum, drawbuffer: GLint, value: ptr GLfloat) {.cdecl.}
   glClearBufferfi*: proc (buffer: GLenum, drawbuffer: GLint, depth: GLfloat, stencil: GLint) {.cdecl.}
-  glGetStringi*: proc (name: GLenum, index: GLuint): ptr GLubyte {.cdecl.}
+  glGetStringi*: proc (name: GLenum, index: GLuint): cstring {.cdecl.}
   glIsRenderbuffer*: proc (renderbuffer: GLuint): GLboolean {.cdecl.}
   glBindRenderbuffer*: proc (target: GLenum, renderbuffer: GLuint) {.cdecl.}
   glDeleteRenderbuffers*: proc (n: GLsizei, renderbuffers: ptr GLuint) {.cdecl.}
@@ -2243,13 +2243,9 @@ var
 
 
 proc hasExt(extname: string): bool =
-  if extname == nil:
-    return false
 
   if glVersionMajor < 3:
     var extensions = $cast[cstring](glGetString(GL_EXTENSIONS))
-    if extensions == nil:
-      return false
 
     var
       loc, terminatorLoc: int
@@ -2324,7 +2320,7 @@ proc load_GL_VERSION_1_0(load: proc) =
   glGetError = cast[proc (): GLenum {.cdecl.}](load("glGetError"))
   glGetFloatv = cast[proc (pname: GLenum, data: ptr GLfloat) {.cdecl.}](load("glGetFloatv"))
   glGetIntegerv = cast[proc (pname: GLenum, data: ptr GLint) {.cdecl.}](load("glGetIntegerv"))
-  glGetString = cast[proc (name: GLenum): ptr GLubyte {.cdecl.}](load("glGetString"))
+  glGetString = cast[proc (name: GLenum): cstring {.cdecl.}](load("glGetString"))
   glGetTexImage = cast[proc (target: GLenum, level: GLint, format: GLenum, `type`: GLenum, pixels: pointer) {.cdecl.}](load("glGetTexImage"))
   glGetTexParameterfv = cast[proc (target: GLenum, pname: GLenum, params: ptr GLfloat) {.cdecl.}](load("glGetTexParameterfv"))
   glGetTexParameteriv = cast[proc (target: GLenum, pname: GLenum, params: ptr GLint) {.cdecl.}](load("glGetTexParameteriv"))
@@ -2583,7 +2579,7 @@ proc load_GL_VERSION_3_0(load: proc) =
   glClearBufferuiv = cast[proc (buffer: GLenum, drawbuffer: GLint, value: ptr GLuint) {.cdecl.}](load("glClearBufferuiv"))
   glClearBufferfv = cast[proc (buffer: GLenum, drawbuffer: GLint, value: ptr GLfloat) {.cdecl.}](load("glClearBufferfv"))
   glClearBufferfi = cast[proc (buffer: GLenum, drawbuffer: GLint, depth: GLfloat, stencil: GLint) {.cdecl.}](load("glClearBufferfi"))
-  glGetStringi = cast[proc (name: GLenum, index: GLuint): ptr GLubyte {.cdecl.}](load("glGetStringi"))
+  glGetStringi = cast[proc (name: GLenum, index: GLuint): cstring {.cdecl.}](load("glGetStringi"))
   glIsRenderbuffer = cast[proc (renderbuffer: GLuint): GLboolean {.cdecl.}](load("glIsRenderbuffer"))
   glBindRenderbuffer = cast[proc (target: GLenum, renderbuffer: GLuint) {.cdecl.}](load("glBindRenderbuffer"))
   glDeleteRenderbuffers = cast[proc (n: GLsizei, renderbuffers: ptr GLuint) {.cdecl.}](load("glDeleteRenderbuffers"))
@@ -3247,12 +3243,11 @@ proc findCoreGL(glVersion: string) =
   GLAD_GL_VERSION_4_5 = (major == 4 and minor >= 5) or major > 4
   GLAD_GL_VERSION_4_6 = (major == 4 and minor >= 6) or major > 4
 
-
 proc gladLoadGL*(load: proc): bool =
-  glGetString = cast[proc (name: GLenum): ptr GLubyte {.cdecl.}](load("glGetString"))
+  glGetString = cast[proc (name: GLenum): cstring {.cdecl.}](load("glGetString"))
   if glGetString == nil: return false
 
-  var glVersion = cast[cstring](glGetString(GL_VERSION))
+  var glVersion = glGetString(GL_VERSION)
   if glVersion == nil: return false
 
   findCoreGL($glVersion)

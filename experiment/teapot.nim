@@ -186,7 +186,7 @@ let tex: array[2, array[2, array[2, float32]]] = [
 
 #[ *INDENT-ON* ]#
 
-static:
+const binomBuffer = (block:
   var buffer: seq[seq[int]]
   buffer.add @[1]
 
@@ -198,8 +198,8 @@ static:
     current.add 1
     buffer.add current
     current.setLen(0)
-
-const binomBuffer = buffer
+  buffer
+)
 
 proc binomial*(n,k: int): int =
   binomBuffer[n][k]

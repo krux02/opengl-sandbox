@@ -20,9 +20,6 @@ const persistentMappedBuffers* = false
 # weird bug in nim
 export std140AlignedWrite
 
-static:
-  let empty = newEmptyNode()
-
 proc deduplicate(arg: var seq[NimNode]): void =
   let l = arg.len
   arg = sequtils.deduplicate(arg)
@@ -402,8 +399,14 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     let uniformBufTypeSym = genSym(nskType, "UniformBufType")
 
-    pipelineRecList.add nnkIdentDefs.newTree( ident"program",       bindSym"Program" , empty)
-    pipelineRecList.add nnkIdentDefs.newTree( ident"vao",           bindSym"VertexArrayObject" , empty)
+    let empty = newEmptyNode()
+
+    pipelineRecList.add nnkIdentDefs.newTree(
+      ident"program", bindSym"Program" , empty
+    )
+    pipelineRecList.add nnkIdentDefs.newTree(
+      ident"vao", bindSym"VertexArrayObject", empty
+    )
     pipelineRecList.add nnkIdentDefs.newTree(
       ident"uniformBufferHandle", bindSym"GLuint", empty
     )
@@ -653,7 +656,7 @@ macro genMeshType*(name: untyped; vertexType: typed): untyped =
       bindSym"ArrayBufferView", newCall(ident"type",typ)
     )
     bufferTuple.add nnkIdentDefs.newTree(
-      ident, typ2, empty
+      ident, typ2, newEmptyNode()
     )
 
   result = newStmtList()
@@ -756,6 +759,8 @@ proc injectTypes(framebuffer, mesh, arg: NimNode): NimNode {.compileTime.} =
     vertexType = vertexTypeX or vertexTypeExpr
     envArg = envArgX
     envType = envTypeX or nnkVarTy.newTree(bindSym"GlEnvironment")
+
+  let empty = newEmptyNode()
 
   let newParams =
     nnkFormalParams.newTree(

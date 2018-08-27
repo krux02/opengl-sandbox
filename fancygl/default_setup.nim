@@ -118,7 +118,9 @@ proc defaultSetupInternal(windowsize: Vec2i; windowTitle: string): tuple[window:
 
   #Initialize OpenGL
   doAssert gladLoadGL(glGetProcAddress)
-  echo cast[cstring](glGetString(GL_VERSION))
+  echo glGetString(GL_VERSION)
+
+  glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DEBUG_SEVERITY_NOTIFICATION, 0, nil, false)
 
   if glPushDebugGroup != nil:
     glPushDebugGroup(GL_DEBUG_SOURCE_THIRD_PARTY, 1234, -1, "default setup")

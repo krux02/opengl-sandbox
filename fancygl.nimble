@@ -32,7 +32,7 @@ requires @[
   "nim                  >= 0.18.1  ",
   "AntTweakBar          >= 1.0.0   ",
   "sdl2_nim             >= 2.0.6.1 ",
-  "glm                  >= 1.0.1   ",
+  "glm                  >= 1.1.1   ",
   "ast_pattern_matching >= 1.0.0   ",
   #"fftw3               >= 0.1.0   ", # add this if you want audiotest to work
 ]

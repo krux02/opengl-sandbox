@@ -25,7 +25,6 @@ type
 genMeshType(MyMesh, MyVertexType)
 genMeshType(ControlPointMesh, tuple[position_os: Vec3f])
 
-
 let (window, context) = defaultSetup(vec2i(640,480))
 # let (window, context) = defaultSetup(vec2i(320,200))
 # let (window, context) = defaultSetup()
@@ -285,7 +284,11 @@ while runGame:
       let v = vec2(evt.motion.yrel.float32, evt.motion.xrel.float32)
       let alpha = v.length * 0.01
       let axis = vec3(v, 0)
-      let rotMat = mat4f(1).rotate(alpha, axis)
+      let rotMat =
+        if alpha > 0 and axis.length2 > 0:
+          mat4f(1).rotate(alpha, axis)
+        else:
+          mat4f(1)
 
       if toggleA:
         viewRot = rotMat * viewRot
