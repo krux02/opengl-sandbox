@@ -1,10 +1,6 @@
-
 import os, strutils
-
 import renderMacro
-
 import glm/noise
-
 import teapot
 
 type

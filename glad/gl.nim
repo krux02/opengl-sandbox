@@ -3280,3 +3280,8 @@ proc gladLoadGL*(load: proc): bool =
   load_GL_EXT_debug_marker(load);
 
   return glVersionMajor != 0 or glVersionMinor != 0
+
+## Local Variables:
+## eval: (font-lock-mode -1)
+## eval: (font-lock-fontify-buffer)
+## End:

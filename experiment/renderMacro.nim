@@ -42,6 +42,31 @@ proc indentCode(arg: string): string =
     result.add "\n"
     indentation += line.count("{")
 
+
+proc printStuff(allAttributes, allVaryings, uniformSamplers, uniformRest: seq[NimNode]): void =
+  echo "## attributes ##"
+
+  for it in allAttributes:
+    echo it.repr
+
+  echo "## varyings ##"
+
+  for it in allVaryings:
+    echo it.repr
+
+  echo "## uniformSamplers ##"
+
+  for it in uniformSamplers:
+    echo it.repr
+
+  echo "## uniform rest ##"
+
+  for it in uniformRest:
+    echo it.repr
+
+  echo "## ------------ ##"
+
+
 proc debugUniformBlock*(program: Program, blockIndex: GLuint): void =
   var numUniforms: GLint
   glGetActiveUniformBlockiv(program.handle, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, numUniforms.addr)
@@ -114,13 +139,17 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     proc processType(node: NimNode): void =
       ## Append the normalized version of `node` to `usedTypes` if
       ## necessary.
-      let normalizedType = node.normalizeType
-      if not normalizedType.isBuiltIn:
-        usedTypes.addIfNew normalizedType
+
+      if node.kind == nnkBracketExpr and node[0].eqIdent "array":
+        processType(node[2])
+      else:
+        let normalizedType =
+          node.normalizeType
+        if not normalizedType.isBuiltIn:
+          usedTypes.addIfNew normalizedType
 
     proc processProcSym(sym: NimNode): void =
       # TODO: this is not really correct, it only checks for names.
-
       let symName = sym.strVal
       let isBuiltIn = symName.isBuiltIn
 
@@ -231,6 +260,8 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     let allVaryings   = simpleVaryings & attributesFromFS
 
+    printStuff(allAttributes, allVaryings, uniformSamplers, uniformRest)
+
     ############################################################################
     ################################ shared code ###############################
     ############################################################################
@@ -240,6 +271,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     # generate types
     sharedCode.add "// types section\n"
     for tpe in usedTypes:
+      echo "used type: ", tpe.repr
       let impl = tpe.getTypeImpl
       impl.matchAst:
       of nnkObjectTy(
@@ -803,3 +835,9 @@ macro renderDebug*(mesh, arg: untyped): untyped =
   result = quote do:
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
     render_inner(true, `mesh`, `arg`)
+
+
+## Local Variables:
+## eval: (font-lock-mode -1)
+## eval: (font-lock-fontify-buffer)
+## End:
