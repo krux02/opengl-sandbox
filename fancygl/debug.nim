@@ -1,5 +1,10 @@
 import strutils
 
+{.deprecated.}
+
+## don't use this module anymore. For gdb suppord use nim_gdb in the
+## official nim distribution.
+
 proc myescape(s: string): string {.noSideEffect.} =
   ## strutils.escape fails with \x expressions
   result = newStringOfCap(s.len + s.len shr 2)
