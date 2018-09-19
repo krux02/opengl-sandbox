@@ -3281,7 +3281,3 @@ proc gladLoadGL*(load: proc): bool =
 
   return glVersionMajor != 0 or glVersionMinor != 0
 
-## Local Variables:
-## eval: (font-lock-mode -1)
-## eval: (font-lock-fontify-buffer)
-## End:
