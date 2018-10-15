@@ -9,6 +9,7 @@ language.
  and all libraries start to fix it manually.  The longer this does not
  exist, the longer the average code quality of nim libraries becomes
  worse.
+
 ** Remove the range type.
 
  Well just use type ~range[low,high: static[int]] = distinct int~ No need
@@ -24,15 +25,15 @@ language.
  They are distinct types in overloading, where float64 and float are
  just alias types.  This is unnecessary.
 
-** Remove nil-state for seq and string.
-
- Still doesn't work properly in VM
-
 ** one iterator for everything
  There should be a way to define all iterators at once such as: ~items~
  ~mitems~ ~pairs~ ~mparis~.  Might it be that you just define one
  iterator and the others are inferred or a very different system.  But
- the current system that you have to provide all of them manually is annoying.
+ the current system that you have to provide all of them manually is
+ annoying.
+
+   ~pairs~ ~mpairs~ is fixed
+
 ** Remove GC dependenly for seq and string.
 
  They currently rely a GC.  This is totally unnecessary.
@@ -107,6 +108,7 @@ quote do it often binds to the wrong thing.
  so I would only recommend to support symbols that are actually taught
  in schools, not those that only university math students know about.
 
+
  | ∧ | tokenizer alias for ~and~                           |
  | ∨ | tokenizer alias for ~or~                            |
  | ¬ | tokenizer alias for ~not~                           |
@@ -127,14 +129,17 @@ quote do it often binds to the wrong thing.
  ascii (workaround-)name.  Those discussions are as useful as
  tabs vs spaces.  Everybody will have an opinion about it.
 
-** etc
+** TODO etc
 
    * ~smartBinarySearch~, really? just remove it.  There is nothing
      smart in a binary Search.
 
    * there is ~sortedByIt~, but no ~sortByIt~, ~sortBy~, ~sortIt~.
+
 * environment
+
 ** review tutorials
+
 The tutorials are already showing a lot of potential for Nim
 development, but I highly disagree with the many examples that use a
 ref types for basically everything as the default.  It should be the
@@ -178,9 +183,23 @@ necessary at all in any editor at all, never.
 
 *** preview macro expansions in editor
 
+∨∨∨∨∨∨∨∨∨∨∨
+
 I have seen macro expansion in KDevelop for C/C++. It really got me
 hooked, I want this for Nim as well.  It would be great if nimsuggest
 could visualize expanded macros.
+
+∧∧∧∧∧∧∧∧∧∧
+
+<sem.nim>
+in semAfterMacroCall test if in nimsuggest and command is expand-macro
+call suggestResult with stuff
+
+<suggest.nim> isTracked tells if the curser is in the node.
+
+if isTracked(info, conf.m.trackPos, macroSym.name.s.len):
+  suggestResult(conf, treeToSuggest(conf, expansionResult))
+  suggestQuit()
 
 *** why nimedit won't have a bright future
 
@@ -198,3 +217,28 @@ to be a general tool, but people either already know how to use
 ~grep~, ~git grep~, or ~ag~ (silver searcher).  They just don't want
 to change the tool that already works and is integrated in their
 workflow/editor.
+
+macro foobar(...)
+
+type
+  MyType[T] = foobar(T)
+
+
+
+** internal
+
+better structure instead of all these skip types everywhere.
+
+<arnetheduck> btw @Araq, if you find yourself in a refactoring mood, it would be nice if you could come up with something more structured for the type nesting resolution - `skipTypes` and friends - it's been the source of innumerable bugs in the compiler, as it's very easy to forget to peel away some special generic or indirected type, leading to issues when the system is stressed. this is something I've struggled with as well in
+<FromGitter> ... `nlvm` - it's hard to know exactly which types should be skipped in which situation, leading to time-consuming analysis every time - perhaps there's something type-based that could be done to limit the generality/flexibility in exchange for fewer ways to get it wrong
+
+*** proper way to tag incomplete imports from C.
+
+~sizeof~ can work either on the VM, or it emits the ~sizeof~ in the C
+code. Sometimes there are C libraries wrappers that don't export all
+members of a struct. For this it is important that the nim compiler
+knows that this struct is not complete, so that the compiler can
+properly refuse to calculate the size of this struct.
+
+Should ~sizeof~ be split in two different methords, the backed
+~sizeof~ and the ~sizeof~ that works in the Nim compiler?
