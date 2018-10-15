@@ -284,6 +284,8 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
           sharedCode.compileToGlsl field
           sharedCode.add ";\n"
         sharedCode.add "};\n"
+      else:
+        echo impl.treerepr
 
     # uniforms
     sharedCode.add "// uniforms section\n"

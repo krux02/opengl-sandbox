@@ -39,8 +39,10 @@ proc resolveAliasInternal(typ: NimNode): NimNode =
       if typeInst.kind == nnkBracketExpr:
         if typeInst[0].eqIdent "typeDesc":
           return typeInst[1].resolveAliasInternal
+        elif typeInst[0].eqIdent "range":
+          return typeInst
         else:
-          error("expected typedes here", typ)
+          error("expected typedesc or range here", typ)
       else:
         return typ
 
@@ -53,6 +55,8 @@ proc resolveAliasInternal(typ: NimNode): NimNode =
     result[2] = typ[2].resolveAliasInternal
 
   of nnkBracketExpr(ident"range", nnkIntLit , nnkIntLit):
+    result = bindSym"int32"
+  of nnkBracketExpr(ident"range", nnkInfix):
     result = bindSym"int32"
 
   of nnkBracketExpr( `arr` @ ident"array", `size`, `innerType`):
