@@ -1,15 +1,32 @@
-import ../fancygl
+import renderMacro
+
+#import glm/noise
 
 #let (window, context) = defaultSetup(vec2i(640,480))
 let (window, context) = defaultSetup()
 
-let vertices = arrayBuffer([
+type
+  MyFragmentType = object
+    color: Vec4f # {. GL_RGB16F .}
+
+  MyVertexType = tuple
+    position: Vec4f
+    color: Vec4f
+
+  #MyMesh = Mesh[MyVertexType
+genMeshType(MyMesh, MyVertexType)
+
+var triangleMesh: MyMesh
+triangleMesh.vertexIndices.mode = GL_TRIANGLES
+triangleMesh.vertexIndices.numVertices = 3
+
+triangleMesh.buffers.position = arrayBuffer([
   vec4f(-1,-1, 0, 1),
   vec4f( 1,-1, 0, 1),
   vec4f( 0, 1, 0, 1)
 ])
 
-let colors   = arrayBuffer([
+triangleMesh.buffers.color = arrayBuffer([
   vec4f( 1, 0,0,1),
   vec4f(0, 1,0,1),
   vec4f(0,0,1,1)
@@ -49,26 +66,10 @@ while runGame:
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-  shadingDsl:
-    primitiveMode = GL_TRIANGLES
-    numVertices = 3
-    uniforms:
-      mvp
-    attributes:
-      a_vertex = vertices
-      a_color  = colors
-    vertexMain:
-      """
-      gl_Position = mvp * a_vertex;
-      v_color = a_color;
-      """
-    vertexOut:
-      "out vec4 v_color"
-    fragmentMain:
-      """
-      color = v_color;
-      """
+  triangleMesh.render do (vertex, gl):
+    gl.Position = mvp * vertex.position
+    ## rasterize
+    result.color = vertex.color
+    #result.color.rgb = vec3f(simplex((modelMat * vertex.position).xyz))
 
   glSwapWindow(window)
-
-echo "done"

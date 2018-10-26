@@ -6,10 +6,10 @@ description   = "nice way of handling render code"
 license       = "MIT"
 
 bin           = @[
-  "examples/deferred_shading",
-  "examples/forward_vertex_shader",
-  "examples/hello_shapes",
   "examples/hello_triangle",
+  "examples/forward_vertex_shader",
+  "examples/deferred_shading",
+  "examples/hello_shapes",
   "examples/mandelbrot",
   "examples/iqm_mesh_loading",
   "examples/neuralnetwork",
@@ -21,6 +21,7 @@ bin           = @[
   "examples/sandbox",
   "examples/tetris",
   "examples/waves",
+  "experiment/main",
   "examples/console",
 ]
 

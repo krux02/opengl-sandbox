@@ -1,7 +1,8 @@
 import ../fancygl
 
 #var windowsize = vec2i(640,480)
-let (window, context) = defaultSetup(windowsize = vec2i(640,480))
+#let (window, context) = defaultSetup(windowsize = vec2i(640,480))
+let (window, context) = defaultSetup()
 
 var hm = newHeightMap(128,64)
 hm.DiamondSquare(64)

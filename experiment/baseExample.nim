@@ -1,5 +1,7 @@
 import renderMacro
 
+let (window, context) = defaultSetup(vec2i(640,480))
+
 type
   MyVertexType = tuple
     position_os: Vec4f
@@ -12,6 +14,8 @@ type
   Light = object
     position_ws : Vec4f
     color : Vec4f
+
+  #MyMesh = Mesh[MyVertexType]
 
 genMeshType(MyMesh, MyVertexType)
 

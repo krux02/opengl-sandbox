@@ -297,8 +297,8 @@ while runGame:
     result.color = vec4f(0,0,0,1);
 
     # antialiasing
-    for i in 0'i32 ..< 4'i32:
-      let offset : Vec2f = texcoord_dx * 0.5 * (float32(i-2) / 2.0);
+    for j in 0'i32 ..< 4'i32:
+      let offset : Vec2f = texcoord_dx * 0.5 * (float32(j-2) / 2.0);
       result.color.rg += fract(texcoord + offset) / 5;
 
   glSwapWindow(window)

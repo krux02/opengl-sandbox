@@ -145,6 +145,10 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       else:
         let normalizedType =
           node.normalizeType
+        if normalizedType.repr == "T":
+          echo node.treeRepr
+          echo normalizedType.treeRepr
+          error "nope", node
         if not normalizedType.isBuiltIn:
           usedTypes.addIfNew normalizedType
 
@@ -174,6 +178,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
                   uniformSamplers.addIfNew sym
                 else:
                   uniformRest.addIfNew sym
+                processType(sym.getTypeInst)
 
             elif sym.symKind == nskType:
               processType(sym)
@@ -260,7 +265,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     let allVaryings   = simpleVaryings & attributesFromFS
 
-    printStuff(allAttributes, allVaryings, uniformSamplers, uniformRest)
+    #printStuff(allAttributes, allVaryings, uniformSamplers, uniformRest)
 
     ############################################################################
     ################################ shared code ###############################
@@ -270,8 +275,15 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     # generate types
     sharedCode.add "// types section\n"
+
+    if debug:
+      echo "usedType:"
+      for tpe in usedTypes:
+
+        echo "[", tpe, "]"
+
     for tpe in usedTypes:
-      echo "used type: ", tpe.repr
+      #echo "used type: ", tpe.repr
       let impl = tpe.getTypeImpl
       impl.matchAst:
       of nnkObjectTy(
@@ -285,7 +297,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
           sharedCode.add ";\n"
         sharedCode.add "};\n"
       else:
-        echo impl.treerepr
+        echo "used types problem: ", tpe.repr, " --> ", impl.repr
 
     # uniforms
     sharedCode.add "// uniforms section\n"
@@ -410,12 +422,12 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     fragmentShader.compileToGlsl(fragmentPart)
     fragmentShader.add "}\n"
 
-    if debug:
-      echo "|> vertex shader <|".center(80,'=')
-      echo vertexShader.indentCode
-      echo "|> fragment shader <|".center(80,'=')
-      echo fragmentShader.indentCode
-      echo "=".repeat(80)
+    #if debug:
+    #  echo "|> vertex shader <|".center(80,'=')
+    #  echo vertexShader.indentCode
+    #  echo "|> fragment shader <|".center(80,'=')
+    #  echo fragmentShader.indentCode
+    #  echo "=".repeat(80)
 
     if not validateShader(vertexShader, GL_VERTEX_SHADER):
       error("vertex shader could not compile", arg)

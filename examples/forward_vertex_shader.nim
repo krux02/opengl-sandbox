@@ -1,5 +1,6 @@
 import ../fancygl
 
+#let (window, context) = defaultSetup()
 let (window, context) = defaultSetup()
 
 let vertices = arrayBuffer([vec4f(-1,-1,0,1), vec4f(1,-1,0,1), vec4f(0,1,0,1)])

@@ -1,7 +1,7 @@
 import ../fancygl
 
-var windowsize = vec2i(1024,768)
-let (window, context) = defaultSetup(windowsize)
+let (window, context) = defaultSetup()
+let windowsize = window.size
 
 discard setRelativeMouseMode(true)
 var hm = newHeightMap(128,128)

@@ -21,9 +21,8 @@ type
 genMeshType(MyMesh, MyVertexType)
 genMeshType(ControlPointMesh, tuple[position_os: Vec3f])
 
-let (window, context) = defaultSetup(vec2i(640,480))
-# let (window, context) = defaultSetup(vec2i(320,200))
-# let (window, context) = defaultSetup()
+# let (window, context) = defaultSetup(vec2i(640,480))
+let (window, context) = defaultSetup()
 discard setRelativeMouseMode(true)
 
 let myTexture: Texture2D = loadTexture2DFromFile(getResourcePath("crate.png"))

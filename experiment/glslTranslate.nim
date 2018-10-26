@@ -1,6 +1,10 @@
 ## this file is for all functions that are related to translating Nim
 ## directly to glsl.
 
+
+##[
+]##
+
 import normalizeType, glm, ast_pattern_matching, macros, algorithm, boring_stuff
 
 import hashes
@@ -422,68 +426,105 @@ proc compileToGlslB*(result: var string; arg: NimNode): void =
   of nnkReturnStmt(nnkAsgn( _, `expr`)):
     result.add "return "
     result.compileToGlsl expr
-  of nnkBlockStmt(
-    `sym1` @ nnkSym,
-    nnkStmtList(
-      nnkVarSection(
-        nnkIdentDefs( `loopVar` @ nnkSym, nnkEmpty, nnkEmpty)
-      ),
-      nnkStmtList(
-        nnkCommentStmt,
-        nnkVarSection( nnkIdentDefs( `loopIndex` @ nnkSym, nnkEmpty, 0)),
-        nnkIfStmt(
-          nnkElifBranch(
-            nnkInfix( ident"<=", _ #[ `loopIndex` ]#, `upperBound` @ nnkIntLit),
-            nnkBlockStmt(
-              `blockSym2`,
-              nnkWhileStmt(
-                1,
-                nnkStmtList(
-                  nnkStmtList(
-                    nnkFastAsgn(_ #[`loopVar`]#, nnkBracketExpr(`collectionSym`,_ #[`loopIndex`]#)),
-                    `body`
-                  ),
-                  nnkIfStmt(
-                    nnkElifBranch(
-                      nnkStmtListExpr(
-                        nnkCommentStmt,
-                        nnkInfix(ident"<=", _ #[`upperBound`]#, _ #[`loopIndex`]#)
-                      ),
-                      nnkBreakStmt( _ #[`sym1`]#)
-                    ),
-                  ),
-                  nnkCall( ident"inc", _ #[`loopIndex`]# , 1 )
-                )
-              )
-            )
-          )
-        )
-      )
-    )
-  ):
-    let loopIndexTrue = genSym(nskVar, "i")
-    let irepr = loopIndexTrue.repr
-    result.add "for(int "
-    result.add irepr
-    result.add " = 0; "
-    result.add irepr
-    result.add " < "
-    result.add(upperBound.intVal+1)
-    result.add "; ++"
-    result.add irepr
-    result.add ") {\n"
+  # of nnkBlockStmt(
+  #   `sym1` @ nnkSym,
+  #   nnkStmtList(
+  #     nnkVarSection(
+  #       nnkIdentDefs( `loopVar` @ nnkSym, nnkEmpty, nnkEmpty)
+  #     ),
+  #     nnkStmtList(
+  #       nnkCommentStmt,
+  #       nnkVarSection( nnkIdentDefs( `loopIndex` @ nnkSym, nnkEmpty, 0)),
+  #       nnkIfStmt(
+  #         nnkElifBranch(
+  #           nnkInfix( ident"<=", _ #[ `loopIndex` ]#, `upperBound` @ nnkIntLit),
+  #           nnkBlockStmt(
+  #             `blockSym2`,
+  #             nnkWhileStmt(
+  #               1,
+  #               nnkStmtList(
+  #                 nnkStmtList(
+  #                   nnkFastAsgn(_ #[`loopVar`]#, nnkBracketExpr(`collectionSym`,_ #[`loopIndex`]#)),
+  #                   `body`
+  #                 ),
+  #                 nnkIfStmt(
+  #                   nnkElifBranch(
+  #                     nnkStmtListExpr(
+  #                       nnkCommentStmt,
+  #                       nnkInfix(ident"<=", _ #[`upperBound`]#, _ #[`loopIndex`]#)
+  #                     ),
+  #                     nnkBreakStmt( _ #[`sym1`]#)
+  #                   ),
+  #                 ),
+  #                 nnkCall( ident"inc", _ #[`loopIndex`]# , 1 )
+  #               )
+  #             )
+  #           )
+  #         )
+  #       )
+  #     )
+  #   )
+  # ):
+  #   let loopIndexTrue = genSym(nskVar, "i")
+  #   let irepr = loopIndexTrue.repr
+  #   result.add "for(int "
+  #   result.add irepr
+  #   result.add " = 0; "
+  #   result.add irepr
+  #   result.add " < "
+  #   result.add(upperBound.intVal+1)
+  #   result.add "; ++"
+  #   result.add irepr
+  #   result.add ") {\n"
 
-    # TODO this is actually correct, but for now I cheat around fixing it
-    # result.add loopVar.getTypeInst.glslType
-    result.add loopVar.getTypeInst.strVal
-    result.add ' '
-    result.compileToGlsl(loopVar)
-    result.add " = "
-    result.compileToGlsl(collectionSym)
-    result.add "[", irepr, "];\n{\n"
-    result.compileToGlsl body
+  #   # TODO this is actually correct, but for now I cheat around fixing it
+  #   # result.add loopVar.getTypeInst.glslType
+  #   result.add loopVar.getTypeInst.strVal
+  #   result.add ' '
+  #   result.compileToGlsl(loopVar)
+  #   result.add " = "
+  #   result.compileToGlsl(collectionSym)
+  #   result.add "[", irepr, "];\n{\n"
+  #   result.compileToGlsl body
 
-    result.add "\n}}"
+  #   result.add "\n}}"
+
+  of nnkForStmt( `loopVar` @ nnkSym, nnkCall( ident"items", `collectionExpr`), `body` @ nnkStmtList ):
+    let collectionType = collectionExpr.getType
+
+    collectionType.matchAst:
+    of nnkBracketExpr(
+      ident"array",
+      nnkBracketExpr( ident"range", `a`, `b` ),
+      _
+    ):
+      let loopIndexTrue = genSym(nskVar, "i")
+      let irepr = loopIndexTrue.repr
+      result.add "for(int "
+      result.add irepr
+      result.add " = 0; "
+      result.add irepr
+      result.add " < "
+      let upperBound = b.intVal - a.intVal + 1
+      result.add upperBound
+      result.add "; ++"
+      result.add irepr
+      result.add ") {\n"
+
+
+      # TODO this is actually correct, but for now I cheat around fixing it
+      # result.add loopVar.getTypeInst.glslType
+      result.add loopVar.getTypeInst.strVal
+      result.add ' '
+      result.compileToGlsl(loopVar)
+      result.add " = "
+      result.compileToGlsl(collectionExpr)
+      result.add "[", irepr, "];\n"
+      result.compileToGlsl body
+
+      result.add "\n}"
+
+
 
   of nnkBlockStmt(_, `body`):
     result.add "{\n"

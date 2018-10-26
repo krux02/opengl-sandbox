@@ -44,8 +44,10 @@ proc resolveAliasInternal(typ: NimNode): NimNode =
         else:
           error("expected typedesc or range here", typ)
       else:
-        return typ
 
+        return typeInst
+
+      echo typ.repr, " <---> ", impl.repr
       return typ
 
     result = impl.resolveAliasInternal

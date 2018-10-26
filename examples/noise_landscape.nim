@@ -97,6 +97,7 @@ float calcHeight(vec2 pos) {
 
 import ../fancygl, algorithm
 
+let (window, context) = defaultSetup()
 
 const
   cubemapWidth = 64'i32
@@ -104,8 +105,6 @@ const
   saveSkybox   = false
   # tweak this parameter to be able to see further
   gridTiles = 128
-
-let (window, context) = defaultSetup()
 
 let windowsize = window.size
 

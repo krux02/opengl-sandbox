@@ -1,7 +1,5 @@
 import memfiles, ../fancygl, sdl2/sdl_ttf as ttf, strutils, sequtils, AntTweakBar, macros
 
-const WindowSize = vec2i(1024, 768)
-
 template glslPrefix(t: typedesc[uint8]): string = ""
 
 template addVarRW(bar: ptr TwBar; value: var float32, stuff: string= ""): void =
@@ -21,7 +19,8 @@ iterator twFilteredSdl2Events(): Event =
       yield event
 
 proc main() =
-  let (window, context) = defaultSetup(WindowSize)
+  let (window, context) = defaultSetup()
+  let WindowSize = window.size
 
   defer: fancygl.quit()
   discard ttf.init()

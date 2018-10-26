@@ -2,7 +2,8 @@
 
 import ../fancygl
 
-let (window, context) = defaultSetup(vec2i(640,480))
+#let (window, context) = defaultSetup(vec2i(640,480))
+let (window, context) = defaultSetup()
 
 let crateTexture = loadTexture2DFromFile(getResourcePath("crate.png"))
 
@@ -143,7 +144,7 @@ proc render() =
 
       fragmentMain:
         """
-        vec2 offset = vec2(sin(time * 5 + gl_FragCoord.y / 8) * 0.01, 0);
+        vec2 offset = vec2(sin(time * 5 + gl_FragCoord.y * 60 / windowsize.y) * 0.01, 0);
         vec2 texcoord = (texCoord * windowsize ) / texSize;
         vec4 t_col = texture(tex, texcoord + offset);
         gl_FragDepth = texture(depth, texcoord + offset).x;
