@@ -5,8 +5,8 @@ proc main() =
     a,b,c,d: float32
 
   var ab = ArrayBuffer[TestType](handle : 7)
-  var v: ArrayBufferView[TestType, float32]
-  v.buffer = ab
+  var v: ArrayBufferView[float32]
+  v.handle = ab.handle
   v.stride = 16
   v.absoluteoffset = 0
 

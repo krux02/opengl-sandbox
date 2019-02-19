@@ -849,9 +849,3 @@ macro renderDebug*(mesh, arg: untyped): untyped =
   result = quote do:
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)
     render_inner(true, `mesh`, `arg`)
-
-
-## Local Variables:
-## eval: (font-lock-mode -1)
-## eval: (font-lock-fontify-buffer)
-## End:

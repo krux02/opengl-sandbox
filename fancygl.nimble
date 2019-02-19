@@ -30,7 +30,7 @@ skipDirs = @["unittests", "experiment"]
 #[ Dependencies ]#
 
 requires @[
-  "nim                  >= 0.18.1  ",
+  "nim                  >= 0.19.9  ",
   "AntTweakBar          >= 1.0.2   ",
   "sdl2_nim             >= 2.0.6.1 ",
   "glm                  >= 1.1.1   ",
