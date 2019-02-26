@@ -2,9 +2,6 @@ import renderMacro
 import random
 #import glm
 
-
-
-
 proc nextPoint(arg: Vec2f; r : float32): Vec2f =
   if r < 0.01:
     result.x = 0
@@ -19,15 +16,12 @@ proc nextPoint(arg: Vec2f; r : float32): Vec2f =
     result.x = -0.15 * arg.x +  0.28 * arg.y
     result.y =  0.26 * arg.x +  0.24 * arg.y + 0.44
 
-
 proc genPointsBuffer(): ArrayBuffer[Vec2f] =
   var points = @[ vec2f(0) ]
   for i in 0 ..< 200000:
     points.add points[^1].nextPoint(rand(1.0f))
 
   result = points.arrayBuffer
-
-
 
 let (window, context) = defaultSetup()
 

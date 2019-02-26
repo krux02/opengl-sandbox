@@ -125,7 +125,7 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
     result[^1][0][2][2].add newExpIdentDef(fragOut, bindSym"Texture2D")
 
 
-  let fragmentOutputsSeqNode = fragmentOutputs.toConstExpr
+  let fragmentOutputsSeqNode = newLit(fragmentOutputs)
   result.add(quote do:
     template fragmentOutputSeq(t: typedesc[`typename`]): seq[string] =
       `fragmentOutputsSeqNode`

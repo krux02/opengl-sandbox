@@ -51,17 +51,6 @@ proc newExpIdentDef*(name: string, tpe: NimNode): NimNode {. compileTime .} =
     newEmptyNode()
   )
 
-proc toConstExpr*(s : string): NimNode {. compileTime .} = s.newLit
-
-proc toConstExpr*(i : int64): NimNode {. compileTime .} = i.newLit
-
-proc toConstExpr*[T](s : seq[T]): NimNode {. compileTime .} =
-  let bracketExpr = newNimNode(nnkBracket)
-  for element in s:
-    bracketExpr.add( element.toConstExpr )
-
-  result = newPrefix(ident"@", bracketExpr)
-
 proc addAll*(dst, src: NimNode): NimNode {.discardable.} =
   for node in src:
     dst.add(node)

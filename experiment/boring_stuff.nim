@@ -97,7 +97,7 @@ iterator fields*(typeAst: NimNode): tuple[memberSym, typeSym: NimNode] =
     elif typeAst.kind in {nnkLetSection, nnkVarSection, nnkTupleTy, nnkRecList, nnkFormalParams}:
       typeAst
     else:
-      warning("just a guessing game here")
+      warning("just a guessing game here for " & $typeAst.kind, typeAst)
       echo typeAst.treeRepr
       typeAst
 

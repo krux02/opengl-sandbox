@@ -24,3 +24,5 @@ scratch
 /experiment/main_shapes
 /experiment/nvcompatlog.txt
 /experiment/fern
+*.png
+/experiment/baseExample
