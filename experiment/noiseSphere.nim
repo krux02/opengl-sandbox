@@ -1,9 +1,13 @@
 import renderMacro
-
+import glm/noise
 import sequtils
 
 let (window, context) = defaultSetup()
 let windowsize = window.size
+
+var timer = newStopWatch(true)
+
+echo "started ", timer.time
 
 # disable debug notifications
 glDebugMessageControl(GL_DONT_CARE,GL_DONT_CARE,GL_DEBUG_SEVERITY_NOTIFICATION, 0, nil, false)
@@ -23,25 +27,42 @@ genMeshType(SimpleMesh, SimpleVertexType)
 var meshes: array[IdMesh, SimpleMesh]
 var renderAll: bool = true
 
-block init:
+proc addSubdivided(dst: var seq[Vec4f]; recursionDepth: int; vertices: openarray[Vec4f]): void =
+  if recursionDepth == 0:
+    dst.add vertices
+  else:
+    doAssert vertices.len == 3
+    let v1 = vertices[0]
+    let v2 = 0.5f * vertices[0] + 0.5f * vertices[1]
+    let v3 = vertices[1]
+    let v4 = 0.5f * vertices[1] + 0.5f * vertices[2]
+    let v5 = vertices[2]
+    let v6 = 0.5f * vertices[2] + 0.5f * vertices[0]
+
+    dst.addSubdivided(recursionDepth - 1, [v1,v2,v6])
+    dst.addSubdivided(recursionDepth - 1, [v2,v3,v4])
+    dst.addSubdivided(recursionDepth - 1, [v4,v5,v6])
+    dst.addSubdivided(recursionDepth - 1, [v2,v4,v6])
+
+proc init() =
   #var vertices,normals,colors: ArrayBuffer[Vec4f]
-  #var indices: ElementArrayBuffer[int16]
+  #var indices: ElementArrayBuffer[int32]
 
   const numSegments = 32
 
   var verticesSeq = newSeq[SimpleVertexType](0)
-  var indicesSeq  = newSeq[int16](0)
+  var indicesSeq  = newSeq[int32](0)
 
   proc insertMesh(id: IdMesh,
       newVertices, newNormals, newColors: openarray[Vec4f];
-      newIndices: openarray[int16]): void =
+      newIndices: openarray[int32]): void =
 
     var indices: VertexIndexBuffer
     ## This is like ElementArrayBuffer, but it does not store at
     ## compile time the type of the elements.  The type is stored as a
     ## member in the field `typ`.
 
-    indices.typ         = GL_UNSIGNED_SHORT
+    indices.typ         = GL_UNSIGNED_INT
     indices.baseIndex   = indicesSeq.len
     indices.baseVertex  = verticesSeq.len
     indices.numVertices = newIndices.len
@@ -80,28 +101,92 @@ block init:
     unrolledVertices,
     unrolledNormals,
     unrolledColors,
-    iotaSeq[int16](unrolledVertices.len.int16))
+    iotaSeq[int32](unrolledVertices.len.int32))
+
+  echo "icosphere inserted ", timer.time
 
   unrolledVertices.setLen 0
   unrolledColors.setLen 0
   unrolledNormals.setLen 0
 
-  for v in icosphereVertices:
-    unrolledVertices.add v
-    unrolledNormals.add vec4f(normalize(v.xyz), 0)
-    unrolledColors.add vec4f(rand_f32(), rand_f32(), rand_f32(), 1'f32)
+  var sphereIndices: seq[int32] = newSeq[int32]()
 
-  var sphereIndices: seq[int16] = newSeq[int16](icosphereIndicesTriangles.len)
-  for i, idx in icosphereIndicesTriangles:
-    sphereIndices[i] = int16(idx)
+  var icosphereColors = newSeq[Vec4f](icosphereVertices.len)
+
+  for color in icosphereColors.mitems:
+    color = vec4f(rand_f32(), rand_f32(), rand_f32(), 1'f32)
+
+
+  for i in countup(0, icosphereIndicesTriangles.len-1, 3):
+    let idx1 = icosphereIndicesTriangles[i+0]
+    let idx2 = icosphereIndicesTriangles[i+1]
+    let idx3 = icosphereIndicesTriangles[i+2]
+
+    let v1 = icosphereVertices[idx1]
+    let v2 = icosphereVertices[idx2]
+    let v3 = icosphereVertices[idx3]
+
+    let n1 = vec4f(normalize(v1.xyz), 0)
+    let n2 = vec4f(normalize(v2.xyz), 0)
+    let n3 = vec4f(normalize(v3.xyz), 0)
+
+    let color1 = icosphereColors[idx1]
+    let color2 = icosphereColors[idx2]
+    let color3 = icosphereColors[idx3]
+
+    const numSubdivisions = 6
+
+    unrolledVertices.addSubdivided(numSubdivisions, [v1,v2,v3])
+    unrolledNormals.addSubdivided(numSubdivisions, [n1,n2,n3])
+    unrolledColors.addSubdivided(numSubdivisions, [color1, color2, color3])
+
+  echo "mesh subdivided ", timer.time
+
+  for i, vertex in unrolledVertices.mpairs:
+    vertex.xyz /= length(vertex.xyz)
+    unrolledNormals[i].xyz = vertex.xyz
+
+  echo "mesh normalized ", timer.time
+
+  for i, vertex in unrolledVertices.mpairs:
+    const offset = vec3f(1.123, 2.456, 3.567) # make integer values unlikely
+    let pos = vertex.xyz
+
+    let n1 = simplex(pos * 1 + offset) * 1.0
+    let n2 = simplex(pos * 2 + offset) * 0.5
+    let n3 = simplex(pos * 4 + offset) * 0.25
+    let n4 = simplex(pos * 8 + offset) * 0.125
+    let n5 = simplex(pos * 16 + offset) * 0.0625
+    let height = max((n1 + n2) + (n3 + n4) + n5, 0)
+
+    if height == 0:
+      unrolledColors[i] = vec4f(0,0,1,1)
+    elif height >= 0.75:
+      unrolledColors[i] = vec4f(1,1,1,1)
+
+    vertex.xyz = pos * 5 + pos * height
+
+  echo "noise applied ", timer.time
+
+  for i in countup(0, unrolledVertices.len-1, 3):
+    let v1 = unrolledVertices[i+0]
+    let v2 = unrolledVertices[i+1]
+    let v3 = unrolledVertices[i+2]
+
+    let normal = vec4f(normalize(cross(xyz(v2 - v1), xyz(v3-v1))), 0)
+
+    unrolledNormals[i + 0] = normal
+    unrolledNormals[i + 1] = normal
+    unrolledNormals[i + 2] = normal
 
   IdSphere.insertMesh(
     unrolledVertices,
     unrolledNormals,
     unrolledColors,
-    sphereIndices
+    iotaSeq[int32](unrolledVertices.len.int32)
   )
 
+  echo "sphere added ", timer.time
 
   let verticesBuffer = arrayBuffer(verticesSeq)
 
@@ -116,35 +201,26 @@ block init:
     mesh.buffers.normal = normals
     mesh.buffers.color  = colors
 
+  echo "init done: ", timer.time
+
+init()
+
 # for each mesh create one node in the world to Draw it there
 var worldNode: WorldNode = newWorldNode()
 
-var camera = newWorldNode(0,9,4)
-camera.lookAt(vec3f(0.1,0.2,1))
+var camera = newWorldNode(0,0,9)
+camera.lookAt(vec3f(0.0, 1, 0.0))
 
 var runGame: bool = true
 var frame = 0
-var noiseArray: array[21, float32]
 
-for x in noiseArray.mitems:
-  x = (rand_f32()*2-1) * 0.01f;
-
-var timer = newStopWatch(true)
-var currentMeshId : IdMesh
+var currentMeshId : IdMesh = IdSphere
+var dragMode: int
 
 while runGame:
   frame += 1
 
   let time = timer.time.float32
-
-  # just some meaningless numbers to make the shapes rotate
-  worldNode.turnRelativeX(noiseArray[6])
-  worldNode.turnRelativeY(noiseArray[7])
-  worldNode.turnRelativeZ(noiseArray[8])
-
-  # The plane on the ground is rotating the camera is still.  It
-  # really provides the illusion the camera would rotate around the
-  # shapes though
 
   for evt in events():
     if evt.kind == QUIT:
@@ -167,8 +243,34 @@ while runGame:
 
       of SCANCODE_SPACE:
         renderAll = not renderAll
-
       else:
+        discard
+
+    if evt.kind in {MouseButtonDown, MouseButtonUp}:
+      if evt.kind == MouseButtonDown:
+        if evt.button.button == ButtonLeft:
+          dragMode = dragMode or 0x1
+        if evt.button.button == ButtonRight:
+          dragMode = dragMode or 0x2
+        if evt.button.button == ButtonMiddle:
+          dragMode = dragMode or 0x4
+      if evt.kind == MouseButtonUp:
+        if evt.button.button == ButtonLeft:
+          dragMode = dragMode and (not 0x1)
+        if evt.button.button == ButtonRight:
+          dragMode = dragMode and (not 0x2)
+        if evt.button.button == ButtonMiddle:
+          dragMode = dragMode and (not 0x4)
+
+    if evt.kind == MouseMotion:
+      let motion = vec2f(evt.motion.xrel.float32, evt.motion.yrel.float32)
+      if dragMode == 0x1:
+        worldNode.turnAbsoluteX(motion.y *  0.002)
+        worldNode.turnAbsoluteY(motion.x *  0.002)
+      if dragMode == 0x2:
+        discard
+        #offset = offset + motion / 100
+      if dragMode == 0x4:
         discard
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
