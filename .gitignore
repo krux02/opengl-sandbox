@@ -26,3 +26,5 @@ scratch
 /experiment/fern
 *.png
 /experiment/baseExample
+/experiment/hello_triangle
+/experiment/noiseSphere
