@@ -489,29 +489,46 @@ proc compileToGlslB*(result: var string; arg: NimNode): void =
 
   #   result.add "\n}}"
 
-  of nnkForStmt( `loopVar` @ nnkSym, nnkCall( ident"items", `collectionExpr`), `body` @ nnkStmtList ):
-    let collectionType = collectionExpr.getType
+  of nnkForStmt( `loopVar` @ nnkSym, `collectionCall`, `body` @ nnkStmtList ):
+    var lowerBound: string
+    var upperBound: string
+    var loopIndexSym: NimNode
+    var collectionExpr: NimNode
+    collectionCall.matchAst:
+    of nnkCall( ident"items", `theCollectionExpr`):
+      collectionExpr = theCollectionExpr
+      let collectionType = collectionExpr.getType
+      collectionType.matchAst:
+      of nnkBracketExpr(
+        ident"array",
+        nnkBracketExpr( ident"range", `a`, `b` ),
+        _
+      ):
+        lowerBound = "0"
+        upperBound = $(b.intVal - a.intVal + 1)
+        loopIndexSym = genSym(nskVar, "i")
+    of nnkInfix( ident"..<", `a`, `b`):
+      lowerBound.compileToGlsl(a)
+      upperBound.compileToGlsl(b)
+      loopIndexSym = loopVar
 
-    collectionType.matchAst:
-    of nnkBracketExpr(
-      ident"array",
-      nnkBracketExpr( ident"range", `a`, `b` ),
-      _
-    ):
-      let loopIndexTrue = genSym(nskVar, "i")
-      let irepr = loopIndexTrue.repr
-      result.add "for(int "
-      result.add irepr
-      result.add " = 0; "
-      result.add irepr
-      result.add " < "
-      let upperBound = b.intVal - a.intVal + 1
-      result.add upperBound
-      result.add "; ++"
-      result.add irepr
-      result.add ") {\n"
 
 
+    let irepr = loopIndexSym.repr
+    result.add "for(int "
+    result.add irepr
+    result.add " = "
+    result.add lowerBound
+    result.add "; "
+    result.add irepr
+    result.add " < "
+
+    result.add upperBound
+    result.add "; ++"
+    result.add irepr
+    result.add ") {\n"
+
+    if collectionExpr != nil:
       # TODO this is actually correct, but for now I cheat around fixing it
       # result.add loopVar.getTypeInst.glslType
       result.add loopVar.getTypeInst.strVal
@@ -520,9 +537,8 @@ proc compileToGlslB*(result: var string; arg: NimNode): void =
       result.add " = "
       result.compileToGlsl(collectionExpr)
       result.add "[", irepr, "];\n"
-      result.compileToGlsl body
-
-      result.add "\n}"
+    result.compileToGlsl body
+    result.add "\n}"
 
 
 
