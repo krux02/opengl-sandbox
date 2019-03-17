@@ -134,7 +134,7 @@ proc init() =
     let color2 = icosphereColors[idx2]
     let color3 = icosphereColors[idx3]
 
-    const numSubdivisions = 6
+    const numSubdivisions = 4
 
     unrolledVertices.addSubdivided(numSubdivisions, [v1,v2,v3])
     unrolledNormals.addSubdivided(numSubdivisions, [n1,n2,n3])
@@ -217,6 +217,8 @@ var frame = 0
 var currentMeshId : IdMesh = IdSphere
 var dragMode: int
 
+var mouseState: Vec2i
+
 while runGame:
   frame += 1
 
@@ -248,6 +250,10 @@ while runGame:
 
     if evt.kind in {MouseButtonDown, MouseButtonUp}:
       if evt.kind == MouseButtonDown:
+        discard showCursor(0)
+        discard setRelativeMouseMode(true)
+        discard getMouseState(addr mouseState.x, addr mouseState.y)
+
         if evt.button.button == ButtonLeft:
           dragMode = dragMode or 0x1
         if evt.button.button == ButtonRight:
@@ -255,6 +261,10 @@ while runGame:
         if evt.button.button == ButtonMiddle:
           dragMode = dragMode or 0x4
       if evt.kind == MouseButtonUp:
+        discard setRelativeMouseMode(false)
+        warpMouseInWindow(nil, mouseState.x, mouseState.y)
+        discard showCursor(1)
+
         if evt.button.button == ButtonLeft:
           dragMode = dragMode and (not 0x1)
         if evt.button.button == ButtonRight:
