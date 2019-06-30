@@ -484,30 +484,33 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     if uniformRest.len > 0:
       let uniformObjectSym = genSym(nskVar, "uniformObject")
+      let blockSize = genSym(nskVar, "blockSize")
 
       initCode.add quote do:
         # this is not the binding index
         let uniformBlockIndex = glGetUniformBlockIndex(`pSym`.program.handle, "dynamic_shader_data");
         doAssert uniformBlockIndex != GL_INVALID_INDEX
-        var blockSize: GLint
-        glGetActiveUniformBlockiv(`pSym`.program.handle, uniformBlockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, blockSize.addr)
-        assert blockSize > 0
-        `pSym`.uniformBufferSize = blockSize
+        var `blockSize`: GLint
+        glGetActiveUniformBlockiv(`pSym`.program.handle, uniformBlockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, `blockSize`.addr)
+        assert `blockSize` > 0
+        `pSym`.uniformBufferSize = `blockSize`
 
         glCreateBuffers(1, `pSym`.uniformBufferHandle.addr)
 
-        when persistentMappedBuffers:
+      if persistentMappedBuffers:
+        initCode.add quote do:
           glNamedBufferStorage(
-            `pSym`.uniformBufferHandle, GLsizei(blockSize), nil,
+            `pSym`.uniformBufferHandle, GLsizei(`blockSize`), nil,
             GL_MAP_WRITE_BIT or GL_MAP_PERSISTENT_BIT
           )
           `pSym`.uniformBufferData = glMapNamedBufferRange(
-            `pSym`.uniformBufferHandle, 0, blockSize,
+            `pSym`.uniformBufferHandle, 0, `blockSize`,
             GL_MAP_WRITE_BIT or GL_MAP_PERSISTENT_BIT or GL_MAP_FLUSH_EXPLICIT_BIT
           )
-        else:
-          glNamedBufferStorage(`pSym`.uniformBufferHandle, GLsizei(blockSize), nil, GL_DYNAMIC_STORAGE_BIT)
-          `pSym`.uniformBufferData = alloc(blockSize)
+      else:
+        initCode.add quote do:
+          glNamedBufferStorage(`pSym`.uniformBufferHandle, GLsizei(`blockSize`), nil, GL_DYNAMIC_STORAGE_BIT)
+          `pSym`.uniformBufferData = alloc(`blockSize`)
 
 
       drawCode.add quote do:
@@ -530,10 +533,14 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
       drawCode.add quote do:
         discard std140AlignedWrite(`pSym`.uniformBufferData, 0, `uniformObjectSym`)
-        when persistentMappedBuffers:
+
+      if persistentMappedBuffers:
+        drawCode.add quote do:
           glFlushMappedNamedBufferRange(`pSym`.uniformBufferHandle, 0, `pSym`.uniformBufferSize)
-        else:
+      else:
+        drawCode.add quote do:
           glNamedBufferSubData(`pSym`.uniformBufferHandle, 0, `pSym`.uniformBufferSize, `pSym`.uniformBufferData)
+      drawCode.add quote do:
         glBindBufferBase(GL_UNIFORM_BUFFER, 0, `pSym`.uniformBufferHandle)
 
     let bindTexturesCall = newCall(bindSym"bindTextures", newLit(0) )
@@ -546,8 +553,11 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     let attribPipelineBuffer = newSeq[NimNode](0)
 
-    let vertexShaderLit = newLit(vertexShader)
-    let fragmentShaderLit = newLit(fragmentShader)
+
+    let vertexShaderLit = newNimNode(nnkTripleStrLit)
+    vertexShaderLit.strVal = vertexShader
+    let fragmentShaderLit = newNimNode(nnkTripleStrLit)
+    fragmentShaderLit.strVal = fragmentShader
 
     let lineinfoLit = newLit(body.lineinfoObj)
 

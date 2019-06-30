@@ -554,8 +554,8 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 #### Shading Dsl Outer ###########################################################
 ##################################################################################
 
-macro transformFeedbackOutSection(self: TransformFeedback): string =
-  result = newLit("")
+# macro transformFeedbackOutSection(self: TransformFeedback): string =
+#   result = newLit("")
 
 macro shadingDsl*(statement: untyped) : untyped =
   var wrapWithDebugResult = false

@@ -10,7 +10,7 @@ proc debugCallbackPrintMessage(
     severity: GLenum,
     length: GLsizei,
     message: cstring,
-    userParam: pointer): void {. cdecl .} =
+    userParam: pointer): void {. exportc .} =
   stdout.styledWriteLine(fgYellow, $message)
 
 proc debugCallback(
@@ -20,7 +20,7 @@ proc debugCallback(
     severity: GLenum,
     length: GLsizei,
     message: cstring,
-    userParam: pointer): void {. cdecl .} =
+    userParam: pointer): void {. exportc .} =
 
   echo "gl-debug-callback:"
   echo "  message: ", message

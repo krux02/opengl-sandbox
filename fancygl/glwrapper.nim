@@ -1133,24 +1133,24 @@ macro bindTextures*(first: uint32; textures: varargs[untyped]): untyped =
 # # transform feedback # #
 ##########################
 
-template transformFeedbackBlock(primitiveMode: GLenum; blk: untyped): untyped =
-  block:
-    glBeginTransformFeedback(primitiveMode)
-    defer:
-      glEndTransformFeedback()
-    blk
+# template transformFeedbackBlock(primitiveMode: GLenum; blk: untyped): untyped =
+#   block:
+#     glBeginTransformFeedback(primitiveMode)
+#     defer:
+#       glEndTransformFeedback()
+#     blk
 
-macro countFields(arg: typed): int =
-  let typeImpl = arg.getTypeInst[1].getTypeImpl
-  typeImpl.expectKind(nnkObjectTy)
-  var acc = 0
-  for identDef in typeImpl[2]:
-    for i in 0 ..< identDef.len-2:
-      acc += 1
-  result = newLit(acc)
+# macro countFields(arg: typed): int =
+#   let typeImpl = arg.getTypeInst[1].getTypeImpl
+#   typeImpl.expectKind(nnkObjectTy)
+#   var acc = 0
+#   for identDef in typeImpl[2]:
+#     for i in 0 ..< identDef.len-2:
+#       acc += 1
+#   result = newLit(acc)
 
-proc numFields[T](t: typedesc[T]): int =
-  countFields(t)
+#proc numFields[T](t: typedesc[T]): int =
+#  countFields(t)
 
 type
   TransformFeedback*[T] = object
@@ -1167,33 +1167,33 @@ template offsetof*(typ, field: untyped): int =
    let b = cast[system.uint](addr(dummy.field));
    int(b - a))
 
-macro genVaryingNames(self: TransformFeedback): untyped =
-  ## returns array of string literals
-  result = nnkBracket.newTree
-  let typeImpl = self.getTypeInst[1].getTypeImpl
-  typeImpl.expectKind(nnkObjectTy)
-  for identDef in typeImpl[2]:
-    for i in 0 ..< identDef.len-2:
-      let sym = identDef[i]
-      result.add newLit($sym)
+# macro genVaryingNames(self: TransformFeedback): untyped =
+#   ## returns array of string literals
+#   result = nnkBracket.newTree
+#   let typeImpl = self.getTypeInst[1].getTypeImpl
+#   typeImpl.expectKind(nnkObjectTy)
+#   for identDef in typeImpl[2]:
+#     for i in 0 ..< identDef.len-2:
+#       let sym = identDef[i]
+#       result.add newLit($sym)
 
-  echo result.repr
+#   echo result.repr
 
-macro genVaryingOffsets[T](self: TransformFeedback[T]): untyped =
-  when false:
-    result = nnkBracket.newTree()
-    let tpe = self.getTypeInst[1]
-    echo tpe.treeRepr
-    let typeImpl = tpe.getTypeImpl
-    typeImpl.expectKind(nnkObjectTy)
-    for identDef in typeImpl[2]:
-      for i in 0 ..< identDef.len-2:
-        let sym = identDef[i]
-        result.add getAst(offsetOf(tpe,sym))
-  else:
-    result = newLit([0, 8, 16, 28, 32])
+# macro genVaryingOffsets[T](self: TransformFeedback[T]): untyped =
+#   when false:
+#     result = nnkBracket.newTree()
+#     let tpe = self.getTypeInst[1]
+#     echo tpe.treeRepr
+#     let typeImpl = tpe.getTypeImpl
+#     typeImpl.expectKind(nnkObjectTy)
+#     for identDef in typeImpl[2]:
+#       for i in 0 ..< identDef.len-2:
+#         let sym = identDef[i]
+#         result.add getAst(offsetOf(tpe,sym))
+#   else:
+#     result = newLit([0, 8, 16, 28, 32])
 
-  echo result.repr
+#   echo result.repr
 
 template stride*[T](self: TransformFeedback[T]): int =
   sizeof(T)
@@ -1252,8 +1252,8 @@ proc draw*(tf: TransformFeedback; primitiveMode: GLenum): void =
   ## Typed wrapper around `glDrawTransformFeedback`.
   glDrawTransformFeedback(primitiveMode, tf.handle)
 
-type
-  LabelAble = Program | Shader | VertexArrayObject | AnyBuffer | AnyTexture
+#type
+#  LabelAble = Program | Shader | VertexArrayObject | AnyBuffer | AnyTexture
 
 template glNamespace(arg: typedesc[Program]): GLenum = GL_PROGRAM
 template glNamespace(arg: typedesc[Shader]): GLenum  = GL_SHADER

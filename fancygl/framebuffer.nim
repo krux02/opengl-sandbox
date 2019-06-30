@@ -124,7 +124,6 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
 
     result[^1][0][2][2].add newExpIdentDef(fragOut, bindSym"Texture2D")
 
-
   let fragmentOutputsSeqNode = newLit(fragmentOutputs)
   result.add(quote do:
     template fragmentOutputSeq(t: typedesc[`typename`]): seq[string] =
@@ -201,8 +200,8 @@ template blockBindFramebuffer*(name, blok: untyped): untyped =
 
   glBindFramebuffer(GL_FRAMEBUFFER, name.handle.handle)
   block:
-    let currentFramebuffer {. inject .} = name
-    const fragmentOutputs {. inject .} = name.type.fragmentOutputSeq
+    let currentFramebuffer {.inject.} = name
+    const fragmentOutputs {.inject.} = fragmentOutputSeq(typeof(name))
     blok
 
   glBindFramebuffer(GL_DRAW_FRAMEBUFFER, drawfb.GLuint)

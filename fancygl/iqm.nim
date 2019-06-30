@@ -3,7 +3,7 @@ const
   IQM_VERSION* = 2
 
 
-type BlendWeight = distinct uint8
+# type BlendWeight = distinct uint8
 
 type
   iqmheader* = object

@@ -73,7 +73,9 @@ proc expectIdent*(n: NimNode, name: string) {.compileTime.} =
 
 template myAdd(a: var string, b: untyped): untyped =
   ## simply tries to minimize temporary strings
-  when compiles(add(a, b)):
+  when b is SomeSignedInt:
+    a.addInt(b)
+  elif compiles(add(a, b)):
     a.add(b)
   else:
     a.add($b)

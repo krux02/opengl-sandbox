@@ -18,7 +18,7 @@ proc createErrorSurface*(message: string = "", size: Vec2i = vec2i(-1)): sdl.Sur
     panic "SDL_CreateRGBSurface() failed: ", sdl.getError()
 
   let pixels = cast[ptr array[512*512,uint32]](result.pixels)
-  for i in 0 ..< 512*512:
+  for i in 0 ..< size.x * size.y:
     pixels[i] = rand_u32() or 0xff000000'u32
 
 
@@ -331,8 +331,6 @@ proc loadTexture2DFromFile*(filename: string): Texture2D =
     let message = s"can't load texture $filename: ${sdl.getError()}"
     echo message
     surface = createErrorSurface(message)
-
-
   defer: freeSurface(surface)
   result = texture2D(surface)
   result.label = filename
@@ -368,6 +366,32 @@ proc newTexture2D*(size: Vec2i, internalFormat: GLenum = GL_RGBA8; levels: int =
     size.x.GLsizei, size.y.GLsizei
   )
 
+proc newTexture3D*(size: Vec3i, internalFormat: GLenum = GL_RGBA8; levels: int = -1): Texture3D =
+  glCreateTextures(GL_TEXTURE_3D, 1, result.handle.addr)
+  let levelsArg = if levels < 0: min(min(size.x, size.y),size.z).float32.log2.floor.GLint else: levels.GLint
+  glTextureStorage3D(result.handle, levelsArg, internalFormat,
+                     GLsizei(size.x), GLsizei(size.y), GLsizei(size.z))
+
+
+proc size*(tex: Texture3D): Vec3i =
+  var w,h,d: GLint
+  glGetTextureLevelParameteriv(tex.handle, 0, GL_TEXTURE_WIDTH, w.addr)
+  glGetTextureLevelParameteriv(tex.handle, 0, GL_TEXTURE_HEIGHT, h.addr)
+  glGetTextureLevelParameteriv(tex.handle, 0, GL_TEXTURE_DEPTH, d.addr)
+  result = vec3i(w,h,d)
+
+
+proc setData*[T](texture: Texture3D, data: seq[T]; level: int = 0) =
+  let
+    s = texture.size
+    w = s.x.GLint
+    h = s.y.GLint
+    d = s.z.GLint
+    lev = level.GLint
+
+  glTextureSubImage3D(
+    texture.handle, lev, 0, 0, 0, w, h, d, typeConst[T.attribSize-1], T.attribType, data[0].unsafeAddr
+  )
 
 proc loadTextureCubeMapFromFiles*(filenames: openarray[string]): TextureCubeMap =
   assert filenames.len == 6

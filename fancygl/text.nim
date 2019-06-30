@@ -12,8 +12,8 @@ type
     textureWidth: int
     texture: Texture2D
 
-macro getSymbolLineinfo(arg: typed): string =
-  result = newLit(arg.getImpl.lineinfo)
+# macro getSymbolLineinfo(arg: typed): string =
+#   result = newLit(arg.getImpl.lineinfo)
 
 proc init(self: ptr TextRenderer; textHeight: int): void =
   self.textHeight = textHeight
@@ -43,12 +43,12 @@ proc textRenderer(): ptr TextRenderer =
     this.init(14)
   result = this
 
-proc textRendererLarge(): var TextRenderer =
-  var this {.global.}: ptr TextRenderer = nil
-  if this.isNil:
-    this = create(TextRenderer)
-    this.init(100)
-  this[]
+# proc textRendererLarge(): var TextRenderer =
+#   var this {.global.}: ptr TextRenderer = nil
+#   if this.isNil:
+#     this = create(TextRenderer)
+#     this.init(100)
+#   this[]
 
 proc textureArray(this: TextRenderer; strings: openarray[string]): Texture2DArray =
   if strings.len == 0:
@@ -75,7 +75,7 @@ proc textureArray(this: TextRenderer; strings: openarray[string]): Texture2DArra
 proc textureArray*(strings: openarray[string]): Texture2DArray =
   textureArray(textRenderer()[], strings)
 
-var timer = newStopWatch(true)
+# var timer = newStopWatch(true)
 
 proc text(this: var TextRenderer; str: string; pixelPos: Vec2i): void =
   # TODO add print statement to render text at screen
@@ -95,7 +95,7 @@ proc text(this: var TextRenderer; str: string; pixelPos: Vec2i): void =
     this.texture = newTexture2D(newSize)
 
   assert glIsTexture(this.texture.handle)
-  assert this.texture.size.y == surface.size.y
+  #assert this.texture.size.y == surface.size.y
 
   this.texture.subImageGrayscale(surface)
 

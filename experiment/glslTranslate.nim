@@ -240,14 +240,20 @@ proc compileToGlslA*(result: var string; arg: NimNode): void {.compileTime} =
     result.add "/// "
     result.add arg.strVal
     result.add "\n"
-  of nnkIfExpr(  nnkElifExpr(`cond`, `body`), nnkElseExpr( `elseBody` )):
-    result.add "("
-    result.compileToGlsl(cond)
-    result.add " ? "
-    result.compileToGlsl(body)
-    result.add " : "
-    result.compileToGlsl(elseBody)
-    result.add ")"
+  of nnkIfExpr:
+    var closing = ""
+    for branch in arg:
+      branch.matchAst:
+      of nnkElifExpr(`cond`, `body`):
+        result.add "("
+        result.compileToGlsl(cond)
+        result.add " ? "
+        result.compileToGlsl(body)
+        result.add " : "
+        closing.add ")"
+      of nnkElseExpr(`elseBody`):
+        result.compileToGlsl(elseBody)
+    result.add closing
   of nnkIfStmt:
     for i, branch in arg:
       if branch.kind == nnkElifBranch:
@@ -269,7 +275,7 @@ proc compileToGlslA*(result: var string; arg: NimNode): void {.compileTime} =
     for stmt in arg:
       result.compileToGlsl(stmt)
       result.add ";\n"
-  of nnkStmtListExpr( nnkCommentStmt, `expr`):
+  of nnkStmtListExpr( {nnkCommentStmt, nnkEmpty}, `expr`):
     result.compileToGlsl expr
   of nnkProcDef:
     let argSym = arg[0]
@@ -489,7 +495,7 @@ proc compileToGlslB*(result: var string; arg: NimNode): void =
 
   #   result.add "\n}}"
 
-  of nnkForStmt( `loopVar` @ nnkSym, `collectionCall`, `body` @ nnkStmtList ):
+  of nnkForStmt( `loopVar` @ nnkSym, `collectionCall`, `body` ):
     var lowerBound: string
     var upperBound: string
     var loopIndexSym: NimNode
@@ -537,7 +543,11 @@ proc compileToGlslB*(result: var string; arg: NimNode): void =
       result.add " = "
       result.compileToGlsl(collectionExpr)
       result.add "[", irepr, "];\n"
-    result.compileToGlsl body
+    # reintroduce nnkStmtList
+    if body.kind != nnkStmtList:
+      result.compileToGlsl(newStmtList(body))
+    else:
+      result.compileToGlsl body
     result.add "\n}"
 
 

@@ -11,14 +11,12 @@ echo "started ", timer.time
 
 # disable debug notifications
 glDebugMessageControl(GL_DONT_CARE,GL_DONT_CARE,GL_DEBUG_SEVERITY_NOTIFICATION, 0, nil, false)
-
 let projection_mat : Mat4f = perspective(45'f32, window.aspectRatio, 0.1, 100.0)
 
 type
   IdMesh = enum
     IdIcosphere,
     IdSphere,
-
 type
   SimpleVertexType = tuple[vertex,normal,color: Vec4f]
 
@@ -134,7 +132,7 @@ proc init() =
     let color2 = icosphereColors[idx2]
     let color3 = icosphereColors[idx3]
 
-    const numSubdivisions = 4
+    const numSubdivisions = 6
 
     unrolledVertices.addSubdivided(numSubdivisions, [v1,v2,v3])
     unrolledNormals.addSubdivided(numSubdivisions, [n1,n2,n3])
@@ -147,26 +145,6 @@ proc init() =
     unrolledNormals[i].xyz = vertex.xyz
 
   echo "mesh normalized ", timer.time
-
-  for i, vertex in unrolledVertices.mpairs:
-    const offset = vec3f(1.123, 2.456, 3.567) # make integer values unlikely
-    let pos = vertex.xyz
-
-    let n1 = simplex(pos * 1 + offset) * 1.0
-    let n2 = simplex(pos * 2 + offset) * 0.5
-    let n3 = simplex(pos * 4 + offset) * 0.25
-    let n4 = simplex(pos * 8 + offset) * 0.125
-    let n5 = simplex(pos * 16 + offset) * 0.0625
-    let height = max((n1 + n2) + (n3 + n4) + n5, 0)
-
-    if height == 0:
-      unrolledColors[i] = vec4f(0,0,1,1)
-    elif height >= 0.75:
-      unrolledColors[i] = vec4f(1,1,1,1)
-
-    vertex.xyz = pos * 5 + pos * height
-
-  echo "noise applied ", timer.time
 
   for i in countup(0, unrolledVertices.len-1, 3):
     let v1 = unrolledVertices[i+0]
@@ -213,17 +191,16 @@ camera.lookAt(vec3f(0.0, 1, 0.0))
 
 var runGame: bool = true
 var frame = 0
-
 var currentMeshId : IdMesh = IdSphere
 var dragMode: int
 
 var mouseState: Vec2i
 
+var offset = vec3f(1.123, 2.456, 3.567)
+
 while runGame:
   frame += 1
-
   let time = timer.time.float32
-
   for evt in events():
     if evt.kind == QUIT:
       runGame = false
@@ -278,8 +255,7 @@ while runGame:
         worldNode.turnAbsoluteX(motion.y *  0.002)
         worldNode.turnAbsoluteY(motion.x *  0.002)
       if dragMode == 0x2:
-        discard
-        #offset = offset + motion / 100
+        offset.xy += motion.xy * 0.001
       if dragMode == 0x4:
         discard
 
@@ -290,11 +266,41 @@ while runGame:
   let node = worldNode
   let proj = projection_mat
   let modelView = camera.viewMat * node.modelMat
-  mesh.render do (v, gl):
-    gl.Position = proj * modelView * v.vertex
+
+  mesh.renderDebug do (v, gl):
+    let pos = v.vertex.xyz
+    var sum: float32
+    for i in 0 ..< 5:
+      sum = sum + simplex(pos * pow(2.0f, float32(i)) + offset) * pow(0.5f, float32(i))
+    let height = max(sum, 0)
+
+    let color =
+      if height == 0:
+        vec4f(0,0,1,1)
+      elif height >= 0.75:
+        vec4f(1,1,1,1)
+      else:
+        v.color
+
+    let vertexTransformed = vec4f(pos * 5 + pos * height, 1)
+    let worldpos = vertexTransformed
+
+    gl.Position = proj * modelView * vertexTransformed
+    # this normal is incorrect because it does not take the transformation of the vertex into concideration
     let normal_cs = modelView * v.normal
+
     ## rasterize
-    result.color = normal_cs.z * v.color
+
+    let worldpos_dx = dFdx(worldpos.xyz)
+    let worldpos_dy = dFdx(worldpos.xyz)
+    # this normal is incorrect, because it creates a lot of NaN values
+    let normal = normalize(cross(worldpos_dx, worldpos_dy));
+    # mixed together the result is interesting
+    result.color = mix(
+      normal_cs.z * color,
+      max(normal.z,0) * color,
+      0.5
+    )
 
   # shapes with infinitely far away points, can't interpolate alon the vertices,
   # therefore so varyings don't work.

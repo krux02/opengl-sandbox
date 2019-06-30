@@ -65,11 +65,54 @@ proc basicLight(position_ws,normal_ws:Vec4f):Vec4f =
       max(dot(light_direction_ws, normal_ws), 0)
     result += light_intensity * light.color
 
-renderDebug(mesh) do (v, gl):
-  gl.Position  = basicTransform(v.position_os)
-  let position_ws = M * v.position_os
-  let normal_ws   = M * v.normal_os
-  ## rasterize
-  let a = basicLight(position_ws, normal_ws)
-  let b = texture(myTexture, v.texCoord)
-  result.color = a * b
+
+var runGame: bool = true
+
+#let timer = newStopWatch(true)
+#let aspect = window.aspectRatio.float32
+#let projMat : Mat4f = frustum(-aspect * 0.01f, aspect * 0.01f, -0.01f, 0.01f, 0.01f, 100.0)
+
+while runGame:
+
+  for evt in events():
+    if evt.kind == QUIT:
+      runGame = false
+      break
+    if evt.kind == KEY_DOWN and evt.key.keysym.scancode == SCANCODE_ESCAPE:
+      runGame = false
+    if evt.kind == KEY_DOWN and evt.key.keysym.scancode == SCANCODE_F10:
+      window.screenshot
+
+  #let time = (frame / 100) * Pi * 2
+  #let time = timer.time.float32
+
+  # let viewMat = mat4f(1)
+  #   .translate(0,1,5)            # position camera at position 0,1,5
+  #   .rotateX(Pi * -0.05)         # look a bit down
+  #   .inverse                     # the camera matrix needs to be inverted
+
+  # let modelMat = mat4f(1)
+  #   .rotateY(time)               # rotate the triangle
+  #   .scale(3)                    # scale the triangle to be big enough on screen
+
+  #let mvp = projMat * viewMat * modelMat
+
+  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+
+  # triangleMesh.render do (vertex, gl):
+  #   gl.Position = mvp * vertex.position
+  #   ## rasterize
+  #   result.color = vertex.color
+  #   #result.color.rgb = vec3f(simplex((modelMat * vertex.position).xyz))
+
+  renderDebug(mesh) do (v, gl):
+    gl.Position  = basicTransform(v.position_os)
+    let position_ws = M * v.position_os
+    let normal_ws   = M * v.normal_os
+    ## rasterize
+    let a = basicLight(position_ws, normal_ws)
+    let b = texture(myTexture, v.texCoord)
+    result.color = a * b
+
+
+  glSwapWindow(window)

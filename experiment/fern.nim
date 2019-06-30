@@ -1,6 +1,8 @@
 import renderMacro
 import random
-#import glm
+import glm/noise
+
+const numVertices = 200000
 
 proc nextPoint(arg: Vec2f; r : float32): Vec2f =
   if r < 0.01:
@@ -17,29 +19,34 @@ proc nextPoint(arg: Vec2f; r : float32): Vec2f =
     result.y =  0.26 * arg.x +  0.24 * arg.y + 0.44
 
 proc genPointsBuffer(): ArrayBuffer[Vec2f] =
-  var points = @[ vec2f(0) ]
-  for i in 0 ..< 200000:
+  var points = @[vec2f(0)]
+  for i in 0 ..< numVertices:
     points.add points[^1].nextPoint(rand(1.0f))
+  result = arrayBuffer(points)
 
-  result = points.arrayBuffer
+proc genColorsBuffer(): ArrayBuffer[Vec4f] =
+  var colors : seq[Vec4f] = @[]
+  for i in 0 ..< numVertices:
+    colors.add vec4f(rand_f32(), rand_f32(), rand_f32(), 1.00)
+  result = colors.arrayBuffer
 
-let (window, context) = defaultSetup()
+let (window, context) = defaultSetup(vec2i(640,480))
 
 type
   MyFragmentType = object
     color: Vec4f # {. GL_RGB16F .}
-
   MyVertexType = tuple
     position: Vec2f
-
-  #MyMesh = Mesh[MyVertexType
+    color: Vec4f
+  #MyMesh = Mesh[MyVertexType]
 genMeshType(MyMesh, MyVertexType)
 
 var triangleMesh: MyMesh
 triangleMesh.vertexIndices.mode = GL_Points
-triangleMesh.vertexIndices.numVertices = 200000
+triangleMesh.vertexIndices.numVertices = numVertices
 
 triangleMesh.buffers.position = genPointsBuffer()
+triangleMesh.buffers.color = genColorsBuffer()
 
 var runGame: bool = true
 
@@ -50,7 +57,6 @@ let projMat : Mat4f = frustum(-aspect * 0.01f, aspect * 0.01f, -0.01f, 0.01f, 0.
 glPointSize(2)
 
 while runGame:
-
   for evt in events():
     if evt.kind == QUIT:
       runGame = false
@@ -79,16 +85,10 @@ while runGame:
   triangleMesh.render do (vertex, gl):
     gl.Position = mvp * vec4f(vertex.position, 0, 1)
     ## rasterize
-    result.color = vec4f(1)#vertex.color
-    #result.color.rgb = vec3f(simplex((modelMat * vertex.position).xyz))
+    result.color = vertex.color
+    # result.color = vertex.color
+    result.color.r = abs(simplex((modelMat * vec4f(vertex.position,0,1)).xyz))
+    result.color.g = abs(simplex((modelMat * vec4f(vertex.position,1,1)).xyz))
+    result.color.b = abs(simplex((modelMat * vec4f(vertex.position,2,1)).xyz))
 
   glSwapWindow(window)
-
-
-#void setup() {
-#  size(600, 600);
-#  background(51);
-#}
-
-
-#points.add points[^1].nextPoint(rand(1.0f))
