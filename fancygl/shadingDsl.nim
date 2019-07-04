@@ -723,7 +723,7 @@ macro shadingDsl*(statement: untyped) : untyped =
             let glslTypeReprSym = bindSym("glslTypeRepr", brForceOpen)
 
             outCall.add quote do:
-              "out " & `glslTypeReprSym`(type(`identNode`.T)) & " " & `nameLit`
+              "out " & `glslTypeReprSym`(typeof(`identNode`.T)) & " " & `nameLit`
 
             transformFeedbackVaryingNamesCall.add nameLit
 

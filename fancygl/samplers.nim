@@ -366,6 +366,21 @@ proc newTexture2D*(size: Vec2i, internalFormat: GLenum = GL_RGBA8; levels: int =
     size.x.GLsizei, size.y.GLsizei
   )
 
+proc noiseTexture2D*(size: Vec2i): Texture2D =
+  var data : seq[uint32] = newSeq[uint32](size.x * size.y)
+  for it in data.mitems:
+    it = rand_u32()
+
+  result = newTexture2D(size)
+  result.setData(data)
+  result.parameter(GL_TEXTURE_WRAP_S, GL_REPEAT)
+  result.parameter(GL_TEXTURE_WRAP_T, GL_REPEAT)
+  result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+  result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+  result.generateMipmap
+  result.label = "RGBA noise"
+
+
 proc newTexture3D*(size: Vec3i, internalFormat: GLenum = GL_RGBA8; levels: int = -1): Texture3D =
   glCreateTextures(GL_TEXTURE_3D, 1, result.handle.addr)
   let levelsArg = if levels < 0: min(min(size.x, size.y),size.z).float32.log2.floor.GLint else: levels.GLint

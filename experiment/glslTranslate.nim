@@ -227,6 +227,19 @@ proc compileProcToGlsl(result: var string; arg: NimNode): void {.compileTime.} =
     result.compileToGlsl(resultSym)
     result.add ";\n}\n"
 
+  of nnkProcDef(`nameSym`, _, _, `params` @ nnkFormalParams, _, _, `body`):
+    result.add glslType(params[0]), " "
+    result.compileToGlsl(nameSym)
+    result.add "("
+    for memberSym, typeSym in params.fields:
+      result.add glslType(typeSym), " "
+      result.compileToGlsl(memberSym)
+      result.add ", "
+    result[^2] = ')'
+    result.add "{\n"
+    result.add "return "
+    result.compileToGlsl(body)
+    result.add ";\n}\n"
 
 proc compileToGlslA*(result: var string; arg: NimNode): void {.compileTime} =
   arg.matchAst(errorSym):

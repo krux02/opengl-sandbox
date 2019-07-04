@@ -301,12 +301,13 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     # uniforms
     sharedCode.add "// uniforms section\n"
-    sharedCode.add "layout(std140, binding=0) uniform dynamic_shader_data {\n"
-    for uniform in uniformRest:
-      sharedCode.add uniform.getTypeInst.glslType, " "
-      sharedCode.compileToGlsl(uniform)
-      sharedCode.add ";\n"
-    sharedCode.add "};\n"
+    if uniformRest.len > 0:
+      sharedCode.add "layout(std140, binding=0) uniform dynamic_shader_data {\n"
+      for uniform in uniformRest:
+        sharedCode.add uniform.getTypeInst.glslType, " "
+        sharedCode.compileToGlsl(uniform)
+        sharedCode.add ";\n"
+      sharedCode.add "};\n"
     for i, uniform in uniformSamplers:
       sharedCode.add "layout(binding=", i, ") "
       sharedCode.add "uniform ", uniform.getTypeInst.glslType, " "

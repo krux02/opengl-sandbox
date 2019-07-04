@@ -20,6 +20,10 @@ type
     col: Vec3f
     rot: float32
 
+echo glslLayoutSpecification(ParticleDataA)
+echo glslLayoutSpecification(ParticleDataB)
+
+
 let (window, _) = defaultSetup()
 let windowsize = window.size.vec2f
 
@@ -69,7 +73,6 @@ glBlendFunc(GL_SRC_ALPHA, GL_ONE)
 var mouseX  , mouseY  : int32
 var pmouseX , pmouseY : int32
 var transformFeedback = createTransformFeedback[ParticleDataA]()
-
 var pdir, dir: Vec2f
 
 while running:

@@ -1213,23 +1213,57 @@ proc glslLayoutSpecificationRuntime[T](name: string = ""): string =
     result.add "  layout(xfb_offset = "
     result.add $(cast[uint](field.addr) - baseAddr)
     result.add ") "
-    result.add glslTypeRepr(field.type)
+    result.add glslTypeRepr(typeof(field))
     result.add " "
     result.add fieldName
     result.add ";\n"
 
   result.add "};\n"
 
-template glslLayoutSpecification(arg: untyped): string = ""
+macro glslLayoutSpecification*(arg: typedesc): string =
+  # strip typedesc
+  let arg = arg.getTypeInst[1]
+  let stride = getSize(arg)
+  let name = repr(arg)
+  var res: string = s"layout(xfb_buffer = 0, xfb_string = $stride) out $name {"
+  let impl = arg.getTypeImpl
+  for identDefs in impl[2]:
+    if identDefs.kind == nnkRecCase:
+      error("Variant types not supported in transform feedback type.", identDefs)
+    identDefs.expectKind nnkIdentDefs
+    if identDefs[1].kind == nnkBracketExpr:
+      if identDefs[1][0].eqIdent "array":
+        error("Arrays not supported in transform feedback type.", identDefs[1])
+      if identDefs[1][0].eqIdent "seq":
+        error("Seq not supported in transform feedback type.", identDefs[1])
+    if identDefs[1].eqIdent "string":
+      error("String not supported in transform feedback type.", identDefs[1])
+
+    let offset = getOffset(identDefs[0])
+    let glslTyp = lispRepr(identDefs[1]) #glslTypeRepr(identDefs[1])
+    let fieldName = $identDefs[0]
+
+    res.add "\n  layout(xfb_offset = "
+    res.add offset
+    res.add ") "
+    res.add glslTyp
+    res.add " "
+    res.add fieldName
+    res.add ";"
+
+  res.add "\n};\n"
+  result = newLit(res)
 
 proc createTransformFeedback*[T]() : TransformFeedback[T] =
   glCreateTransformFeedbacks(GLsizei(1), result.handle.addr)
   result.label = typeName(T)
 
   let layoutSpecRT = glslLayoutSpecificationRuntime[T]()
-  let layoutSpec   = glslLayoutSpecification(t)
+  let layoutSpec   = glslLayoutSpecification(T)
 
   if layoutSpecRT != layoutSpec:
+    echo "layout spec outdated:"
+    echo layoutSpec
     echo "you will need the following template in your codebase, just copy paste it"
     echo ""
     echo "template glslLayoutSpecification*(arg: typedesc[", $T, "]): string = \"\"\"\n"

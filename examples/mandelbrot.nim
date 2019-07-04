@@ -1,5 +1,3 @@
-# Based on a renderman shader by Michael Rivero
-
 import ../fancygl
 
 let (window, context) = defaultSetup()
