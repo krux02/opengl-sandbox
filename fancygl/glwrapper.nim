@@ -1198,7 +1198,6 @@ template offsetof*(typ, field: untyped): int =
 template stride*[T](self: TransformFeedback[T]): int =
   sizeof(T)
 
-
 import typetraits
 
 proc glslLayoutSpecificationRuntime[T](name: string = ""): string =
@@ -1225,7 +1224,7 @@ macro glslLayoutSpecification*(arg: typedesc): string =
   let arg = arg.getTypeInst[1]
   let stride = getSize(arg)
   let name = repr(arg)
-  var res: string = s"layout(xfb_buffer = 0, xfb_string = $stride) out $name {"
+  var res: string = s"layout(xfb_buffer = 0, xfb_stride = $stride) out $name {"
   let impl = arg.getTypeImpl
   for identDefs in impl[2]:
     if identDefs.kind == nnkRecCase:
@@ -1240,7 +1239,7 @@ macro glslLayoutSpecification*(arg: typedesc): string =
       error("String not supported in transform feedback type.", identDefs[1])
 
     let offset = getOffset(identDefs[0])
-    let glslTyp = lispRepr(identDefs[1]) #glslTypeRepr(identDefs[1])
+    let glslTyp = glslType(identDefs[1]) #glslTypeRepr(identDefs[1])
     let fieldName = $identDefs[0]
 
     res.add "\n  layout(xfb_offset = "
