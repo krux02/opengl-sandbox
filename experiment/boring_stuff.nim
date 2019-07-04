@@ -289,14 +289,11 @@ const glslKeywords* = @[
 proc isSwizzle*(funcName: string): bool =
   if funcName.len == 0:
     return false
-
   const
     setA = {'x','y','z','w'}
     setB = {'r','g','b','a'}
     setC = {'s','t','p','q'}
-
   let c = funcName[0]
-
   let swizzleSet =
     if c in setA:
       setA
@@ -304,7 +301,6 @@ proc isSwizzle*(funcName: string): bool =
       setB
     else:
       setC
-
   if funcName[^1] == '=':
     if funcName.len > 5:
       return false
@@ -355,14 +351,14 @@ const glslBuiltInProc* = [
   "cos",
   "cosh",
   "cross",
-  "degrees",
-  "determinant",
   "dFdx",
   "dFdxCoarse",
   "dFdxFine",
   "dFdy",
   "dFdyCoarse",
   "dFdyFine",
+  "degrees",
+  "determinant",
   "distance",
   "dot",
   "equal",
@@ -552,7 +548,7 @@ const samplerTypeNames* = [
   "TextureCubeMap",
   "TextureCubeMapArray",
   "TextureCubeShadow",
-  "TextureRectangle",
+  "TextureRectangle"
 ]
 
 proc isBuiltIn*(sym: NimNode): bool {.compileTime.} =
@@ -575,7 +571,6 @@ proc isBuiltIn*(sym: NimNode): bool {.compileTime.} =
   return false
 
 proc isBuiltIn*(procName: string): bool {.compileTime.} =
-
   if binarySearch(glslBuiltInProc, procName) >= 0 :
     return true
   if binarySearch(glslConvProc, procname) >= 0:
@@ -628,13 +623,7 @@ gl_VertexID
 gl_ViewportIndex
 gl_WorkGroupID
 gl_WorkGroupSize
-
 ]#
-
-when isMainModule:
-  import algorithm, sequtils
-  echo binarySearch(glslBuiltInProc, "dot")
-  echo binarySearch(glslBuiltInProc, "EmitStreamVertex")
 
 iterator zip*[A,B,C](a:openArray[A]; b:openArray[B]; c:openArray[C]): (A,B,C) =
   let maxLen = max(a.len, b.len).max(c.len)
@@ -642,3 +631,21 @@ iterator zip*[A,B,C](a:openArray[A]; b:openArray[B]; c:openArray[C]): (A,B,C) =
   while i < maxLen:
     yield((a[i],b[i],c[i]))
     i.inc
+
+when isMainModule:
+  import algorithm, sequtils
+
+  # ensure everything is findable with binarySearch
+  template testArray(arr: untyped) =
+    for i, value in arr:
+      let j = binarySearch(arr, value)
+      if i != j:
+        echo "value: ", value
+        echo "i: ", i, " j: ", j
+      doAssert i == j
+
+  testArray(samplerTypeNames)
+  testArray(scalarTypeNames)
+  testArray(glslBuiltInProcSecondary)
+  testArray(glslConvProc)
+  testArray(glslBuiltInProc)

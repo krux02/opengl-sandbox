@@ -513,7 +513,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
           glNamedBufferStorage(`pSym`.uniformBufferHandle, GLsizei(`blockSize`), nil, GL_DYNAMIC_STORAGE_BIT)
           `pSym`.uniformBufferData = alloc(`blockSize`)
 
-
       drawCode.add quote do:
         var `uniformObjectSym`: `uniformBufTypeSym`
 
