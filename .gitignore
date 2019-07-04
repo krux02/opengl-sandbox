@@ -16,7 +16,6 @@ scratch
 /prototype_iteration2
 /experiment/deadcode
 /experiment/main
-/experiment/boring_stuff
 /experiment/uniformBufferTest
 /experiment/std140AlignedWrite
 /experiment/renderMacro
@@ -28,3 +27,4 @@ scratch
 /experiment/baseExample
 /experiment/hello_triangle
 /experiment/noiseSphere
+/fancygl/boring_stuff

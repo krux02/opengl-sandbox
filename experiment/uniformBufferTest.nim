@@ -2,7 +2,9 @@ import sugar, algorithm, macros, strutils, tables, sequtils
 # packages
 import ../fancygl, ast_pattern_matching
 # local stuff
-import normalizeType, glslTranslate, boring_stuff, renderMacro
+import glslTranslate, renderMacro
+import ../fancygl/normalizeType
+import ../fancygl/boring_stuff
 
 let _,_ = defaultSetup()
 

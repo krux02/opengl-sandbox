@@ -3,7 +3,9 @@ import sugar, algorithm, macros, strutils, tables, sequtils
 # packages
 import glm, ast_pattern_matching
 # local stuff
-import normalizeType, glslTranslate, boring_stuff
+import glslTranslate
+import ../fancygl/normalizeType
+import ../fancygl/boring_stuff
 
 
 

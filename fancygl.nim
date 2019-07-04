@@ -1,7 +1,7 @@
 ########################################################################
 ############################### fancy gl ###############################
 ########################################################################
-import glad/gl, glm, math, random, strutils, macros,
+import glad/gl, glm, math, random, strutils, macros, ast_pattern_matching,
        sdl2/sdl, sdl2/sdl_image as img, sdl2/sdl_ttf as ttf, os, terminal
 
 const
@@ -9,7 +9,9 @@ const
 
 import fancygl/[
   macroutils,
-  basic_random
+  basic_random,
+  normalizeType,
+  typeinfo
 ]
 
 proc panic*(message: varargs[string, `$`]): void {. noreturn .} =
@@ -24,7 +26,7 @@ include fancygl/glm_additions
 include fancygl/stopwatch
 include fancygl/default_setup
 include fancygl/shapes
-include fancygl/typeinfo
+#include fancygl/typeinfo
 include fancygl/samplers
 include fancygl/samplertypeinfo
 include fancygl/framebuffer

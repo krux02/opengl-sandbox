@@ -8,7 +8,10 @@ import sugar, algorithm, macros, strutils, tables, sequtils
 # packages
 import ../fancygl, ast_pattern_matching
 # local stuff
-import normalizeType, glslTranslate, boring_stuff, std140AlignedWrite
+import glslTranslate, std140AlignedWrite
+import ../fancygl/normalizeType
+import ../fancygl/boring_stuff
+import ../fancygl/typeinfo
 
 export fancygl
 
