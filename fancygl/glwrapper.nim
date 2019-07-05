@@ -1154,8 +1154,7 @@ macro bindTextures*(first: uint32; textures: varargs[untyped]): untyped =
 type
   TransformFeedback*[T] = object
     handle*: GLuint
-    varyingOffsets*: seq[int]
-    varyingNames*: seq[string]
+    layoutSpec*: string
 
 macro typeName(t: typedesc): untyped =
   newLit($t.getTypeImpl[1])
@@ -1216,12 +1215,9 @@ proc glslLayoutSpecificationRuntime[T](name: string = ""): string =
 
   result.add "};\n"
 
-macro glslLayoutSpecification*(arg: typedesc): string =
-  # strip typedesc
-  let arg = arg.getTypeInst[1]
+proc getGlslLayoutSpecificationFromImpl*(arg: NimNode, name: string): string =
   let stride = getSize(arg)
-  let name = repr(arg)
-  var res: string = s"layout(xfb_buffer = 0, xfb_stride = $stride) out $name {"
+  result = s"layout(xfb_buffer = 0, xfb_stride = $stride) out $name {"
   let impl = arg.getTypeImpl
   for identDefs in impl[2]:
     if identDefs.kind == nnkRecCase:
@@ -1239,27 +1235,31 @@ macro glslLayoutSpecification*(arg: typedesc): string =
     let glslTyp = glslType(identDefs[1]) #glslTypeRepr(identDefs[1])
     let fieldName = $identDefs[0]
 
-    res.add "\n  layout(xfb_offset = "
-    res.addInt offset
-    res.add ") "
-    res.add glslTyp
-    res.add " "
-    res.add fieldName
-    res.add ";"
+    result.add "\n  layout(xfb_offset = "
+    result.addInt offset
+    result.add ") "
+    result.add glslTyp
+    result.add " "
+    result.add fieldName
+    result.add ";"
 
-  res.add "\n};\n"
-  result = newLit(res)
+  result.add "\n};\n"
+
+macro glslLayoutSpecification*(arg: typedesc): string =
+  # strip typedesc
+  let arg = arg.getTypeInst[1]
+  result = newLit(getGlslLayoutSpecificationFromImpl(arg, repr(arg)))
 
 proc createTransformFeedback*[T]() : TransformFeedback[T] =
   glCreateTransformFeedbacks(GLsizei(1), result.handle.addr)
   result.label = typeName(T)
+  result.layoutSpec = glslLayoutSpecification(T)
 
   let layoutSpecRT = glslLayoutSpecificationRuntime[T]()
-  let layoutSpec   = glslLayoutSpecification(T)
 
-  if layoutSpecRT != layoutSpec:
+  if layoutSpecRT != result.layoutSpec:
     echo "layout spec outdated:"
-    echo layoutSpec
+    echo result.layoutSpec
     echo "you will need the following template in your codebase, just copy paste it"
     echo ""
     echo "template glslLayoutSpecification*(arg: typedesc[", $T, "]): string = \"\"\"\n"

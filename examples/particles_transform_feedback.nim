@@ -45,7 +45,7 @@ block:
 
   particleDataB = arrayBuffer(particlesBSeq, GL_STATIC_DRAW)
 
-# this needs to be a template, because otherwise
+# this needs to be a template, because particleData keeps changing value
 
 template  posView:untyped      = particleData.view(pos)
 template  velView:untyped      = particleData.view(vel)
@@ -111,16 +111,14 @@ while running:
   glClear(GL_COLOR_BUFFER_BIT)
 
   myTransformFeedback.bufferBase(0, particleTarget)
-
-
   myTransformFeedback.blockBindTransformFeedback:
+    glEnable(GL_RASTERIZER_DISCARD);
 
     shadingDsl:
       debug
-      primitiveMode = GL_POINTS
-      numVertices   = numParticles
-      programIdent  = tfProgram
-      vaoIdent      = tfVao
+      primitiveMode     = GL_POINTS
+      numVertices       = numParticles
+      transformFeedback = myTransformFeedback
 
       uniforms:
         mouse      = vec2f(mouseX.float32,  mouseY.float32)
@@ -137,54 +135,28 @@ while running:
         a_vel = velView
         a_birthday = birthdayView
 
-        #a_color = colView
-        #a_rot   = rotView
+      vertexMain:
+        """
+        if(a_birthday + maxParticleAge < time) {
+          float a = float(gl_VertexID) * (1.0 / float(numParticles));
+          pos      = mix(pmouse,mouse, a);
+          vel = mix(pdir, dir, a);
+          birthday = time;
+        } else {
+          birthday = a_birthday;
 
+          pos = a_pos + a_vel;
 
-      afterSetup:
-        discard
+          vec2 flip;
+          flip.x = float(windowsize.x < pos.x || pos.x < 0) * -2 + 1;
+          flip.y = float(windowsize.y < pos.y || pos.y < 0) * -2 + 1;
 
-      beforeRender:
-
-        glEnable(GL_RASTERIZER_DISCARD);
-        glBeginTransformFeedback(GL_POINTS)
-
-      afterRender:
-
-        glEndTransformFeedback()
-        glDisable(GL_RASTERIZER_DISCARD);
-
-      vertexSrc:
+          pos = clamp(pos, vec2(0), windowsize);
+          vel = a_vel * flip;
+        }
         """
 
-  layout(xfb_buffer = 0, xfb_stride = 24) out ParticleDataA {
-    layout(xfb_offset = 0) vec2 pos;
-    layout(xfb_offset = 8) vec2 vel;
-    layout(xfb_offset = 16) float birthday;
-    layout(xfb_offset = 20) float padding;
-  };
-
-  void main() {
-
-    if(a_birthday + maxParticleAge < time) {
-      float a = float(gl_VertexID) * (1.0 / float(numParticles));
-      pos      = mix(pmouse,mouse, a);
-      vel = mix(pdir, dir, a);
-      birthday = time;
-    } else {
-      birthday = a_birthday;
-
-      pos = a_pos + a_vel;
-
-      vec2 flip;
-      flip.x = float(windowsize.x < pos.x || pos.x < 0) * -2 + 1;
-      flip.y = float(windowsize.y < pos.y || pos.y < 0) * -2 + 1;
-
-      pos = clamp(pos, vec2(0), windowsize);
-      vel = a_vel * flip;
-    }
-  }
-        """
+    glDisable(GL_RASTERIZER_DISCARD);
 
   swap particleData, particleTarget
 

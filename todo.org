@@ -10,9 +10,8 @@
 ** PONSTPHONED Document user code sections for afterSetup, beforeRender, afterRender
 ** transform feedback
 *** PONSTPHONED allow non-interleaved transform feedback attributes
-*** PONSTPHONED transform feedback type that contains attributes at compile time
+*** DONE transform feedback type that contains attributes at compile time
 *** PONSTPHONED shadingDSl with transform feedback as source for the attributes, calls glDrawTransformfeedback(Instanced)
-*** PONSTPHONED easy transformation of buffers/views to transform feedback objects
 ** PONSTPHONED unifom buffer
 ** PONSTPHONED tesselation shader stages
 ** PONSTPHONED compute shaders

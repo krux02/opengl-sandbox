@@ -100,6 +100,7 @@ proc attributes(args : varargs[int]) : int = 0
 proc indices(arg: ElementArrayBuffer) : int = 0
 proc shaderArg[T](name: string, value: T, glslType: string, isSampler: bool): int = 0
 proc uniforms(args: varargs[int]): int = 0
+proc transformFeedback[T](arg: TransformFeedback[T]) : int = 0
 
 # TODO add tag for output variables weather they are transform feedback, or not
 
@@ -149,6 +150,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
   var geometrySrc: NimNode
   var fragmentSrc: NimNode
   var hasIndices = false
+  var hasTransformFeedback = false
   var indexType: NimNode = nil
   var sizeofIndexType = 0
   var numVertices, numInstances, vertexOffset, baseVertex, baseInstance: NimNode = nil
@@ -340,7 +342,6 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
         if innerCall[1].kind in {nnkStrLit, nnkTripleStrLit}:
           includesSection.add(innerCall[1].strVal)
 
-
     of "vertexSrc":
       vertexSrc = call[1]
 
@@ -356,6 +357,10 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
       baseVertex = newCall(bindSym"GLint", call[1])
     of "baseInstance":
       baseInstance = newCall(bindSym"GLuint", call[1])
+    of "transformFeedback":
+      let typ = call[1].getTypeInst[1]
+      vertexOutSection.add getGlslLayoutSpecificationFromImpl(typ.getTypeImpl, typ.repr)
+      hasTransformFeedback = true
     else:
       error "unknown internal section " & $call[0], call[0]
 
@@ -451,6 +456,10 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
       `program`.transformFeedbackVaryings(`namesLit`, GL_INTERLEAVED_ATTRIBS)
     )
 
+
+  if hasTransformFeedback:
+    drawBlock.add newCall(bindSym"glBeginTransformFeedback", mode)
+
   template indicesPtr: NimNode =
     newTree( nnkCast, bindSym"pointer", newInfix(bindSym"*", vertexOffset, newLit(sizeofIndexType)))
 
@@ -484,7 +493,6 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
           drawBlock.add newCall(
             bindSym"glDrawElementsInstancedBaseVertexBaseInstance",
             mode, numVertices, indexType, indicesPtr, numInstances, baseVertex, baseInstance )
-
   else:
     if not baseVertex.isNil:
       error "no indices, unable to use parameter baseVertex", baseVertex[1]
@@ -504,6 +512,8 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
           bindSym"glDrawArraysInstancedBaseInstance",
           mode, vertexOffset, numVertices, numInstances, baseInstance )
 
+  if hasTransformFeedback:
+    drawBlock.add newCall(bindSym"glEndTransformFeedback")
 
   let numLocationsLit = newLit(numLocations)
 
@@ -601,6 +611,19 @@ macro shadingDsl*(statement: untyped) : untyped =
         else:
           error("double declaration of vaoIdent", section)
 
+      of "transformFeedback":
+        result.add newCall(bindSym"transformFeedback", value)
+
+
+
+        # quote do:
+        #  transformFeedbackOutSection(
+        #    glslLayoutSpecification(typeof(`value`).T))
+
+        #result.add( newCall(
+        #  bindSym"transformFeedbackOutSection",
+        #  newCall(bindSym"glslLayoutspecification", newCall(newcallvalue, ident"T"))
+        #))
       else:
         error("unknown named parameter " & ident.strVal)
 
