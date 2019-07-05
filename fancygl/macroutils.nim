@@ -4,6 +4,10 @@ proc back*(node: NimNode): NimNode = node[node.len-1]
 
 proc head*(node: NimNode): NimNode = node[0]
 
+proc newTripleStrLit*(value: string): NimNode =
+  result = newNimNode(nnkTripleStrLit)
+  result.strVal = value
+
 proc newPrefix*(n1,n2: NimNode): NimNode {. compileTime .} =
   result = newNimNode(nnkPrefix)
   result.add n1

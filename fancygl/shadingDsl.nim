@@ -411,7 +411,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
   if numVertices.isNil:
     error "numVertices needs to be assigned"
 
-  let vsSrcLit = newLit vertexShaderSource
+  let vsSrcLit = newTripleStrLit(vertexShaderSource)
   let lineinfoLit = newLit(vertexSrc.lineinfoObj)
 
   var compileShaderBlock = newStmtList()
@@ -425,7 +425,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
     geometryHeader &= "\n"
     geometryHeader &= geometryLayout
     geometryHeader &= ";\n"
-    let gsSrcLit = newLit genShaderSource(geometryHeader, uniformsSection, vertexOutSection, geometryNumVerts(mode.intVal.GLenum), geometryOutSection, includesSection, geometrySrc.strVal)
+    let gsSrcLit = newTripleStrLit genShaderSource(geometryHeader, uniformsSection, vertexOutSection, geometryNumVerts(mode.intVal.GLenum), geometryOutSection, includesSection, geometrySrc.strVal)
     let lineinfoLit = newLit(geometrySrc.lineinfoObj)
     compileShaderBlock.add(quote do:
       `program`.attachAndDeleteShader(compileShader(GL_GEOMETRY_SHADER, `gsSrcLit`, `lineinfoLit`))
@@ -434,9 +434,9 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
   if not fragmentSrc.isNil:
     var fsSrcLit =
       if geometrySrc.isNil:
-        newLit genShaderSource(sourceHeader, uniformsSection, vertexOutSection, -1, fragmentOutSection, includesSection, fragmentSrc.strVal)
+        newTripleStrLit genShaderSource(sourceHeader, uniformsSection, vertexOutSection, -1, fragmentOutSection, includesSection, fragmentSrc.strVal)
       else:
-        newLit genShaderSource(sourceHeader, uniformsSection, geometryOutSection, -1, fragmentOutSection, includesSection, fragmentSrc.strVal)
+        newTripleStrLit genShaderSource(sourceHeader, uniformsSection, geometryOutSection, -1, fragmentOutSection, includesSection, fragmentSrc.strVal)
     let lineinfoLit = newLit(fragmentSrc.lineinfoObj)
     compileShaderBlock.add(quote do:
       `program`.attachAndDeleteShader(compileShader(GL_FRAGMENT_SHADER, `fsSrcLit`, `lineinfoLit`))

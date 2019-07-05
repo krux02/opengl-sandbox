@@ -74,7 +74,7 @@ proc glslType*(arg: NimNode): string {.compileTime.} =
   of nnkBracketExpr( ident"array", nnkInfix(ident"..", 0, `highLit`), `innerType`):
     result = glslType(innerType)
     result.add "["
-    result.add(highLit.intVal+1)
+    result.addInt(highLit.intVal+1)
     result.add "]"
     return
   else:
@@ -119,7 +119,7 @@ proc glslType*(arg: NimNode): string {.compileTime.} =
       result = "bvec"
 
     sizeLit.expectIntIn 2..4
-    result.add sizeLit.intVal
+    result.addInt sizeLit.intVal
 
   of nnkBracketExpr(ident"Mat", `sizeLit1`, `sizeLit2`, `Tsym`):
 
@@ -139,10 +139,10 @@ proc glslType*(arg: NimNode): string {.compileTime.} =
     let intVal1 = sizeLit1.intVal
     let intVal2 = sizeLit2.intVal
 
-    result.add intVal1
+    result.addInt intVal1
     if intVal2 != intVal1:
       result.add "x"
-      result.add intVal2
+      result.addInt intVal2
   else:
     ## well this is definitively wrong
     ## the type needs to be translated to glsl.

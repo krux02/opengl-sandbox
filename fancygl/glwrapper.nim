@@ -856,12 +856,11 @@ proc len*(abv: ArrayBufferView):  int =
 proc high*(abv: ArrayBufferView): int =
   abv.len - 1
 
-template view*(buf: ArrayBuffer; member: untyped): untyped =
-  var dummyVal : buf.T
-  var res : ArrayBufferView[dummyVal.member.type]
+template view*[T](buf: ArrayBuffer[T]; member: untyped): untyped =
+  var res : ArrayBufferView[typeof(default(typedesc(T)).member)]
   res.handle = buf.handle
-  res.relativeoffset = GLuint(cast[int](dummyVal.member.addr) - cast[int](dummyVal.addr))
-  res.stride = GLsizei(sizeof(buf.T))
+  res.relativeoffset = cast[GLuint](offsetof(typedesc(T), member))
+  res.stride = GLsizei(sizeof(T))
   res
 
 proc splitView*(buf: ArrayBuffer[Mat4f]): array[4, ArrayBufferView[Vec4f]] =
@@ -1198,8 +1197,6 @@ template offsetof*(typ, field: untyped): int =
 template stride*[T](self: TransformFeedback[T]): int =
   sizeof(T)
 
-import typetraits
-
 proc glslLayoutSpecificationRuntime[T](name: string = ""): string =
   let stride = sizeof(T)
   let name = $T
@@ -1243,7 +1240,7 @@ macro glslLayoutSpecification*(arg: typedesc): string =
     let fieldName = $identDefs[0]
 
     res.add "\n  layout(xfb_offset = "
-    res.add offset
+    res.addInt offset
     res.add ") "
     res.add glslTyp
     res.add " "
