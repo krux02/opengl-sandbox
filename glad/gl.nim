@@ -101,13 +101,13 @@ type
 # Enums
 const
   GL_FALSE* = false
-  GL_INVALID_INDEX*: uint32 = uint32(0xFFFFFFFF)
+  GL_INVALID_INDEX*: uint32 = 0xFFFFFFFF'u32
   GL_NONE* = 0
   GL_NONE_OES* = 0
   GL_NO_ERROR* = 0
   GL_ONE* = 1
-  GL_TIMEOUT_IGNORED*: uint64 = uint64(0xFFFFFFFFFFFFFFFF)
-  GL_TIMEOUT_IGNORED_APPLE*: uint64 = uint64(0xFFFFFFFFFFFFFFFF)
+  GL_TIMEOUT_IGNORED*: uint64 = 0xFFFFFFFFFFFFFFFF'u64
+  GL_TIMEOUT_IGNORED_APPLE*: uint64 = 0xFFFFFFFFFFFFFFFF'u64
   GL_TRUE* = true
   GL_VERSION_ES_CL_1_0* = 1
   GL_VERSION_ES_CL_1_1* = 1
@@ -3280,4 +3280,3 @@ proc gladLoadGL*(load: proc): bool =
   load_GL_EXT_debug_marker(load);
 
   return glVersionMajor != 0 or glVersionMinor != 0
-

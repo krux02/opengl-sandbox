@@ -859,7 +859,7 @@ proc high*(abv: ArrayBufferView): int =
 template view*[T](buf: ArrayBuffer[T]; member: untyped): untyped =
   var res : ArrayBufferView[typeof(default(typedesc(T)).member)]
   res.handle = buf.handle
-  res.relativeoffset = cast[GLuint](offsetof(typedesc(T), member))
+  res.relativeoffset = GLuint(offsetof(typedesc(T), member))
   res.stride = GLsizei(sizeof(T))
   res
 

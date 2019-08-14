@@ -7,8 +7,6 @@ let windowsize = window.size
 
 var timer = newStopWatch(true)
 
-echo "started ", timer.time
-
 # disable debug notifications
 glDebugMessageControl(GL_DONT_CARE,GL_DONT_CARE,GL_DEBUG_SEVERITY_NOTIFICATION, 0, nil, false)
 let projection_mat : Mat4f = perspective(45'f32, window.aspectRatio, 0.1, 100.0)

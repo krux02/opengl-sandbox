@@ -78,7 +78,7 @@ proc rand_bool*(): bool =
 
 proc rand*(maxval: uint64): uint64 =
   ## Return a random number from 0 to the exclusive upper bound `maxval`.
-  let limit = uint64(-1) - (uint64(-1) mod maxval)
+  let limit = cast[uint64](-1) - (cast[uint64](-1) mod maxval)
   var bits = rand_u64()
   while bits > limit:
     bits = rand_u64()

@@ -3,6 +3,10 @@ import ../fancygl
 #let (window, context) = defaultSetup(vec2i(640,480))
 let (window, context) = defaultSetup()
 
+var maxTextureSize: GlInt
+glGetIntegerv(GL_MAX_TEXTURE_SIZE, maxTextureSize.addr)
+echo "max texture size: ", maxTextureSize
+
 let vertices = arrayBuffer([
   vec4f(-1,-1, 0, 1),
   vec4f( 1,-1, 0, 1),
