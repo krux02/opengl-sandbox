@@ -1,21 +1,20 @@
 import ../fancygl, memfiles, OpenMesh, hashes, tables, mersenne
 
-###############################################################################
-# WARNING thistest is incomplete and has not yet been updatad for a long time #
-###############################################################################
-
 var mt = newMersenneTwister(0)
 
 proc randomColor() : Color =
-  result.r = mt.getNum.uint8
-  result.g = mt.getNum.uint8
-  result.b = mt.getNum.uint8
+  result.r = cast[uint8](mt.getNum)
+  result.g = cast[uint8](mt.getNum)
+  result.b = cast[uint8](mt.getNum)
   result.a = 255.uint8
 
 proc hash(v: Vec3f): Hash =
   hash(cast[array[3, float32]](v))
 
+echo "123"
+
 createMeshType(MyMeshType):
+  debug
   type
     VertexData = object
       point:         Vec3f
@@ -35,55 +34,6 @@ createMeshType(MyMeshType):
     EdgeData = object
       someValue : int32
 
-proc addVertex(mesh: var MyMeshType): MyMeshType_VertexRef =
-  let vertex = Vertex(out_halfedge_handle: HalfedgeHandle(-1))
-  mesh.vertices.add vertex
-  var tmp1: Vec3f
-  mesh.vertexProperties.point.add tmp1
-  var tmp2: Vec3f
-  mesh.vertexProperties.normal.add tmp2
-  result.mesh = mesh.addr
-  result.handle = VertexHandle(mesh.vertices.high)
-
-proc addEdge(mesh: var MyMeshType): MyMeshType_EdgeRef =
-  let
-    halfedge = Halfedge(
-        face_handle:          FaceHandle(-1),
-        vertex_handle:        VertexHandle(-1),
-        next_halfedge_handle: HalfedgeHandle(-1),
-        prev_halfedge_handle: HalfedgeHandle(-1))
-    edge: Edge = [halfedge,halfedge]
-  mesh.edges.add edge
-
-  var tmp1: int32
-  mesh.edgeProperties.someValue.add tmp1
-  var tmp2: Vec2f
-  mesh.halfedgeProperties.texCoord.add tmp2
-  mesh.halfedgeProperties.texCoord.add tmp2
-  result.mesh = mesh.addr
-  result.handle = EdgeHandle(mesh.edges.high)
-
-proc addFace(mesh: var MyMeshType): MyMeshType_FaceRef =
-  let face = Face(halfedge_handle: HalfedgeHandle(-1))
-
-  mesh.faces.add face
-  var tmp1: Color
-  mesh.faceProperties.color.add tmp1
-  var tmp2: int8
-  mesh.faceProperties.state.add tmp2
-  var tmp3: int8
-  mesh.faceProperties.stateNext.add tmp3
-
-  result.mesh = mesh.addr
-  result.handle = FaceHandle(mesh.faces.high)
-
-
-iterator faceRefs(mesh: var MyMeshType): MyMeshType_FaceRef =
-  var res: MyMeshType_FaceRef
-  res.mesh = mesh.addr
-  for i in 0 ..< mesh.faces.len:
-    res.handle = FaceHandle(i)
-
 ################################################################################
 ######################### prepare render vertex array ##########################
 ################################################################################
@@ -92,7 +42,8 @@ proc updateRenderBuffers(mymesh: var MyMeshType,
   renderPositionBuffer: var ArrayBuffer[Vec3f],
   renderNormalBuffer:   var ArrayBuffer[Vec3f],
   renderTexCoordBuffer: var ArrayBuffer[Vec2f],
-  renderColorBuffer:    var ArrayBuffer[Color]): void =
+  renderColorBuffer:    var ArrayBuffer[Color],
+  faceColors:           var Texture1D): void =
 
   # renderPositionBuffer = createArrayBuffer[Vec3f](mymesh.faces.len * 3, GL_STATIC_DRAW)
   # renderNormalBuffer   = createArrayBuffer[Vec3f](mymesh.faces.len * 3, GL_STATIC_DRAW)
@@ -118,22 +69,20 @@ proc updateRenderBuffers(mymesh: var MyMeshType,
   renderNormalBuffer.setData(renderNormalSeq)
   renderTexCoordBuffer.setData(renderTexCoordSeq)
   renderColorBuffer.setData(renderColorSeq)
-
-  #for point in mymesh.vertexProperties.point:
-  #  echo point
-
-  #for a_position in renderPositionSeq:
-    #echo a_position
-    #echo mat4f(projection) * vec4f(a_position, 1);
-
-  #var faceColors: Texture1D = newTexture1D(mymesh.faces.len, GL_RGBA8)
-  #faceColors.setData(mymesh.faceProperties.color)
-  #var indices = indicesSeq.elementArrayBuffer
+  faceColors.setData(mymesh.faceProps.color)
 
 ################################################################################
 #################################### Main ######################################
 ################################################################################
 
+proc `$`(arg: Color): string =
+  result.add "("
+  result.addInt int64(arg.r)
+  result.add ", "
+  result.addInt int64(arg.g)
+  result.add ", "
+  result.addInt int64(arg.b)
+  result.add ")"
 
 const
   WindowSize = vec2i(1024, 768)
@@ -193,14 +142,12 @@ proc main() =
   ################################################################################
 
   var mymesh: MyMeshType
-  mymesh.new
-
   # halfedges at the same edge need to be stored together
 
   var vertexPairs = initTable[tuple[v1,v2:int], HalfedgeHandle]()
   var vertexTable = initTable[Vec3f, VertexHandle]()
 
-  proc lazyHalfedge(vertex1,vertex2: MyMeshType_VertexRef): MyMeshType_HalfedgeRef =
+  proc lazyHalfedge(vertex1,vertex2: MyMeshType.VertexRef): MyMeshType.HalfedgeRef =
     #lookup in order
     let v1  = vertex1.handle.int
     let v2  = vertex2.handle.int
@@ -221,7 +168,7 @@ proc main() =
       # insert in inverse order
       vertexPairs[(v1: v2, v2: v1)] = halfedge1.handle
 
-  proc lazyVertex(position: Vec3f): MyMeshType_VertexRef =
+  proc lazyVertex(position: Vec3f): MyMeshType.VertexRef =
     if vertexTable.haskey(position):
       result.mesh = mymesh.addr
       result.handle = vertexTable[position]
@@ -310,7 +257,10 @@ proc main() =
   var renderTexCoordBuffer = createArrayBuffer[Vec2f](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
   var renderColorBuffer    = createArrayBuffer[Color](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
 
-  updateRenderBuffers(mymesh, renderPositionBuffer,renderNormalBuffer, renderTexCoordBuffer, renderColorBuffer)
+  var faceColors: Texture1D = newTexture1D(mymesh.faces.len, GL_RGBA8)
+
+
+  updateRenderBuffers(mymesh, renderPositionBuffer,renderNormalBuffer, renderTexCoordBuffer, renderColorBuffer, faceColors)
 
   ################################################################################
   ################################### main loop ##################################
@@ -328,6 +278,9 @@ proc main() =
     dragMode : int
 
   var runGame = true
+
+
+  var spreadBase: Color
 
   while runGame:
     let time = invPerfFreq * float64(getPerformanceCounter() - startPerfCount)
@@ -374,11 +327,12 @@ proc main() =
           for face in mymesh.faceRefs:
             if color == face.propColor:
               echo "clicked face: ", face.handle
-              for neighbor in face.circulateFaces:
-                neighbor.propColor() = randomColor()
+              #for neighbor in face.circulateFaces:
+              #  neighbor.propColor() = randomColor()
+              spreadBase = randomColor()
               face.propState() = 2
               break searchFace
-          echo "could not find color: ", color
+          # echo "could not find color: ", color
 
     for face in mymesh.faceRefs:
       if face.propState == 0:
@@ -392,11 +346,16 @@ proc main() =
         face.propStateNext() = 0
       if face.propState == 2:
         face.propStateNext() = 1
-        face.propColor() = randomColor()
+        face.propColor() = spreadBase#  randomColor()
+        spreadBase.b += 1
+        if spreadBase.b == 0:
+          spreadBase.g += 1
+          if spreadBase.g == 0:
+            spreadBase.r += 1
 
-    swap(mymesh.faceProperties.state, mymesh.faceProperties.stateNext)
+    swap(mymesh.faceProps.state, mymesh.faceProps.stateNext)
 
-    updateRenderBuffers(mymesh, renderPositionBuffer,renderNormalBuffer, renderTexCoordBuffer, renderColorBuffer)
+    updateRenderBuffers(mymesh, renderPositionBuffer,renderNormalBuffer, renderTexCoordBuffer, renderColorBuffer, faceColors)
 
     #####################
     #### render mesh ####
@@ -421,11 +380,11 @@ proc main() =
       uniforms:
         modelview = view_mat.mat4f
         projection = projection.mat4f
-        #faceColors
+        faceColors
       attributes:
         a_position = renderPositionBuffer
-        a_normal   = renderNormalBuffer
-        a_texCoord = renderTexCoordBuffer
+        #a_normal   = renderNormalBuffer
+        #a_texCoord = renderTexCoordBuffer
         a_color    = renderColorBuffer
         #a_position = mymesh.vertexproperties.point
         #a_texcoord = mymesh.vertexproperties.texcoord
@@ -442,8 +401,8 @@ proc main() =
         "out vec4 v_color"
       fragmentMain:
         """
-        //color = texelFetch(faceColors, gl_PrimitiveID, 0);
-        color = v_color;
+        color = texelFetch(faceColors, gl_PrimitiveID, 0);
+        //color = v_color;
         //color = vec4(1);
 
         //color /= max(max(color.x, color.y), color.z);
