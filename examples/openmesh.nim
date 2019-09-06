@@ -11,10 +11,7 @@ proc randomColor() : Color =
 proc hash(v: Vec3f): Hash =
   hash(cast[array[3, float32]](v))
 
-echo "123"
-
 createMeshType(MyMeshType):
-  debug
   type
     VertexData = object
       point:         Vec3f
@@ -33,6 +30,76 @@ createMeshType(MyMeshType):
 
     EdgeData = object
       someValue : int32
+
+
+
+proc connect(face: MyMeshType.FaceRef; halfedge: MyMeshType.HalfedgeRef) =
+  let mesh = face.mesh
+  assert mesh == halfedge.mesh
+  halfedge.connectivity.face_handle = face.handle
+  face.connectivity.halfedge_handle = halfedge.handle
+
+
+proc connect(face: MyMeshType.FaceRef; he1, he2, he3: MyMeshType.HalfedgeRef) =
+  he1.connectivity.face_handle = face.handle
+  he2.connectivity.face_handle = face.handle
+  he3.connectivity.face_handle = face.handle
+
+  he1.connectivity.next_halfedge_handle = he2.handle
+  he2.connectivity.next_halfedge_handle = he3.handle
+  he3.connectivity.next_halfedge_handle = he1.handle
+
+  he1.connectivity.prev_halfedge_handle = he3.handle
+  he2.connectivity.prev_halfedge_handle = he1.handle
+  he3.connectivity.prev_halfedge_handle = he2.handle
+
+  face.connectivity.halfedge_handle = he1.handle
+
+proc extrude(face: MyMeshType.FaceRef): void =
+  let he1 = face.goHalfedge
+  let he2 = he1.goNext
+  let he3 = he2.goNext
+
+  let vert1 = he1.goToVertex
+  let vert2 = he2.goToVertex
+  let vert3 = he3.goToVertex
+
+  let vec1 = vert2.propPoint - vert1.propPoint
+  let vec2 = vert3.propPoint - vert2.propPoint
+  let vec3 = vert1.propPoint - vert3.propPoint
+
+  let averageLength = (length(vec1) + length(vec2) + length(vec3)) / 3.0'f32
+  let center = (vert1.propPoint + vert2.propPoint + vert3.propPoint) / 3.0'f32
+  var n = normalize(cross(-vec1, vec2))
+
+  let mesh = face.mesh
+  let newVert = mesh[].addVertex()
+  newVert.propPoint() = center + n * averageLength
+
+  let newEdge1A = mesh[].addEdge.goHalfEdge()
+  let newEdge1B = newEdge1A.goOpp
+  let newEdge2A = mesh[].addEdge.goHalfEdge()
+  let newEdge2B = newEdge2A.goOpp
+  let newEdge3A = mesh[].addEdge.goHalfEdge()
+  let newEdge3B = newEdge3A.goOpp
+
+  newEdge1A.connectivity.vertex_handle = newVert.handle
+  newEdge1B.connectivity.vertex_handle = vert1.handle
+  newEdge2A.connectivity.vertex_handle = newVert.handle
+  newEdge2B.connectivity.vertex_handle = vert2.handle
+  newEdge3A.connectivity.vertex_handle = newVert.handle
+  newEdge3B.connectivity.vertex_handle = vert3.handle
+
+  let face1 = face
+  face1.propColor() = randomColor()
+  connect(face1, he1, newEdge1A, newEdge3B)
+  let face2 = mesh[].addFace()
+  face2.propColor() = randomColor()
+  connect(face2, he2, newEdge2A, newEdge1B)
+  let face3 = mesh[].addFace()
+  face3.propColor() = randomColor()
+  connect(face3, he3, newEdge3A, newEdge2B)
+
 
 ################################################################################
 ######################### prepare render vertex array ##########################
@@ -252,12 +319,13 @@ proc main() =
       echo "invalid halfedge handle in face at index ", i
   echo "brokenHalfedges: ", brokenHalfedges
 
-  var renderPositionBuffer = createArrayBuffer[Vec3f](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
-  var renderNormalBuffer   = createArrayBuffer[Vec3f](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
-  var renderTexCoordBuffer = createArrayBuffer[Vec2f](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
-  var renderColorBuffer    = createArrayBuffer[Color](mymesh.faces.len * 3, GL_DYNAMIC_DRAW)
+  # multiply everything wth 2 to have some slack for later faces
+  var renderPositionBuffer = createArrayBuffer[Vec3f](mymesh.faces.len * 3 * 2, GL_DYNAMIC_DRAW)
+  var renderNormalBuffer   = createArrayBuffer[Vec3f](mymesh.faces.len * 3 * 2, GL_DYNAMIC_DRAW)
+  var renderTexCoordBuffer = createArrayBuffer[Vec2f](mymesh.faces.len * 3 * 2, GL_DYNAMIC_DRAW)
+  var renderColorBuffer    = createArrayBuffer[Color](mymesh.faces.len * 3 * 2, GL_DYNAMIC_DRAW)
 
-  var faceColors: Texture1D = newTexture1D(mymesh.faces.len, GL_RGBA8)
+  var faceColors: Texture1D = newTexture1D(mymesh.faces.len * 2, GL_RGBA8)
 
 
   updateRenderBuffers(mymesh, renderPositionBuffer,renderNormalBuffer, renderTexCoordBuffer, renderColorBuffer, faceColors)
@@ -327,10 +395,13 @@ proc main() =
           for face in mymesh.faceRefs:
             if color == face.propColor:
               echo "clicked face: ", face.handle
-              #for neighbor in face.circulateFaces:
-              #  neighbor.propColor() = randomColor()
-              spreadBase = randomColor()
-              face.propState() = 2
+              if evt.button.button == 1:
+                for neighbor in face.circulateFaces:
+                  neighbor.propColor() = randomColor()
+                spreadBase = randomColor()
+                face.propState() = 2
+              else:
+                extrude(face)
               break searchFace
           # echo "could not find color: ", color
 

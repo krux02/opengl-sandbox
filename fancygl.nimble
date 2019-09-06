@@ -36,6 +36,7 @@ requires @[
   "glm                  >= 1.1.1   ",
   "ast_pattern_matching >= 1.0.0   ",
   #"fftw3               >= 0.1.0   ", # add this if you want audiotest to work
+  "OpenMesh              >= 0.1.0  ",
 ]
 
 task run, "run all examples":
