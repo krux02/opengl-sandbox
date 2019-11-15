@@ -208,8 +208,6 @@ while runGame:
 
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-  let magic = int32(frame mod 2)
-
   for i, node in worldNodes:
     let mesh = meshes[i]
 
@@ -223,7 +221,6 @@ while runGame:
       uniforms:
         proj = projection_mat
         modelView = camera.viewMat * node.modelMat
-        magic
 
       attributes:
         a_vertex = vertices

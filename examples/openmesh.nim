@@ -9,16 +9,14 @@ proc randomColor() : Color =
   result.a = 255.uint8
 
 proc hash(v: Vec3f): Hash =
-  hash(cast[array[3, float32]](v))
+  hash(v.arr)
 
 createMeshType(MyMeshType):
   type
     VertexData = object
       point:         Vec3f
       normal:        Vec3f
-      #tangent:       Vec4f
-      #blendindexes:  Vec4u8
-      #blendweights:  Vec4u8
+      boundary:      bool
 
     FaceData = object
       color: Color
@@ -31,14 +29,11 @@ createMeshType(MyMeshType):
     EdgeData = object
       someValue : int32
 
-
-
 proc connect(face: MyMeshType.FaceRef; halfedge: MyMeshType.HalfedgeRef) =
   let mesh = face.mesh
   assert mesh == halfedge.mesh
   halfedge.connectivity.face_handle = face.handle
   face.connectivity.halfedge_handle = halfedge.handle
-
 
 proc connect(face: MyMeshType.FaceRef; he1, he2, he3: MyMeshType.HalfedgeRef) =
   he1.connectivity.face_handle = face.handle
@@ -112,11 +107,6 @@ proc updateRenderBuffers(mymesh: var MyMeshType,
   renderColorBuffer:    var ArrayBuffer[Color],
   faceColors:           var Texture1D): void =
 
-  # renderPositionBuffer = createArrayBuffer[Vec3f](mymesh.faces.len * 3, GL_STATIC_DRAW)
-  # renderNormalBuffer   = createArrayBuffer[Vec3f](mymesh.faces.len * 3, GL_STATIC_DRAW)
-  # renderTexCoordBuffer = createArrayBuffer[Vec2f](mymesh.faces.len * 3, GL_STATIC_DRAW)
-  # renderColorBuffer    = createArrayBuffer[Color](mymesh.faces.len * 3, GL_STATIC_DRAW)
-
   var
     renderPositionSeq = newSeq[renderPositionBuffer.T](0)
     renderNormalSeq   = newSeq[renderNormalBuffer.T](0)
@@ -183,20 +173,6 @@ proc main() =
   let meshes = header.getMeshes
 
   #let numVertices = header.num_vertexes.int
-
-  #mymesh.vertexProperties.texcoord.newSeq(numVertices)
-  #mymesh.vertexProperties.normal.newSeq(numVertices)
-  #mymesh.vertexProperties.tangent.newSeq(numVertices)
-  #mymesh.vertexProperties.blendindexes.newSeq(numVertices)
-  #mymesh.vertexProperties.blendweights.newSeq(numVertices)
-
-  #for i in 0 ..< numVertices:
-    #mymesh.vertexProperties.point[i]         = meshData.position[i] * vec3f(-1,1,1)
-    #mymesh.vertexProperties.texcoord[i]      = meshData.texcoord[i]
-    #mymesh.vertexProperties.normal[i]        = meshData.normal[i]
-    #mymesh.vertexProperties.tangent[i]       = meshData.tangent[i]
-    #mymesh.vertexProperties.blendindexes[i]  = meshData.blendindexes[i]
-    #mymesh.vertexProperties.blendweights[i]  = meshData.blendweights[i]
 
   var meshTextures = newSeq[Texture2D](meshes.len)
   for i, mesh in meshes:
@@ -290,12 +266,8 @@ proc main() =
     let face = mymesh.addFace
     face.connectivity.halfedge_handle = halfedge0.handle
 
-    #echo halfedgeHandle0, " ", mymesh.get(halfedgeHandle0)
-    #echo halfedgeHandle1, " ", mymesh.get(halfedgeHandle1)
-    #echo halfedgeHandle2, " ", mymesh.get(halfedgeHandle2)
-
   for face in mymesh.faceRefs:
-    face.propColor() = randomColor()
+    face.propColor() = Color(r:11,g:11,b:11)
 
 
   echo "numVertices: ", mymesh.vertices.len
@@ -314,10 +286,71 @@ proc main() =
          halfedge.next_halfedge_handle.is_invalid or
          halfedge.prev_halfedge_handle.is_invalid:
         brokenHalfedges += 1
+
   for i, face in mymesh.faces:
     if face.halfedge_handle.isInvalid:
       echo "invalid halfedge handle in face at index ", i
   echo "brokenHalfedges: ", brokenHalfedges
+
+
+
+
+  # fixing stuff for boundary halfedges
+  for he in mymesh.halfedgeRefs:
+    if he.goToVertex.handle.isInvalid:
+      he.connectivity.vertex_handle = he.goOpp.goPrev.goToVertex.handle
+
+
+
+  for he in mymesh.halfedgeRefs:
+    if he.isBoundary:
+      he.goToVertex.propboundary() = true
+      he.goFromVertex.propBoundary() = true
+
+  var boundaryVertices: seq[MyMeshType.VertexRef]
+  for vertex in mymesh.vertexRefs:
+    if vertex.propBoundary():
+      boundaryVertices.add vertex
+
+  echo boundaryVertices
+
+  for itA in boundaryVertices:
+    var distance:float32 = Inf
+    var closest: MyMeshType.VertexRef
+    for itB in boundaryVertices:
+      if itA.handle != itB.handle:
+        let newDist = length(itA.propPoint - itB.propPoint)
+        if newDist < distance:
+          distance = newDist
+          closest = itB
+    echo int32(itA.handle), " <-> ", int32(closest.handle), " disdance: ", distance
+
+
+
+  var indices: seq[int32]
+  for face in mymesh.faceRefs:
+    indices.setLen(0)
+    var hasInvalid = false
+    for it in face.circulateOutHalfedges:
+      let handle1 = it.goToVertex.handle
+      let handle2 = it.goNext.handle
+
+      if not handle1.isValid or not handle2.isValid:
+        face.propColor() = randomColor()
+        # face.propColor.r = 255
+        # face.propColor.g = 0
+        # face.propColor.b = 0
+        hasInvalid = true
+
+      indices.add int32(handle1)
+      indices.add int32(handle2)
+
+    if hasInvalid:
+      for it in face.circulateVertices:
+        stdout.write int32(it.handle)
+        stdout.write " "
+      stdout.write("\n")
+      echo indices
 
   # multiply everything wth 2 to have some slack for later faces
   var renderPositionBuffer = createArrayBuffer[Vec3f](mymesh.faces.len * 3 * 2, GL_DYNAMIC_DRAW)
@@ -328,7 +361,18 @@ proc main() =
   var faceColors: Texture1D = newTexture1D(mymesh.faces.len * 2, GL_RGBA8)
 
 
-  updateRenderBuffers(mymesh, renderPositionBuffer,renderNormalBuffer, renderTexCoordBuffer, renderColorBuffer, faceColors)
+  updateRenderBuffers(mymesh, renderPositionBuffer, renderNormalBuffer, renderTexCoordBuffer, renderColorBuffer, faceColors)
+
+  ################################################################################
+  ################################### other data #################################
+  ################################################################################
+
+  let planeVertices = arrayBuffer([
+    vec4f(0,0,0,1), vec4f( 1, 0,0,0), vec4f( 0, 1,0,0),
+    vec4f(0,0,0,1), vec4f( 0, 1,0,0), vec4f(-1, 0,0,0),
+    vec4f(0,0,0,1), vec4f(-1, 0,0,0), vec4f( 0,-1,0,0),
+    vec4f(0,0,0,1), vec4f( 0,-1,0,0), vec4f( 1, 0,0,0)
+  ])
 
   ################################################################################
   ################################### main loop ##################################
@@ -346,7 +390,6 @@ proc main() =
     dragMode : int
 
   var runGame = true
-
 
   var spreadBase: Color
 
@@ -396,14 +439,12 @@ proc main() =
             if color == face.propColor:
               echo "clicked face: ", face.handle
               if evt.button.button == 1:
-                for neighbor in face.circulateFaces:
-                  neighbor.propColor() = randomColor()
+                discard
                 spreadBase = randomColor()
                 face.propState() = 2
               else:
                 extrude(face)
               break searchFace
-          # echo "could not find color: ", color
 
     for face in mymesh.faceRefs:
       if face.propState == 0:
@@ -432,6 +473,7 @@ proc main() =
     #### render mesh ####
     #####################
 
+    glClearColor(135/255, 206/255, 235/255, 1.0)
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
 
@@ -454,15 +496,7 @@ proc main() =
         faceColors
       attributes:
         a_position = renderPositionBuffer
-        #a_normal   = renderNormalBuffer
-        #a_texCoord = renderTexCoordBuffer
         a_color    = renderColorBuffer
-        #a_position = mymesh.vertexproperties.point
-        #a_texcoord = mymesh.vertexproperties.texcoord
-        #a_normal_os = meshData.normal
-        #a_tangent_os = meshData.tangent
-        #a_blendindexes = meshData.blendindexes
-        #a_blendweights = meshData.blendweights
       vertexMain:
         """
         gl_Position = projection * modelview * vec4(a_position, 1);
@@ -473,15 +507,27 @@ proc main() =
       fragmentMain:
         """
         color = texelFetch(faceColors, gl_PrimitiveID, 0);
-        //color = v_color;
-        //color = vec4(1);
-
-        //color /= max(max(color.x, color.y), color.z);
-        //if(!gl_FrontFacing) {
-        //  color *= 0.5;
-        //}
-
         """
+
+    shadingDsl:
+      primitiveMode = GL_TRIANGLES
+      numVertices = planeVertices.len
+      uniforms:
+        modelViewProj = mat4f(projection * view_mat)
+
+      attributes:
+        a_vertex   = planeVertices
+
+      vertexMain:
+        """
+        gl_Position = modelViewProj * a_vertex;
+        """
+
+      fragmentMain:
+        """
+        color = vec4(0.486, 0.988, 0, 1);
+        """
+
 
     window.glSwapWindow()
 main()

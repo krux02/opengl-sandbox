@@ -2,13 +2,13 @@ import ../fancygl, sequtils, AntTweakBar
 
 # not read yet te be part of the nimble build system
 
-template addVarRW(bar: ptr TwBar; value: var float32, stuff: string= ""): void =
+template addVarRW(bar: TwBar; value: var float32, stuff: string= ""): void =
   discard TwAddVarRW(bar,astToStr(value), TW_TYPE_FLOAT, value.addr, stuff)
 
-template addVarRW(bar: ptr TwBar; value: var bool, stuff: string = ""): void =
+template addVarRW(bar: TwBar; value: var bool, stuff: string = ""): void =
   discard TwAddVarRW(bar,astToStr(value), TW_TYPE_BOOL8, value.addr, stuff)
 
-template addVarRW(bar: ptr TwBar; value: var Quatf, stuff: string = ""): void =
+template addVarRW(bar: TwBar; value: var Quatf, stuff: string = ""): void =
   discard TwAddVarRW(bar,astToStr(value), TW_TYPE_QUAT4F, value.addr, stuff)
 
 var mouseModeToggle = true
@@ -25,12 +25,6 @@ proc `<`[N: static[int],T](a,b: Vec[N,T]): Vec[N,bool] =
 proc `<=`[N: static[int],T](a,b: Vec[N,T]): Vec[N,bool] =
   for i in 0 ..< N:
     result.arr[i] = a.arr[i] <= b.arr[i]
-
-proc reset[T](arg: var seq[T]): void =
-  if arg.isNil:
-    arg.newSeq(0)
-  else:
-    arg.setLen(0)
 
 proc `$`[N,T](arg: array[N,T]): string =
   result = "["
@@ -270,7 +264,7 @@ proc leafNodeBoxes(this: Tree; aabb: AABB; node: Node; dst: var seq[AABB]) =
       leafNodeBoxes(this, aabb.octreeChild(i), this.nodes[childIdx], dst)
 
 proc leafNodeBoxes(this: Tree; dst: var seq[AABB]): void =
-  dst.reset
+  dst.setLen 0
   leafNodeBoxes(this, this.aabb, this.nodes[0], dst)
 
 proc leafNodeBoxes(this: Tree): seq[AABB] =
@@ -521,8 +515,6 @@ proc flock(tree: var Tree): void =
     let position_j = tree.data[j].position
     let v_j = tree.data[j].velocity
 
-    let d = dist(position_i, position_j)
-
     align[i].sum   += v_j
     align[i].count += 1
     align[j].sum   += v_i
@@ -704,7 +696,7 @@ cameraControls.speed = 5
 addEventWatch(cameraControlEventWatch, cast[pointer](cameraControls.addr))
 
 var neighborSearchResult: seq[(int32,int32)]
-var neighborSearchResultBuffer = newElementArrayBuffer[int32](40000, GL_STREAM_DRAW)
+var neighborSearchResultBuffer = createElementArrayBuffer[int32](40000, GL_STREAM_DRAW)
 
 proc drawNeighborhood(proj,modelView: Mat4f): void =
   tree.neighborSearch(searchRadius, neighborSearchResult)

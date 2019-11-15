@@ -157,7 +157,7 @@ proc compileProcToGlsl(result: var string; arg: NimNode): void {.compileTime.} =
     result.compileToGlsl(body)
     result.add ";\n}\n"
 
-proc compileToGlslA*(result: var string; arg: NimNode): void {.compileTime} =
+proc compileToGlsl*(result: var string; arg: NimNode): void {.compileTime} =
   arg.matchAst(errorSym):
   of {nnkFloat32Lit,nnkFloat64Lit,nnkFloatLit}:
     result.add arg.floatVal
@@ -249,8 +249,6 @@ proc compileToGlslA*(result: var string; arg: NimNode): void {.compileTime} =
     result.compileToGlsl(expr)
     result.add ')'
 
-proc compileToGlslB*(result: var string; arg: NimNode): void =
-  arg.matchAst(errorSym):
   of {nnkAsgn,nnkFastAsgn}(`lhs`, `rhs`):
     result.compileToGlsl(lhs)
     result.add " = "
@@ -361,68 +359,6 @@ proc compileToGlslB*(result: var string; arg: NimNode): void =
   of nnkReturnStmt(nnkAsgn( _, `expr`)):
     result.add "return "
     result.compileToGlsl expr
-  # of nnkBlockStmt(
-  #   `sym1` @ nnkSym,
-  #   nnkStmtList(
-  #     nnkVarSection(
-  #       nnkIdentDefs( `loopVar` @ nnkSym, nnkEmpty, nnkEmpty)
-  #     ),
-  #     nnkStmtList(
-  #       nnkCommentStmt,
-  #       nnkVarSection( nnkIdentDefs( `loopIndex` @ nnkSym, nnkEmpty, 0)),
-  #       nnkIfStmt(
-  #         nnkElifBranch(
-  #           nnkInfix( ident"<=", _ #[ `loopIndex` ]#, `upperBound` @ nnkIntLit),
-  #           nnkBlockStmt(
-  #             `blockSym2`,
-  #             nnkWhileStmt(
-  #               1,
-  #               nnkStmtList(
-  #                 nnkStmtList(
-  #                   nnkFastAsgn(_ #[`loopVar`]#, nnkBracketExpr(`collectionSym`,_ #[`loopIndex`]#)),
-  #                   `body`
-  #                 ),
-  #                 nnkIfStmt(
-  #                   nnkElifBranch(
-  #                     nnkStmtListExpr(
-  #                       nnkCommentStmt,
-  #                       nnkInfix(ident"<=", _ #[`upperBound`]#, _ #[`loopIndex`]#)
-  #                     ),
-  #                     nnkBreakStmt( _ #[`sym1`]#)
-  #                   ),
-  #                 ),
-  #                 nnkCall( ident"inc", _ #[`loopIndex`]# , 1 )
-  #               )
-  #             )
-  #           )
-  #         )
-  #       )
-  #     )
-  #   )
-  # ):
-  #   let loopIndexTrue = genSym(nskVar, "i")
-  #   let irepr = loopIndexTrue.repr
-  #   result.add "for(int "
-  #   result.add irepr
-  #   result.add " = 0; "
-  #   result.add irepr
-  #   result.add " < "
-  #   result.add(upperBound.intVal+1)
-  #   result.add "; ++"
-  #   result.add irepr
-  #   result.add ") {\n"
-
-  #   # TODO this is actually correct, but for now I cheat around fixing it
-  #   # result.add loopVar.getTypeInst.glslType
-  #   result.add loopVar.getTypeInst.strVal
-  #   result.add ' '
-  #   result.compileToGlsl(loopVar)
-  #   result.add " = "
-  #   result.compileToGlsl(collectionSym)
-  #   result.add "[", irepr, "];\n{\n"
-  #   result.compileToGlsl body
-
-  #   result.add "\n}}"
 
   of nnkForStmt( `loopVar` @ nnkSym, `collectionCall`, `body` ):
     var lowerBound: string
@@ -479,8 +415,6 @@ proc compileToGlslB*(result: var string; arg: NimNode): void =
       result.compileToGlsl body
     result.add "\n}"
 
-
-
   of nnkBlockStmt(_, `body`):
     result.add "{\n"
     result.compileToGlsl(body)
@@ -495,36 +429,6 @@ proc compileToGlslB*(result: var string; arg: NimNode): void =
     result.compileToGlsl(a)
     result.add " += "
     result.compileToGlsl(b)
-
-  # of nnkBlockStmt(
-  #   `sym1` @ nnkSym,
-  #   nnkStmtList(
-  #     nnkVarSection(
-  #       nnkIdentDefs( `loopVar` @ nnkSym, nnkEmpty, nnkEmpty)
-  #     ),
-  #     nnkStmtList(
-  #       nnkVarSection(
-  #         nnkIdentDefs(
-  #           nnkSym "i",
-  #           nnkEmpty,
-  #           nnkInt32Lit 0
-  #         )
-  #       ),
-  #       nnkBlockStmt(
-  #         `sym2` @ nnkSym
-  #         nnkWhileStmt
-  #           nnkInfix
-  #             nnkSym "<"
-  #             nnkSym "i"
-  #             nnkInt32Lit 4
-  #           nnkStmtList
-  #             nnkStmtList
-  #               nnkFastAsgn
-  #                 nnkSym "i"
-  #                 nnkSym "i"
-  #               `body` @ nnkStmtList
-  #   )
-  # ):
 
 const AKinds = {
   nnkFloat32Lit,
@@ -545,9 +449,3 @@ const AKinds = {
   nnkDotExpr,
   nnkConv
 }
-
-proc compileToGlsl*(result: var string; arg: NimNode): void =
-  if arg.kind in AKinds:
-    result.compileToGlslA(arg)
-  else:
-    result.compileToGlslB(arg)

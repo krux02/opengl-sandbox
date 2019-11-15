@@ -5,25 +5,29 @@ author        = "Arne Döring"
 description   = "nice way of handling render code"
 license       = "MIT"
 
+
+# uncomment to build them
+
 bin           = @[
-  "examples/hello_triangle",
-  "examples/forward_vertex_shader",
-  "examples/deferred_shading",
-  "examples/hello_shapes",
-  "examples/mandelbrot",
-  "examples/iqm_mesh_loading",
-  "examples/neuralnetwork",
-  "examples/noise_landscape",
-  "examples/particles",
-  "examples/particles_transform_feedback",
-  "examples/player_controls",
-  "examples/retro_tiling",
-  "examples/sandbox",
-  "examples/tetris",
-  "examples/waves",
-  "experiment/main",
-  "examples/console",
+  # "examples/hello_triangle",
+  # "examples/forward_vertex_shader",
+  # "examples/deferred_shading",
+  # "examples/hello_shapes",
+  # "examples/mandelbrot",
+  # "examples/iqm_mesh_loading",
+  # "examples/neuralnetwork",
+  # "examples/noise_landscape",
+  # "examples/particles",
+  # "examples/particles_transform_feedback",
+  # "examples/player_controls",
+  # "examples/retro_tiling",
+  # "examples/sandbox",
+  # "examples/tetris",
+  # "examples/waves",
+  # "experiment/main",
+  # "examples/console",
 ]
+
 
 skipDirs = @["unittests", "experiment"]
 

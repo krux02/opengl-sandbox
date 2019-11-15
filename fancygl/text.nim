@@ -24,7 +24,9 @@ proc init(self: ptr TextRenderer; textHeight: int): void =
 
   if self.font.isNil:
     var msg = newString(0)
-    msg.add "could not load font: \n"
+    msg.add "could not load font: "
+    msg.add self.fontPath
+    msg.add "\n"
     msg.add ttf.getError()
     panic(msg)
 

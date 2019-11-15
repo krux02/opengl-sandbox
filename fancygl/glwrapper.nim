@@ -857,6 +857,8 @@ proc high*(abv: ArrayBufferView): int =
   abv.len - 1
 
 template view*[T](buf: ArrayBuffer[T]; member: untyped): untyped =
+  ## Constructs a strided view into `buf` that sees the member `member`
+  ## of `T`.
   var res : ArrayBufferView[typeof(default(typedesc(T)).member)]
   res.handle = buf.handle
   res.relativeoffset = GLuint(offsetof(typedesc(T), member))
@@ -864,12 +866,17 @@ template view*[T](buf: ArrayBuffer[T]; member: untyped): untyped =
   res
 
 proc splitView*(buf: ArrayBuffer[Mat4f]): array[4, ArrayBufferView[Vec4f]] =
+  ## Matrices are not allowed as attributes for glsl shaders. This allows to split a
+  ## matrix buffer into four views thas each see one column of the
+  ## matrix. The matrix can then be reconstructed in the shader.
   for i in 0 .. 3:
     result[i].handle = buf.handle
     result[i].relativeoffset = GLuint(i * 4 * sizeof(float32))
     result[i].stride = 4 * 4 * sizeof(float32)
 
 converter toView*[T](buf: ArrayBuffer[T]): ArrayBufferView[T] =
+  ## Converter to convert the array buffer into an ArrayBufferView
+  ## with the exact same semantics.
   result.handle = buf.handle
   result.absoluteoffset = 0
   result.relativeoffset = 0
