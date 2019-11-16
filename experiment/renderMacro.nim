@@ -274,7 +274,7 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     ################################ shared code ###############################
     ############################################################################
 
-    var sharedCode = ""
+    var sharedCode: string
 
     # generate types
     sharedCode.add "// types section\n"
@@ -341,7 +341,8 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     ########################## generate vertex shader ##########################
     ############################################################################
 
-    var vertexShader   = "#version 450\n"
+    var vertexShader: string
+    vertexShader.add "#version 450\n"
 
     vertexShader.add sharedCode
 
@@ -393,8 +394,8 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     ############################################################################
 
     # TODO uniform locations are incorrect, use uniform buffer.
-
-    var fragmentShader = "#version 450\n"
+    var fragmentShader: string
+    fragmentShader.add "#version 450\n"
 
     fragmentShader.add sharedCode
 

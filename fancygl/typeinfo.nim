@@ -125,13 +125,13 @@ proc glslType*(arg: NimNode): string {.compileTime.} =
 
     Tsym.matchAst:
     of ident"float32":
-      result = "mat"
+      result.add "mat"
     of ident"float64":
-      result = "dmat"
+      result.add "dmat"
     of ident"int32":
-      result = "imat"
+      result.add "imat"
     of ident"bool":
-      result = "bmat"
+      result.add "bmat"
 
     sizeLit1.expectIntIn 2..4
     sizeLit2.expectIntIn 2..4
