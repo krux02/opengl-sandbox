@@ -16,6 +16,8 @@ proc symKind(arg: NimNode): NimSymKind =
   if arg.kind == nnkHiddenDeref:
     symKind(arg[0])
   else:
+    if arg.kind != nnkSym:
+      error("something")
     macros.symKind(arg)
 
 proc isSampler*(arg: NimNode): bool =
@@ -223,17 +225,7 @@ proc compileToGlsl*(result: var string; arg: NimNode): void {.compileTime} =
     for c in arg.repr:
       if c != '_': # underscore is my personal separator
         buffer.add c
-
     result.add buffer
-    if arg.symKind in {nskVar, nskLet, nskForVar}:
-      discard
-      # this should prevent keyword collisions and collisions with
-      # symbols that are introduced through templates and iterators.
-      #result.add '_'
-      #let li = arg.lineinfoobj
-      #let id = hash((li.filename, li.line, li.column))
-      #result.pseudoBase64(id)
-
   of nnkDotExpr(`lhs`, `rhs`):
     # I am pretty sure this is a big hack
     let symKind = lhs.symKind
@@ -275,7 +267,6 @@ proc compileToGlsl*(result: var string; arg: NimNode): void {.compileTime} =
     result.add "("
     result.compileToGlsl(lhs)
     result.add " "
-
 
     let strVal = op.strVal
     if strVal == "and":

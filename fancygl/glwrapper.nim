@@ -1054,10 +1054,10 @@ proc linkShader*(shaders: varargs[Shader]): Program =
 proc use*(program: Program): void =
   glUseProgram(program.handle)
 
-proc uniformLocation*(program: Program, name: string) : Location =
+proc uniformLocation*(program: Program, name: string) : Location {.inline.} =
   result.index = glGetUniformLocation(program.handle, name)
 
-proc attributeLocation*(program: Program, name: string) : Location =
+proc attributeLocation*(program: Program, name: string) : Location {.inline.} =
   result.index = glGetAttribLocation(program.handle, name)
 
 proc transformFeedbackVaryings*(program: Program; varyings: openarray[string]; bufferMode: GLenum): void =
@@ -1197,8 +1197,6 @@ template offsetof*(typ, field: untyped): int =
 #         result.add getAst(offsetOf(tpe,sym))
 #   else:
 #     result = newLit([0, 8, 16, 28, 32])
-
-#   echo result.repr
 
 template stride*[T](self: TransformFeedback[T]): int =
   sizeof(T)

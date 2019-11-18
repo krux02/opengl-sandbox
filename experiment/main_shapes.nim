@@ -270,7 +270,7 @@ while runGame:
   let invModelViewProj = inverse(modelViewProj)
   let invWindowSize    = vec2f(1 / float32(windowSize.x), 1 / float32(windowSize.y))
 
-  planeMesh.render do (v, gl):
+  planeMesh.renderDebug do (v, gl):
     gl.Position = modelViewProj * v.position
 
     ## rasterize

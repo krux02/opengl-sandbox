@@ -1,12 +1,12 @@
 const
   sourceHeader = """
-#version 330
+#version 440
 #extension GL_ARB_enhanced_layouts : enable
 #define M_PI 3.1415926535897932384626433832795
 """
 
   screenTriagleVertexSource = """
-#version 330
+#version 440
 
 const vec4 positions[3] = vec4[](
   vec4(-1.0, -1.0, 1.0, 1.0),
@@ -42,15 +42,14 @@ const
 
 proc genShaderSource(
     sourceHeader: string,
-    uniforms : openArray[string],
+    uniforms : string,
     inParams : openArray[string], arrayLength: int,  # for geometry shader, -1 otherwise
     outParams: openArray[string],
     includes: openArray[string], mainSrc: string): string =
 
   result = sourceHeader
 
-  for i, u in uniforms:
-    result.add( u & ";\n" )
+  result.add uniforms
   for i, paramRaw in inParams:
     let param = paramRaw.replaceWord("out", "in")
     if arrayLength >= 0:
@@ -82,14 +81,6 @@ proc forwardVertexShaderSource(sourceHeader: string,
   for name in attribNames:
     result.add("VertexOut." & name & " = " & name & ";\n")
   result.add("}\n")
-
-  #echo "forwardVertexShaderSource:\n", result
-
-type
-  RenderObject*[N: static[int]] = object
-    vao*: VertexArrayObject
-    program*: Program
-    locations*: array[N, Location]
 
 ##################################################################################
 #### Shading Dsl #################################################################
@@ -127,12 +118,15 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
   # initialize with number of global textures, as soon as that is supported
   var numSamplers = 0
 
-  let program = if programIdent.kind == nnkNilLit: genSym(nskVar, "program") else: programIdent
+  #let program = if programIdent.kind == nnkNilLit: genSym(nskVar, "program") else: programIdent
+  let pSym = genSym(nskVar, "p")
   let vao = if vaoIdent.kind == nnkNilLit: genSym(nskVar, "vao") else: vaoIdent
+
   let locations = genSym(nskVar, "locations")
+  let typeSection = nnkTypeSection.newTree()
 
   var numLocations = 0
-  var uniformsSection = newSeq[string](0)
+  var uniformsSection: string
   var drawBlock = newStmtList()
   var attribNames = newSeq[string](0)
   var attribTypes = newSeq[string](0)
@@ -213,6 +207,15 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
       )
 
     of "uniforms":
+
+      var constants: string
+
+      var uniformSamplers: seq[(NimNode,NimNode)]
+      var uniformRest: seq[(NimNode,NimNode)]
+
+      var uniformBlock: string
+      var samplersBlock: string
+
       for innerCall in call[1][1].items:
         innerCall[1].expectKind nnkStrLit
         let nameLit = innerCall[1]
@@ -222,39 +225,36 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
         let isSampler: bool  = innerCall[4].boolVal
 
         if value.kind in {nnkIntLit, nnkFloatLit}:
-          uniformsSection.add s"const $glslType $name = ${value.repr}"
+          constants.add s("const $glslType $name = ${value.repr};\n")
           continue
 
-        let baseString = s"uniform $glslType $name"
-
-        let loc = getLocation(numLocations)
         let warningLit = newLit($value.lineinfoObj & " Hint: unused uniform: " & name)
 
-        afterCompileBlock.add(quote do:
-          `loc`.index = glGetUniformLocation(`program`.handle, `nameLit`)
-          if `loc`.index < 0:
-            writeLine stderr, `warningLit`
-        )
-
         if isSampler:
-          let bindingIndexLit = newLit(numSamplers)
-          afterCompileBlock.add quote do:
-            glUniform1i(`loc`.index, `bindingIndexLit`)
-
-
-          bindTexturesCall[2].add quote do:
-            `value`.handle
-
-
+          uniformSamplers.add((ident(name), value))
+          samplersBlock.add(s "\nlayout(binding=$numSamplers) uniform $glslType $name;")
           numSamplers += 1
         else:
-          drawBlock.add quote do:
-            `program`.uniform(`loc`, `value`)
-
-
-        uniformsSection.add( baseString )
+          if uniformBlock.len == 0:
+            uniformBlock.add "layout(std140, binding=0) uniform dynamic_shader_data {"
+          uniformBlock.add(s "\n    $glslType $name;")
+          uniformRest.add((ident(name), value))
 
         numLocations += 1
+      if uniformBlock.len != 0:
+        uniformBlock.add "\n};"
+
+      let initCode = newStmtList()
+      let drawCode = newStmtList()
+      nimGenUniforms(pSym, typeSection, initCode, drawCode, uniformRest, uniformSamplers)
+      afterCompileBlock.add initCode
+      drawBlock.add drawCode
+
+      uniformBlock.add samplersBlock
+      uniformBlock.add "\n"
+
+      uniformsSection.add constants
+      uniformsSection.add uniformBlock
 
     of "attributes":
       var binding: uint32
@@ -274,7 +274,6 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
             0
         let glslType = innerCall[4].strVal
 
-        let location = getLocation(numLocations)
         let nameLit = newLit(name)
         #let attributeLocation = bindSym"attributeLocation"
         #let enableAttrib      = bindSym"enableAttrib"
@@ -294,11 +293,11 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
           glEnableVertexArrayAttrib(`vao`.handle, `bindingLit`)
           glVertexArrayBindingDivisor(`vao`.handle, `bindingLit`, `divisorLit`)
           setFormat(`vao`, `bindingLit`, `value`)
-          `location` = attributeLocation(`program`, `nameLit`)
-          if `location`.index < 0:
+          let location = attributeLocation(`pSym`.program, `nameLit`)
+          if location.index < 0:
             writeLine stderr, `warningLit`
           else:
-            glVertexArrayAttribBinding(`vao`.handle, `bindingLit`, uint32(`location`.index))
+            glVertexArrayAttribBinding(`vao`.handle, `bindingLit`, cast[uint32](location.index))
         )
 
         setBuffersCall.add value
@@ -421,7 +420,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
   var compileShaderBlock = newStmtList()
   compileShaderBlock.add quote do:
-    `program`.attachAndDeleteShader(compileShader(GL_VERTEX_SHADER, `vsSrcLit`, `lineinfoLit`))
+    `pSym`.program.attachAndDeleteShader(compileShader(GL_VERTEX_SHADER, `vsSrcLit`, `lineinfoLit`))
 
   if not geometrySrc.isNil:
     var geometryHeader = sourceHeader
@@ -433,7 +432,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
     let gsSrcLit = newTripleStrLit genShaderSource(geometryHeader, uniformsSection, vertexOutSection, geometryNumVerts(mode.intVal.GLenum), geometryOutSection, includesSection, geometrySrc.strVal)
     let lineinfoLit = newLit(geometrySrc.lineinfoObj)
     compileShaderBlock.add(quote do:
-      `program`.attachAndDeleteShader(compileShader(GL_GEOMETRY_SHADER, `gsSrcLit`, `lineinfoLit`))
+      `pSym`.program.attachAndDeleteShader(compileShader(GL_GEOMETRY_SHADER, `gsSrcLit`, `lineinfoLit`))
     )
 
   if not fragmentSrc.isNil:
@@ -444,7 +443,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
         newTripleStrLit genShaderSource(sourceHeader, uniformsSection, geometryOutSection, -1, fragmentOutSection, includesSection, fragmentSrc.strVal)
     let lineinfoLit = newLit(fragmentSrc.lineinfoObj)
     compileShaderBlock.add(quote do:
-      `program`.attachAndDeleteShader(compileShader(GL_FRAGMENT_SHADER, `fsSrcLit`, `lineinfoLit`))
+      `pSym`.program.attachAndDeleteShader(compileShader(GL_FRAGMENT_SHADER, `fsSrcLit`, `lineinfoLit`))
     )
 
   if transformFeedbackVaryingNames.len > 0:
@@ -453,7 +452,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
       namesLit.add newLit(name)
 
     compileShaderBlock.add(quote do:
-      `program`.transformFeedbackVaryings(`namesLit`, GL_INTERLEAVED_ATTRIBS)
+      `pSym`.program.transformFeedbackVaryings(`namesLit`, GL_INTERLEAVED_ATTRIBS)
     )
 
 
@@ -515,25 +514,24 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
   if hasTransformFeedback:
     drawBlock.add newCall(bindSym"glEndTransformFeedback")
 
-  let numLocationsLit = newLit(numLocations)
-
   result = quote do:
+    `typeSection`
+
+    var `pSym` {.global.}: Pipeline
     var `vao` {.global.}: VertexArrayObject
-    var `program` {.global.}: Program
-    var `locations` {.global.}: array[`numLocationsLit`, Location]
 
     if glPushDebugGroup != nil:
        glPushDebugGroup(GL_DEBUG_SOURCE_THIRD_PARTY, 1, 10, "shadingDsl");
 
 
-    if `program`.handle == 0:
-      `program`.handle = glCreateProgram()
+    if `pSym`.program.handle == 0:
+      `pSym`.program.handle = glCreateProgram()
 
       `compileShaderBlock`
 
-      `program`.linkOrDelete
+      `pSym`.program.linkOrDelete
 
-      glUseProgram(`program`.handle)
+      glUseProgram(`pSym`.program.handle)
 
       `vao` = createVertexArrayObject()
 
@@ -541,7 +539,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
       `afterSetup`
 
-    glUseProgram(`program`.handle)
+    glUseProgram(`pSym`.program.handle)
 
     glBindVertexArray(`vao`.handle)
 
@@ -600,11 +598,11 @@ macro shadingDsl*(statement: untyped) : untyped =
         result.add( newCall(bindSym"baseInstance", value ) )
       of "primitiveMode":
         result[3] = value
-      of "programIdent":
-        if result[1].kind == nnkNilLit:
-          result[1] = value
-        else:
-          error("double declaration of programIdent", section)
+      # of "programIdent":
+      #   if result[1].kind == nnkNilLit:
+      #     result[1] = value
+      #   else:
+      #     error("double declaration of programIdent", section)
       of "vaoIdent":
         if result[2].kind == nnkNilLit:
           result[2] = value

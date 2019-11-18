@@ -1,22 +1,35 @@
-import memfiles, ../fancygl, sdl2/sdl_ttf as ttf, strutils, sequtils, AntTweakBar, macros
+import memfiles, ../fancygl, sdl2/sdl_ttf as ttf, strutils, sequtils, macros
 
 template glslPrefix(t: typedesc[uint8]): string = ""
 
-template addVarRW(bar: ptr TwBar; value: var float32, stuff: string= ""): void =
-  discard TwAddVarRW(bar,astToStr(value), TW_TYPE_FLOAT, value.addr, stuff)
+# Set this value true, if you want to use AntTweakBar as UI.
+const useAntTweakBar = false
 
-template addVarRW(bar: ptr TwBar; value: var bool, stuff: string = ""): void =
-  discard TwAddVarRW(bar,astToStr(value), TW_TYPE_BOOL8, value.addr, stuff)
+when useAntTweakBar:
+  import AntTweakBar
 
-template addVarRW(bar: ptr TwBar; value: var Quatf, stuff: string = ""): void =
-  discard TwAddVarRW(bar,astToStr(value), TW_TYPE_QUAT4F, value.addr, stuff)
+  template addVarRW(bar: TwBar; value: var float32, stuff: string= ""): void =
+    discard TwAddVarRW(bar,astToStr(value), TW_TYPE_FLOAT, value.addr, stuff)
 
-iterator twFilteredSdl2Events(): Event =
-  ## same as the default sdl2 event iterator, it just consumes events in AntTweakBar
-  var event: Event
-  while pollEvent(event.addr) != 0:
-    if TwEventSDL(cast[pointer](event.addr), 2.cuchar, 0.cuchar) == 0:
+  template addVarRW(bar: TwBar; value: var bool, stuff: string = ""): void =
+    discard TwAddVarRW(bar,astToStr(value), TW_TYPE_BOOL8, value.addr, stuff)
+
+  template addVarRW(bar: TwBar; value: var Quatf, stuff: string = ""): void =
+    discard TwAddVarRW(bar,astToStr(value), TW_TYPE_QUAT4F, value.addr, stuff)
+
+  iterator twFilteredSdl2Events(): Event =
+    ## Same as the default sdl2 event iterator, it just consumes events in AntTweakBar.
+    var event: Event
+    while pollEvent(event.addr) != 0:
+      if TwEventSDL(cast[pointer](event.addr), 2.cuchar, 0.cuchar) == 0:
+        yield event
+else:
+  iterator twFilteredSdl2Events(): Event =
+    ## Same as the default sdl2 event iterator.
+    var event: Event
+    while pollEvent(event.addr) != 0:
       yield event
+
 
 proc main() =
   let (window, context) = defaultSetup()
@@ -25,9 +38,10 @@ proc main() =
   defer: fancygl.quit()
   discard ttf.init()
 
-  if TwInit(TW_OPENGL_CORE, nil) == 0:
-    echo "could not initialize AntTweakBar: ", TwGetLastError()
-  defer: discard TwTerminate()
+  when useAntTweakBar:
+    if TwInit(TW_OPENGL_CORE, nil) == 0:
+      echo "could not initialize AntTweakBar: ", TwGetLastError()
+    defer: discard TwTerminate()
 
   let quadTexCoords = arrayBuffer([
     vec2f(0,0),
@@ -260,21 +274,20 @@ proc main() =
   #### create AntTweakBar gui ####
   ################################
 
-
-  discard TwWindowSize(WindowSize.x, WindowSize.y)
-
   var obj_quat : Quatf
-
   var scale: float32 = 1
 
-  var bar = TwNewBar("TwBar")
+  when useAntTweakBar:
+    discard TwWindowSize(WindowSize.x, WindowSize.y)
 
-  bar.addVarRW scale, " precision=3 step=0.01"
-  bar.addVarRW renderBoneNames
-  bar.addVarRW renderBones
-  bar.addVarRW renderMesh
-  bar.addVarRW renderNormalMap
-  bar.addVarRW obj_quat, " label='Object rotation' opened=true help='Change the object orientation.' "
+    var bar = TwNewBar("TwBar")
+
+    bar.addVarRW scale, " precision=3 step=0.01"
+    bar.addVarRW renderBoneNames
+    bar.addVarRW renderBones
+    bar.addVarRW renderMesh
+    bar.addVarRW renderNormalMap
+    bar.addVarRW obj_quat, " label='Object rotation' opened=true help='Change the object orientation.' "
 
   glEnable(GL_DEPTH_TEST)
   glEnable(GL_CULL_FACE)
@@ -665,9 +678,8 @@ proc main() =
 
       ]#
 
-
-
-    discard TwDraw()
+    when useAntTweakBar:
+      discard TwDraw()
     window.glSwapWindow()
 
 main()

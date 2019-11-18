@@ -8,7 +8,7 @@ import sugar, algorithm, macros, strutils, tables, sequtils
 # packages
 import ../fancygl, ast_pattern_matching
 # local stuff
-import glslTranslate, std140AlignedWrite
+import glslTranslate
 import ../fancygl/normalizeType
 import ../fancygl/boring_stuff
 import ../fancygl/typeinfo
@@ -29,6 +29,13 @@ proc deduplicate(arg: var seq[NimNode]): void =
   if arg.len != l:
     echo "reomved something from", arg.repr
 
+proc deduplicate(arg: var seq[(NimNode,NimNode)]): void =
+  let l = arg.len
+  arg = sequtils.deduplicate(arg)
+  if arg.len != l:
+    echo "reomved something from", arg.repr
+
+
 proc symKind(arg: NimNode): NimSymKind =
   if arg.kind == nnkHiddenDeref:
     symKind(arg[0])
@@ -44,31 +51,6 @@ proc indentCode(arg: string): string =
     result.add line
     result.add "\n"
     indentation += line.count("{")
-
-
-proc printStuff(allAttributes, allVaryings, uniformSamplers, uniformRest: seq[NimNode]): void =
-  echo "## attributes ##"
-
-  for it in allAttributes:
-    echo it.repr
-
-  echo "## varyings ##"
-
-  for it in allVaryings:
-    echo it.repr
-
-  echo "## uniformSamplers ##"
-
-  for it in uniformSamplers:
-    echo it.repr
-
-  echo "## uniform rest ##"
-
-  for it in uniformRest:
-    echo it.repr
-
-  echo "## ------------ ##"
-
 
 proc debugUniformBlock*(program: Program, blockIndex: GLuint): void =
   var numUniforms: GLint
@@ -135,8 +117,8 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     var symCollection = newSeq[NimNode](0)
     var usedTypes = newSeq[NimNode](0)
 
-    var uniformSamplers = newSeq[NimNode](0)
-    var uniformRest = newSeq[NimNode](0)
+    var uniformSamplers = newSeq[(NimNode,NimNode)](0)
+    var uniformRest = newSeq[(NimNode,NimNode)](0)
 
 
     proc processType(node: NimNode): void =
@@ -178,9 +160,9 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
             if sym.symKind in {nskLet,nskVar}:
               if sym notin localSymbols:
                 if sym.isSampler:
-                  uniformSamplers.addIfNew sym
+                  uniformSamplers.addIfNew((ident(sym.strVal),sym))
                 else:
-                  uniformRest.addIfNew sym
+                  uniformRest.addIfNew((ident(sym.strVal),sym))
                 processType(sym.getTypeInst)
 
             elif sym.symKind == nskType:
@@ -221,9 +203,9 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       discard
     of `sym` @ nnkSym |= sym.symKind in {nskLet, nskVar} and sym notin localSymbolsVS:
       if sym.isSampler:
-        uniformSamplers.add sym
+        uniformSamplers.add((ident(sym.strVal),sym))
       else:
-        uniformRest.addIfNew sym
+        uniformRest.addIfNew((ident(sym.strVal),sym))
     # TODO this is O(n^2), why does sortAndUnique fail?
     attributesFromVS.deduplicate
 
@@ -246,9 +228,9 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       elif sym notin localSymbolsFS:
         # when it is not local to the fragment shader, it is a uniform
         if sym.isSampler:
-          uniformSamplers.add sym
+          uniformSamplers.addIfNew((ident(sym.strVal),sym))
         else:
-          uniformRest.addIfNew sym
+          uniformRest.addIfNew((ident(sym.strVal),sym))
 
     of `attribAccess` @ nnkDotExpr(`lhs`, `rhs`) |= lhs == glSym:
       discard
@@ -267,8 +249,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     allAttributes.deduplicate
 
     let allVaryings   = simpleVaryings & attributesFromFS
-
-    #printStuff(allAttributes, allVaryings, uniformSamplers, uniformRest)
 
     ############################################################################
     ################################ shared code ###############################
@@ -306,15 +286,15 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     sharedCode.add "// uniforms section\n"
     if uniformRest.len > 0:
       sharedCode.add "layout(std140, binding=0) uniform dynamic_shader_data {\n"
-      for uniform in uniformRest:
-        sharedCode.add uniform.getTypeInst.glslType, " "
-        sharedCode.compileToGlsl(uniform)
+      for (uniformName, uniformExpr) in uniformRest:
+        sharedCode.add uniformExpr.getTypeInst.glslType, " "
+        sharedCode.compileToGlsl(uniformName)
         sharedCode.add ";\n"
       sharedCode.add "};\n"
-    for i, uniform in uniformSamplers:
+    for i, (uniformName, uniformExpr) in uniformSamplers:
       sharedCode.add "layout(binding=", i, ") "
-      sharedCode.add "uniform ", uniform.getTypeInst.glslType, " "
-      sharedCode.compileToGlsl(uniform)
+      sharedCode.add "uniform ", uniformExpr.getTypeInst.glslType, " "
+      sharedCode.compileToGlsl(uniformName)
       sharedCode.add ";\n"
 
     proc getProcImpl(procSym: NimNode): NimNode =
@@ -346,40 +326,41 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
 
     vertexShader.add sharedCode
 
-    vertexShader.add "// all attributes\n"
+    vertexShader.add "\n// all attributes\n"
     for i, attrib in allAttributes:
       vertexShader.add "in layout(location=", i, ") ", attrib.getTypeInst.glslType, " in_"
       vertexShader.compileToGlsl(attrib)
       vertexShader.add ";\n"
 
-    vertexShader.add "// all varyings\n"
+    vertexShader.add "\n// all varyings"
     for i, varying in allVaryings:
-      vertexShader.add "out layout(location=", i, ") ", varying.getTypeInst.glslType, " out_"
+      vertexShader.add "\nout layout(location=", i, ") ", varying.getTypeInst.glslType, " out_"
       vertexShader.compileToGlsl(varying)
-      vertexShader.add ";\n"
+      vertexShader.add ";"
 
-    vertexShader.add "void main() {\n"
+    vertexShader.add "\nvoid main() {"
 
-    vertexShader.add "// convert used attributes to local variables (because reasons)\n"
+    vertexShader.add "\n    // convert used attributes to local variables (because reasons)"
     for i, attrib in attributesFromVS:
+      vertexShader.add "\n    "
       vertexShader.add attrib.getTypeInst.glslType, " "
       vertexShader.compileToGlsl(attrib)
       vertexShader.add " = in_"
       vertexShader.compileToGlsl(attrib)
-      vertexShader.add ";\n"
+      vertexShader.add ";"
 
-    vertexShader.add "// glsl translation of main body\n"
+    vertexShader.add "\n// glsl translation of main body\n"
     vertexShader.compileToGlsl(vertexPart)
 
-    vertexShader.add "// forward attributes that are used in the fragment shader\n"
+    vertexShader.add "\n// forward attributes that are used in the fragment shader"
     for i, attrib in attributesFromFS:
-      vertexShader.add "out_"
+      vertexShader.add "\n    out_"
       vertexShader.compileToGlsl(attrib)
       vertexShader.add " = in_"
       vertexShader.compileToGlsl(attrib)
-      vertexShader.add ";\n"
+      vertexShader.add ";"
 
-    vertexShader.add "// forward other varyings\n"
+    vertexShader.add "\n// forward other varyings\n"
     for i, varying in simpleVaryings:
       vertexShader.add "out_"
       vertexShader.compileToGlsl(varying)
@@ -393,13 +374,12 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     ######################### generate fragment shaders ########################
     ############################################################################
 
-    # TODO uniform locations are incorrect, use uniform buffer.
     var fragmentShader: string
     fragmentShader.add "#version 450\n"
 
     fragmentShader.add sharedCode
 
-    fragmentShader.add "// fragment output symbols\n"
+    fragmentShader.add "\n// fragment output symbols\n"
     var i = 0
     for memberSym, typeSym in resultSym.getTypeImpl.fields:
       fragmentShader.add "out layout(location=", i,") ", typeSym.glslType, " "
@@ -443,120 +423,17 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
     ############################# generate nim code ############################
     ############################################################################
 
-
-    let pipelineRecList = nnkTupleTy.newTree
-    let pipelineTypeSym = genSym(nskType, "Pipeline")
     let pSym = genSym(nskVar, "p")
 
-    let uniformBufTypeSym = genSym(nskType, "UniformBufType")
-
-    let empty = newEmptyNode()
-
-    pipelineRecList.add nnkIdentDefs.newTree(
-      ident"program", bindSym"Program" , empty
-    )
-    pipelineRecList.add nnkIdentDefs.newTree(
-      ident"vao", bindSym"VertexArrayObject", empty
-    )
-    pipelineRecList.add nnkIdentDefs.newTree(
-      ident"uniformBufferHandle", bindSym"GLuint", empty
-    )
-    pipelineRecList.add nnkIdentDefs.newTree(
-      ident"uniformBufferData", bindSym"pointer", empty
-    )
-    pipelineRecList.add nnkIdentDefs.newTree(
-      ident"uniformBufferSize", bindSym"GLint", empty
-    )
-
-    let uniformRecList = nnkTupleTy.newTree()
-
-    let uniformBufTypeSection =
-      nnkTypeSection.newTree(
-        nnkTypeDef.newTree(
-          uniformBufTypeSym,
-          empty,
-          uniformRecList
-        )
-      )
-
-    # pipelineRecList.add nnkIdentDefs.newTree( ident"program", bindSym"Program", empty )
-
     let initCode = newStmtList()
+    let drawCode = newStmtList()
+    let typeSection = nnkTypeSection.newTree()
 
     ## uniform initialization
 
-    let drawCode = newStmtList()
-
-    if uniformRest.len > 0:
-      let uniformObjectSym = genSym(nskVar, "uniformObject")
-      let blockSize = genSym(nskVar, "blockSize")
-
-      initCode.add quote do:
-        # this is not the binding index
-        let uniformBlockIndex = glGetUniformBlockIndex(`pSym`.program.handle, "dynamic_shader_data");
-        doAssert uniformBlockIndex != GL_INVALID_INDEX
-        var `blockSize`: GLint
-        glGetActiveUniformBlockiv(`pSym`.program.handle, uniformBlockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, `blockSize`.addr)
-        assert `blockSize` > 0
-        `pSym`.uniformBufferSize = `blockSize`
-
-        glCreateBuffers(1, `pSym`.uniformBufferHandle.addr)
-
-      if persistentMappedBuffers:
-        initCode.add quote do:
-          glNamedBufferStorage(
-            `pSym`.uniformBufferHandle, GLsizei(`blockSize`), nil,
-            GL_MAP_WRITE_BIT or GL_MAP_PERSISTENT_BIT
-          )
-          `pSym`.uniformBufferData = glMapNamedBufferRange(
-            `pSym`.uniformBufferHandle, 0, `blockSize`,
-            GL_MAP_WRITE_BIT or GL_MAP_PERSISTENT_BIT or GL_MAP_FLUSH_EXPLICIT_BIT
-          )
-      else:
-        initCode.add quote do:
-          glNamedBufferStorage(`pSym`.uniformBufferHandle, GLsizei(`blockSize`), nil, GL_DYNAMIC_STORAGE_BIT)
-          `pSym`.uniformBufferData = alloc(`blockSize`)
-
-      drawCode.add quote do:
-        var `uniformObjectSym`: `uniformBufTypeSym`
-
-      for uniform in uniformRest:
-        let uniformIdent = ident(uniform.strVal)
-
-        #let typeExprA = uniform.getTypeInst
-        let typeExprB = newCall(bindSym"type", uniform)
-
-        uniformRecList.add nnkIdentDefs.newTree(
-          uniformIdent,
-          typeExprB,
-          empty,
-        )
-
-        drawCode.add quote do:
-          `uniformObjectSym`.`uniformIdent` = `uniform`
-
-      drawCode.add quote do:
-        discard std140AlignedWrite(`pSym`.uniformBufferData, 0, `uniformObjectSym`)
-
-      if persistentMappedBuffers:
-        drawCode.add quote do:
-          glFlushMappedNamedBufferRange(`pSym`.uniformBufferHandle, 0, `pSym`.uniformBufferSize)
-      else:
-        drawCode.add quote do:
-          glNamedBufferSubData(`pSym`.uniformBufferHandle, 0, `pSym`.uniformBufferSize, `pSym`.uniformBufferData)
-      drawCode.add quote do:
-        glBindBufferBase(GL_UNIFORM_BUFFER, 0, `pSym`.uniformBufferHandle)
-
-    let bindTexturesCall = newCall(bindSym"bindTextures", newLit(0) )
-    for sampler in uniformSamplers:
-      bindTexturesCall.add sampler
-
-    drawCode.add bindTexturesCall
+    nimGenUniforms(pSym, typeSection, initCode, drawCode, uniformRest, uniformSamplers)
 
     ## attribute initialization
-
-    let attribPipelineBuffer = newSeq[NimNode](0)
-
 
     let vertexShaderLit = newNimNode(nnkTripleStrLit)
     vertexShaderLit.strVal = vertexShader
@@ -578,9 +455,6 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
         )
         let bufferExpr = mesh.newDotExpr(ident"buffers").newDotExpr(ident(memberSym.strVal))
 
-        # let bufferIdent = ident("buffer" & $i)
-        # pipelineRecList.add nnkIdentDefs.newTree(bufferIdent, genType , empty)
-
         setBuffersCall.add bufferExpr
 
         # TODO there is no divisor inference
@@ -597,21 +471,11 @@ macro render_inner(debug: static[bool], mesh, arg: typed): untyped =
       drawCode.add setBuffersCall
 
 
-
-    let pipelineTypeSection =
-      nnkTypeSection.newTree(
-        nnkTypeDef.newTree(
-          pipelineTypeSym, empty,
-          pipelineRecList
-        )
-      )
-
     result = quote do:
-      `uniformBufTypeSection`
-      `pipelineTypeSection`
+      `typeSection`
 
       ## this code block should eventually be generated
-      var `pSym` {.global.}: `pipelineTypeSym`
+      var `pSym` {.global.}: Pipeline
 
       if `pSym`.program.handle == 0:
 

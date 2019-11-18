@@ -21,23 +21,25 @@ proc panic*(message: varargs[string, `$`]): void {. noreturn .} =
     msg.add msgFract
   raise newException(Exception, msg)
 
-include fancygl/etc
-include fancygl/glm_additions
-include fancygl/stopwatch
-include fancygl/default_setup
-include fancygl/shapes
-#include fancygl/typeinfo
-include fancygl/samplers
-include fancygl/samplertypeinfo
-include fancygl/framebuffer
-include fancygl/glwrapper
-include fancygl/heightmap
-include fancygl/iqm
-include fancygl/camera
-include fancygl/sdladditions
-include fancygl/cameraControls
-include fancygl/shadingDsl
-include fancygl/text
+include "fancygl/etc.nim"
+include "fancygl/glm_additions.nim"
+include "fancygl/stopwatch.nim"
+include "fancygl/default_setup.nim"
+include "fancygl/shapes.nim"
+#include "fancygl/typeinfo.nim"
+include "fancygl/samplers.nim"
+include "fancygl/samplertypeinfo.nim"
+include "fancygl/framebuffer.nim"
+include "fancygl/glwrapper.nim"
+include "fancygl/heightmap.nim"
+include "fancygl/iqm.nim"
+include "fancygl/camera.nim"
+include "fancygl/sdladditions.nim"
+include "fancygl/cameraControls.nim"
+include "fancygl/std140AlignedWrite.nim"
+include "fancygl/nimgen.nim"
+include "fancygl/shadingDsl.nim"
+include "fancygl/text.nim"
 
 export gl, glm, sdl, basic_random, macroutils.s
 export math.arctan2
