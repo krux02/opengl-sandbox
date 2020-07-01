@@ -16,7 +16,7 @@ proc newWorldNode*(pos: Vec4f): WorldNode =
   result.dir.w = 1
   result.pos   = pos
 
-proc newWolrdNode*(pos: Vec3f): WorldNode =
+proc newWorldNode*(pos: Vec3f): WorldNode =
   result.dir.w = 1
   result.pos   = vec4(pos, 1)
 
