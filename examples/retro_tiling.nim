@@ -406,7 +406,6 @@ while running:
 
 
   #drawCrosshair()
-
   tileMapA.resourceReloading()
   tileMapB.resourceReloading()
 

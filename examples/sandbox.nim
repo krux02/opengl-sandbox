@@ -219,7 +219,7 @@ while runGame:
       of SCANCODE_PAUSE:
         gameTimer.toggle
       of SCANCODE_F10:
-        window.screenshot
+        screenshot(window)
       else:
         discard
 

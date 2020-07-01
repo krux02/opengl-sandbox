@@ -140,7 +140,7 @@ proc nearestLinear(this: KdTree, pos: Vec3f): tuple[best_idx: int, best_dist: fl
 
 import random
 proc rand1(): float32 =
-  float32(random.random(2.0f) - 1.0f)
+  float32(random.rand(2.0f) - 1.0f)
 
 proc rand_pos(): Vec3f = Vec3f(arr: [rand1(), rand1(), rand1()])
 

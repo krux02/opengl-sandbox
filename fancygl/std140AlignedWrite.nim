@@ -40,7 +40,7 @@ func getAlignment[T](_: typedesc[Vec2[T]]): int32 {.compileTime.} =
 
 func getAlignment[M,N,T](_: typedesc[Mat[M,N,T]]): int32 {.compileTime.} =
   var value: Mat[M,N,T]
-  result = max(16'i32, value.arr[0].type.getAlignment)
+  result = max(16'i32, getAlignment(typeof(value.arr[0])))
 
 func getAlignment[N,T](_: typedesc[array[N,T]]): int32
 
@@ -48,11 +48,11 @@ func getAlignment[T: tuple | object](_: typedesc[T]): int32 {.compileTime.} =
   result = 16
   var value: T
   for x in value.fields:
-    result = max(result, x.type.getAlignment)
+    result = max(result, getAlignment(typeof(x)))
 
 func getAlignment[N,T](_: typedesc[array[N,T]]): int32 {.compileTime.} =
   var value: array[N,T]
-  result = max(16'i32, value[0].type.getAlignment)
+  result = max(16'i32, getAlignment(typeof(value[0])))
 
 when isMainModule:
   var offsets = newSeq[int32](0)
@@ -99,7 +99,7 @@ proc std140AlignedWrite*[T](dst: pointer, offset: int32, value: Vec2[T]): tuple[
   dst.write(result.offset, value)
 
 proc std140AlignedWrite*[N,M,T](dst: pointer, offset: int32, value: Mat[N,M,T]): tuple[offset, align: int32] =
-  const align = getAlignment(type(value))
+  const align = getAlignment(typeof(value))
   result.align = align
   result.offset = alignFunc(offset, result.align)
 
@@ -109,7 +109,7 @@ proc std140AlignedWrite*[N,M,T](dst: pointer, offset: int32, value: Mat[N,M,T]):
     result.offset = alignFunc(result.offset, result.align)
 
 proc std140AlignedWrite*[N,T](dst: pointer, offset: int32; value: array[N,T]): tuple[offset, align: int32] =
-  const align = getAlignment(type(value))
+  const align = getAlignment(typeof(value))
   result.align  = align
   result.offset = alignFunc(offset, result.align)
 
@@ -118,7 +118,7 @@ proc std140AlignedWrite*[N,T](dst: pointer, offset: int32; value: array[N,T]): t
     result.offset = alignFunc(tmp.offset, result.align)
 
 proc std140AlignedWrite*(dst: pointer, offset: int32, value: tuple | object): tuple[offset, align: int32] =
-  const align = getAlignment(type(value))
+  const align = getAlignment(typeof(value))
   result.align = align
   result.offset = alignFunc(offset, result.align)
 

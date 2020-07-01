@@ -21,14 +21,9 @@ if loadWAV(resourcePath, wav_spec.addr, wav_buffer.addr, wav_length.addr) == nil
   stderr.writeLine "That file isn't provided in the repo just put any wav file there"
   quit(QUIT_FAILURE)
 
-echo wav_spec
+echo $wav_spec
 
 var puffer = dataView[int16](wav_buffer.pointer, int(wav_length div 2))
-
-proc `*`(str: string, i: int): string =
-  result = ""
-  for _ in 1 .. i:
-    result.add str
 
 var
   streamA = newSeq[float64](puffer.len)
@@ -82,7 +77,7 @@ for offset in 0 .. (wav_length div N):
 
   discard renderClear(renderer)
 
-  for i in 0..< N:
+  for i in 0 ..< N:
       let x = output[i] * WIDTH / 12 + WIDTH / 2
       let y = output[i+1] * HEIGHT / 12 + HEIGHT / 2
       discard renderDrawPoint(renderer, cint(x), cint(y))

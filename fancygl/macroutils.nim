@@ -79,8 +79,8 @@ template myAdd(a: var string, b: untyped): untyped =
   ## simply tries to minimize temporary strings
   when b is SomeSignedInt:
     a.addInt(b)
-  elif compiles(add(a, b)):
-    a.add(b)
+  elif b is SomeFloat:
+    a.addFloat(b)
   else:
     a.add($b)
 

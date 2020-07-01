@@ -9,7 +9,7 @@ proc h*(hm: HeightMap): int = hm.h
 proc size*(hm: HeightMap): Vec2i = vec2i(hm.w.int32, hm.h.int32)
 proc data*(hm: HeightMap): seq[float32] = hm.dataseq
 
-template linearIndex(x,y): untyped =
+template linearIndex(x,y: untyped): untyped =
   (x and (hm.w - 1)) + hm.w * (y and hm.h - 1)
 
 proc `[]`*(hm: HeightMap, x,y: int): float32 {. inline .} =

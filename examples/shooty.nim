@@ -2,11 +2,13 @@ import ../fancygl
 
 import sequtils
 
-let (window, context) = defaultSetup()
-
+let (window, context) = defaultSetup(vec2i(1080,1920) div 2)
+import math
 
 let windowsize = window.size
-let projection_mat : Mat4f = perspective(45'f32, windowsize.x / windowsize.y, 0.1, 100.0)
+#let projection_mat : Mat4f = perspective(45'f32, windowsize.x / windowsize.y, 0.1, 100.0)
+let scale = float32(1 / 540)
+let projection_mat: Mat4f = frustum(-540'f32 * scale, 540'f32 * scale, -560'f32 * scale, 1360'f32 * scale, 1, 100)
 let inv_projection_mat = inverse(projection_mat)
 
 proc `*`(a: Mat4f; b: seq[Vec4f]): seq[Vec4f] =
@@ -144,7 +146,7 @@ block init:
     iotaSeq[int16](tetraederVertices.len.int16))
 
   IdTorus.insertMesh(
-    torusVertices(numSegments, numSegments div 2, 1, 0.5),
+    torusVertices(numSegments, numSegments div 2, 1, 0.1),
     torusNormals(numSegments, numSegments div 2),
     torusColors(numSegments, numSegments div 2),
     torusIndicesTriangles(numSegments, numSegments div 2).map(proc(x: int32): int16 = int16(x)))
@@ -197,6 +199,15 @@ var floorVertices = arrayBuffer([
   vec4f(0,0,0,1), vec4f(-1, 0,0,0), vec4f( 0,-1,0,0),
   vec4f(0,0,0,1), vec4f( 0,-1,0,0), vec4f( 1, 0,0,0)
 ])
+
+
+type
+  BulletState = object
+    pos {.align(16).}: Vec3f
+    vel {.align(16).}: Vec3f
+    alive: bool
+
+var playerBullets: array[20, BulletState]
 
 proc renderFloor(viewMat: Mat4f): void =
   # shapes with infinitely far away points, can't interpolate alon the vertices,
@@ -252,8 +263,12 @@ proc renderFloor(viewMat: Mat4f): void =
 
       """
 
-var cameraNode = newWorldNode(5.1, 6.2, 4)
-var playerNode = newWorldNode(0.1, 0.2, 0)
+var playerNode = newWorldNode(0, 0, 0)
+var cameraNode = newWorldNode(0, -1.5, 9)
+cameraNode.lookAt(newWorldNode(0, 0, 0))
+
+const gunPosition = vec3f(0, -0.5, 1.5)
+
 var runGame: bool = true
 var frame = 0
 
@@ -264,12 +279,42 @@ var gameTimer = newStopWatch(true)
 while runGame:
   frame += 1
 
+  # input processing
+
   var axisInput: Vec2f
   axisInput.x = -float32(joystickGetAxis(joy, 0)) / 32767
   axisInput.y = -float32(joystickGetAxis(joy, 1)) / 32767
+
+  let state = getKeyboardState(nil);
+  if state[SCANCODE_E] != 0:
+    axisInput.y += 1
+  if state[SCANCODE_D] != 0:
+    axisInput.y -= 1
+  if state[SCANCODE_S] != 0:
+    axisInput.x -= 1
+  if state[SCANCODE_F] != 0:
+    axisInput.x += 1
+
   if axisInput.length2 > 1:
     # clamp range
     axisInput = axisInput.normalize
+
+  cameraNode.pos.x = 0
+  cameraNode.pos.y = max(playerNode.pos.y - 1.5, cameraNode.pos.y)
+
+  var mousePos: Vec2i
+  let mouseState = getMouseState(mousePos.x.addr, mousePos.y.addr)
+  let relativeMousePos = (vec2f(mousePos) / vec2f(windowSize) * 2 - 1) * vec2f(1,-1)
+
+  let p0 = cameraNode.pos
+  var p1 = cameraNode.modelMat * inv_projection_mat * vec4f(relativeMousePos, -1, 1)
+  p1 /= p1.w # normalize extended coordinates
+  # project the mouse on the ground
+  let mousePosWs = mix(p0, p1, -p0.z / (p1.z - p0.z))
+  var tmpNode = newWorldNode(mousePosWs)
+  let playerAngle    = arctan2(mousePosWs.y - playerNode.pos.y, mousePosWs.x - playerNode.pos.x)
+  playerNode.dir = quat(vec3f(0,0,1), playerAngle)
+  let playerModelMat = playerNode.modelMat
 
   for evt in events():
     case evt.kind
@@ -287,54 +332,58 @@ while runGame:
 
       else:
         discard
+    of MouseButtonDown:
+      if evt.button.button == 1:
+        for bullet in playerBullets.mitems:
+          if not bullet.alive:
+            bullet.alive = true
+            bullet.pos = xyz(playerModelMat * vec4f(gunPosition,1))
+            bullet.vel = xyz(playerModelMat * vec4f(20,0,0,0))
+            break
 
     of JOY_DEVICE_ADDED:
       joy = joystickOpen(evt.jdevice.which)
     else:
       discard
 
-
-  let time = gameTimer.time.float32
-
-  cameraNode.pos.x = sin(time) * 7 + playerNode.pos.x
-  cameraNode.pos.y = cos(time) * 7 + playerNode.pos.y
-  cameraNode.lookAt(playerNode)
-
-  let cameraDir2D = (cameraNode.modelMat * vec4f(0,0,-1,0)).xy.normalize
-  let cameraDir2DRight = vec2(-cameraDir2D.y, cameraDir2D.x)
-
-  let axisMovement = mat2(cameraDir2DRight, cameraDir2D) * axisInput
-  playerNode.pos.xy += axisMovement.xy * 0.05
-
-  var mousePos: Vec2i
-  let mouseState = getMouseState(mousePos.x.addr, mousePos.y.addr)
-  let relativeMousePos = (vec2f(mousePos) / vec2f(windowSize) * 2 - 1) * vec2f(1,-1)
-
-  let p0 = cameraNode.pos
-  var p1 = cameraNode.modelMat * inv_projection_mat * vec4f(relativeMousePos, -1, 1)
-  p1 /= p1.w # normalize extended coordinates
-
-  # project the mouse on the ground
-  let mousePosWs = mix(p0, p1, -p0.z / (p1.z - p0.z))
-
-  var tmpNode = newWorldNode(mousePosWs)
-  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
-
+  # update everything
 
   let viewMat = cameraNode.viewMat
+
+  playerNode.pos.xy += axisInput * 0.05
+
+  for bullet in playerBullets.mitems:
+    if bullet.alive:
+      var pos = vec4f(bullet.pos, 1) # world space
+      pos = projection_mat * (viewMat * pos) # clip space
+      # bullet not visible anymore
+      if abs(pos.x / pos.w) > 1 or abs(pos.y / pos.w) > 1:
+        bullet.alive = false
+
+
+      bullet.pos += bullet.vel / 60'f32
+
+
+  # render everything
+
+  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
   for id, node in worldNodes:
     renderMesh(id, viewMat, node.modelMat)
 
-  renderMesh(IdPyramid, viewMat, tmpNode.modelMat)
-  renderMesh(IdPyramid, viewMat, playerNode.modelMat)
+  renderMesh(IdTorus, viewMat, tmpNode.modelMat)
 
 
-  let modelViewProj = projection_mat * cameraNode.viewMat
+  renderMesh(IdCone, viewMat, playerModelMat.scale(1.5,1.5,2))
+  renderMesh(IdSphere,  viewMat, playerModelMat.translate(0,0,2).scale(0.5))
+  renderMesh(IdBox, viewMat, playerModelMat.translate(gunPosition).scale(1.0, 0.1, 0.1))
+
+  for bullet in playerBullets:
+    if bullet.alive:
+      renderMesh(IdSphere, viewMat, mat4f(1).translate(bullet.pos).scale(0.1))
 
   renderFloor(viewMat)
 
-  renderText( s"axisMovement: $axisMovement", vec2i(22) )
   renderText( s"axisInput: $axisInput", vec2i(22,44) )
   renderText( s"mouseInput: ${tmpNode.pos - playerNode.pos}", vec2i(22,66))
 

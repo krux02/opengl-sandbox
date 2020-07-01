@@ -1,6 +1,6 @@
 # OpenGL example using SDL2
 
-import ../fancygl, fenv, sequtils
+import ../fancygl, fenv
 
 # TODO use defaultSetup
 
@@ -38,7 +38,6 @@ proc generateGaussianNoise(mu, sigma: float64): float64 =
 
   z0 = sqrt(-2.0 * ln(u1)) * cos(two_pi * u2)
   z1 = sqrt(-2.0 * ln(u1)) * sin(two_pi * u2)
-
   return z0 * sigma + mu
 
 const

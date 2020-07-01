@@ -26,10 +26,12 @@ proc modelmat*(cam: WorldNode): Mat4f =
 proc viewmat*(cam: WorldNode): Mat4f =
   cam.modelmat.inverse
 
-proc dirVec*(cam: WorldNode): Vec4f =
+proc dirVec*(cam: WorldNode): Vec4f {.noinit.} =
   # this is not optimized
   # from camera (object) coordinates I look in negative z
-  cam.modelmat * vec4f(0,0,-1,0)
+  result.xyz = mat3(cam.dir) * vec3f(0,0,-1)
+  result.w = 0
+
 
 proc moveRelative*(cam: var WorldNode; offset: Vec3f): void =
   cam.pos += vec4f(cam.dir.mat3 * offset, 0)

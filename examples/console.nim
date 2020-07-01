@@ -1,7 +1,7 @@
 ## A non-graphical demo here. It is just a command interpreter that
 ## might get integrated at some point.
 
-import rdstdin, strutils, sequtils, parseutils, macros, typetraits
+import rdstdin, strutils, parseutils, macros, typetraits
 import osproc
 
 proc parseArg[T](arg: string): tuple[couldParse: bool, value: T] =
@@ -26,7 +26,7 @@ macro parseArgument(argsIdent: untyped; argIdent: untyped; typ: typed;
       )
       return
 
-macro parseVarargs(argsIdent: untyped; argIdent;
+macro parseVarargs(argsIdent, argIdent: untyped;
                    typ: typed; argId: static[int]): untyped =
   let idLit      = newLit(argId)
   let typeStrLit = newLit(typ.repr)

@@ -559,6 +559,7 @@ proc createUniformBuffer*[T](usage: GLenum = GL_STATIC_DRAW): UniformBuffer[T] =
 proc delete*[T](arg: var AnyBuffer[T]): void =
   ## Typed wrapper around `glDeletebuffers`.
   glDeleteBuffers(1, arg.handle.addr)
+  arg.handle = 0
 
 proc glGetInteger(name: GLenum): GLint =
   ## Typed wrapper around `glGetIntegerv`.
@@ -1164,7 +1165,10 @@ type
     layoutSpec*: string
 
 macro typeName(t: typedesc): untyped =
-  newLit($t.getTypeImpl[1])
+  var typeSym = t.getTypeInst
+  while typeSym.kind == nnkBracketExpr and typeSym[0].eqIdent "typeDesc":
+    typeSym = typeSym[1]
+  newLit($typeSym)
 
 template offsetof*(typ, field: untyped): int =
   (var dummy: typ;
@@ -1251,8 +1255,12 @@ proc getGlslLayoutSpecificationFromImpl*(arg: NimNode, name: string): string =
   result.add "\n};\n"
 
 macro glslLayoutSpecification*(arg: typedesc): string =
-  # strip typedesc
-  let arg = arg.getTypeInst[1]
+  var arg = arg.getTypeInst
+  if arg.kind == nnkBracketExpr and arg[0].eqIdent "typeDesc":
+    # strip typedesc
+    arg = arg[1]
+
+  #let arg = arg.getTypeInst[1]
   result = newLit(getGlslLayoutSpecificationFromImpl(arg, repr(arg)))
 
 proc createTransformFeedback*[T]() : TransformFeedback[T] =
@@ -1311,4 +1319,4 @@ proc label*[T](arg: T): string =
 proc `label=`*[T](arg: T; label: string): void =
   ## Typed wrapper around `glObjectLabel`.
   if glObjectLabel != nil:
-    glObjectLabel(glNamespace(arg.type), arg.handle, GLsizei(label.len), label[0].unsafeAddr)
+    glObjectLabel(glNamespace(typeof(arg)), arg.handle, GLsizei(label.len), label[0].unsafeAddr)

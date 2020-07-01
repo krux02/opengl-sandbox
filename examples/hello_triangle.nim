@@ -7,7 +7,7 @@ var maxTextureSize: GlInt
 glGetIntegerv(GL_MAX_TEXTURE_SIZE, maxTextureSize.addr)
 echo "max texture size: ", maxTextureSize
 
-let vertices = arrayBuffer([
+let vertices : ArrayBuffer[Vec4f] = arrayBuffer([
   vec4f(-1,-1, 0, 1),
   vec4f( 1,-1, 0, 1),
   vec4f( 0, 1, 0, 1)
@@ -54,6 +54,7 @@ while runGame:
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
   shadingDsl:
+    #debug
     primitiveMode = GL_TRIANGLES
     numVertices = 3
     uniforms:

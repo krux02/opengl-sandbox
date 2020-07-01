@@ -164,7 +164,7 @@ when isMainModule:
     MyFloatSubAlias = MyFloatAlias
     MyOtherFloat = distinct float32
 
-  import macros, sugar, sequtils, strutils
+  import macros
 
   macro foobar(arg: typed): untyped =
     let typ = arg.getTypeInst.normalizeType

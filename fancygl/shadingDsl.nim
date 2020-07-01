@@ -122,7 +122,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
   let pSym = genSym(nskVar, "p")
   let vao = if vaoIdent.kind == nnkNilLit: genSym(nskVar, "vao") else: vaoIdent
 
-  let locations = genSym(nskVar, "locations")
+  #let locations = genSym(nskVar, "locations")
   let typeSection = nnkTypeSection.newTree()
 
   var numLocations = 0
@@ -156,8 +156,8 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
   #let program = newDotExpr(renderObject, ident"program")
 
 
-  proc getlocation(i: int) : NimNode =
-    newBracketExpr(locations, newLit(i))
+  #proc getlocation(i: int) : NimNode =
+  #  newBracketExpr(locations, newLit(i))
 
   for call in statement.items:
     call.expectKind nnkCall
@@ -228,7 +228,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
           constants.add s("const $glslType $name = ${value.repr};\n")
           continue
 
-        let warningLit = newLit($value.lineinfoObj & " Hint: unused uniform: " & name)
+        # let warningLit = newLit($value.lineinfoObj & " Hint: unused uniform: " & name)
 
         if isSampler:
           uniformSamplers.add((ident(name), value))
@@ -655,8 +655,8 @@ macro shadingDsl*(statement: untyped) : untyped =
             identNode = capture
             nameNode  = newLit($capture)
 
-          let isSampler = newCall(bindSym("glslIsSampler", brForceOpen), newCall(bindSym"type", identNode))
-          let glslType  = newCall(bindsym("glslTypeRepr", brForceOpen),  newCall(bindSym"type", identNode))
+          let isSampler = newCall(bindSym("glslIsSampler", brForceOpen), newCall(bindSym"typeof", identNode))
+          let glslType  = newCall(bindsym("glslTypeRepr", brForceOpen),  newCall(bindSym"typeof", identNode))
           uniformsCall.add( newCall(
             bindSym"shaderArg",  nameNode, identNode, glslType, isSampler) )
 
@@ -669,7 +669,7 @@ macro shadingDsl*(statement: untyped) : untyped =
           node.expectKind(nnkPragma)
           node.expectLen(1)
           node[0].expectKind(nnkExprColonExpr)
-          node[0][0].expectIdent("divisor")
+          #node[0][0].expectIdent("divisor")
           node[0][1]
 
         proc handleCapture(attributesCall, capture: NimNode, default_divisor: int) =
@@ -701,7 +701,7 @@ macro shadingDsl*(statement: untyped) : untyped =
             divisor = newLit(default_divisor)
 
           let glslType  = newCall(bindSym("glslTypeRepr", brForceOpen),  newCall(
-            bindSym"type", newDotExpr(identNode,ident"T")))
+            bindSym"typeof", newDotExpr(identNode,ident"T")))
           attributesCall.add( newCall(
             bindSym"attribute", nameNode, identNode, divisor, glslType ) )
 

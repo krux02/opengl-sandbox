@@ -115,7 +115,7 @@ while running:
     glEnable(GL_RASTERIZER_DISCARD);
 
     shadingDsl:
-      debug
+      #debug
       primitiveMode     = GL_POINTS
       numVertices       = numParticles
       transformFeedback = myTransformFeedback

@@ -12,6 +12,7 @@ proc hash(v: Vec3f): Hash =
   hash(v.arr)
 
 createMeshType(MyMeshType):
+  #debug
   type
     VertexData = object
       point:         Vec3f
@@ -481,8 +482,8 @@ proc main() =
 
     view_mat = view_mat.translate( vec3d(0, -1.5f, -17) + vec3d(0, offset.y, offset.x) )
     view_mat = view_mat.translate( vec3d(0, 0, 3) )
-    view_mat = view_mat.rotate( vec3d(1,0,0), rotation.y-0.5f )
-    view_mat = view_mat.rotate( vec3d(0,0,1), rotation.x )
+    view_mat = view_mat.rotate( rotation.y-0.5f, vec3d(1,0,0))
+    view_mat = view_mat.rotate( rotation.x, vec3d(0,0,1))
 
     view_mat = view_mat.translate( vec3d(0, 0, -3) )
 

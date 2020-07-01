@@ -1,6 +1,6 @@
 import renderMacro
 
-#import glm/noise
+import glm/noise
 
 #let (window, context) = defaultSetup(vec2i(640,480))
 let (window, context) = defaultSetup()
@@ -13,7 +13,8 @@ type
     position: Vec4f
     color: Vec4f
 
-  #MyMesh = Mesh[MyVertexType
+  #MyMesh = Mesh[MyVertexType]
+
 genMeshType(MyMesh, MyVertexType)
 
 var triangleMesh: MyMesh
@@ -69,7 +70,7 @@ while runGame:
   triangleMesh.render do (vertex, gl):
     gl.Position = mvp * vertex.position
     ## rasterize
-    result.color = vertex.color
-    #result.color.rgb = vec3f(simplex((modelMat * vertex.position).xyz))
+    #result.color = vertex.color
+    result.color.rgb = vec3f(simplex((modelMat * vertex.position).xyz))
 
   glSwapWindow(window)

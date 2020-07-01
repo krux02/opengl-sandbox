@@ -1,4 +1,4 @@
-import mersenne, ziggurat_normal_dist, math, times
+import mersenne, ziggurat_normal_dist, times
 
 var mt = newMersenneTwister(uint32(epochTime()))
 

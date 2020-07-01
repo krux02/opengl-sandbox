@@ -10,10 +10,10 @@ template glslPrefix*(t: typedesc[float64         ]): string = "d"
 template glslPrefix*(t: typedesc[bool            ]): string = "b"
 
 template glslTypeRepr*[N,T](t: typedesc[Vec[N,T]]): string =
-  glslPrefix(type(t.T)) & "vec" & $N
+  glslPrefix(typedesc(t.T)) & "vec" & $N
 
 template glslTypeRepr*[M,N,T](t: typedesc[Mat[M,N,T]]): string =
-  glslPrefix(type(t.T)) & "mat" & $M & "x" & $N
+  glslPrefix(typedesc(t.T)) & "mat" & $M & "x" & $N
 
 template glslTypeRepr*(t: typedesc[float32         ]): string = "float"
 template glslTypeRepr*(t: typedesc[float64         ]): string = "double"

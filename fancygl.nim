@@ -1,7 +1,7 @@
 ########################################################################
 ############################### fancy gl ###############################
 ########################################################################
-import glad/gl, glm, math, random, strutils, macros, ast_pattern_matching,
+import glad/gl, glm, math, strutils, macros, ast_pattern_matching,
        sdl2/sdl, sdl2/sdl_image as img, sdl2/sdl_ttf as ttf, os, terminal
 
 const
@@ -10,7 +10,6 @@ const
 import fancygl/[
   macroutils,
   basic_random,
-  normalizeType,
   typeinfo
 ]
 

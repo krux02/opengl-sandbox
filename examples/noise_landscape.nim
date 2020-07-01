@@ -95,7 +95,7 @@ float calcHeight(vec2 pos) {
 """
 
 
-import ../fancygl, algorithm
+import ../fancygl
 
 let (window, context) = defaultSetup()
 
