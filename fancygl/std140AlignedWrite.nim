@@ -68,7 +68,7 @@ proc std140AlignedWrite*(dst: pointer, offset: int32, value: bool): tuple[offset
   result.offset = alignFunc(offset, 4)
 
   debug result
-  dst.write(result.offset, value)
+  dst.write(result.offset, cast[uint32](value))
 
 proc std140AlignedWrite*(dst: pointer, offset: int32, value: SomeNumber): tuple[offset, align: int32] =
   result.align = max(sizeof(SomeNumber), 4)

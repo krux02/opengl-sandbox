@@ -30,7 +30,6 @@ else:
     while pollEvent(event.addr) != 0:
       yield event
 
-
 proc main() =
   let (window, context) = defaultSetup()
   let WindowSize = window.size
@@ -497,7 +496,6 @@ proc main() =
             a_position = meshData.position
             a_texcoord = meshData.texcoord
             a_normal_os = meshData.normal
-            #a_tangent_os = meshData.tangent
             a_blendindexes = meshData.blendindexes
             a_blendweights = meshData.blendweights
 

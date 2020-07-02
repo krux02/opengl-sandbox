@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 for FILE in *.nim;do
-  nim --noNimblePath --path:$HOME/proj/nim/{nim-glm,ast-pattern-matching/src,sdl2_nim,nimAntTweakBar,nimfftw3,openmesh/src}/ -d:danger c $FILE
+  nim c $FILE
 done
 
 ./shooty
