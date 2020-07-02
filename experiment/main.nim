@@ -191,74 +191,7 @@ proc loadAllSkyboxes() =
 
 loadAllSkyboxes()
 
-proc skyboxCmp(a,b: Skybox): int =
-  while true:
-    for evt in events():
-      case evt.kind:
-      of Quit:
-        quit(0)
-      of KeyDown:
-        case evt.key.keysym.scancode
-        of SCANCODE_ESCAPE:
-          quit(0)
-        of SCANCODE_S:
-          echo "pick left:  ", a.path[rfind(a.path, '/')+1 ..< a.path.len]
-          return -1
-        of SCANCODE_F:
-          echo "pick right: ", b.path[rfind(b.path, '/')+1 ..< b.path.len]
-          return 1
-        else:
-          discard
-      of MouseMotion:
-        let v = vec2(evt.motion.yrel.float32, evt.motion.xrel.float32)
-        let alpha = v.length * 0.01
-        let axis = vec3(v, 0)
-        let rotMat =
-          if alpha > 0 and axis.length2 > 0:
-            mat4f(1).rotate(alpha, axis)
-          else:
-            mat4f(1)
-
-        viewRot = rotMat * viewRot
-      else:
-        discard
-
-    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
-
-    glDisable(GL_DEPTH_TEST)
-    glCullFace(GL_FRONT)
-
-    let skytextureA = a.texture
-    let skytextureB = b.texture
-
-    let halfWindowWidth = float32(window.size.x div 2)
-
-    # render skybox
-    render(mesh1) do (vertex, gl):
-      var position_os = vec4(vertex.position_os.xyz, 0)
-      let position_cs = viewRot*position_os
-      gl.Position = P * position_cs
-      ## rasterize
-      if gl.FragCoord.x < halfWindowWidth:
-        result.color = texture(skyTextureA, vertex.position_os.xyz)
-      else:
-        result.color = texture(skyTextureB, vertex.position_os.xyz)
-
-    glSwapWindow(window)
-
-
-
-
 import algorithm
-
-skyboxes.sort(skyboxCmp)
-
-
-echo "sorted: "
-for i, skybox in skyboxes:
-  echo "i: ", i, " path: ", skybox.path
-echo "done"
-
 
 glPointSize(20)
 
@@ -466,7 +399,6 @@ while runGame:
         #result.color = vec4f(fract(vertex.texCoord), 0, 1)
 
     of 1:
-
       let invV = inverse(V)
       let cameraPos_ws =     invV * vec4f(0,0,0,1)
 
