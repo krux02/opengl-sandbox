@@ -1,5 +1,7 @@
 import renderMacro
 
+# this file is mostly a scratchpad for testing. Nothing to learn from.
+
 let (window, context) = defaultSetup(vec2i(640,480))
 
 type

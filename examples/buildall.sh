@@ -4,7 +4,6 @@ for FILE in *.nim;do
   nim --noNimblePath --path:$HOME/proj/nim/{nim-glm,ast-pattern-matching/src,sdl2_nim,nimAntTweakBar,nimfftw3,openmesh/src}/ -d:danger c $FILE
 done
 
-
 ./shooty
 ./openmesh
 ./forward_vertex_shader
