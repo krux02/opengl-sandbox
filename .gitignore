@@ -1,4 +1,5 @@
 nimcache/
+screenshots/
 
 *.trace
 *.ndb
@@ -6,8 +7,6 @@ nimcache/
 
 flycheck*
 
-#stuff from the lab
-.nfs*
 
 #binaries
 .vscode
