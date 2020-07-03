@@ -5,6 +5,11 @@
 * Nim to GLSL
 ** NEXT nim to glsl compiler
 
+* stability
+** TODO move openmesh to github
+** TODO make submodules use https instead of git because reasons
+
+
 
 * DSL [5/12]
 ** PONSTPHONED Document user code sections for afterSetup, beforeRender, afterRender

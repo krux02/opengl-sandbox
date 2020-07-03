@@ -1,18 +1,18 @@
 [submodule "submodules/nim-glm"]
 	path = submodules/nim-glm
-	url = git@github.com:stavenko/nim-glm.git
+  url = https://github.com/stavenko/nim-glm.git
 [submodule "submodules/ast-pattern-matching"]
 	path = submodules/ast-pattern-matching
-	url = git@github.com:krux02/ast-pattern-matching.git
+	url = https://github.com/krux02/ast-pattern-matching.git
 [submodule "submodules/sdl2_nim"]
 	path = submodules/sdl2_nim
-	url = git@github.com:Vladar4/sdl2_nim.git
+	url = https://github.com/Vladar4/sdl2_nim.git
 [submodule "submodules/openmesh"]
 	path = submodules/openmesh
-	url = git@bitbucket.org:krux02/openmesh.git
+	url = https://github.com/krux02/nimOpenMesh.git
 [submodule "submodules/nimfftw3"]
 	path = submodules/nimfftw3
-	url = git@github.com:ziotom78/nimfftw3.git
+	url = https://github.com/ziotom78/nimfftw3.git
 [submodule "submodules/nimAntTweakBar"]
 	path = submodules/nimAntTweakBar
-	url = git@github.com:krux02/nimAntTweakBar.git
+	url = https://github.com/krux02/nimAntTweakBar.git
