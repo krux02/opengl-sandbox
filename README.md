@@ -442,13 +442,14 @@ framebuffer.render(mesh) do (v, gl):
 
 ## How do I run it?
 
-That is all nice and stuff, but how do I get to run the examples? Well
-it should be quite easy, just use nimble for building:
 
 ```
-nimble build
-nimble run
+git clone https://github.com/krux02/opengl-sandbox.git
+cd opengl-sandbox
+git submodule init
+git submodule update
 ```
 
-Nimble build should build all examples, and run should execute them
-all in order. Have fun
+Now all examples in the examples folder should be buildable and
+executable. So enter the `examples` directory and run ``nim c $FILE``
+on it, where `$FILE` refers to the file that you want to run.
