@@ -342,18 +342,8 @@ The name is not fix yet, these are valid naming ideas:
 
 # Getting Started
 
-You need git lfs to fetch all the resources. Most examples should run even
-without resources, but they will be very ugly.
-
-https://git-lfs.github.com/
-
-You need following Nim dependencies:
-
-```
-nimble install glm sdl2_nim
-```
-
-for *sdl2* you probably also need the system libraries:
+All dependencies come in git submodules. You do not need to install
+any nimble packages. But for *SDL2* you also need the system libraries:
 
 On __Ubuntu 14.04 and above__, type:
 `apt-get install libsdl2{,-mixer,-image,-ttf}-dev`
@@ -370,27 +360,34 @@ On __Arch Linux__, type:
 On __Mac OS X__, install SDL2 via [Homebrew](http://brew.sh) like so:
 `brew install sdl2{,_image,_ttf,_mixer} pkg-config`
 
+On __Windows__, download the dll files for 
 
-To compile the examples, use nimble, it should take care about all
-dependencies.
+  * [SDL2](https://libsdl.org/download-2.0.php)
+  * [SDL2_image](https://www.libsdl.org/tmp/SDL_image/)
+  * [SDL2_mixer](https://www.libsdl.org/tmp/SDL_mixer/)
+  * [SDL2_ttf](https://www.libsdl.org/tmp/SDL_ttf/)
 
-```
-git clone git@github.com:krux02/opengl-sandbox.git
 
+## How do I run it?
+
+
+```bash
+git clone https://github.com/krux02/opengl-sandbox.git
 cd opengl-sandbox
-nimble build
+git submodule init
+git submodule update
 ```
 
-Not all examples are built with this command, but the examples that
-are left out are either still under development or outdated. In the
-examples folder, you should then see the binaries of the examples.
+examples are in the examples folder. Every file here represents one
+example and they should all be runable. Simply open the directory,
+compile and run the examples.
 
-Even though I try to keep all examples running, there are examples in
-the examples folder that simply don't work anymore. I marked them with
-a comment and they are not build with ``nimble build``. Eventually I
-plan to reactivate all examples. If you have problems running any of
-the other examples, please get me informed about it and create an
-issue. Maybe you can also see me in the Nim chat.
+```bash
+cd examples
+nim c -r hello_triangle.nim
+```
+
+There is of course more than just the hello triangle example.
 
 # future direction
 
@@ -439,17 +436,3 @@ framebuffer.render(mesh) do (v, gl):
   result.color = textureSample * lighting
 
 ```
-
-## How do I run it?
-
-
-```
-git clone https://github.com/krux02/opengl-sandbox.git
-cd opengl-sandbox
-git submodule init
-git submodule update
-```
-
-Now all examples in the examples folder should be buildable and
-executable. So enter the `examples` directory and run ``nim c $FILE``
-on it, where `$FILE` refers to the file that you want to run.
