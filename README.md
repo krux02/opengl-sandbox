@@ -343,7 +343,8 @@ The name is not fix yet, these are valid naming ideas:
 # Getting Started
 
 All dependencies come in git submodules. You do not need to install
-any nimble packages. But for *SDL2* you also need the system libraries:
+any nimble packages. But for *SDL2* you also need the system
+libraries:
 
 On __Ubuntu 14.04 and above__, type:
 `apt-get install libsdl2{,-mixer,-image,-ttf}-dev`
@@ -360,7 +361,8 @@ On __Arch Linux__, type:
 On __Mac OS X__, install SDL2 via [Homebrew](http://brew.sh) like so:
 `brew install sdl2{,_image,_ttf,_mixer} pkg-config`
 
-On __Windows__, download the dll files for 
+On __Windows__, download the dll manually and place them in the
+examples folder.
 
   * [SDL2](https://libsdl.org/download-2.0.php)
   * [SDL2_image](https://www.libsdl.org/tmp/SDL_image/)
