@@ -57,22 +57,29 @@ proc worldProc(pos: Vec3f): float =
 
 var verticesTmp: array[6, Vec4f]
 
+const TileDataSize = 64
+var tileData: array[TileDataSize, array[TileDataSize, array[TileDataSize, int8]]]
 
-var tileData: array[64, array[64, array[64, int8]]]
+proc getTileData(i,j,k: int): int8 =
+  if 0 <= i and i < TileDataSize and 0 <= j and j < TileDataSize and 0 <= k and k < TileDataSize:
+    return tileData[i][j][k]
+  else:
+    return -1
+                           
 
 var idx = 0
-for i, xx1 in tileData.mpairs:
-  for j, xx2 in xx1.mpairs:
-    for k, xx3 in xx2.mpairs:
+for i in 0 ..< TileDataSize:
+  for j in 0 ..< TileDataSize:
+    for k in 0 ..< TileDataSize:
       let
         x = float32(i) + 0.5
         y = float32(j) + 0.5
         z = float32(k) + 0.5
         res = worldProc(vec3f(x,y,z))
       if worldProc(vec3f(x,y,z)) > 0:
-        xx3 = 3
+        tileData[i][j][k] = 3
       else:
-        xx3 = -1
+        tileData[i][j][k] = -1
 
 for i in 1 ..< 63:
   for j in 1 ..< 63:
@@ -90,19 +97,19 @@ for i in 1 ..< 63:
 
 
 let singleBoxVertices = arrayBuffer([
-  vec4f(+0.5, -0.5, +0.5, 1.0), vec4f(+0.5, +0.5, -0.5, 1.0), vec4f(+0.5, -0.5, -0.5, 1.0),
-  vec4f(+0.5, +0.5, -0.5, 1.0), vec4f(+0.5, -0.5, +0.5, 1.0), vec4f(+0.5, +0.5, +0.5, 1.0),
-  vec4f(+0.5, +0.5, -0.5, 1.0), vec4f(-0.5, +0.5, +0.5, 1.0), vec4f(-0.5, +0.5, -0.5, 1.0),
-  vec4f(-0.5, +0.5, +0.5, 1.0), vec4f(+0.5, +0.5, -0.5, 1.0), vec4f(+0.5, +0.5, +0.5, 1.0),
-  vec4f(+0.5, -0.5, +0.5, 1.0), vec4f(-0.5, -0.5, +0.5, 1.0), vec4f(-0.5, +0.5, +0.5, 1.0),
-  vec4f(+0.5, -0.5, +0.5, 1.0), vec4f(-0.5, +0.5, +0.5, 1.0), vec4f(+0.5, +0.5, +0.5, 1.0),
-  vec4f(-0.5, +0.5, -0.5, 1.0), vec4f(-0.5, -0.5, +0.5, 1.0), vec4f(-0.5, -0.5, -0.5, 1.0),
-  vec4f(-0.5, -0.5, +0.5, 1.0), vec4f(-0.5, +0.5, -0.5, 1.0), vec4f(-0.5, +0.5, +0.5, 1.0),
-  vec4f(-0.5, -0.5, +0.5, 1.0), vec4f(+0.5, -0.5, -0.5, 1.0), vec4f(-0.5, -0.5, -0.5, 1.0),
-  vec4f(+0.5, -0.5, -0.5, 1.0), vec4f(-0.5, -0.5, +0.5, 1.0), vec4f(+0.5, -0.5, +0.5, 1.0),
-  vec4f(-0.5, -0.5, -0.5, 1.0), vec4f(+0.5, -0.5, -0.5, 1.0), vec4f(-0.5, +0.5, -0.5, 1.0),
-  vec4f(-0.5, +0.5, -0.5, 1.0), vec4f(+0.5, -0.5, -0.5, 1.0), vec4f(+0.5, +0.5, -0.5, 1.0),
-])
+  vec4f(1, 0, 1, 1.0), vec4f(1, 1, 0, 1.0), vec4f(1, 0, 0, 1.0),
+  vec4f(1, 1, 0, 1.0), vec4f(1, 0, 1, 1.0), vec4f(1, 1, 1, 1.0),
+  vec4f(1, 1, 0, 1.0), vec4f(0, 1, 1, 1.0), vec4f(0, 1, 0, 1.0),
+  vec4f(0, 1, 1, 1.0), vec4f(1, 1, 0, 1.0), vec4f(1, 1, 1, 1.0),
+  vec4f(1, 0, 1, 1.0), vec4f(0, 0, 1, 1.0), vec4f(0, 1, 1, 1.0),
+  vec4f(1, 0, 1, 1.0), vec4f(0, 1, 1, 1.0), vec4f(1, 1, 1, 1.0),
+  vec4f(0, 1, 0, 1.0), vec4f(0, 0, 1, 1.0), vec4f(0, 0, 0, 1.0),
+  vec4f(0, 0, 1, 1.0), vec4f(0, 1, 0, 1.0), vec4f(0, 1, 1, 1.0),
+  vec4f(0, 0, 1, 1.0), vec4f(1, 0, 0, 1.0), vec4f(0, 0, 0, 1.0),
+  vec4f(1, 0, 0, 1.0), vec4f(0, 0, 1, 1.0), vec4f(1, 0, 1, 1.0),
+  vec4f(0, 0, 0, 1.0), vec4f(1, 0, 0, 1.0), vec4f(0, 1, 0, 1.0),
+  vec4f(0, 1, 0, 1.0), vec4f(1, 0, 0, 1.0), vec4f(1, 1, 0, 1.0),
+], label="singleBoxVertices")
 
 let singleBoxTexCoords = arrayBuffer([
   vec2f(0,1), vec2f(1,0), vec2f(0,0),
@@ -117,19 +124,10 @@ let singleBoxTexCoords = arrayBuffer([
   vec2f(1,0), vec2f(0,1), vec2f(1,1),
   vec2f(0,0), vec2f(1,0), vec2f(0,1),
   vec2f(0,1), vec2f(1,0), vec2f(1,1),
-])
+], label="singleBoxTexCoords")
 
 var vertices: ArrayBuffer[Vec4f]
 var texCoords: ArrayBuffer[Vec3f]
-
-
-type
-  TileAnimation = object
-    startPos: Vec3f
-    endPos: Vec3f
-    tileId: int32
-    startTime: float64
-    endTime: float64
 
 proc computeTileData() =
   verticesSeq.setLen 0
@@ -269,7 +267,7 @@ let projMat : Mat4f = frustum(-aspect * 0.01f, aspect * 0.01f, -0.01f, 0.01f, 0.
 type
   Player = object
     node: WorldNode
-    activeTile: int
+    activeTile: int8
 
 var
   player: Player
@@ -281,12 +279,16 @@ addEventWatch(cameraControlEventWatch, cameraControls.addr)
 player.node.pos = vec4f(9.803473472595215, 32.1359748840332, 32.0, 1.0)
 player.activeTile = -1
 
+proc clampToTileDataSize(node: var WorldNode): void =
+  node.pos = clamp(node.pos, vec4f(0.5f), vec4f(float(TileDataSize)-0.5f))
+  
+
 proc snapToGround(p: var Player): void =
   var p = vec4i(floor(player.node.pos))
 
-  while p.z > 0 and tileData[p.x][p.y][p.z-1] < 0:
+  while p.z > 0 and getTileData(p.x, p.y, p.z-1) < 0:
     dec p.z
-  while p.z < 64 and tileData[p.x][p.y][p.z] >= 0:
+  while p.z < 64 and getTileData(p.x, p.y, p.z) >= 0:
     inc p.z
 
   var p1 = vec3i(floor(player.node.pos.xyz - vec3f(0.5, 0.5, 0)))
@@ -294,21 +296,21 @@ proc snapToGround(p: var Player): void =
   var p3 = p1 + vec3i(0,1,0)
   var p4 = p1 + vec3i(1,1,0)
 
-  while p1.z > 0 and tileData[p1.x][p1.y][p1.z-1] < 0:
+  while p1.z > 0 and getTileData(p1.x, p1.y, p1.z-1) < 0:
     dec p1.z
-  while p1.z < 64 and tileData[p1.x][p1.y][p1.z] >= 0:
+  while p1.z < 64 and getTileData(p1.x, p1.y, p1.z) >= 0:
     inc p1.z
-  while p2.z > 0 and tileData[p2.x][p2.y][p2.z-1] < 0:
+  while p2.z > 0 and getTileData(p2.x, p2.y, p2.z-1) < 0:
     dec p2.z
-  while p2.z < 64 and tileData[p2.x][p2.y][p2.z] >= 0:
+  while p2.z < 64 and getTileData(p2.x, p2.y, p2.z) >= 0:
     inc p2.z
-  while p3.z > 0 and tileData[p3.x][p3.y][p3.z-1] < 0:
+  while p3.z > 0 and getTileData(p3.x, p3.y, p3.z-1) < 0:
     dec p3.z
-  while p3.z < 64 and tileData[p3.x][p3.y][p3.z] >= 0:
+  while p3.z < 64 and getTileData(p3.x, p3.y, p3.z) >= 0:
     inc p3.z
-  while p4.z > 0 and tileData[p4.x][p4.y][p4.z-1] < 0:
+  while p4.z > 0 and getTileData(p4.x, p4.y, p4.z-1) < 0:
     dec p4.z
-  while p4.z < 64 and tileData[p4.x][p4.y][p4.z] >= 0:
+  while p4.z < 64 and getTileData(p4.x, p4.y, p4.z) >= 0:
      inc p4.z
 
   var f = fract(player.node.pos.xy - vec2f(0.5))
@@ -349,7 +351,7 @@ proc raytracer( ray:Ray, top:bool, distance:float32): Option[Vec3i] =
   tDelta.y = 1/abs(t.y)
   tDelta.z = 1/abs(t.z)
 
-  var h = tileData[pos.x][pos.y][pos.z]
+  var h = getTileData(pos.x, pos.y, pos.z)
   var i = 0
 
   var axis = 0
@@ -381,7 +383,7 @@ proc raytracer( ray:Ray, top:bool, distance:float32): Option[Vec3i] =
     if distanceSq < length2((vec3f(pos) + 0.5f) - ray.pos):
       return
 
-    h = tileData[pos.x][pos.y][pos.z]
+    h = getTileData(pos.x,pos.y,pos.z)
     i += 1
 
   if top:
@@ -389,16 +391,32 @@ proc raytracer( ray:Ray, top:bool, distance:float32): Option[Vec3i] =
   if h >= 0:
     result = some(pos)
 
-var tileAnimations: array[16, TileAnimation]
-var tileAnimationIdx = 0
-for it in tileAnimations.mitems:
-  it.tileId = -1
 var flymode = false
 
 # glDisable(GL_CLIP_DISTANCE0)
 glEnable(GL_DEPTH_CLAMP)
 
-proc drawCube(mvp: Mat4f; tileId: float32) =
+proc drawCubeLines(mvp: Mat4f; color: Vec4f) =
+  shadingDsl:
+    primitiveMode = GL_LINES
+    indices = cubeLineIndices
+    numVertices = cubeLineIndicesLen
+    uniforms:
+      mvp
+      lineColor = color
+    attributes:
+      a_vertex = cubeVertices
+    vertexMain:
+      """
+      gl_Position = mvp * a_vertex;
+      """
+    fragmentMain:
+      """
+      color = lineColor;
+      """
+
+
+proc drawCube(mvp: Mat4f; tileId: float32; tint: Vec4f) =
   shadingDsl:
     primitiveMode = GL_TRIANGLES
     numVertices = 36
@@ -406,6 +424,7 @@ proc drawCube(mvp: Mat4f; tileId: float32) =
       mvp
       tileId
       tex = tilesTexture
+      tint
     attributes:
       a_vertex = singleBoxVertices
       a_texCoord = singleBoxTexCoords
@@ -418,7 +437,7 @@ proc drawCube(mvp: Mat4f; tileId: float32) =
       "out vec2 v_texCoord"
     fragmentMain:
       """
-      color = texture(tex, vec3(v_texCoord, tileId));
+      color = texture(tex, vec3(v_texCoord, tileId)) * tint;
       """
 
 while runGame:
@@ -439,6 +458,7 @@ while runGame:
 
   update(player.node, cameraControls)
   if not flymode:
+    clampToTileDataSize(player.node)
     player.snapToGround
 
   let time: float64 = timer.time
@@ -446,27 +466,29 @@ while runGame:
   cameraNode.moveAbsolute(vec3f(0, 0, 1.7))
   let ray = Ray(pos: cameraNode.pos.xyz, dir: cameraNode.dirVec.xyz)
 
-  let mouseTarget = raytracer(ray, false, 5)
+
+  let mouseTarget = raytracer(ray, player.activeTile >= 0 , 5)
+
   if mouseClicked and mouseTarget.isSome:
-    let p = mouseTarget.get
-    # echo "mouse target: ", mouseTarget, " tile: ",  tileData[p.x][p.y][p.z]
-    var tileAnimation: TileAnimation
-    tileAnimation.startPos = vec3f(p) + 0.5f
-    tileAnimation.endPos = player.node.pos.xyz + vec3f(0,0,2.5)
-    tileAnimation.tileId = tileData[p.x][p.y][p.z]
-    tileAnimation.startTime = time
-    tileAnimation.endTime = time + 1.0
-    tileAnimations[tileAnimationIdx] = tileAnimation
-    tileAnimationIdx = (tileAnimationIdx+1) and 15
-    tileData[p.x][p.y][p.z] = -1
-    computeTileData()
+    if player.activeTile >= 0: # placement mode      
+      let p = mouseTarget.get
+      # echo "mouse target: ", mouseTarget, " tile: ",  tileData[p.x][p.y][p.z]
+      tileData[p.x][p.y][p.z] = player.activeTile
+      player.activeTile = -1
+      computeTileData()
+    else: # picking mode  
+      let p = mouseTarget.get
+      # echo "mouse target: ", mouseTarget, " tile: ",  tileData[p.x][p.y][p.z]
+      player.activeTile = tileData[p.x][p.y][p.z]
+      tileData[p.x][p.y][p.z] = -1
+      computeTileData()
 
   let viewMat = cameraNode.viewMat()
   let mvp = projMat * viewMat# * modelMat
 
 
   let iPos = vec3i(floor(cameraNode.pos.xyz))
-  if tileData[iPos.x][iPos.y][iPos.z] >= 0:
+  if getTileData(iPos.x, iPos.y, iPos.z) >= 0:
     # camera is stuck in wall
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT);
     glDisable(GL_DEPTH_TEST)
@@ -514,17 +536,10 @@ while runGame:
         color *= clamp((v_height - 27) * 0.2, 0,1);
         """
 
-    for it in tileAnimations:
-      if it.tileId >= 0:
-        var t = float32(time - it.startTime) / float32(it.endTime - it.startTime)
-        let pos = if t < 1:
-          t = t*t*(3.0f-2.0f*t)
-          mix(it.startPos, it.endPos, t)
-        else:
-          it.endPos
-        drawCube(mvp.translate(pos), float32(it.tileId))
-
-
+    
+    if player.activeTile >= 0:
+      let pos = player.node.pos.xyz + vec3f(0,0,3)
+      drawCube(mvp.translate(pos), float32(player.activeTile), vec4f(0.5f))
 
     glDisable(GL_CULL_FACE)
     glEnable(GL_BLEND)
@@ -560,27 +575,16 @@ while runGame:
     glDisable(GL_DEPTH_TEST)
     if mouseTarget.isSome:
       let pos = vec3f(mouseTarget.get)
-      let i = int(pos.x)
-      let j = int(pos.y)
-      let k = int(pos.z)
-      if tileData[i][j][k] >= 0:
-        shadingDsl:
-          primitiveMode = GL_LINES
-          indices = cubeLineIndices
-          numVertices = cubeLineIndicesLen
-          uniforms:
-            pos
-            mvp
-          attributes:
-            a_vertex = cubeVertices
-          vertexMain:
-            """
-            gl_Position = mvp * (a_vertex + vec4(pos, 0));
-            """
-          fragmentMain:
-            """
-            color = vec4(1.0);
-            """
+      let cubeMVP = mvp.translate(vec3f(pos))
+      if player.activeTile >= 0:
+        let cubeTint = vec4f(0.5f)
+        drawCube(cubeMVP, float32(player.activeTile), cubeTint)
+        let lineColor = vec4f(1,1,0,0.5f)
+        drawCubeLines(cubeMVP, lineColor)
+      else:
+        let lineColor = vec4f(1)
+        drawCubeLines(cubeMVP, lineColor)
+        
   glSwapWindow(window)
 
 echo "done"

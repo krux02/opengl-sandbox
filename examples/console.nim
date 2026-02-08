@@ -3,6 +3,7 @@
 
 import rdstdin, strutils, parseutils, macros, typetraits
 import osproc
+import os
 
 proc parseArg[T](arg: string): tuple[couldParse: bool, value: T] =
   when T is int:
@@ -190,6 +191,18 @@ proc prod(args: varargs[int]): void {.interpreterCommand.} =
   for arg in args:
     accum *= arg
   echo "prod: ", accum
+
+proc greet(arg: string): void {.interpreterCommand.} =
+  ## greets the person you call it to greet
+  echo "Hello ", arg
+  
+proc ls(): void {.interpreterCommand.} =
+  ## lists content of current folder
+  for kind, path in walkDir("."):
+    if kind == pcDir:
+      echo path[2..^1], "/"
+    else:
+      echo path[2..^1]
 
 proc exit(): void {.interpreterCommand.} =
   ## exit command interpreter (alias to quit)
