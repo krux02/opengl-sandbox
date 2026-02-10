@@ -474,3 +474,7 @@ while runGame:
     currentMesh.vertexIndices.mode = oldMode
 
   glSwapWindow(window)
+
+# Local Variables:
+# compile-command: "cd experiment; nim c -r main.nim"
+# End:

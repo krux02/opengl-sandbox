@@ -17,6 +17,9 @@ discard setRelativeMouseMode(true)
 
 var verticesSeq: seq[Vec4f]
 var texCoordsSeq: seq[Vec3f]
+var normalsSeq: seq[Vec4f]
+
+let globalLightDir = normalize(vec3f(1,2,5))
 
 proc updateTilePaletteFromFile(self: Texture2DArray; filename: string, tileSize: Vec2i): void =
   var surface = img.load(filename)
@@ -81,18 +84,18 @@ for i in 0 ..< TileDataSize:
       else:
         tileData[i][j][k] = -1
 
-for i in 1 ..< 63:
-  for j in 1 ..< 63:
-    for k in countdown(62,1):
+for i in 0 ..< 64:
+  for j in 0 ..< 64:
+    for k in countdown(62,0): # skip top layer
       if tiledata[i][j][k] == 3:
-        if tiledata[i][j][k+1] == -1:
+        if getTileData(i, j, k+1) == -1:
           if k < 32:
             tiledata[i][j][k] = 7
           else:
             tiledata[i][j][k] = 0
-        elif tiledata[i][j][k+1] == 0:
+        elif getTileData(i, j, k+1) == 0:
           tiledata[i][j][k] = 1
-        elif tiledata[i][j][k+1] == 1:
+        elif getTileData(i, j, k+1) == 1:
           tiledata[i][j][k] = 13
 
 
@@ -127,14 +130,34 @@ let singleBoxTexCoords = arrayBuffer([
 ], label="singleBoxTexCoords")
 
 var vertices: ArrayBuffer[Vec4f]
-var texCoords: ArrayBuffer[Vec3f]
+var normals: ArrayBuffer[Vec4f]
+var texCoords: ArrayBuffer[Vec3f] 
+
+#proc addTileTexCoords(tileId: int8): void =
+#  let texZ = (float)tileId
+proc addTileTexCoords(texZ: float): void =
+  texCoordsSeq.add vec3f(0,1,texZ)
+  texCoordsSeq.add vec3f(1,0,texZ)
+  texCoordsSeq.add vec3f(0,0,texZ)
+  texCoordsSeq.add vec3f(1,0,texZ)
+  texCoordsSeq.add vec3f(0,1,texZ)
+  texCoordsSeq.add vec3f(1,1,texZ)
+
+proc addTileNormals(normal: Vec4f): void =
+  normalsSeq.add normal
+  normalsSeq.add normal
+  normalsSeq.add normal
+  normalsSeq.add normal
+  normalsSeq.add normal
+  normalsSeq.add normal
 
 proc computeTileData() =
   verticesSeq.setLen 0
   texCoordsSeq.setLen 0
-  for i in 1 ..< 63:
-    for j in 1 ..< 63:
-      for k in 1 ..< 63:
+  normalsSeq.setLen 0
+  for i in 0 ..< 64:
+    for j in 0 ..< 64:
+      for k in 0 ..< 64:
         let worldPos = vec3f(float32(i) + 0.5, float32(j) + 0.5, float32(k) + 0.5)
         var counter{.global.}: int  = 0
         inc counter
@@ -144,84 +167,60 @@ proc computeTileData() =
             x = float32(i) + 0.5
             y = float32(j) + 0.5
             z = float32(k) + 0.5
-          if tileData[i+1][j][k] < 0:
+          if getTileData(i+1, j, k) < 0:
             verticesSeq.add vec4f(x+0.5, y-0.5, z+0.5, 1.0)
             verticesSeq.add vec4f(x+0.5, y+0.5, z-0.5, 1.0)
             verticesSeq.add vec4f(x+0.5, y-0.5, z-0.5, 1.0)
             verticesSeq.add vec4f(x+0.5, y+0.5, z-0.5, 1.0)
             verticesSeq.add vec4f(x+0.5, y-0.5, z+0.5, 1.0)
             verticesSeq.add vec4f(x+0.5, y+0.5, z+0.5, 1.0)
-            texCoordsSeq.add vec3f(0,1,texZ)
-            texCoordsSeq.add vec3f(1,0,texZ)
-            texCoordsSeq.add vec3f(0,0,texZ)
-            texCoordsSeq.add vec3f(1,0,texZ)
-            texCoordsSeq.add vec3f(0,1,texZ)
-            texCoordsSeq.add vec3f(1,1,texZ)
-          if tileData[i][j+1][k] < 0:
+            addTileTexCoords(texZ)
+            addTileNormals(vec4f(1,0,0,0))
+          if getTileData(i, j+1, k) < 0:
             verticesSeq.add vec4f(x+0.5, y+0.5, z-0.5, 1.0)
             verticesSeq.add vec4f(x-0.5, y+0.5, z+0.5, 1.0)
             verticesSeq.add vec4f(x-0.5, y+0.5, z-0.5, 1.0)
             verticesSeq.add vec4f(x-0.5, y+0.5, z+0.5, 1.0)
             verticesSeq.add vec4f(x+0.5, y+0.5, z-0.5, 1.0)
             verticesSeq.add vec4f(x+0.5, y+0.5, z+0.5, 1.0)
-            texCoordsSeq.add vec3f(1,0,texZ)
-            texCoordsSeq.add vec3f(0,1,texZ)
-            texCoordsSeq.add vec3f(0,0,texZ)
-            texCoordsSeq.add vec3f(0,1,texZ)
-            texCoordsSeq.add vec3f(1,0,texZ)
-            texCoordsSeq.add vec3f(1,1,texZ)
-          if tileData[i][j][k+1] < 0:
+            addTileTexCoords(texZ)
+            addTileNormals(vec4f(0,1,0,0))
+          if getTileData(i, j, k+1) < 0:            
+            verticesSeq.add vec4f(x-0.5, y+0.5, z+0.5, 1.0)
             verticesSeq.add vec4f(x+0.5, y-0.5, z+0.5, 1.0)
             verticesSeq.add vec4f(x-0.5, y-0.5, z+0.5, 1.0)
-            verticesSeq.add vec4f(x-0.5, y+0.5, z+0.5, 1.0)
             verticesSeq.add vec4f(x+0.5, y-0.5, z+0.5, 1.0)
             verticesSeq.add vec4f(x-0.5, y+0.5, z+0.5, 1.0)
             verticesSeq.add vec4f(x+0.5, y+0.5, z+0.5, 1.0)
-            texCoordsSeq.add vec3f(1,0,texZ)
-            texCoordsSeq.add vec3f(0,0,texZ)
-            texCoordsSeq.add vec3f(0,1,texZ)
-            texCoordsSeq.add vec3f(1,0,texZ)
-            texCoordsSeq.add vec3f(0,1,texZ)
-            texCoordsSeq.add vec3f(1,1,texZ)
-          if tileData[i-1][j][k] < 0:
+            addTileTexCoords(texZ)
+            addTileNormals(vec4f(0,0,1,0))
+          if getTileData(i-1, j, k) < 0:
             verticesSeq.add vec4f(x-0.5, y+0.5, z-0.5, 1.0)
             verticesSeq.add vec4f(x-0.5, y-0.5, z+0.5, 1.0)
             verticesSeq.add vec4f(x-0.5, y-0.5, z-0.5, 1.0)
             verticesSeq.add vec4f(x-0.5, y-0.5, z+0.5, 1.0)
             verticesSeq.add vec4f(x-0.5, y+0.5, z-0.5, 1.0)
             verticesSeq.add vec4f(x-0.5, y+0.5, z+0.5, 1.0)
-            texCoordsSeq.add vec3f(1,0,texZ)
-            texCoordsSeq.add vec3f(0,1,texZ)
-            texCoordsSeq.add vec3f(0,0,texZ)
-            texCoordsSeq.add vec3f(0,1,texZ)
-            texCoordsSeq.add vec3f(1,0,texZ)
-            texCoordsSeq.add vec3f(1,1,texZ)
-          if tileData[i][j-1][k] < 0:
+            addTileTexCoords(texZ)
+            addTileNormals(vec4f(-1,0,0,0))
+          if getTileData(i, j-1, k) < 0:
             verticesSeq.add vec4f(x-0.5, y-0.5, z+0.5, 1.0)
             verticesSeq.add vec4f(x+0.5, y-0.5, z-0.5, 1.0)
             verticesSeq.add vec4f(x-0.5, y-0.5, z-0.5, 1.0)
             verticesSeq.add vec4f(x+0.5, y-0.5, z-0.5, 1.0)
             verticesSeq.add vec4f(x-0.5, y-0.5, z+0.5, 1.0)
             verticesSeq.add vec4f(x+0.5, y-0.5, z+0.5, 1.0)
-            texCoordsSeq.add vec3f(0,1,texZ)
-            texCoordsSeq.add vec3f(1,0,texZ)
-            texCoordsSeq.add vec3f(0,0,texZ)
-            texCoordsSeq.add vec3f(1,0,texZ)
-            texCoordsSeq.add vec3f(0,1,texZ)
-            texCoordsSeq.add vec3f(1,1,texZ)
-          if tileData[i][j][k-1] < 0:
+            addTileTexCoords(texZ)
+            addTileNormals(vec4f(0,-1,0,0))
+          if getTileData(i, j, k-1) < 0:
+            verticesSeq.add vec4f(x-0.5, y-0.5, z-0.5, 1.0)
+            verticesSeq.add vec4f(x+0.5, y+0.5, z-0.5, 1.0)
+            verticesSeq.add vec4f(x-0.5, y+0.5, z-0.5, 1.0)
+            verticesSeq.add vec4f(x+0.5, y+0.5, z-0.5, 1.0)
             verticesSeq.add vec4f(x-0.5, y-0.5, z-0.5, 1.0)
             verticesSeq.add vec4f(x+0.5, y-0.5, z-0.5, 1.0)
-            verticesSeq.add vec4f(x-0.5, y+0.5, z-0.5, 1.0)
-            verticesSeq.add vec4f(x-0.5, y+0.5, z-0.5, 1.0)
-            verticesSeq.add vec4f(x+0.5, y-0.5, z-0.5, 1.0)
-            verticesSeq.add vec4f(x+0.5, y+0.5, z-0.5, 1.0)
-            texCoordsSeq.add vec3f(0,0,texZ)
-            texCoordsSeq.add vec3f(1,0,texZ)
-            texCoordsSeq.add vec3f(0,1,texZ)
-            texCoordsSeq.add vec3f(0,1,texZ)
-            texCoordsSeq.add vec3f(1,0,texZ)
-            texCoordsSeq.add vec3f(1,1,texZ)
+            addTileTexCoords(texZ)
+            addTileNormals(vec4f(0,0,-1,0))
 
 
   if vertices.handle > 0:
@@ -231,6 +230,7 @@ proc computeTileData() =
 
   vertices = arrayBuffer(verticesSeq)
   texCoords = arrayBuffer(texCoordsSeq)
+  normals = arrayBuffer(normalsSeq)
 
 computeTileData()
 
@@ -452,11 +452,18 @@ while runGame:
       window.screenshot
     if evt.kind == KEY_DOWN and evt.key.keysym.scancode == SCANCODE_SPACE:
       flymode = not flymode
+    if evt.kind == KEY_DOWN and evt.key.keysym.scancode == SCANCODE_W:
+      cameraControls.rotation.y += PI * 0.5f
+    if evt.kind == KEY_DOWN and evt.key.keysym.scancode == SCANCODE_R:
+      cameraControls.rotation.y -= PI * 0.5f
+      
     if evt.kind == MOUSE_BUTTON_DOWN:
       if evt.button.button == 1:
         mouseClicked = true
 
   update(player.node, cameraControls)
+  
+
   if not flymode:
     clampToTileDataSize(player.node)
     player.snapToGround
@@ -515,25 +522,33 @@ while runGame:
         mvp
         viewMat
         tex = tilesTexture
+        globalLightDir
       attributes:
         a_vertex = vertices
         a_texCoord = texCoords
+        a_normal = normals
       vertexMain:
         """
         gl_Position = mvp * a_vertex;
         v_texCoord = a_texCoord;
         v_distance = length((viewMat * a_vertex).xyz);
         v_height = a_vertex.z;
+        v_normal = a_normal.xyz;
         """
       vertexOut:
         "out vec3 v_texCoord"
         "out float v_distance"
         "out float v_height"
+        "out vec3 v_normal"
       fragmentMain:
         """
         color = texture(tex, v_texCoord);
         color *= min(1, (32.0 - v_distance) * 0.125);
-        color *= clamp((v_height - 27) * 0.2, 0,1);
+        float sunlight = max(0, dot(v_normal, globalLightDir));
+        float ambient = 0.25;
+        sunlight *= clamp((v_height - 27) * 0.2, 0,1);
+        
+        color *= (sunlight + ambient) / 1.25f;;
         """
 
     
@@ -552,6 +567,8 @@ while runGame:
         mvp
         viewMat
         tex = tilesTexture
+        globalLightDir
+        time = float32(time)
       attributes:
         a_vertex = waterVertices
       vertexMain:
@@ -561,30 +578,38 @@ while runGame:
         v_distance = length((viewMat * a_vertex).xyz);
         gl_Position = mvp * a_vertex;
         v_distance = length(viewMat * a_vertex);
+        v_normal = vec3(0,0,1);
         """
       vertexOut:
         "out vec3 v_texCoord"
         "out float v_distance"
+        "out vec3 v_normal"
       fragmentMain:
         """
-        color = texture(tex, v_texCoord);
+        color = texture(tex, v_texCoord + vec3(time*0.1+sin(v_texCoord.x)*0.25, time*0.1+cos(v_texCoord.y)*0.25, 0));
         color *= min(1, (32.0 - v_distance) * 0.125);
         color.a = 0.5;
         """
 
-    glDisable(GL_DEPTH_TEST)
+    
     if mouseTarget.isSome:
       let pos = vec3f(mouseTarget.get)
       let cubeMVP = mvp.translate(vec3f(pos))
       if player.activeTile >= 0:
         let cubeTint = vec4f(0.5f)
+        glDisable(GL_DEPTH_TEST)
         drawCube(cubeMVP, float32(player.activeTile), cubeTint)
-        let lineColor = vec4f(1,1,0,0.5f)
-        drawCubeLines(cubeMVP, lineColor)
+        drawCubeLines(cubeMVP, vec4f(1,1,0,0.5f))
+        
       else:
         let lineColor = vec4f(1)
-        drawCubeLines(cubeMVP, lineColor)
+        glDisable(GL_DEPTH_TEST)
+        drawCubeLines(cubeMVP, vec4f(1,1,1,1))
         
   glSwapWindow(window)
 
 echo "done"
+
+# Local Variables:
+# compile-command: "cd examples; nim c -r craftingmine"
+# End:

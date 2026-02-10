@@ -1,7 +1,10 @@
 import ../fancygl
 import glm/noise
 
-let (window, context) = defaultSetup(vec2i(640,480))
+#let (window, context) = defaultSetup(vec2i(640,480))
+let (window, context) = defaultSetup()
+let windowSize = window.size
+
 
 glPolygonOffset( 1, 1);
 glEnable(GL_POLYGON_OFFSET_FILL)
@@ -223,7 +226,9 @@ for z in 0 ..< GridSize:
 var oblique = mat4f(1)
 oblique[2].xy = vec2f(-0.5f, -0.5f)
 
-let proj : Mat4f = ortho(-10.0f, 10.0f, -7.5f, 7.5f, -128.0f, 128.0f) * oblique
+let aspectRatio = float32(windowSize.x / windowSize.y)
+let ortho : Mat4f = ortho(-10.0f * aspectRatio, 10.0f * aspectRatio, -10.0f, 10.0f, -128.0f, 128.0f)
+let proj : Mat4f = ortho * oblique
 
 while runGame:
 
