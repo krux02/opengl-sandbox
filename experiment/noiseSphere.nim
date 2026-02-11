@@ -196,6 +196,39 @@ var mouseState: Vec2i
 
 var offset = vec3f(1.123, 2.456, 3.567)
 
+proc worldHeight(pos: Vec3f): float32 =
+  var sum: float32
+  for i in 0 ..< 5:
+    sum = sum + simplex(pos * pow(2.0f, float32(i)) + offset) * pow(0.5f, float32(i))
+  return max(sum, 0)
+
+
+const epsilon = 0.01f;
+
+## only works for positions on the unit sphere
+proc worldNormal(pos: Vec3f): Vec3f =
+  # find a vector that is not almost identical to pos
+  var v0: Vec3f;
+  if pos.x * pos.x < 0.5:
+    v0 = vec3f(1,0,0)
+  else:
+    v0 = vec3f(0,1,0)
+
+  # first orthogonal vector to pos
+  let v1 = normalize(cross(pos,v0))
+  # second orthogonal vector to pos
+  let v2 = normalize(cross(pos,v1))
+
+  var p0 = pos
+  var p1 = normalize(pos + v1 * epsilon)
+  var p2 = normalize(pos + v2 * epsilon)
+
+  p0 += p0 * worldHeight(p0)
+  p1 += p1 * worldHeight(p1)
+  p2 += p2 * worldHeight(p2)
+
+  return normalize(cross(p1-p0, p2-p0))  
+
 while runGame:
   frame += 1
   let time = timer.time.float32
@@ -267,11 +300,20 @@ while runGame:
 
   mesh.renderDebug do (v, gl):
     let pos = v.vertex.xyz
-    var sum: float32
-    for i in 0 ..< 5:
-      sum = sum + simplex(pos * pow(2.0f, float32(i)) + offset) * pow(0.5f, float32(i))
-    let height = max(sum, 0)
 
+    let height = worldHeight(pos)
+    let normal = worldNormal(pos)
+
+    let vertexTransformed = vec4f(pos * 5 + pos * height, 1)
+    let worldpos = vertexTransformed
+
+    gl.Position = proj * modelView * vertexTransformed
+    # this normal is incorrect because it does not take the transformation of the vertex into concideration
+    let normal_cs = (modelView * vec4f(normal, 0)).xyz
+
+    ## rasterize
+
+    # TODO use color band texture
     let color =
       if height == 0:
         vec4f(0,0,1,1)
@@ -280,25 +322,11 @@ while runGame:
       else:
         v.color
 
-    let vertexTransformed = vec4f(pos * 5 + pos * height, 1)
-    let worldpos = vertexTransformed
-
-    gl.Position = proj * modelView * vertexTransformed
-    # this normal is incorrect because it does not take the transformation of the vertex into concideration
-    let normal_cs = modelView * v.normal
-
-    ## rasterize
-
-    let worldpos_dx = dFdx(worldpos.xyz)
-    let worldpos_dy = dFdx(worldpos.xyz)
-    # this normal is incorrect, because it creates a lot of NaN values
-    let normal = normalize(cross(worldpos_dx, worldpos_dy));
-    # mixed together the result is interesting
-    result.color = mix(
-      normal_cs.z * color,
-      max(normal.z,0) * color,
-      0.5
-    )
+    # result.color = vec4f(normal_cs*0.5f+vec3f(0.5f),1)
+    # result.color = vec4f(normal*0.5f+vec3f(0.5f), 1)
+    result.color = color * normal_cs.z
+    # result.color = v.color
+    
 
   # shapes with infinitely far away points, can't interpolate alon the vertices,
   # therefore so varyings don't work.
