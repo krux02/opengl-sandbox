@@ -11,6 +11,8 @@ var timer = newStopWatch(true)
 glDebugMessageControl(GL_DONT_CARE,GL_DONT_CARE,GL_DEBUG_SEVERITY_NOTIFICATION, 0, nil, false)
 let projection_mat : Mat4f = perspective(45'f32, window.aspectRatio, 0.1, 100.0)
 
+glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
 type
   IdMesh = enum
     IdIcosphere,
@@ -200,7 +202,8 @@ proc worldHeight(pos: Vec3f): float32 =
   var sum: float32
   for i in 0 ..< 5:
     sum = sum + simplex(pos * pow(2.0f, float32(i)) + offset) * pow(0.5f, float32(i))
-  return max(sum, 0)
+  #return max(sum, 0)
+  return sum
 
 
 const epsilon = 0.01f;
@@ -319,6 +322,10 @@ while runGame:
         vec4f(0,0,1,1)
       elif height >= 0.75:
         vec4f(1,1,1,1)
+      elif dot(pos, normal) < 0.35:
+        vec4f(0.5f, 0.5f, 0.5f, 1)
+      elif height < 0.035:
+        vec4f(1, 1, 0, 1)
       else:
         v.color
 
@@ -326,7 +333,23 @@ while runGame:
     # result.color = vec4f(normal*0.5f+vec3f(0.5f), 1)
     result.color = color * normal_cs.z
     # result.color = v.color
+
+
+  # glEnable(GL_BLEND)
+  mesh.renderDebug do (v, gl):
+    let pos = v.vertex.xyz
+    let normal = v.vertex.xyz
+
+    gl.Position = proj * modelView * vec4f(pos * 5, 1)
+    # this normal is incorrect because it does not take the transformation of the vertex into concideration
+    let normal_cs = (modelView * vec4f(normal, 0)).xyz
+
+    ## rasterize
+
+    let color = vec4f(0,0.25f,1.0f,0.75f)
+    result.color = color * normal_cs.z
     
+  #glDisable(GL_BLEND)
 
   # shapes with infinitely far away points, can't interpolate alon the vertices,
   # therefore so varyings don't work.
@@ -334,3 +357,4 @@ while runGame:
   # object space coordinates can be recontructed.
 
   glSwapWindow(window)
+

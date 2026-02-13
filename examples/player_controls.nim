@@ -339,3 +339,7 @@ while runGame:
   renderText( s"mouseInput: ${tmpNode.pos - playerNode.pos}", vec2i(22,66))
 
   glSwapWindow(window)
+
+# Local Variables:
+# compile-command: "cd examples; nim c -r player_controls.nim"
+# End:

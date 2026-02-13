@@ -109,11 +109,12 @@ proc numInstances(num: int): int = 0
 proc vertexOffset(offset: int) : int = 0
 proc baseInstance(base: int): int = 0
 proc baseVertex(base: int): int = 0
+proc debugGroup(name: string): int = 0
 
 ##################################################################################
 #### Shading Dsl Inner ###########################################################
 ##################################################################################
-
+  
 macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup, beforeRender, afterRender: untyped; fragmentOutputs: static[openArray[string]]; statement: varargs[int] ) : untyped =
   # initialize with number of global textures, as soon as that is supported
   var numSamplers = 0
@@ -147,7 +148,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
   var hasTransformFeedback = false
   var indexType: NimNode = nil
   var sizeofIndexType = 0
-  var numVertices, numInstances, vertexOffset, baseVertex, baseInstance: NimNode = nil
+  var numVertices, numInstances, vertexOffset, baseVertex, baseInstance, debugGroupName: NimNode = nil
   var bindTexturesCall = newCall(bindSym"bindTextures", newLit(numSamplers), nnkBracket.newTree)
 
   #### BEGIN PARSE TREE ####
@@ -170,6 +171,9 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
 
     of "vertexOffset":
       vertexOffset = newCall(ident"GLsizei", call[1])
+
+    of "debugGroup":
+      debugGroupName = call[1]
 
     of "indices":
       let value = call[1]
@@ -514,6 +518,11 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
   if hasTransformFeedback:
     drawBlock.add newCall(bindSym"glEndTransformFeedback")
 
+  if debugGroupName == nil:
+    debugGroupName = newLit("shadingDsl")
+
+  
+    
   result = quote do:
     `typeSection`
 
@@ -521,7 +530,7 @@ macro shadingDslInner(programIdent, vaoIdent: untyped; mode: GLenum; afterSetup,
     var `vao` {.global.}: VertexArrayObject
 
     if glPushDebugGroup != nil:
-       glPushDebugGroup(GL_DEBUG_SOURCE_THIRD_PARTY, 1, 10, "shadingDsl");
+      glPushDebugGroup(GL_DEBUG_SOURCE_THIRD_PARTY, 1, 10, `debugGroupName`);
 
 
     if `pSym`.program.handle == 0:
@@ -596,6 +605,8 @@ macro shadingDsl*(statement: untyped) : untyped =
         result.add( newCall(bindSym"baseVertex", value ) )
       of "baseInstance":
         result.add( newCall(bindSym"baseInstance", value ) )
+      of "debugGroup":
+        result.add( newCall(bindSym"debugGroup", value) )
       of "primitiveMode":
         result[3] = value
       # of "programIdent":

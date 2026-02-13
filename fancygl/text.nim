@@ -82,7 +82,8 @@ proc textureArray*(strings: openarray[string]): Texture2DArray =
 proc text(this: var TextRenderer; str: string; pixelPos: Vec2i): void =
   # TODO add print statement to render text at screen
 
-  let surface = this.font.renderTextShaded(str, this.fg, this.bg)
+  let surface = renderTextShaded(this.font, str, this.fg, this.bg)
+  
   defer: freeSurface(surface)
 
   assert glIsTexture(this.texture.handle)
@@ -115,6 +116,7 @@ proc text(this: var TextRenderer; str: string; pixelPos: Vec2i): void =
   shadingDsl:
     primitiveMode = GL_TRIANGLE_STRIP
     numVertices = 4
+    debugGroup = "renderText"
 
     uniforms:
       rectPixelPos
