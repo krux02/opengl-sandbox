@@ -2,14 +2,27 @@ import ../fancygl
 
 import sequtils
 
-let (window, context) = defaultSetup(vec2i(1080,1920) div 2)
+#let (window, context) = defaultSetup(vec2i(1080,1920) div 2)
+let (window, context) = defaultSetup()
+
 import math
 
-let windowsize = window.size
+
 #let projection_mat : Mat4f = perspective(45'f32, windowsize.x / windowsize.y, 0.1, 100.0)
+let windowSize = window.size
 let scale = float32(1 / 540)
 let projection_mat: Mat4f = frustum(-540'f32 * scale, 540'f32 * scale, -560'f32 * scale, 1360'f32 * scale, 1, 100)
 let inv_projection_mat = inverse(projection_mat)
+
+var viewport: Vec4f
+block:
+  let w = float32(windowSize.y) * 0.5625f
+  viewport.x = float32(windowSize.x) * 0.5f - w * 0.5
+  viewport.y = 0
+  viewport.z = w
+  viewport.w = float32(windowSize.y)
+  glViewport(int32(viewport.x), int32(viewport.y), int32(viewport.z), int32(viewport.w))
+  
 
 proc `*`(a: Mat4f; b: seq[Vec4f]): seq[Vec4f] =
   result.newSeq(b.len)
@@ -222,7 +235,8 @@ proc renderFloor(viewMat: Mat4f): void =
     uniforms:
       modelViewProj
       invModelViewProj = inverse(modelViewProj)
-      invWindowSize    = vec2f(1 / float32(windowSize.x), 1 / float32(windowSize.y))
+      invWindowSize    = vec2f(1 / float32(viewport.z), 1 / float32(viewport.w))
+      viewport
 
     attributes:
       a_vertex   = floorVertices
@@ -239,7 +253,7 @@ proc renderFloor(viewMat: Mat4f): void =
 
       // reconstructing normalized device coordinates from fragment depth, fragment position.
       vec4 ndc_pos;
-      ndc_pos.xy = gl_FragCoord.xy * invWindowSize * 2 - 1;
+      ndc_pos.xy = (gl_FragCoord.xy - viewport.xy) * invWindowSize * 2 - 1;
       ndc_pos.z  = gl_FragCoord.z                  * 2 - 1;
       ndc_pos.w = 1;
 
@@ -304,7 +318,7 @@ while runGame:
 
   var mousePos: Vec2i
   let mouseState = getMouseState(mousePos.x.addr, mousePos.y.addr)
-  let relativeMousePos = (vec2f(mousePos) / vec2f(windowSize) * 2 - 1) * vec2f(1,-1)
+  let relativeMousePos = ((vec2f(mousePos) - viewport.xy) / viewport.zw * 2 - 1) * vec2f(1,-1)
 
   let p0 = cameraNode.pos
   var p1 = cameraNode.modelMat * inv_projection_mat * vec4f(relativeMousePos, -1, 1)
