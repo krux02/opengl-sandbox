@@ -142,16 +142,17 @@ proc `$`(arg: Color): string =
   result.addInt int64(arg.b)
   result.add ")"
 
-const
-  WindowSize = vec2i(1024, 768)
-  Near = 0.1
-  Far = 1000
-  halfHeight = Near
-  halfWidth  = Near * (WindowSize.x / WindowSize.y)
-  projection = frustum(-halfWidth, halfWidth, -halfHeight, halfHeight, Near, Far)
 
 proc main() =
-  let (window, context) = defaultSetup(WindowSize)
+  let (window, context) = defaultSetup()
+  let 
+    WindowSize = vec2f(window.size)
+    Near = 0.1f
+    Far = 1000.0f
+    halfHeight = Near
+    halfWidth  = Near * (WindowSize.x / WindowSize.y)
+    projection = frustum(-halfWidth, halfWidth, -halfHeight, halfHeight, Near, Far)
+  
 
   var file = memfiles.open(getResourcePath("mrfixit.iqm"))
   defer:
@@ -379,7 +380,7 @@ proc main() =
   ################################### main loop ##################################
   ################################################################################
 
-  var mousePos: Vec2i
+  var mousePos: Vec2f
 
   let
     startPerfCount = getPerformanceCounter()
@@ -424,9 +425,9 @@ proc main() =
             dragMode = dragMode and (not 0x4)
 
       if evt.kind == MouseMotion:
-        mousePos.x = evt.motion.x
-        mousePos.y = WindowSize.y - evt.motion.y
-        let motion = vec2f(evt.motion.xrel.float64, evt.motion.yrel.float64)
+        mousePos.x = float32(evt.motion.x)
+        mousePos.y = WindowSize.y - float32(evt.motion.y)
+        let motion = vec2f(float32(evt.motion.xrel), float32(evt.motion.yrel))
         if dragMode == 0x1:
           rotation = rotation + motion / 100
         if dragMode == 0x2:
@@ -493,7 +494,7 @@ proc main() =
 
       uniforms:
         modelview = view_mat.mat4f
-        projection = projection.mat4f
+        projection
         faceColors
       attributes:
         a_position = renderPositionBuffer
@@ -514,7 +515,7 @@ proc main() =
       primitiveMode = GL_TRIANGLES
       numVertices = planeVertices.len
       uniforms:
-        modelViewProj = mat4f(projection * view_mat)
+        modelViewProj = projection * mat4f(view_mat)
 
       attributes:
         a_vertex   = planeVertices
@@ -532,3 +533,7 @@ proc main() =
 
     window.glSwapWindow()
 main()
+
+# Local Variables:
+# compile-command: "cd examples; nim c -r openmesh.nim"
+# End:
