@@ -271,7 +271,7 @@ proc coneIndices*(segments: int): seq[int16] =
 ### box ###
 
 const
-  boxVertices* = [
+  boxVerticesCenterAtZero* = [
     vec4f(+1, +1, -1, 1), vec4f(-1, +1, -1, 1), vec4f(-1, +1, +1, 1),
     vec4f(+1, +1, +1, 1), vec4f(+1, +1, -1, 1), vec4f(-1, +1, +1, 1),
     vec4f(+1, -1, +1, 1), vec4f(-1, -1, +1, 1), vec4f(-1, -1, -1, 1),
@@ -284,6 +284,21 @@ const
     vec4f(-1, -1, +1, 1), vec4f(-1, +1, +1, 1), vec4f(-1, -1, -1, 1),
     vec4f(+1, +1, -1, 1), vec4f(+1, +1, +1, 1), vec4f(+1, -1, +1, 1),
     vec4f(+1, -1, -1, 1), vec4f(+1, +1, -1, 1), vec4f(+1, -1, +1, 1)
+  ]
+  
+  boxVerticesCornerAtZero* = [
+    vec4f(1, 1, 0, 1), vec4f(0, 1, 0, 1), vec4f(0, 1, 1, 1),
+    vec4f(1, 1, 1, 1), vec4f(1, 1, 0, 1), vec4f(0, 1, 1, 1),
+    vec4f(1, 0, 1, 1), vec4f(0, 0, 1, 1), vec4f(0, 0, 0, 1),
+    vec4f(1, 0, 0, 1), vec4f(1, 0, 1, 1), vec4f(0, 0, 0, 1),
+    vec4f(1, 1, 1, 1), vec4f(0, 1, 1, 1), vec4f(0, 0, 1, 1),
+    vec4f(1, 0, 1, 1), vec4f(1, 1, 1, 1), vec4f(0, 0, 1, 1),
+    vec4f(1, 0, 0, 1), vec4f(0, 0, 0, 1), vec4f(0, 1, 0, 1),
+    vec4f(1, 1, 0, 1), vec4f(1, 0, 0, 1), vec4f(0, 1, 0, 1),
+    vec4f(0, 1, 1, 1), vec4f(0, 1, 0, 1), vec4f(0, 0, 0, 1),
+    vec4f(0, 0, 1, 1), vec4f(0, 1, 1, 1), vec4f(0, 0, 0, 1),
+    vec4f(1, 1, 0, 1), vec4f(1, 1, 1, 1), vec4f(1, 0, 1, 1),
+    vec4f(1, 0, 0, 1), vec4f(1, 1, 0, 1), vec4f(1, 0, 1, 1)
   ]
 
   boxNormals* = [

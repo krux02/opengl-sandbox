@@ -14,10 +14,10 @@ type
     color:    Vec4f
     texcoord: Vec2f
 
-var boxBuffer = createArrayBuffer[VertexStruct](boxVertices.len)
+var boxBuffer = createArrayBuffer[VertexStruct](boxVerticesCenterAtZero.len)
 
 for i, vertex in boxBuffer.wPairs:
-  vertex.pos      = boxVertices[i]
+  vertex.pos      = boxVerticesCenterAtZero[i]
   vertex.normal   = boxNormals[i]
   vertex.color    = boxColors[i]
   vertex.texcoord = boxTexCoords[i]
@@ -28,7 +28,7 @@ let
   color =  boxBuffer.view(color)
   texcoord = boxBuffer.view(texcoord)
 
-let indices = iotaSeq[int8](boxvertices.len).elementArrayBuffer
+let indices = iotaSeq[int8](boxverticesCenterAtZero.len).elementArrayBuffer
 
 declareFramebuffer(Fb1FramebufferType):
   depth = newDepthTexture2D(window.size)
@@ -232,3 +232,7 @@ while runGame:
 
   render()
   fpsframeCounter += 1
+
+# Local Variables:
+# compile-command: "cd examples; nim c -r sandbox.nim"
+# End:

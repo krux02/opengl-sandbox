@@ -358,3 +358,6 @@ while runGame:
 
   glSwapWindow(window)
 
+# Local Variables:
+# compile-command: "cd experiment; nim c -r noiseSphere.nim"
+# End:

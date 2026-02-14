@@ -132,14 +132,10 @@ block init:
   icosphereMesh.indices  = elementArrayBuffer(iotaSeq[int16](unrolledVertices.len.int16))
   icosphereMesh.indicesLen = icosphereMesh.indices.len
 
-  var newBoxVertices = boxVertices
-  for v in newBoxVertices.mitems:
-    v.xyz = (v.xyz * 0.5f) + 0.5f
-
-  boxMesh.vertices = arrayBuffer(newBoxVertices)
+  boxMesh.vertices = arrayBuffer(boxVerticesCornerAtZero)
   boxMesh.colors = arrayBuffer(boxColors)
   boxMesh.normals = arrayBuffer(boxNormals)
-  boxMesh.indices = elementArrayBuffer(iotaSeq[int16](boxVertices.len.int16))
+  boxMesh.indices = elementArrayBuffer(iotaSeq[int16](boxVerticesCornerAtZero.len.int16))
   boxMesh.indicesLen = boxMesh.indices.len
 
   glDisable(GL_DEPTH_CLAMP)
@@ -817,3 +813,7 @@ proc main(): void =
     glSwapWindow(window)
 
 main()
+
+# Local Variables:
+# compile-command: "cd examples; nim c -r tetris.nim"
+# End:

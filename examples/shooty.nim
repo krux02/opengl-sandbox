@@ -134,10 +134,10 @@ block init:
     uvSphereIndices(numSegments, numSegments div 2))
 
   IdBox.insertMesh(
-    boxVertices,
+    boxVerticesCenterAtZero,
     boxNormals,
     boxColors,
-    iotaSeq[int16](boxVertices.len.int16))
+    iotaSeq[int16](boxVerticesCenterAtZero.len.int16))
 
   IdTetraeder.insertMesh(
     tetraederVertices,
@@ -388,3 +388,7 @@ while runGame:
   renderText( s"mouseInput: ${tmpNode.pos - playerNode.pos}", vec2i(22,66))
 
   glSwapWindow(window)
+
+# Local Variables:
+# compile-command: "cd examples; nim c -r shooty.nim"
+# End:

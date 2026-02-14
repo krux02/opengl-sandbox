@@ -106,10 +106,10 @@ block init:
     uvSphereIndices(numSegments, numSegments div 2))
 
   IdBox.insertMesh(
-    boxVertices,
+    boxVerticesCenterAtZero,
     boxNormals,
     boxColors,
-    iotaSeq[int16](boxVertices.len.int16))
+    iotaSeq[int16](boxVerticesCenterAtZero.len.int16))
 
   IdTetraeder.insertMesh(
     tetraederVertices,
@@ -302,3 +302,7 @@ while runGame:
       result.color.rg += fract(texcoord + offset) / 5;
 
   glSwapWindow(window)
+
+# Local Variables:
+# compile-command: "cd experiment; nim c -r main_shapes.nim"
+# End:

@@ -16,7 +16,7 @@ type
     position_ws : Vec4f
     color : Vec4f
 
-  #MyFramebuffer = Framebuffer2[MyFragmentType]
+  # MyFramebuffer = Framebuffer2[MyFragmentType]
 
 genMeshType(MyMesh, MyVertexType)
 genMeshType(ControlPointMesh, tuple[position_os: Vec3f])
@@ -103,8 +103,8 @@ glEnable(GL_DEPTH_CLAMP)
 
 var mesh1: MyMesh
 mesh1.vertexIndices.mode = GL_TRIANGLES
-mesh1.vertexIndices.numVertices = boxVertices.len
-mesh1.buffers.position_os = arrayBuffer(boxVertices)
+mesh1.vertexIndices.numVertices = boxVerticesCenterAtZero.len
+mesh1.buffers.position_os = arrayBuffer(boxVerticesCenterAtZero)
 mesh1.buffers.normal_os   = arrayBuffer(boxNormals)
 mesh1.buffers.texCoord    = arrayBuffer(boxTexCoords)
 
@@ -345,17 +345,17 @@ while runGame:
         let idx = int(subBeat) mod 6
 
         if   idx == 0:
-          shearmat[0,1] = beatFract
+          shearMat[0,1] = beatFract
         elif idx == 1:
-          shearmat[0,2] = beatFract
+          shearMat[0,2] = beatFract
         elif idx == 2:
-          shearmat[1,0] = beatFract
+          shearMat[1,0] = beatFract
         elif idx == 3:
-          shearmat[1,2] = beatFract
+          shearMat[1,2] = beatFract
         elif idx == 4:
-          shearmat[2,0] = beatFract
+          shearMat[2,0] = beatFract
         elif idx == 5:
-          shearmat[2,1] = beatFract
+          shearMat[2,1] = beatFract
 
         shearMat * M
       else:
