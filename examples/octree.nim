@@ -692,8 +692,8 @@ proc drawBoxes(proj,modelView: Mat4f): void =
 
 var camera = newWorldNode()
 var cameraControls: CameraControls
-cameraControls.speed = 5
-addEventWatch(cameraControlEventWatch, cast[pointer](cameraControls.addr))
+cameraControls.speed = 300
+addEventWatch(cameraControlEventWatch, cameraControls.addr)
 
 var neighborSearchResult: seq[(int32,int32)]
 var neighborSearchResultBuffer = createElementArrayBuffer[int32](40000, GL_STREAM_DRAW)
@@ -730,6 +730,7 @@ proc drawNeighborhood(proj,modelView: Mat4f): void =
 var remainingFrames = 0
 var remainingSimulationSteps = 0
 
+var time, lastTime: float64
 while runGame:
 
   discard showCursor(if mouseModeToggle: 1 else: 0)
@@ -773,10 +774,12 @@ while runGame:
       else:
         discard
 
-  #let time = timer.time.float32
+  lastTime = time
+  time = timer.time
+  let deltaTime = float32(time-lastTime)
 
   if mouseModeToggle:
-    camera.update(cameraControls)
+    camera.update(cameraControls, deltaTime)
 
   if stepSimulation:
     while remainingSimulationSteps > 0:

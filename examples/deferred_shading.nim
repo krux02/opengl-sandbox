@@ -55,7 +55,7 @@ var
   lightColors = createArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW, "lightColors")
 
 camera.pos.z   = hm[0,0] + 10
-cameraControls.speed = 0.4'f32
+cameraControls.speed = 24'f32
 
 addEventWatch(cameraControlEventWatch, cameraControls.addr)
 
@@ -105,9 +105,11 @@ proc showNormals(mvp: Mat4f, positions: ArrayBuffer[Vec4f], normals: ArrayBuffer
       color = normalColor;
       """
 
+var time, lastTime: float64
+    
 proc render() =
 
-  let time = gameTimer.time.float32
+  
 
   let viewMat = camera.viewMat()
 
@@ -463,6 +465,11 @@ proc render() =
 
 proc mainLoopFunc(): void =
 
+  lastTime = time
+  time = gameTimer.time
+  let deltaTime = float32(time-lastTime)
+  
+
   for evt in events():
     if evt.kind == QUIT:
       runGame = false
@@ -514,10 +521,14 @@ proc mainLoopFunc(): void =
     fpsFrameMarker = frame
     fpsTimer.reset
 
-  update(camera, cameraControls)
+  update(camera, cameraControls, deltaTime)
 
   render()
   frame += 1
 
 while runGame:
   mainLoopFunc()
+
+# Local Variables:
+# compile-command: "cd examples; nim c -r deferred_shading.nim"
+# End:

@@ -271,7 +271,7 @@ type
 
 var
   player: Player
-  cameraControls = CameraControls(speed: 0.04'f32)
+  cameraControls = CameraControls(speed: 2.4'f32)
   onGround: bool
 
 
@@ -440,6 +440,8 @@ proc drawCube(mvp: Mat4f; tileId: float32; tint: Vec4f) =
       color = texture(tex, vec3(v_texCoord, tileId)) * tint;
       """
 
+var time, lastTime: float64
+
 while runGame:
   var mouseClicked = false
   for evt in events():
@@ -461,14 +463,19 @@ while runGame:
       if evt.button.button == 1:
         mouseClicked = true
 
-  update(player.node, cameraControls)
+  lastTime = time
+  time = timer.time
+  # dynamic frame time isn't great, but it's a much easier setup than anything
+  # else I can come up with right now
+  let deltaTime = float32(time-lastTime)
+  update(player.node, cameraControls, deltaTime)
   
 
   if not flymode:
     clampToTileDataSize(player.node)
     player.snapToGround
 
-  let time: float64 = timer.time
+  
   var cameraNode = player.node;
   cameraNode.moveAbsolute(vec3f(0, 0, 1.7))
   let ray = Ray(pos: cameraNode.pos.xyz, dir: cameraNode.dirVec.xyz)

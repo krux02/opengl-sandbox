@@ -9,12 +9,12 @@ proc cameraControlEventWatch*(userdata: pointer; event: ptr Event): cint {.cdecl
     control.rotation.xy += vec2f(event[].motion.rel.yx) / -128.0
     control.rotation.x   = clamp(control.rotation.x , -Pi*0.5, Pi*0.5)
 
-proc update*(node: var WorldNode, control: CameraControls): void =
+proc update*(node: var WorldNode, control: CameraControls, deltaTime: float32): void =
   var movement = vec3f(0,0,0)
   var i: cint
   var state = getKeyboardState(i.addr)
-  movement.z = (state[SCANCODE_D].float - state[SCANCODE_E].float) * control.speed
-  movement.x = (state[SCANCODE_F].float - state[SCANCODE_S].float) * control.speed
+  movement.z = (state[SCANCODE_D].float - state[SCANCODE_E].float) * control.speed * deltaTime
+  movement.x = (state[SCANCODE_F].float - state[SCANCODE_S].float) * control.speed * deltaTime
 
 
   node.dir = quatf(0,0,0,1)

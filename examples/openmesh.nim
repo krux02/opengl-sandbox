@@ -530,7 +530,6 @@ proc main() =
         color = vec4(0.486, 0.988, 0, 1);
         """
 
-
     window.glSwapWindow()
 main()
 
