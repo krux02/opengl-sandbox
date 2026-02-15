@@ -1,3 +1,6 @@
+# this is not an example, don't bother, just temporary code for testing that
+# should probly be move somewhere else
+
 import glm, strutils
 
 let blockRot = 1
