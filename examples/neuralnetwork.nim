@@ -2,43 +2,9 @@
 
 import ../fancygl, fenv
 
-# TODO use defaultSetup
-
-var (window, context) = defaultSetup()
-let windowSize = window.size
-let renderTargetSize = windowSize div 2
-
-glDisable(GL_DEPTH_TEST)
-
-declareFramebuffer(RenderTarget):
+declareFramebuffer(RenderTarget(renderTargetSize: Vec2i)):  
   depth  = newDepthRenderBuffer(renderTargetSize)
   color  = newTexture2D(renderTargetSize, GL_RGBA8)
-
-let framebuffer0 = newRenderTarget()
-
-proc generateGaussianNoise(mu, sigma: float64): float64 =
-  let epsilon = fenv.epsilon(float64)
-  let two_pi = 2.0 * PI
-
-  var
-    z0, z1 {. global .}: float64
-    generate {. global .}: bool
-
-  generate = not generate;
-  if not generate:
-    return z1 * sigma + mu;
-
-  var
-    u1 = rand_f64()
-    u2 = rand_f64()
-
-  while  u1 <= epsilon:
-    u1 = rand_f64()
-    u2 = rand_f64()
-
-  z0 = sqrt(-2.0 * ln(u1)) * cos(two_pi * u2)
-  z1 = sqrt(-2.0 * ln(u1)) * sin(two_pi * u2)
-  return z0 * sigma + mu
 
 const
   layerSize = 16
@@ -64,24 +30,48 @@ for i in 0 .. high(firstWeights_d0):
 for i in 0 .. high(lastWeights_d0):
   lastWeights_d0[i] = 0.0
 
+proc generateGaussianNoise(mu, sigma: float64): float64 =
+  let epsilon = fenv.epsilon(float64)
+  let two_pi = 2.0 * PI
+
+  var
+    z0, z1 {. global .}: float64
+    generate {. global .}: bool
+
+  generate = not generate;
+  if not generate:
+    return z1 * sigma + mu;
+
+  var
+    u1 = rand_f64()
+    u2 = rand_f64()
+
+  while  u1 <= epsilon:
+    u1 = rand_f64()
+    u2 = rand_f64()
+
+  z0 = sqrt(-2.0 * ln(u1)) * cos(two_pi * u2)
+  z1 = sqrt(-2.0 * ln(u1)) * sin(two_pi * u2)
+  return z0 * sigma + mu
+
+var weightsTexture: Texture1D
+var firstWeightsTexture: Texture1D
+var lastWeightsTexture: Texture1D
+
 const glslCode = """
-float sig(float x) {
-  //return x / (1.0 + abs(x));
-  //return 1.0/(1.0+exp(-x));
-  return tanh(x);
-}
-vec4 sig(vec4 x) {
-  //return x / (1.0 + abs(x));
-  //return 1.0/(1.0+exp(-x));
-  return tanh(x);
-}
-"""
+  float sig(float x) {
+    //return x / (1.0 + abs(x));
+    //return 1.0/(1.0+exp(-x));
+    return tanh(x);
+  }
+  vec4 sig(vec4 x) {
+    //return x / (1.0 + abs(x));
+    //return 1.0/(1.0+exp(-x));
+    return tanh(x);
+  }
+  """
 
-let weightsTexture      = newTexture1D(weights_d0.len div 4, GL_RGBA32F)
-let firstWeightsTexture = newTexture1D(firstWeights_d0.len div 4, GL_RGBA32F)
-let lastWeightsTexture  = newTexture1D(lastWeights_d0.len div 4, GL_RGBA32F)
-
-proc render() =
+proc render(framebuffer0: RenderTarget, renderTargetSize: Vec2i, windowSize: Vec2i) =
 
   proc linClamp(x, max, moritz: float32): float32 =
     return max * tanh(x / moritz)
@@ -193,36 +183,48 @@ proc render() =
       color = texture(tex, texCoord);
       """
 
-  glSwapWindow(window) # Swap the front and back frame buffers (double buffering)
+proc main*(window: Window): void =
+  let windowSize = window.size
+  let renderTargetSize = windowSize div 2
 
-# Main loop
+  glDisable(GL_DEPTH_TEST)
 
-var
-  runGame = true
-  fpsTimer = newStopWatch(true)
-  fpsFrameCounter = 0
+  let framebuffer0 = newRenderTarget(renderTargetSize)
 
-while runGame:
-  for evt in events():
-    if evt.kind == QUIT:
-      runGame = false
-      break
-    if evt.kind == KEY_DOWN:
-      case evt.key.keysym.scancode
-      of SCANCODE_ESCAPE:
-        runGame = false
-      of SCANCODE_F10:
-        window.screenshot
-      else:
-        discard
+  weightsTexture      = newTexture1D(weights_d0.len div 4, GL_RGBA32F)
+  firstWeightsTexture = newTexture1D(firstWeights_d0.len div 4, GL_RGBA32F)
+  lastWeightsTexture  = newTexture1D(lastWeights_d0.len div 4, GL_RGBA32F)
 
-  if fpsTimer.time >= 1:
-    echo "FPS: ", fpsFrameCounter
-    fpsTimer.reset
+  # Main loop
+
+  var
+    runGame = true
+    fpsTimer = newStopWatch(true)
     fpsFrameCounter = 0
 
-  render()
-  fpsframeCounter += 1
+  while runGame:
+    for evt in events():
+      if evt.kind == QUIT:
+        runGame = false
+        break
+      if evt.kind == KEY_DOWN:
+        case evt.key.keysym.scancode
+        of SCANCODE_ESCAPE:
+          runGame = false
+        of SCANCODE_F10:
+          window.screenshot
+        else:
+          discard
 
-  #runGame = false
-  #limitFrameRate()
+    if fpsTimer.time >= 1:
+      echo "FPS: ", fpsFrameCounter
+      fpsTimer.reset
+      fpsFrameCounter = 0
+
+    render(framebuffer0, renderTargetSize, windowSize)
+    glSwapWindow(window) # Swap the front and back frame buffers (double buffering)
+    fpsframeCounter += 1
+
+when isMainModule:
+  let (window, context) = defaultSetup()
+  main(window)

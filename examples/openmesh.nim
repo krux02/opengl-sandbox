@@ -142,9 +142,7 @@ proc `$`(arg: Color): string =
   result.addInt int64(arg.b)
   result.add ")"
 
-
-proc main() =
-  let (window, context) = defaultSetup()
+proc main*(window: Window) =
   let 
     WindowSize = vec2f(window.size)
     Near = 0.1f
@@ -153,7 +151,6 @@ proc main() =
     halfWidth  = Near * (WindowSize.x / WindowSize.y)
     projection = frustum(-halfWidth, halfWidth, -halfHeight, halfHeight, Near, Far)
   
-
   var file = memfiles.open(getResourcePath("mrfixit.iqm"))
   defer:
     close(file)
@@ -271,7 +268,6 @@ proc main() =
   for face in mymesh.faceRefs:
     face.propColor() = Color(r:11,g:11,b:11)
 
-
   echo "numVertices: ", mymesh.vertices.len
   echo "numEdges:    ", mymesh.edges.len
   echo "numFaces:    ", mymesh.faces.len
@@ -294,15 +290,10 @@ proc main() =
       echo "invalid halfedge handle in face at index ", i
   echo "brokenHalfedges: ", brokenHalfedges
 
-
-
-
   # fixing stuff for boundary halfedges
   for he in mymesh.halfedgeRefs:
     if he.goToVertex.handle.isInvalid:
       he.connectivity.vertex_handle = he.goOpp.goPrev.goToVertex.handle
-
-
 
   for he in mymesh.halfedgeRefs:
     if he.isBoundary:
@@ -326,8 +317,6 @@ proc main() =
           distance = newDist
           closest = itB
     echo int32(itA.handle), " <-> ", int32(closest.handle), " disdance: ", distance
-
-
 
   var indices: seq[int32]
   for face in mymesh.faceRefs:
@@ -531,7 +520,10 @@ proc main() =
         """
 
     window.glSwapWindow()
-main()
+
+when isMainModule:
+  let (window, context) = defaultSetup()
+  main(window)
 
 # Local Variables:
 # compile-command: "cd examples; nim c -r openmesh.nim"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-for FILE in *.nim;do
-  nim c $FILE
+for FILE in *.nim; do
+    nim c $FILE
 done
 
 ./shooty

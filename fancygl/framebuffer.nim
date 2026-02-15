@@ -69,8 +69,22 @@ const currentFramebuffer* = 0
 # default fragment Outputs
 const fragmentOutputs* = ["color"]
 
-macro declareFramebuffer*(typename,arg:untyped) : untyped =
-  typename.expectKind nnkIdent
+macro declareFramebuffer*(typeNameAndArgs,arg:untyped) : untyped =
+  typeNameAndArgs.expectKind({nnkIdent, nnkObjConstr})
+
+  var typeName: NimNode = nil
+  var constructorArgs: seq[NimNode]
+  
+  if typeNameAndArgs.kind == nnkObjConstr:
+    echo typeNameAndArgs.lispRepr
+    typename = typeNameAndArgs[0]
+    for i in 1 ..< typeNameAndArgs.len:
+      let it = typeNameAndArgs[i]
+      it.expectKind(nnkExprColonExpr)
+      constructorArgs.add it
+  else:
+    typename = typeNameAndArgs
+
 
   result = newStmtList()
 
@@ -164,6 +178,8 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
 
   var i = 0
   for asgn in arg:
+    if asgn.kind == nnkIdent:
+      continue
     let lhs = asgn[0]
     let rhs = asgn[1]
 
@@ -184,14 +200,49 @@ macro declareFramebuffer*(typename,arg:untyped) : untyped =
   branchStmtList.add( drawBuffersCall )
   let labelLit = newLit($typename)
   let constructorIdent = ident("new" & $typename)
-  result.add(quote do:
-    proc `constructorIdent`(label: string = `labelLit`): `typename` =
-      `branchStmtList`
-      `resultIdent`.handle.label = label
-  )
+
+
+  let formalConstructorParams = nnkFormalParams.newTree(typeName)
+
+  for it in constructorArgs:
+    formalConstructorParams.add(
+      nnkIdentDefs.newTree(
+        it[0],
+        it[1],
+        newEmptyNode()))
+
+  let labelSym = genSym(nskParam, "label")
+    
+  formalConstructorParams.add nnkIdentDefs.newTree(
+    labelSym,
+    bindSym"string",
+    labelLit)
+
+  let body = quote do:
+    `branchStmtList`
+    `resultIdent`.handle.label = `labelSym`
+  
+  let constructorNode =
+    nnkProcDef.newTree(
+      constructorIdent,
+      newEmptyNode(),
+      newEmptyNode(),
+      formalConstructorParams,
+      newEmptyNode(),
+      newEmptyNode(),
+      body)
+      
+  # result.add(quote do:
+  #   proc `constructorIdent`(label: string = `labelLit`): `typename` =
+  #     `branchStmtList`
+  #     `resultIdent`.handle.label = label
+  # )
+
+  result.add constructorNode
 
   if wrapWithDebugResult:
-    result = newCall(bindSym"debugResult", result)
+    echo result.repr
+    #result = newCall(bindSym"debugResult", result)
 
 template blockBindFramebuffer*(name, blok: untyped): untyped =
   var drawfb, readfb: GLint

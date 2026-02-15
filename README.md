@@ -249,11 +249,10 @@ declareFramebuffer(FirstFramebuffer):
   normal = newTexture2D(windowsize, GL_RGBA16F)
 ```
 
-While depth is currently an attribute every framebuffer needs, normal
-is a completely free identifier. It could be named anything. The
-effect is visible in the fragment shader code from the contex, where
-the framebuffer is bound. Here the fragmentshader automatically get's
-to know the output variable normal.
+While depth is currently an attribute every framebuffer needs, normal is a free
+identifier. It could be named anything. The effect is visible in the fragment
+shader code from the contex, where the framebuffer is bound. Here the
+fragmentshader automatically get's to know the output variable normal.
 
 ```
   fragmentMain:
