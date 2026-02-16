@@ -860,11 +860,13 @@ proc high*(abv: ArrayBufferView): int =
 template view*[T](buf: ArrayBuffer[T]; member: untyped): untyped =
   ## Constructs a strided view into `buf` that sees the member `member`
   ## of `T`.
-  var res : ArrayBufferView[typeof(default(typedesc(T)).member)]
-  res.handle = buf.handle
-  res.relativeoffset = GLuint(offsetof(typedesc(T), member))
-  res.stride = GLsizei(sizeof(T))
-  res
+  
+  # there is probably a bug in the implementation of default that is cretas too many temporary variables that then clash in code generation.
+  ArrayBufferView[typeof(default(typedesc(T)).member)](
+    handle: `buf`.handle,
+    relativeoffset: GLuint(offsetOf(typedesc(T), `member`)),
+    stride: GLsizei(sizeof(T))    
+  )
 
 proc splitView*(buf: ArrayBuffer[Mat4f]): array[4, ArrayBufferView[Vec4f]] =
   ## Matrices are not allowed as attributes for glsl shaders. This allows to split a
@@ -1169,12 +1171,6 @@ macro typeName(t: typedesc): untyped =
   while typeSym.kind == nnkBracketExpr and typeSym[0].eqIdent "typeDesc":
     typeSym = typeSym[1]
   newLit($typeSym)
-
-template offsetof*(typ, field: untyped): int =
-  (var dummy: typ;
-   let a = cast[system.uint](addr(dummy));
-   let b = cast[system.uint](addr(dummy.field));
-   int(b - a))
 
 # macro genVaryingNames(self: TransformFeedback): untyped =
 #   ## returns array of string literals

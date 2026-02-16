@@ -62,9 +62,9 @@ called reflection.  One more reason I do not want to develop in C++ is
 the experience I had with very long compilation time (more than 30
 minutes). I already invested many hours optimizing build times and
 making headers as small as possible, just to see the next day that the
-new project member doesn't know or care and includes a lot of headers
+new team member doesn't know or care and includes a lot of headers
 in other header files.  Every time I see myself thinking of how I
-should structure my project, so that it builds fast, feels like a huge
+should structure my project, so that it builds fast, feels like a big
 waste of time that could otherwise go to develop the actual engine
 code.
 

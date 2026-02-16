@@ -7,6 +7,7 @@ import neuralnetwork
 import hello_shapes
 import skew_box
 import mandelbrot
+import particles
 # import particles_transform_feedback
 # import fractalworld
 # import hello_triangle
@@ -20,23 +21,32 @@ import mandelbrot
 # import sandbox
 # import retro_tiling
 # import kdtree
-# import particles
 # import deferred_shading
 # import console
 
 let (window, context) = defaultSetup()
 
+proc resetGlState(): void =
+  glEnable(GL_DEPTH_TEST)
+  glViewport(0,0, window.size.x, window.size.y)
+  glClearColor(0,0,0,0)
+
+resetGlState()
 shooty.main(window)
-glViewport(0,0, window.size.x, window.size.y)
+resetGlState()
 openmesh.main(window)
-glClearColor(0,0,0,0)
+resetGlState()
 forward_vertex_shader.main(window)
+resetGlState()
 neuralnetwork.main(window)
-glEnable(GL_DEPTH_TEST)
+resetGlState()
 hello_shapes.main(window)
+resetGlState()
 skew_box.main(window)
+resetGlState()
 mandelbrot.main(window)
-glEnable(GL_DEPTH_TEST)
+resetGlState()
+particles.main(window)
 # particles_transform_feedback.main(window)
 # fractalworld.main(window)
 # hello_triangle.main(window)
@@ -50,7 +60,5 @@ glEnable(GL_DEPTH_TEST)
 # sandbox.main(window)
 # retro_tiling.main(window)
 # kdtree.main(window)
-# particles.main(window)
 # deferred_shading.main(window)
 # console.main(window)
-
