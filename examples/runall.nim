@@ -11,8 +11,8 @@ import mandelbrot
 import particles
 # import particles_transform_feedback
 import fractalworld
-# import waves
-# import craftingmine
+import craftingmine
+import waves
 # import tetris
 # import noise_landscape
 # import octree
@@ -30,6 +30,8 @@ proc resetGlState(): void =
   glEnable(GL_DEPTH_TEST)
   glViewport(0,0, window.size.x, window.size.y)
   glClearColor(0,0,0,0)
+  glCullFace(GL_BACK)
+  discard setRelativeMouseMode(false)
 
 resetGlState()
 hello_triangle.main(window)
@@ -53,8 +55,10 @@ particles.main(window)
 # particles_transform_feedback.main(window) # this is bugged, can't be integrated right now
 resetGlState()
 fractalworld.main(window)
-# waves.main(window)
-# craftingmine.main(window)
+resetGlState()
+craftingmine.main(window)
+resetGlState()
+waves.main(window)
 # tetris.main(window)
 # noise_landscape.main(window)
 # octree.main(window)
