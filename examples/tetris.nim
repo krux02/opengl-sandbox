@@ -3,12 +3,7 @@ import ../fancygl, sdl2/sdl_mixer as mix, strutils, algorithm
 # TODO, there is a bug where lighting is over saturated (sometimes). I
 # haven't really figured that out yet.
 
-let (window, _) = defaultSetup()
-let windowsize = window.size
-
 var animationLength = 0.125
-
-let projection_mat : Mat4f = perspective(45'f32, windowsize.x / windowsize.y, 0.1, 100.0)
 
 type
   SimpleMesh = object
@@ -97,8 +92,7 @@ proc rotationMat2(angle: float32): Mat2f =
 
 var icosphereMesh, boxMesh: SimpleMesh
 
-block init:
-
+proc init(): void =
   let isNumVerts = icosphereIndicesTriangles.len
   var unrolledVertices = newSeqOfCap[Vec4f](isNumVerts)
   var unrolledColors = newSeqOfCap[Vec4f](isNumVerts)
@@ -140,13 +134,6 @@ block init:
 
   glDisable(GL_DEPTH_CLAMP)
 
-var planeVertices = arrayBuffer([
-  vec4f(0,0,0,1), vec4f( 100, 0,0,1), vec4f( 0, 100,0,1),
-  vec4f(0,0,0,1), vec4f( 0, 100,0,1), vec4f(-100, 0,0,1),
-  vec4f(0,0,0,1), vec4f(-100, 0,0,1), vec4f( 0,-100,0,1),
-  vec4f(0,0,0,1), vec4f( 0,-100,0,1), vec4f( 100, 0,0,1)
-])
-
 var planeNode = newWorldNode()
 
 var runGame: bool = true
@@ -167,46 +154,8 @@ proc fieldRead(pos: Vec2i): int =
 for row in fieldRows.mitems:
   row.fill(-1)
 
-let positionsBuffer = createArrayBuffer[Vec4f](length = NumRows*NumCols, usage = GL_STREAM_DRAW, label = "positions" )
-let colorsBuffer    = createArrayBuffer[Vec4f](length = NumRows*NumCols, usage = GL_STREAM_DRAW, label = "colors")
-
-var framePositionsBuffer : ArrayBuffer[Vec4f]
-var frameColorsBuffer    : ArrayBuffer[Vec4f]
-var framePositionsLen: int
-
-block:
-  var framePositionsSeq = newSeq[Vec4f]()
-  var frameColorsSeq    = newSeq[Vec4f]()
-
-  for i in 0 ..< NumCols:
-    framePositionsSeq.add vec4f(float32(i), -1.0f,   0, 1)
-    #framePositionsSeq.add vec4f(float32(i), NumRows, 0, 1)
-
-  for i in 0 ..< NumRows:
-    framePositionsSeq.add vec4f(-1.0f,   float32(i), 0, 1)
-    framePositionsSeq.add vec4f(NumCols, float32(i), 0, 1)
-
-  framePositionsSeq.add vec4f(-1,-1,0,1)
-  framePositionsSeq.add vec4f(NumCols, -1,0,1)
-
-  for i in -3'i32 ..< 3'i32:
-    framePositionsSeq.add vec4f(vec2f(nextBlockPos + vec2i( i,-3)), 0, 1)
-    framePositionsSeq.add vec4f(vec2f(nextBlockPos + vec2i(-i, 3)), 0, 1)
-    framePositionsSeq.add vec4f(vec2f(nextBlockPos + vec2i(-3,-i)), 0, 1)
-    framePositionsSeq.add vec4f(vec2f(nextBlockPos + vec2i( 3, i)), 0, 1)
-
-  frameColorsSeq.setLen(framePositionsSeq.len)
-  frameColorsSeq.fill(vec4f(vec3f(0.5f), 1))
-
-
-
-  framePositionsBuffer = arrayBuffer(framePositionsSeq)
-  frameColorsBuffer    = arrayBuffer(frameColorsSeq)
-  framePositionsLen = framePositionsSeq.len
-
 var previewBlockType = 0
 var previewBlockRot  = 0
-
 
 ####################
 # animation system #
@@ -535,9 +484,56 @@ proc mainMenu(): void =
       renderText("> ", vec2i(x - 20, y))
     renderText(entry, vec2i(x,y))
 
+proc main*(window: Window): void =
+  init()
 
-proc main(): void =
+  let windowsize = window.size
+  let projection_mat : Mat4f = perspective(45'f32, windowsize.x / windowsize.y, 0.1, 100.0)
+  var planeVertices = arrayBuffer([
+    vec4f(0,0,0,1), vec4f( 100, 0,0,1), vec4f( 0, 100,0,1),
+    vec4f(0,0,0,1), vec4f( 0, 100,0,1), vec4f(-100, 0,0,1),
+    vec4f(0,0,0,1), vec4f(-100, 0,0,1), vec4f( 0,-100,0,1),
+    vec4f(0,0,0,1), vec4f( 0,-100,0,1), vec4f( 100, 0,0,1)
+  ])
 
+  let positionsBuffer = createArrayBuffer[Vec4f](length = NumRows*NumCols, usage = GL_STREAM_DRAW, label = "positions" )
+  let colorsBuffer    = createArrayBuffer[Vec4f](length = NumRows*NumCols, usage = GL_STREAM_DRAW, label = "colors")
+
+  var framePositionsBuffer : ArrayBuffer[Vec4f]
+  var frameColorsBuffer    : ArrayBuffer[Vec4f]
+  var framePositionsLen: int
+
+  block:
+    var framePositionsSeq = newSeq[Vec4f]()
+    var frameColorsSeq    = newSeq[Vec4f]()
+
+    for i in 0 ..< NumCols:
+      framePositionsSeq.add vec4f(float32(i), -1.0f,   0, 1)
+      #framePositionsSeq.add vec4f(float32(i), NumRows, 0, 1)
+
+    for i in 0 ..< NumRows:
+      framePositionsSeq.add vec4f(-1.0f,   float32(i), 0, 1)
+      framePositionsSeq.add vec4f(NumCols, float32(i), 0, 1)
+
+    framePositionsSeq.add vec4f(-1,-1,0,1)
+    framePositionsSeq.add vec4f(NumCols, -1,0,1)
+
+    for i in -3'i32 ..< 3'i32:
+      framePositionsSeq.add vec4f(vec2f(nextBlockPos + vec2i( i,-3)), 0, 1)
+      framePositionsSeq.add vec4f(vec2f(nextBlockPos + vec2i(-i, 3)), 0, 1)
+      framePositionsSeq.add vec4f(vec2f(nextBlockPos + vec2i(-3,-i)), 0, 1)
+      framePositionsSeq.add vec4f(vec2f(nextBlockPos + vec2i( 3, i)), 0, 1)
+
+    frameColorsSeq.setLen(framePositionsSeq.len)
+    frameColorsSeq.fill(vec4f(vec3f(0.5f), 1))
+
+
+
+    framePositionsBuffer = arrayBuffer(framePositionsSeq)
+    frameColorsBuffer    = arrayBuffer(frameColorsSeq)
+    framePositionsLen = framePositionsSeq.len
+
+  
   while runGame:
     frame += 1
 
@@ -716,9 +712,10 @@ proc main(): void =
 
       glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-      #renderText("score: " & $score,       vec2i(20, 20))
-      #renderText("level: " & $level,       vec2i(20, 40))
-      #renderText("lines: " & $clearedRows, vec2i(20, 60))
+      renderText("score: " & $score,       vec2i(20, 20))
+      renderText("level: " & $level,       vec2i(20, 40))
+      renderText("lines: " & $clearedRows, vec2i(20, 60))
+      
       iterator allBlockPositions(): tuple[pos:Vec2f; typ: int] =
         for y, row in fieldRows:
           for x, value in row:
@@ -812,7 +809,9 @@ proc main(): void =
 
     glSwapWindow(window)
 
-main()
+when isMainModule:
+  let (window, _) = defaultSetup()
+  main(window)
 
 # Local Variables:
 # compile-command: "cd examples; nim c -r tetris.nim"

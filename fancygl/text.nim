@@ -42,7 +42,7 @@ proc textRenderer(): ptr TextRenderer =
   var this {.global.}: ptr TextRenderer = nil
   if this.isNil:
     this = create(TextRenderer)
-    this.init(14)
+    this.init(14) # this is a little bit small :-(
   result = this
 
 # proc textRendererLarge(): var TextRenderer =
