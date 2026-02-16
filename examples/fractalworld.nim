@@ -1,8 +1,7 @@
-# Based on a renderman shader by Michael Rivero
-
+# Based on a renderman shader by Michael Rivero this demo isn't to show the
+# amazing fractal visualizer, but about how easy it is to integrate a shader
+# from shadertoy in here
 import ../fancygl
-
-let (window, context) = defaultSetup()
 
 const sharedCode = """
 // Remnant X
@@ -331,60 +330,69 @@ proc noiseTexture3D*(size: Vec3i): Texture3D =
   result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
   result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
 
-
-
-let iChannel0 = noiseTexture3D(vec3i(256))
-iChannel0.parameter(GL_TEXTURE_WRAP_S, GL_REPEAT)
-iChannel0.parameter(GL_TEXTURE_WRAP_T, GL_REPEAT)
-
 const
   iChannelResolution0 = vec2i(256)
 
-glDisable(GL_DEPTH_TEST)
-let aspectRatio = window.aspectRatio.float32
+proc main*(window: Window): void = 
 
-var runGame: bool = true
+  let iChannel0 = noiseTexture3D(vec3i(256))
+  iChannel0.parameter(GL_TEXTURE_WRAP_S, GL_REPEAT)
+  iChannel0.parameter(GL_TEXTURE_WRAP_T, GL_REPEAT)
+  
+  glDisable(GL_DEPTH_TEST)
+  let aspectRatio = window.aspectRatio.float32
 
-let timer = newStopWatch(true)
+  var runGame: bool = true
 
-var centerScale = vec3f(0,0,1)
-var mousePos: Vec2i
+  let timer = newStopWatch(true)
 
-while runGame:
-  var buttonStates:uint32 = getMouseState(mousePos.x.addr, mousePos.y.addr)
+  var centerScale = vec3f(0,0,1)
+  var mousePos: Vec2i
 
-  var texCoord: Vec2f = mousePos.vec2f / window.size.vec2f
-  texCoord.y = 1 - texCoord.y
-  let pos: Vec2f = centerScale.xy + (texCoord - 0.5) * vec2(aspectRatio, 1) * centerScale.z;
-  centerScale.xy = pos
+  while runGame:
+    #var buttonStates:uint32 =
+    discard getMouseState(mousePos.x.addr, mousePos.y.addr)
+    
+    var texCoord: Vec2f = mousePos.vec2f / window.size.vec2f
+    texCoord.y = 1 - texCoord.y
+    let pos: Vec2f = centerScale.xy + (texCoord - 0.5) * vec2(aspectRatio, 1) * centerScale.z;
+    centerScale.xy = pos
 
-  for evt in events():
-    if evt.kind == QUIT:
-      runGame = false
-      break
-    if evt.kind == KEY_DOWN:
-      if evt.key.keysym.scancode == SCANCODE_ESCAPE:
+    for evt in events():
+      if evt.kind == QUIT:
         runGame = false
-      if evt.key.keysym.scancode == SCANCODE_F10:
-        window.screenshot
+        break
+      if evt.kind == KEY_DOWN:
+        if evt.key.keysym.scancode == SCANCODE_ESCAPE:
+          runGame = false
+        if evt.key.keysym.scancode == SCANCODE_F10:
+          window.screenshot
 
-    if evt.kind == MOUSEWHEEL:
-      centerScale.z *= pow(1.05f, -evt.wheel.y.float32)
+      if evt.kind == MOUSEWHEEL:
+        centerScale.z *= pow(1.05f, -evt.wheel.y.float32)
 
-  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-  shadingDsl:
-    uniforms:
-      iChannel0
-      iChannelResolution0
-      iMouse = mousePos
-      iResolution = vec2f(window.size)
-      iTime = float32(timer.time)
-    includes:
-      sharedCode
-    fragmentMain:
-      """
-      mainImage(color, gl_FragCoord.xy);
-      """
+    shadingDsl:
+      uniforms:
+        iChannel0
+        iChannelResolution0
+        iMouse = mousePos
+        iResolution = vec2f(window.size)
+        iTime = float32(timer.time)
+      includes:
+        sharedCode
+      fragmentMain:
+        """
+        mainImage(color, gl_FragCoord.xy);
+        """
 
-  glSwapWindow(window)
+    glSwapWindow(window)
+
+when isMainModule:
+  let (window, _) = defaultSetup()
+  main(window)
+
+# Local Variables:
+# compile-command: "cd examples; nim c -r -d:release fractalworld.nim"
+# End:

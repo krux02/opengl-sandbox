@@ -35,7 +35,7 @@ proc main*(window: Window): void =
     # TODO maybe a mouse interface?
 
     let buttonLeft:   bool = (buttonStates and BUTTON_LMASK) != 0
-    let buttonMiddle: bool = (buttonStates and BUTTON_MMASK) != 0
+    # let buttonMiddle: bool = (buttonStates and BUTTON_MMASK) != 0
     let buttonRight:  bool = (buttonStates and BUTTON_RMASK) != 0
 
     var state = getKeyboardState(nil)

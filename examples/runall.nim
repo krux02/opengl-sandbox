@@ -1,5 +1,6 @@
 import ../fancygl
 
+import hello_triangle
 import shooty
 import openmesh
 import forward_vertex_shader
@@ -9,8 +10,7 @@ import skew_box
 import mandelbrot
 import particles
 # import particles_transform_feedback
-# import fractalworld
-# import hello_triangle
+import fractalworld
 # import waves
 # import craftingmine
 # import tetris
@@ -32,6 +32,8 @@ proc resetGlState(): void =
   glClearColor(0,0,0,0)
 
 resetGlState()
+hello_triangle.main(window)
+resetGlState()
 shooty.main(window)
 resetGlState()
 openmesh.main(window)
@@ -47,9 +49,10 @@ resetGlState()
 mandelbrot.main(window)
 resetGlState()
 particles.main(window)
-# particles_transform_feedback.main(window)
-# fractalworld.main(window)
-# hello_triangle.main(window)
+# resetGlState()
+# particles_transform_feedback.main(window) # this is bugged, can't be integrated right now
+resetGlState()
+fractalworld.main(window)
 # waves.main(window)
 # craftingmine.main(window)
 # tetris.main(window)

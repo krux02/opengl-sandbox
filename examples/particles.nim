@@ -1,16 +1,35 @@
 import ../fancygl
 
+type ParticleRenderData = object
+  pos: Vec2f
+  col: Vec3f
+  rot: float32
+  
+type ParticleSimulationData = object
+  vel: Vec2f
+  birthday: float64
+  
+type ParticleRef = object
+  simulationData: ptr ParticleSimulationData
+  renderData: ptr ParticleRenderData
+
+proc pos(this: ParticleRef): var Vec2f =
+  this.renderData.pos
+proc col(this: ParticleRef): var Vec3f =
+  this.renderData.col
+proc rot(this: ParticleRef): var float32 =
+  this.renderData.rot
+proc vel(this: ParticleRef): var Vec2f =
+  this.simulationData.vel
+proc birthday(this: ParticleRef): var float64 =
+  this.simulationData.birthday
+
 proc main*(window: Window): void =
   let windowsize = vec2f(window.size)
 
   const
     numParticles   = 5000
     maxParticleAge = 16.0'f64
-
-  type ParticleRenderData = object
-    pos: Vec2f
-    col: Vec3f
-    rot: float32
 
   var cpuParticleRenderData = newSeq[ParticleRenderData](numParticles)
 
@@ -26,32 +45,12 @@ proc main*(window: Window): void =
     colView = particleRenderData.view(col)
     rotView = particleRenderData.view(rot)
 
-  type ParticleSimulationData = object
-    vel: Vec2f
-    birthday: float64
-
   var particleSimulationData = newSeq[ParticleSimulationData](numParticles)
 
   for particle in particleSimulationData.mitems():
     particle.vel.x = randNormal().float32 * 32
     particle.vel.y = randNormal().float32 * 32
     particle.birthday = - rand_f64() * maxParticleAge
-
-  type
-    ParticleRef = object
-      simulationData: ptr ParticleSimulationData
-      renderData: ptr ParticleRenderData
-
-  proc pos(this: ParticleRef): var Vec2f =
-    this.renderData.pos
-  proc col(this: ParticleRef): var Vec3f =
-    this.renderData.col
-  proc rot(this: ParticleRef): var float32 =
-    this.renderData.rot
-  proc vel(this: ParticleRef): var Vec2f =
-    this.simulationData.vel
-  proc birthday(this: ParticleRef): var float64 =
-    this.simulationData.birthday
 
   var running = true
   var gameTimer = newStopWatch(true)
@@ -241,7 +240,7 @@ proc main*(window: Window): void =
     glSwapWindow(window)
 
 when isMainModule:
-  let (window, context) = defaultSetup()
+  let (window, _) = defaultSetup()
   main(window)
 
 # Local Variables:
