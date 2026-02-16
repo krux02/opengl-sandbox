@@ -94,10 +94,7 @@ float calcHeight(vec2 pos) {
 }
 """
 
-
 import ../fancygl
-
-let (window, context) = defaultSetup()
 
 const
   cubemapWidth = 64'i32
@@ -106,62 +103,15 @@ const
   # tweak this parameter to be able to see further
   gridTiles = 128
 
-let windowsize = window.size
-
-let verts                = arrayBuffer(gridVerticesXMajor(vec2i(gridTiles + 1)))
-let triangleStripIndices = elementArrayBuffer(gridIndicesTriangleStrip(vec2i(gridTiles + 1)))
-let quadIndices          = elementArrayBuffer(gridIndicesQuads(vec2i(gridTiles + 1)))
-let circleVertices       = arrayBuffer(circleVertices(48))
-
-for vert in verts.mitems:
-  vert.xy -= vec2f(gridTiles div 2)
-
-let skyTexture = loadTexture2DFromFile(getResourcePath("panorama.jpg"))
-
-skyTexture.parameter(GL_TEXTURE_WRAP_S, GL_REPEAT)
-skyTexture.parameter(GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
-
-let
-  sphereVertices  = arrayBuffer(uvSphereVertices(128,64))
-  sphereNormals   = arrayBuffer(uvSphereNormals(128,64))
-  sphereTexCoords = arrayBuffer(uvSphereTexCoords(128,64))
-  sphereIndices   = elementArrayBuffer(uvSphereIndices(128,64))
-
-let
-  torusVertices  = arrayBuffer(torusVertices(48,12, 1.0f, 0.1f))
-  torusNormals   = arrayBuffer(torusNormals(48,12))
-  torusTexCoords = arrayBuffer(torusTexCoords(48,12))
-  torusIndices  = elementArrayBuffer(torusIndicesTriangleStrip(48,12))
-
-let triangleStripIndicesLen = triangleStripIndices.len
-let quadIndicesLen = quadIndices.len
-let sphereIndicesLen = sphereIndices.len
-let torusIndicesLen = torusIndices.len
-
 var
   running = true
   skybox  = true
-
-var projMat = perspective(45'f32, windowsize.x / windowsize.y, 0.9, 1000.0)
 
 var
   gameTimer = newStopWatch(true)
   time: float32 = 0
 
 discard setRelativeMouseMode(true)
-
-let layers = newTexture1D(512, GL_RGBA8)
-
-block:
-  var data = newSeq[Vec4u8](512)
-  for color in data.mitems:
-    color.x = rand_u8()
-    color.y = rand_u8()
-    color.z = rand_u8()
-    color.w = 255
-
-  layers.setData data
-  layers.generateMipmap
 
 proc rotMat2f(angle: float32): Mat2f =
   let s = sin(angle)
@@ -172,7 +122,57 @@ proc rotMat2f(angle: float32): Mat2f =
   result[1,0] = -s
   result[1,1] =  c
 
-proc setup(): void =
+# TODO having these as globals isn't a good idea, they should be cleaned up after main exits
+var verts, circleVertices: ArrayBuffer[Vec4f]
+var triangleStripIndices: ElementArrayBuffer[int32]
+var skyTexture: Texture2D
+
+var sphereVertices: ArrayBuffer[Vec4f]
+var sphereNormals: ArrayBuffer[Vec4f]
+var sphereTexCoords: ArrayBuffer[Vec2f]
+var sphereIndices: ElementArrayBuffer[int16]
+
+var torusVertices: ArrayBuffer[Vec4f]
+var torusNormals: ArrayBuffer[Vec4f]
+var torusTexCoords: ArrayBuffer[Vec2f]
+var torusIndices: ElementArrayBuffer[int32]
+
+var quadVertices: ArrayBuffer[Vec4f]
+
+var triangleStripIndicesLen: int32
+var sphereIndicesLen: int32
+var torusIndicesLen: int32
+
+
+proc setup(window: Window): void =  
+  verts                = arrayBuffer(gridVerticesXMajor(vec2i(gridTiles + 1)))
+  triangleStripIndices = elementArrayBuffer(gridIndicesTriangleStrip(vec2i(gridTiles + 1)))
+  circleVertices       = arrayBuffer(circleVertices(48))
+
+  for vert in verts.mitems:
+    vert.xy -= vec2f(gridTiles div 2)
+
+  skyTexture = loadTexture2DFromFile(getResourcePath("panorama.jpg"))
+
+  skyTexture.parameter(GL_TEXTURE_WRAP_S, GL_REPEAT)
+  skyTexture.parameter(GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+
+  sphereVertices  = arrayBuffer(uvSphereVertices(128,64))
+  sphereNormals   = arrayBuffer(uvSphereNormals(128,64))
+  sphereTexCoords = arrayBuffer(uvSphereTexCoords(128,64))
+  sphereIndices   = elementArrayBuffer(uvSphereIndices(128,64))
+
+  torusVertices  = arrayBuffer(torusVertices(48,12, 1.0f, 0.1f))
+  torusNormals   = arrayBuffer(torusNormals(48,12))
+  torusTexCoords = arrayBuffer(torusTexCoords(48,12))
+  torusIndices  = elementArrayBuffer(torusIndicesTriangleStrip(48,12))
+
+  quadVertices = arrayBuffer([vec4f(-1,-1,0,1), vec4f(1, -1, 0 ,1), vec4f(-1,1,0,1), vec4f(1,1,0,1)])
+  
+  triangleStripIndicesLen = triangleStripIndices.len
+  sphereIndicesLen = sphereIndices.len
+  torusIndicesLen = torusIndices.len
+  
   glEnable(GL_CULL_FACE)
   glEnable(GL_BLEND)
   glEnable(GL_DEPTH_CLAMP)
@@ -181,7 +181,7 @@ proc setup(): void =
   glViewport(0,0,window.size.x, window.size.y)
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
 
-proc drawSky(viewMat: Mat4f): void =
+proc drawSky(projMat, viewMat: Mat4f): void =
 
   shadingDsl:
     primitiveMode = GL_TRIANGLES
@@ -208,8 +208,9 @@ proc drawSky(viewMat: Mat4f): void =
       color = texture(skyTexture, v_texCoord);
       color.a = 1.0;
       """
-
-proc drawPortalWindow(modelViewMat: Mat4f): void =
+      
+proc drawPortalWindow(projMat, modelViewMat: Mat4f): void =
+    
   shadingDsl:
     primitiveMode = GL_TRIANGLE_FAN
     numVertices   = 50
@@ -237,7 +238,7 @@ proc drawPortalWindow(modelViewMat: Mat4f): void =
 
 var frame = 0
 
-proc drawTorus(modelViewMat: Mat4f, clipPlane_ws: Vec4f): void =
+proc drawTorus(projMat, modelViewMat: Mat4f, clipPlane_ws: Vec4f): void =
   shadingDsl:
     primitiveMode = GL_TRIANGLE_STRIP
     numVertices   = torusIndicesLen
@@ -272,10 +273,7 @@ proc drawTorus(modelViewMat: Mat4f, clipPlane_ws: Vec4f): void =
       color.a = 1;
       """
 
-
-let quadVertices = arrayBuffer([vec4f(-1,-1,0,1), vec4f(1, -1, 0 ,1), vec4f(-1,1,0,1), vec4f(1,1,0,1)])
-
-proc drawPlane(modelViewMat: Mat4f): void =
+proc drawPlane(projMat, modelViewMat: Mat4f): void =
   shadingDsl:
     primitiveMode = GL_TRIANGLE_STRIP
     numVertices = 4
@@ -298,7 +296,7 @@ proc drawPlane(modelViewMat: Mat4f): void =
       color= vec4(v_texCoord,0,1);
       """
 
-proc drawHeightMap(viewMat: Mat4f, clipPlane_ws: Vec4f): void =
+proc drawHeightMap(projMat, viewMat: Mat4f, clipPlane_ws: Vec4f, layers: Texture1D): void =
   let mvp = projMat * viewMat
   let viewInverted = inverse(viewMat)
 
@@ -366,28 +364,28 @@ when saveSkybox:
     #let cubemap = newCubemapTexture()
     #glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X, cubemap.handle, 0)
 
-    drawSky(tempCam.viewMat)
+    drawSky(projMat, tempCam.viewMat)
     skyboxRt.color.saveBMP("skyboxtest-1.bmp")
 
     tempCam.turnRelativeX(radians(90.0))
-    drawSky(tempCam.viewMat)
+    drawSky(projMat, tempCam.viewMat)
     skyboxRt.color.saveBMP("skyboxtest-2.bmp")
 
     tempCam.turnAbsoluteZ(radians(90.0))
-    drawSky(tempCam.viewMat)
+    drawSky(projMat, tempCam.viewMat)
     skyboxRt.color.saveBMP("skyboxtest-3.bmp")
 
     tempCam.turnAbsoluteZ(radians(90.0))
-    drawSky(tempCam.viewMat)
+    drawSky(projMat, tempCam.viewMat)
     skyboxRt.color.saveBMP("skyboxtest-4.bmp")
 
     tempCam.turnAbsoluteZ(radians(90.0))
-    drawSky(tempCam.viewMat)
+    drawSky(projMat, tempCam.viewMat)
     skyboxRt.color.saveBMP("skyboxtest-5.bmp")
 
     tempCam.turnAbsoluteZ(radians(90.0))
     tempCam.turnRelativeX(radians(90.0))
-    drawSky(tempCam.viewMat)
+    drawSky(projMat, tempCam.viewMat)
     skyboxRt.color.saveBMP("skyboxtest-6.bmp")
 
 proc toggleWireframe() : void =
@@ -464,15 +462,15 @@ portals[1].node.turnRelativeZ(rand_f32() * 10)
 
 connect(portals[0],portals[1])
 
-proc drawScene(viewMat: Mat4f, clipPlane_ws: Vec4f): void =
-  drawSky(viewMat)
-  drawHeightMap(viewMat, clipPlane_ws)
+proc drawScene(projMat, viewMat: Mat4f, clipPlane_ws: Vec4f, layers: Texture1D): void =
+  drawSky(projMat, viewMat)
+  drawHeightMap(projMat, viewMat, clipPlane_ws, layers)
 
   for portal in portals:
-    drawTorus(viewMat * portal.node.modelmat, clipPlane_ws)
-    drawTorus(viewMat * portal.node.modelmat, clipPlane_ws)
+    drawTorus(projMat, viewMat * portal.node.modelmat, clipPlane_ws)
+    drawTorus(projMat, viewMat * portal.node.modelmat, clipPlane_ws)
 
-proc drawPortal(viewMat: Mat4f, src,dst: WorldNode) =
+proc drawPortal(projMat, viewMat: Mat4f, src,dst: WorldNode, layers: Texture1D, windowsize: Vec2i) =
 
   glStencilMask(system.high(uint32))
   glEnable(GL_STENCIL_TEST)
@@ -481,7 +479,7 @@ proc drawPortal(viewMat: Mat4f, src,dst: WorldNode) =
   glStencilFunc(GL_ALWAYS, 1, 1)
   glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE)
 
-  drawPortalWindow(viewMat * src.modelmat)
+  drawPortalWindow(projMat, viewMat * src.modelmat)
 
   glEnable(GL_CULL_FACE)
 
@@ -492,10 +490,10 @@ proc drawPortal(viewMat: Mat4f, src,dst: WorldNode) =
 
   a /= a.w
   b /= b.w
-  var x = vec2i((a.xy * 0.5 + 0.5) * vec2f(window.size))
-  var y = vec2i((b.xy * 0.5 + 0.5) * vec2f(window.size))
-  x = clamp(x, vec2i(0), window.size)
-  y = clamp(y, vec2i(0), window.size)
+  var x = vec2i((a.xy * 0.5 + 0.5) * vec2f(windowsize))
+  var y = vec2i((b.xy * 0.5 + 0.5) * vec2f(windowsize))
+  x = clamp(x, vec2i(0), windowsize)
+  y = clamp(y, vec2i(0), windowsize)
   let s = y - x
 
 
@@ -509,7 +507,7 @@ proc drawPortal(viewMat: Mat4f, src,dst: WorldNode) =
 
     glEnable(GL_CLIP_DISTANCE0)
     glClear(GL_DEPTH_BUFFER_BIT)
-    drawScene(viewPrime, dst.clipPlane)
+    drawScene(projMat, viewPrime, dst.clipPlane, layers)
     glDisable(GL_CLIP_DISTANCE0)
 
     glDisable(GL_SCISSOR_TEST)
@@ -517,72 +515,95 @@ proc drawPortal(viewMat: Mat4f, src,dst: WorldNode) =
 
   glDisable(GL_STENCIL_TEST)
 
-setup()
 
-while running:
-  defer:
-    frame += 1
+proc main*(window: Window): void =
+  setup(window)
 
-  # handle events
+  let layers = newTexture1D(512, GL_RGBA8)
 
-  var rotation, movement : Vec3f
+  block:
+    var data = newSeq[Vec4u8](512)
+    for color in data.mitems:
+      color.x = rand_u8()
+      color.y = rand_u8()
+      color.z = rand_u8()
+      color.w = 255
 
-  for evt in events():
-    if evt.kind == QUIT:
-      running = false
-      break
-    elif evt.kind == KeyDown:
-      case evt.key.keysym.scancode:
-      of SCANCODE_ESCAPE:
+    layers.setData data
+    layers.generateMipmap
+
+  let windowsize = window.size
+  var proj = perspective(45'f32, windowsize.x / windowsize.y, 0.9, 1000.0)
+
+  while running:
+    defer:
+      frame += 1
+
+    # handle events
+
+    var rotation, movement : Vec3f
+
+    for evt in events():
+      if evt.kind == QUIT:
         running = false
         break
-      of SCANCODE_F10:
-        window.screenshot
-      of SCANCODE_W:
-        toggleWireframe()
-      of SCANCODE_R:
-        skybox = not skybox
+      elif evt.kind == KeyDown:
+        case evt.key.keysym.scancode:
+        of SCANCODE_ESCAPE:
+          running = false
+          break
+        of SCANCODE_F10:
+          window.screenshot
+        of SCANCODE_W:
+          toggleWireframe()
+        of SCANCODE_R:
+          skybox = not skybox
+        else:
+          discard
+
+      elif evt.kind == MouseMotion:
+        rotation.x = rotation.x - evt.motion.yrel.float / 128.0
+        rotation.y = rotation.y - evt.motion.xrel.float / 128.0
+
       else:
         discard
 
-    elif evt.kind == MouseMotion:
-      rotation.x = rotation.x - evt.motion.yrel.float / 128.0
-      rotation.y = rotation.y - evt.motion.xrel.float / 128.0
+    var state = getKeyboardState(nil)
 
+    movement.z = (state[SCANCODE_D].float - state[SCANCODE_E].float) * 0.4
+    movement.x = (state[SCANCODE_F].float - state[SCANCODE_S].float) * 0.4
+
+    let oldCamera = camera
+
+    camera.moveRelative(movement)
+    camera.turnRelativeX(rotation.x)
+    camera.turnAbsoluteZ(rotation.y)
+
+    camera.dir = normalize(camera.dir)
+
+    for i, portal in portals:
+      if portal.tunnelTest(oldCamera.pos, camera.pos):
+        camera = portal.transformNode(camera)
+
+    time = gameTimer.time.float32
+
+    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT)
+
+    let view = camera.viewMat
+    let camdir_ws = camera.modelmat[2]
+
+    drawScene(proj, view, portals[0].node.clipPlane, layers)
+
+    if dot(portals[0].node.pos, camdir_ws) < dot(portals[1].node.pos, camdir_ws):
+      drawPortal(proj, view, portals[0].node, portals[0].target.node, layers, windowsize)
+      drawPortal(proj, view, portals[1].node, portals[1].target.node, layers, windowsize)
     else:
-      discard
+      drawPortal(proj, view, portals[1].node, portals[1].target.node, layers, windowsize)
+      drawPortal(proj, view, portals[0].node, portals[0].target.node, layers, windowsize)
 
-  var state = getKeyboardState(nil)
+    glSwapWindow(window)
 
-  movement.z = (state[SCANCODE_D].float - state[SCANCODE_E].float) * 0.4
-  movement.x = (state[SCANCODE_F].float - state[SCANCODE_S].float) * 0.4
 
-  let oldCamera = camera
-
-  camera.moveRelative(movement)
-  camera.turnRelativeX(rotation.x)
-  camera.turnAbsoluteZ(rotation.y)
-
-  camera.dir = normalize(camera.dir)
-
-  for i, portal in portals:
-    if portal.tunnelTest(oldCamera.pos, camera.pos):
-      camera = portal.transformNode(camera)
-
-  time = gameTimer.time.float32
-
-  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT or GL_STENCIL_BUFFER_BIT)
-
-  let view = camera.viewMat
-  let camdir_ws = camera.modelmat[2]
-
-  drawScene(view, portals[0].node.clipPlane)
-
-  if dot(portals[0].node.pos, camdir_ws) < dot(portals[1].node.pos, camdir_ws):
-    drawPortal(view, portals[0].node, portals[0].target.node)
-    drawPortal(view, portals[1].node, portals[1].target.node)
-  else:
-    drawPortal(view, portals[1].node, portals[1].target.node)
-    drawPortal(view, portals[0].node, portals[0].target.node)
-
-  glSwapWindow(window)
+when isMainModule:
+  let (window, context) = defaultSetup()
+  main(window)

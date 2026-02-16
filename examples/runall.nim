@@ -11,6 +11,9 @@ proc resetState(): void =
   glDepthFunc(GL_LESS)
   glDisable(GL_CULL_FACE)
   glDisable(GL_BLEND)
+  glDisable(GL_STENCIL_TEST)
+  glDisable(GL_PROGRAM_POINT_SIZE)
+  
   discard setRelativeMouseMode(false)
 
 macro makeRunExamples(args: varargs[untyped]): untyped =
@@ -43,11 +46,9 @@ makeRunExamples(
   # particles_transform_feedback,  # this is bugged, can't be integrated right now
   fractalworld, 
   craftingmine, 
-  waves, 
+  # waves,  TODO this causes sometimes segfaults for some reason
   tetris,
- 
-
-  # noise_landscape, 
+  noise_landscape, 
   # octree, 
   # player_controls, 
   # iqm_mesh_loading, 
