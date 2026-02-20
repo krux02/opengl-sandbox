@@ -460,13 +460,8 @@ proc dist(a,b: Vec3f): float32 =
 # Flocking Behiviour #
 ######################
 
-
-var drawForcesBuffer: ArrayBuffer[tuple[position: Vec3f; color: Color]]
-
-proc flock(tree: var Tree): void =
+proc flock(tree: var Tree; drawForcesData: var seq[tuple[position: Vec3f; color: Color]]): void =
   var neighborSearchResult: seq[(int32,int32)] # TODO does it need init
-
-
   # Separation
   # Method checks for nearby boids and steers away
   tree.neighborSearch(desiredseparation, neighborSearchResult)
@@ -564,7 +559,8 @@ proc flock(tree: var Tree): void =
     tree.data[i].acceleration += tup.steer * cohesionFactor
 
   if enableDrawForces:
-    var data = newSeqOfCap[tuple[position: Vec3f; color: Color]](tree.data.len * 2 * 3)
+    # var data = newSeqOfCap[tuple[position: Vec3f; color: Color]](tree.data.len * 2 * 3)
+    drawForcesData.setLen(0)
 
     for i, it in tree.data:
       let center = it.position
@@ -574,19 +570,12 @@ proc flock(tree: var Tree): void =
         Color(r: 0, g: 0, b: 255)
       ]
 
-
-      data.add( (position: center, color: colors[0]) )
-      data.add( (position: center + separation[i].steer, color: colors[0]) )
-      data.add( (position: center, color: colors[1]) )
-      data.add( (position: center + align[i].steer, color: colors[1]) )
-      data.add( (position: center, color: colors[2]) )
-      data.add( (position: center + cohesion[i].steer, color: colors[2]) )
-
-
-    if drawForcesBuffer.handle == 0:
-      drawForcesBuffer = arrayBuffer(data)
-    else:
-      drawForcesBuffer.setData(data)
+      drawForcesData.add( (position: center, color: colors[0]) )
+      drawForcesData.add( (position: center + separation[i].steer, color: colors[0]) )
+      drawForcesData.add( (position: center, color: colors[1]) )
+      drawForcesData.add( (position: center + align[i].steer, color: colors[1]) )
+      drawForcesData.add( (position: center, color: colors[2]) )
+      drawForcesData.add( (position: center + cohesion[i].steer, color: colors[2]) )
 
   # apply flocking forces to velocity and velocity to position
   for node in tree.data.mitems:
@@ -690,6 +679,30 @@ proc drawBoxes(proj,modelView: Mat4f): void =
       color = vec4(0,0,1,1);
       """
 
+# proc drawForces(proj, modelView: Mat4f; drawForcesBuffer: ArrayBuffer[tuple[position: Vec3f; color: Color]]): void =
+proc drawForces(proj, modelView: Mat4f; a_vertex: ArrayBufferView[Vec3f], a_color: ArrayBufferView[Color], numVertices: int): void =
+  glDisable(GL_DEPTH_TEST)
+  shadingDsl:
+    primitiveMode = GL_LINES
+    numVertices = numVertices
+    uniforms:
+      modelViewProj = proj * modelView
+    attributes:
+      a_vertex# = drawForcesBuffer.view(position)
+      a_color# = drawForcesBuffer.view(color)
+    vertexMain:
+      """
+      gl_Position = modelViewProj * vec4(a_vertex, 1);
+      v_color = a_color;
+      """
+    vertexOut:
+      "out vec4 v_color"
+    fragmentMain:
+      """
+      color = v_color;
+      """
+  glEnable(GL_DEPTH_TEST)
+      
 var camera = newWorldNode()
 var cameraControls: CameraControls
 cameraControls.speed = 300
@@ -724,13 +737,53 @@ proc drawNeighborhood(proj,modelView: Mat4f): void =
       color = vec4(1,1,0,1);
       """
 
-#import gifh
+proc drawMeshInstanced(proj, modelView: Mat4f, mesh: SimpleMesh, positions: ArrayBufferView[Vec3f], instanceColors: ArrayBufferView[Color], numInstances: int): void =
+  shadingDsl:
+    primitiveMode = GL_TRIANGLES
+    numVertices = mesh.numVertices
+    vertexOffset = mesh.vertexOffset
+    baseVertex = mesh.baseVertex
+    indices = indices
+    numInstances = numInstances
+
+    uniforms:
+      proj
+      view = modelView
+
+    attributes:
+      a_vertex = vertices
+      a_normal = normals
+      a_color  = colors
+      instancePos = positions {.divisor: 1.}
+      instanceColor = instanceColors {.divisor: 1.}
+
+    vertexMain:
+      """
+      gl_Position = proj * view * (a_vertex + vec4(instancePos,0));
+      v_normal = normalize(view * a_normal);
+      v_color = a_color * instanceColor;
+      """
+    vertexOut:
+      "out vec4 v_normal"
+      "out vec4 v_color"
+
+    fragmentMain:
+      """
+      // cheap fake lighting from camera direction
+      color = v_color * v_normal.z;
+      """
 
 #var animation: GifAnimation
 var remainingFrames = 0
 var remainingSimulationSteps = 0
 
 var time, lastTime: float64
+
+var drawForcesBuffer: ArrayBuffer[tuple[position: Vec3f; color: Color]]
+var drawForcesData: seq[tuple[position: Vec3f; color: Color]]
+
+var newRenderFunction = false
+
 while runGame:
 
   discard showCursor(if mouseModeToggle: 1 else: 0)
@@ -760,6 +813,8 @@ while runGame:
         enableDrawForces           = not enableDrawForces
       of SCANCODE_4:
         stepSimulation             = not stepSimulation
+      of SCANCODE_5:
+        newRenderFunction = not newRenderFunction
       of SCANCODE_SPACE:
         if stepSimulation:
           remainingSimulationSteps += 1
@@ -780,16 +835,15 @@ while runGame:
 
   if mouseModeToggle:
     camera.update(cameraControls, deltaTime)
-
+    
   if stepSimulation:
     while remainingSimulationSteps > 0:
       remainingSimulationSteps -= 1
-      tree.flock()
+      tree.flock(drawForcesData)
   else:
-    tree.flock()
+    tree.flock(drawForcesData)
 
   treeDataBuffer.setData(tree.data)
-
 
   #tree.catchUpOrder(objectDataSeq)
   #objectDataBuffer.setData(objectDataSeq)
@@ -818,68 +872,19 @@ while runGame:
           buffer[i].color  = value.color
           i += 1
 
-    shadingDsl:
-      primitiveMode = GL_TRIANGLES
-      numVertices = mesh.numVertices
-      vertexOffset = mesh.vertexOffset
-      baseVertex = mesh.baseVertex
-      indices = indices
-      numInstances = i
-
-      uniforms:
-        proj
-        view = modelView
-
-      attributes:
-        a_vertex = vertices
-        a_normal = normals
-        a_color  = colors
-        instancePos = buffer.view(offset) {.divisor: 1.}
-        instanceColor = buffer.view(color) {.divisor: 1.}
-
-      vertexMain:
-        """
-        gl_Position = proj * view * (a_vertex + vec4(instancePos,0));
-        v_normal = normalize(view * a_normal);
-        v_color = a_color * instanceColor;
-        """
-      vertexOut:
-        "out vec4 v_normal"
-        "out vec4 v_color"
-
-      fragmentMain:
-        """
-        // cheap fake lighting from camera direction
-        color = v_color * v_normal.z;
-        """
-
+    drawMeshInstanced(proj, modelView, mesh, buffer.view(offset), buffer.view(color), i)
 
   if enableBoxDrawing:
     drawBoxes(proj, modelView)
 
-  if enableDrawForces:
-    glDisable(GL_DEPTH_TEST)
-
-    shadingDsl:
-      primitiveMode = GL_LINES
-      numVertices = drawForcesBuffer.len
-      uniforms:
-        modelViewProj = proj * modelView
-      attributes:
-        a_vertex = drawForcesBuffer.view(position)
-        a_color = drawForcesBuffer.view(color)
-      vertexMain:
-        """
-        gl_Position = modelViewProj * vec4(a_vertex, 1);
-        v_color = a_color;
-        """
-      vertexOut:
-        "out vec4 v_color"
-      fragmentMain:
-        """
-        color = v_color;
-        """
-    glEnable(GL_DEPTH_TEST)
+  if enableDrawForces and len(drawForcesData) > 0:
+    #drawForces(proj, modelView, drawForcesBuffer)
+    if drawForcesBuffer.handle == 0:
+      drawForcesBuffer = arrayBuffer(drawForcesData)
+    else:
+      drawForcesBuffer.setData(drawForcesData)
+      
+    drawForces(proj, modelView, drawForcesBuffer.view(position), drawForcesBuffer.view(color), len(drawForcesBuffer))
 
   discard TwDraw()
   glSwapWindow(window)
