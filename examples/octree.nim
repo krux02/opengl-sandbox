@@ -423,7 +423,6 @@ var tree = spiralOctree(1000)
 let (window, context) = defaultSetup()
 discard setRelativeMouseMode(mouseModeToggle)
 
-
 if TwInit(TW_OPENGL_CORE, nil) == 0:
   quit("could not initialize AntTweakBar: " & $TwGetLastError())
 
@@ -595,11 +594,6 @@ proc flock(tree: var Tree; drawForcesData: var seq[tuple[position: Vec3f; color:
 # End Flocking Behiviour #
 ##########################
 
-initMeshes()
-
-var treeDataBuffer = arrayBuffer(tree.data, GL_STREAM_DRAW)
-let posBuffer      = treeDataBuffer.view(position)
-
 for value in tree.data.mitems:
   value.color.r = rand_u8()
   value.color.g = rand_u8()
@@ -612,57 +606,16 @@ var runGame: bool = true
 let timer = newStopWatch(true)
 
 let aspect = window.aspectRatio.float32
-let proj : Mat4f = frustum(-aspect * 0.01f, aspect * 0.01f, -0.01f, 0.01f, 0.01f, 10000.0)
+
 
 # AABB box rendering
 
-let cubeVertices = arrayBuffer([
-  vec4f( 1, 1, 1, 1),
-  vec4f( 0, 1, 1, 1),
-  vec4f( 1, 0, 1, 1),
-  vec4f( 0, 0, 1, 1),
-  vec4f( 1, 1, 0, 1),
-  vec4f( 0, 1, 0, 1),
-  vec4f( 1, 0, 0, 1),
-  vec4f( 0, 0, 0, 1)
-])
-
-let cubeLineIndices = elementArrayBuffer([
-  0'i8, 1,
-  2, 3,
-  4,5,
-  6,7,
-  0,2,
-  1,3,
-  4,6,
-  5,7,
-  0,4,
-  1,5,
-  2,6,
-  3,7
-
-#  0'i8,7,
-#  1,6,
-#  2,5,
-#  3,4
-])
-let cubeLineIndicesLen = cubeLineIndices.len
-
-var boxes : seq[AABB] = tree.leafNodeBoxes # just for the approximation of the length
-var boxesBuffer = createArrayBuffer[AABB](boxes.len * 2, GL_STREAM_DRAW)
-
-let boxesMinView = boxesBuffer.view(min)
-let boxesMaxView = boxesBuffer.view(max)
-
-proc drawBoxes(proj,modelView: Mat4f): void =
-  tree.leafNodeBoxes(boxes)
-  boxesBuffer.setData(boxes)
-
+proc drawBoxes(proj,modelView: Mat4f, boxesMinView, boxesMaxView: ArrayBufferView[Vec3f], cubeVertices: ArrayBuffer[Vec4f], cubeLineIndices: ElementArrayBuffer[int8], cubeLineIndicesLen: int, numInstances: int): void =
   shadingDsl:
     primitiveMode = GL_LINES
     numVertices = cubeLineIndicesLen
     indices = cubeLineIndices
-    numInstances = boxes.len
+    numInstances = numInstances
     uniforms:
       modelViewProj = proj * modelView
     attributes:
@@ -711,7 +664,7 @@ addEventWatch(cameraControlEventWatch, cameraControls.addr)
 var neighborSearchResult: seq[(int32,int32)]
 var neighborSearchResultBuffer = createElementArrayBuffer[int32](40000, GL_STREAM_DRAW)
 
-proc drawNeighborhood(proj,modelView: Mat4f): void =
+proc drawNeighborhood(proj,modelView: Mat4f, positions: ArrayBufferView[Vec3f]): void =
   tree.neighborSearch(searchRadius, neighborSearchResult)
 
   let sizeArg = GLsizeiptr(neighborSearchResult.len * sizeof(int32) * 2)
@@ -727,7 +680,7 @@ proc drawNeighborhood(proj,modelView: Mat4f): void =
       modelView
       proj
     attributes:
-      a_vertex = posBuffer
+      a_vertex = positions
     vertexMain:
       """
       gl_Position = proj * modelView * vec4(a_vertex, 1);
@@ -773,121 +726,173 @@ proc drawMeshInstanced(proj, modelView: Mat4f, mesh: SimpleMesh, positions: Arra
       color = v_color * v_normal.z;
       """
 
-#var animation: GifAnimation
-var remainingFrames = 0
-var remainingSimulationSteps = 0
 
-var time, lastTime: float64
+proc main*(window: Window): void =
 
-var drawForcesBuffer: ArrayBuffer[tuple[position: Vec3f; color: Color]]
-var drawForcesData: seq[tuple[position: Vec3f; color: Color]]
+  let cubeVertices = arrayBuffer([
+    vec4f( 1, 1, 1, 1),
+    vec4f( 0, 1, 1, 1),
+    vec4f( 1, 0, 1, 1),
+    vec4f( 0, 0, 1, 1),
+    vec4f( 1, 1, 0, 1),
+    vec4f( 0, 1, 0, 1),
+    vec4f( 1, 0, 0, 1),
+    vec4f( 0, 0, 0, 1)
+  ])
 
-var newRenderFunction = false
+  let cubeLineIndices = elementArrayBuffer([
+    0'i8, 1,
+    2, 3,
+    4,5,
+    6,7,
+    0,2,
+    1,3,
+    4,6,
+    5,7,
+    0,4,
+    1,5,
+    2,6,
+    3,7
 
-while runGame:
+  #  0'i8,7,
+  #  1,6,
+  #  2,5,
+  #  3,4
+  ])
+  let cubeLineIndicesLen = cubeLineIndices.len
 
-  discard showCursor(if mouseModeToggle: 1 else: 0)
-  var evt: Event
-  while pollEvent(evt.addr) != 0:
-    if not mouseModeToggle and TwEventSDL(cast[pointer](evt.addr), 2.cuchar, 0.cuchar) != 0:
-      continue
+  var boxes : seq[AABB] = tree.leafNodeBoxes # just for the approximation of the length
+                                             # 
+  var boxesBuffer = createArrayBuffer[AABB](boxes.len * 2, GL_STREAM_DRAW)
+  
+  let boxesMinView = boxesBuffer.view(min)
+  let boxesMaxView = boxesBuffer.view(max)
+  
+  var treeDataBuffer = arrayBuffer(tree.data, GL_STREAM_DRAW)
+  
+  initMeshes()
+  
+  #var animation: GifAnimation
+  var remainingFrames = 0
+  var remainingSimulationSteps = 0
 
-    if evt.kind == QUIT:
-      runGame = false
-      break
-    if evt.kind == KeyDown:
-      case evt.key.keysym.scancode
-      of SCANCODE_ESCAPE:
+  var time, lastTime: float64
+
+  var drawForcesBuffer: ArrayBuffer[tuple[position: Vec3f; color: Color]]
+  var drawForcesData: seq[tuple[position: Vec3f; color: Color]]
+
+  var newRenderFunction = false
+
+  let proj : Mat4f = frustum(-aspect * 0.01f, aspect * 0.01f, -0.01f, 0.01f, 0.01f, 10000.0)
+  
+  
+  
+  while runGame:
+
+    discard showCursor(if mouseModeToggle: 1 else: 0)
+    var evt: Event
+    while pollEvent(evt.addr) != 0:
+      if not mouseModeToggle and TwEventSDL(cast[pointer](evt.addr), 2.cuchar, 0.cuchar) != 0:
+        continue
+
+      if evt.kind == QUIT:
         runGame = false
-      of SCANCODE_F10:
-        window.screenshot
-      of SCANCODE_S:
-        discard
-        #animation = window.startGifAnimation(delay = 1, dither = false)
-        #remainingFrames = 100
-      of SCANCODE_1:
-        enableBoxDrawing           = not enableBoxDrawing
-      of SCANCODE_2:
-        enableNeighbourhoodDrawing = not enableNeighbourhoodDrawing
-      of SCANCODE_3:
-        enableDrawForces           = not enableDrawForces
-      of SCANCODE_4:
-        stepSimulation             = not stepSimulation
-      of SCANCODE_5:
-        newRenderFunction = not newRenderFunction
-      of SCANCODE_SPACE:
-        if stepSimulation:
-          remainingSimulationSteps += 1
-      else:
-        discard
+        break
+      if evt.kind == KeyDown:
+        case evt.key.keysym.scancode
+        of SCANCODE_ESCAPE:
+          runGame = false
+        of SCANCODE_F10:
+          window.screenshot
+        of SCANCODE_S:
+          discard
+          #animation = window.startGifAnimation(delay = 1, dither = false)
+          #remainingFrames = 100
+        of SCANCODE_1:
+          enableBoxDrawing           = not enableBoxDrawing
+        of SCANCODE_2:
+          enableNeighbourhoodDrawing = not enableNeighbourhoodDrawing
+        of SCANCODE_3:
+          enableDrawForces           = not enableDrawForces
+        of SCANCODE_4:
+          stepSimulation             = not stepSimulation
+        of SCANCODE_5:
+          newRenderFunction = not newRenderFunction
+        of SCANCODE_SPACE:
+          if stepSimulation:
+            remainingSimulationSteps += 1
+        else:
+          discard
 
-    if evt.kind == MOUSE_BUTTON_DOWN:
-      case evt.button.button
-      of 3:
-        mouseModeToggle = not mouseModeToggle
-        discard setRelativeMouseMode(mouseModeToggle)
-      else:
-        discard
+      if evt.kind == MOUSE_BUTTON_DOWN:
+        case evt.button.button
+        of 3:
+          mouseModeToggle = not mouseModeToggle
+          discard setRelativeMouseMode(mouseModeToggle)
+        else:
+          discard
 
-  lastTime = time
-  time = timer.time
-  let deltaTime = float32(time-lastTime)
+    lastTime = time
+    time = timer.time
+    let deltaTime = float32(time-lastTime)
 
-  if mouseModeToggle:
-    camera.update(cameraControls, deltaTime)
-    
-  if stepSimulation:
-    while remainingSimulationSteps > 0:
-      remainingSimulationSteps -= 1
-      tree.flock(drawForcesData)
-  else:
-    tree.flock(drawForcesData)
+    if mouseModeToggle:
+      camera.update(cameraControls, deltaTime)
 
-  treeDataBuffer.setData(tree.data)
-
-  #tree.catchUpOrder(objectDataSeq)
-  #objectDataBuffer.setData(objectDataSeq)
-
-  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
-  let modelView = camera.viewMat
-
-  if enableNeighbourhoodDrawing:
-    drawNeighborhood(proj, modelView)
-
-  var buffer = createArrayBuffer[tuple[offset: Vec3f, color: Color]](tree.data.len)
-  defer:
-    buffer.delete
-
-  for meshId in IdMesh:
-    ## TODO: render each object with a Mesh acconding to it's kind.
-    ## important for flocking.
-
-    let mesh = meshes[meshId]
-
-    var i = 0
-    mapWriteBlock(buffer):
-      for value in tree.data:
-        if value.kind == meshId:
-          buffer[i].offset = value.position
-          buffer[i].color  = value.color
-          i += 1
-
-    drawMeshInstanced(proj, modelView, mesh, buffer.view(offset), buffer.view(color), i)
-
-  if enableBoxDrawing:
-    drawBoxes(proj, modelView)
-
-  if enableDrawForces and len(drawForcesData) > 0:
-    #drawForces(proj, modelView, drawForcesBuffer)
-    if drawForcesBuffer.handle == 0:
-      drawForcesBuffer = arrayBuffer(drawForcesData)
+    if stepSimulation:
+      while remainingSimulationSteps > 0:
+        remainingSimulationSteps -= 1
+        tree.flock(drawForcesData)
     else:
-      drawForcesBuffer.setData(drawForcesData)
-      
-    drawForces(proj, modelView, drawForcesBuffer.view(position), drawForcesBuffer.view(color), len(drawForcesBuffer))
+      tree.flock(drawForcesData)
 
-  discard TwDraw()
-  glSwapWindow(window)
+    treeDataBuffer.setData(tree.data)
+
+    #tree.catchUpOrder(objectDataSeq)
+    #objectDataBuffer.setData(objectDataSeq)
+
+    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+    let modelView = camera.viewMat
+
+    if enableNeighbourhoodDrawing:
+      drawNeighborhood(proj, modelView, treeDataBuffer.view(position))
+
+    var buffer = createArrayBuffer[tuple[offset: Vec3f, color: Color]](tree.data.len)
+    defer:
+      buffer.delete
+
+    for meshId in IdMesh:
+      ## TODO: render each object with a Mesh acconding to it's kind.
+      ## important for flocking.
+
+      let mesh = meshes[meshId]
+
+      var i = 0
+      mapWriteBlock(buffer):
+        for value in tree.data:
+          if value.kind == meshId:
+            buffer[i].offset = value.position
+            buffer[i].color  = value.color
+            i += 1
+
+      drawMeshInstanced(proj, modelView, mesh, buffer.view(offset), buffer.view(color), i)
+
+    if enableBoxDrawing:
+      tree.leafNodeBoxes(boxes)
+      boxesBuffer.setData(boxes)
+      drawBoxes(proj, modelView, boxesMinView, boxesMaxView, cubeVertices, cubeLineIndices, cubeLineIndicesLen, boxes.len)
+
+    if enableDrawForces and len(drawForcesData) > 0:
+      #drawForces(proj, modelView, drawForcesBuffer)
+      if drawForcesBuffer.handle == 0:
+        drawForcesBuffer = arrayBuffer(drawForcesData)
+      else:
+        drawForcesBuffer.setData(drawForcesData)
+
+      drawForces(proj, modelView, drawForcesBuffer.view(position), drawForcesBuffer.view(color), len(drawForcesBuffer))
+
+    discard TwDraw()
+    glSwapWindow(window)
 
   #if remainingFrames > 0:
   #  animation.frameGifAnimationGl()
@@ -896,8 +901,8 @@ while runGame:
   #    animation.endGifAnimation()
 
 
-#when isMainModule:
-#  main()
+when isMainModule:
+  main(window)
 
 # Local Variables:
 # compile-command: "cd examples; nim c -r octree.nim"
