@@ -49,7 +49,7 @@ makeRunExamples(
   # waves,  TODO this causes sometimes segfaults for some reason
   tetris,
   noise_landscape, 
-  # octree, 
+  octree, 
   # player_controls, 
   # iqm_mesh_loading, 
   # sandbox, 

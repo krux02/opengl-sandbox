@@ -420,31 +420,6 @@ proc spiralOctree(length: int): Tree =
 
 var tree = spiralOctree(1000)
 
-let (window, context) = defaultSetup()
-discard setRelativeMouseMode(mouseModeToggle)
-
-if TwInit(TW_OPENGL_CORE, nil) == 0:
-  quit("could not initialize AntTweakBar: " & $TwGetLastError())
-
-discard TwWindowSize(window.size.x, window.size.y)
-
-var searchRadius = 10'f32
-
-var bar = TwNewBar("TwBar")
-
-bar.addVarRW searchRadius, " precision=5 step=0.002"
-bar.addVarRW separationFactor
-bar.addVarRW alignFactor
-bar.addVarRW cohesionFactor
-bar.addVarRW desiredseparation
-bar.addVarRW neighbordist
-bar.addVarRW maxspeed
-bar.addVarRW maxforce, " step = 0.01"
-bar.addVarRW enableBoxDrawing
-bar.addVarRW enableNeighbourhoodDrawing
-bar.addVarRW enableDrawForces
-bar.addVarRW stepSimulation
-
 proc limit(arg: Vec3f; maxlength: float32): Vec3f =
   let len2 = arg.length2
   if len2 > maxlength * maxlength:
@@ -605,8 +580,6 @@ var runGame: bool = true
 
 let timer = newStopWatch(true)
 
-let aspect = window.aspectRatio.float32
-
 
 # AABB box rendering
 
@@ -662,12 +635,14 @@ cameraControls.speed = 300
 addEventWatch(cameraControlEventWatch, cameraControls.addr)
 
 var neighborSearchResult: seq[(int32,int32)]
-var neighborSearchResultBuffer = createElementArrayBuffer[int32](40000, GL_STREAM_DRAW)
+var neighborSearchResultBuffer: ElementArrayBuffer[int32]
 
-proc drawNeighborhood(proj,modelView: Mat4f, positions: ArrayBufferView[Vec3f]): void =
+proc drawNeighborhood(proj,modelView: Mat4f, searchRadius: float32, positions: ArrayBufferView[Vec3f]): void =
   tree.neighborSearch(searchRadius, neighborSearchResult)
 
   let sizeArg = GLsizeiptr(neighborSearchResult.len * sizeof(int32) * 2)
+  if neighborSearchResultBuffer.handle == 0:
+     neighborSearchResultBuffer = createElementArrayBuffer[int32](40000, GL_STREAM_DRAW)
   let handleArg = neighborSearchResultBuffer.handle
   let dataArg = neighborSearchResult[0].addr
   glNamedBufferSubData(handleArg, 0, sizeArg, dataArg)
@@ -726,9 +701,33 @@ proc drawMeshInstanced(proj, modelView: Mat4f, mesh: SimpleMesh, positions: Arra
       color = v_color * v_normal.z;
       """
 
-
 proc main*(window: Window): void =
+  
+  discard setRelativeMouseMode(mouseModeToggle)
 
+  if TwInit(TW_OPENGL_CORE, nil) == 0:
+    quit("could not initialize AntTweakBar: " & $TwGetLastError())
+
+  discard TwWindowSize(window.size.x, window.size.y)
+
+  var searchRadius = 10'f32
+
+  var bar = TwNewBar("TwBar")
+
+  bar.addVarRW searchRadius, " precision=5 step=0.002"
+  bar.addVarRW separationFactor
+  bar.addVarRW alignFactor
+  bar.addVarRW cohesionFactor
+  bar.addVarRW desiredseparation
+  bar.addVarRW neighbordist
+  bar.addVarRW maxspeed
+  bar.addVarRW maxforce, " step = 0.01"
+  bar.addVarRW enableBoxDrawing
+  bar.addVarRW enableNeighbourhoodDrawing
+  bar.addVarRW enableDrawForces
+  bar.addVarRW stepSimulation
+
+  
   let cubeVertices = arrayBuffer([
     vec4f( 1, 1, 1, 1),
     vec4f( 0, 1, 1, 1),
@@ -783,9 +782,8 @@ proc main*(window: Window): void =
 
   var newRenderFunction = false
 
+  let aspect = window.aspectRatio.float32
   let proj : Mat4f = frustum(-aspect * 0.01f, aspect * 0.01f, -0.01f, 0.01f, 0.01f, 10000.0)
-  
-  
   
   while runGame:
 
@@ -855,7 +853,7 @@ proc main*(window: Window): void =
     let modelView = camera.viewMat
 
     if enableNeighbourhoodDrawing:
-      drawNeighborhood(proj, modelView, treeDataBuffer.view(position))
+      drawNeighborhood(proj, modelView, searchRadius, treeDataBuffer.view(position))
 
     var buffer = createArrayBuffer[tuple[offset: Vec3f, color: Color]](tree.data.len)
     defer:
@@ -902,6 +900,7 @@ proc main*(window: Window): void =
 
 
 when isMainModule:
+  let (window, context) = defaultSetup()
   main(window)
 
 # Local Variables:
