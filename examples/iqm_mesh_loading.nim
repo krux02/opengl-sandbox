@@ -272,6 +272,8 @@ proc main*(window: Window) =
     discard TwWindowSize(WindowSize.x, WindowSize.y)
 
     var bar = TwNewBar("TwBar")
+    defer:
+      discard TwDeleteBar(bar)
 
     bar.addVarRW scale, " precision=3 step=0.01"
     bar.addVarRW renderBoneNames
@@ -675,3 +677,4 @@ proc main*(window: Window) =
 when isMainModule:
   let (window, context) = defaultSetup()
   main(window)
+

@@ -713,6 +713,8 @@ proc main*(window: Window): void =
   var searchRadius = 10'f32
 
   var bar = TwNewBar("TwBar")
+  defer:
+    discard TwDeleteBar(bar);
 
   bar.addVarRW searchRadius, " precision=5 step=0.002"
   bar.addVarRW separationFactor
