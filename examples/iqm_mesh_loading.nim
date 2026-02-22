@@ -33,7 +33,6 @@ else:
 proc main*(window: Window) =
   let WindowSize = window.size
 
-  defer: fancygl.quit()
   discard ttf.init()
 
   when useAntTweakBar:

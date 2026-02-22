@@ -3,38 +3,27 @@
 import ../fancygl
 
 #let (window, context) = defaultSetup(vec2i(640,480))
-let (window, context) = defaultSetup()
 
-let crateTexture = loadTexture2DFromFile(getResourcePath("crate.png"))
+var crateTexture: Texture2D 
 
-type
-  VertexStruct = object
-    pos:      Vec4f
-    normal:   Vec4f
-    color:    Vec4f
-    texcoord: Vec2f
+type VertexStruct = object
+  pos:      Vec4f
+  normal:   Vec4f
+  color:    Vec4f
+  texcoord: Vec2f
 
-var boxBuffer = createArrayBuffer[VertexStruct](boxVerticesCenterAtZero.len)
+var vertex: ArrayBufferView[Vec4f]
+var normal: ArrayBufferView[Vec4f]
+var color: ArrayBufferView[Vec4f]
+var texcoord: ArrayBufferView[Vec2f]
+  
+var indices: ElementArrayBuffer[int8]
 
-for i, vertex in boxBuffer.wPairs:
-  vertex.pos      = boxVerticesCenterAtZero[i]
-  vertex.normal   = boxNormals[i]
-  vertex.color    = boxColors[i]
-  vertex.texcoord = boxTexCoords[i]
+declareFramebuffer(Fb1FramebufferType(size: Vec2i)):
+  depth = newDepthTexture2D(size)
+  color = newTexture2D(size)
 
-let
-  vertex = boxBuffer.view(pos)
-  normal = boxBuffer.view(normal)
-  color =  boxBuffer.view(color)
-  texcoord = boxBuffer.view(texcoord)
-
-let indices = iotaSeq[int8](boxverticesCenterAtZero.len).elementArrayBuffer
-
-declareFramebuffer(Fb1FramebufferType):
-  depth = newDepthTexture2D(window.size)
-  color = newTexture2D(window.size)
-
-let fb1 = newFb1FramebufferType()
+var fb1: Fb1FramebufferType
 
 const glslCode = """
 vec4 mymix(vec4 color, float alpha) {
@@ -53,22 +42,18 @@ vec4 mymix(vec4 color, float alpha) {
 """
 
 var
-  projection_mat : Mat4f = perspective(45'f32, window.aspectratio, 0.1, 100.0)
   mouseX, mouseY: int32
   gameTimer    = newStopWatch(true)
   fps          = 0
   frameCounter = 0
 
-glClearColor(0.4,0.1,0.2,1.0)
-glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
-
-proc render() =
+proc render(window: Window; projection_mat: Mat4f) =
   glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT) # Clear color and depth buffers
 
   let mousePos  = vec2i(mouseX,mouseY)
   let mousePosf = vec2f(mousePos)
   let mousePosNorm = mousePosf / vec2f(window.size)
-
+  
   #for i in 0..<5:
   block writeToFramebufferBlock:
     let time = gameTimer.time.float32
@@ -201,38 +186,72 @@ proc render() =
   frameCounter += 1
   glSwapWindow(window) # Swap the front and back frame buffers (double buffering)
 
-var
-  runGame = true
-  fpsTimer = newStopWatch(true)
-  fpsFrameCounter = 0
+proc main*(window: Window): void =
 
-while runGame:
+  crateTexture = loadTexture2DFromFile(getResourcePath("crate.png"))
 
-  for evt in events():
-    if evt.kind == QUIT:
-      runGame = false
-      break
-    if evt.kind == KeyDown:
-      case evt.key.keysym.scancode
-      of SCANCODE_ESCAPE:
-        runGame = false
-      of SCANCODE_PAUSE:
-        gameTimer.toggle
-      of SCANCODE_F10:
-        screenshot(window)
-      else:
-        discard
+  var boxBuffer = createArrayBuffer[VertexStruct](boxVerticesCenterAtZero.len)
+  defer:
+    delete(boxBuffer)
 
-  if fpsTimer.time >= 1:
-    fps = fpsFrameCounter
+  for i, vertex in boxBuffer.wPairs:
+    vertex.pos      = boxVerticesCenterAtZero[i]
+    vertex.normal   = boxNormals[i]
+    vertex.color    = boxColors[i]
+    vertex.texcoord = boxTexCoords[i]
+
+  vertex = boxBuffer.view(pos)
+  normal = boxBuffer.view(normal)
+  color =  boxBuffer.view(color)
+  texcoord = boxBuffer.view(texcoord)
+  
+  indices = iotaSeq[int8](boxverticesCenterAtZero.len).elementArrayBuffer
+  defer:
+    delete(indices)
+  
+  fb1 = newFb1FramebufferType(window.size)
+
+  glClearColor(0.4,0.1,0.2,1.0)
+  glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA)
+  
+  var
+    runGame = true
+    fpsTimer = newStopWatch(true)
     fpsFrameCounter = 0
-    fpsTimer.reset
+    
+    projection_mat : Mat4f = perspective(45'f32, window.aspectratio, 0.1, 100.0)
+    
+  while runGame:
 
-  discard getMouseState(mouseX.addr, mouseY.addr)
+    for evt in events():
+      if evt.kind == QUIT:
+        runGame = false
+        break
+      if evt.kind == KeyDown:
+        case evt.key.keysym.scancode
+        of SCANCODE_ESCAPE:
+          runGame = false
+        of SCANCODE_PAUSE:
+          gameTimer.toggle
+        of SCANCODE_F10:
+          screenshot(window)
+        else:
+          discard
 
-  render()
-  fpsframeCounter += 1
+    if fpsTimer.time >= 1:
+      fps = fpsFrameCounter
+      fpsFrameCounter = 0
+      fpsTimer.reset
 
+    discard getMouseState(mouseX.addr, mouseY.addr)
+
+    render(window, projection_mat)
+    fpsframeCounter += 1
+
+when isMainModule:
+  let (window, context) = defaultSetup()
+  main(window)
+    
 # Local Variables:
 # compile-command: "cd examples; nim c -r sandbox.nim"
 # End:

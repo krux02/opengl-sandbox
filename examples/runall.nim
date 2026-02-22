@@ -11,6 +11,7 @@ proc resetState(): void =
   glDepthFunc(GL_LESS)
   glDisable(GL_CULL_FACE)
   glDisable(GL_BLEND)
+  glBlendFunc(GL_ONE, GL_ZERO)
   glDisable(GL_STENCIL_TEST)
   glDisable(GL_PROGRAM_POINT_SIZE)
   
@@ -52,7 +53,7 @@ makeRunExamples(
   octree, 
   player_controls, 
   iqm_mesh_loading, 
-  # sandbox, 
+  sandbox, 
   # retro_tiling, 
   # kdtree, 
   # deferred_shading, 
