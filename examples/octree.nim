@@ -423,7 +423,7 @@ var tree = spiralOctree(1000)
 proc limit(arg: Vec3f; maxlength: float32): Vec3f =
   let len2 = arg.length2
   if len2 > maxlength * maxlength:
-    arg / len2
+    arg / sqrt(len2)
   else:
     arg
 
@@ -727,7 +727,6 @@ proc main*(window: Window): void =
   bar.addVarRW enableDrawForces
   bar.addVarRW stepSimulation
 
-  
   let cubeVertices = arrayBuffer([
     vec4f( 1, 1, 1, 1),
     vec4f( 0, 1, 1, 1),
@@ -855,7 +854,7 @@ proc main*(window: Window): void =
     if enableNeighbourhoodDrawing:
       drawNeighborhood(proj, modelView, searchRadius, treeDataBuffer.view(position))
 
-    var buffer = createArrayBuffer[tuple[offset: Vec3f, color: Color]](tree.data.len)
+    var buffer = createArrayBuffer[tuple[offset: Vec3f, color: Color]](tree.data.len, GL_DYNAMIC_DRAW)
     defer:
       buffer.delete
 
@@ -883,7 +882,7 @@ proc main*(window: Window): void =
     if enableDrawForces and len(drawForcesData) > 0:
       #drawForces(proj, modelView, drawForcesBuffer)
       if drawForcesBuffer.handle == 0:
-        drawForcesBuffer = arrayBuffer(drawForcesData)
+        drawForcesBuffer = arrayBuffer(drawForcesData, GL_STREAM_DRAW)
       else:
         drawForcesBuffer.setData(drawForcesData)
 
@@ -897,7 +896,6 @@ proc main*(window: Window): void =
   #  remainingFrames -= 1
   #  if remainingFrames == 0:
   #    animation.endGifAnimation()
-
 
 when isMainModule:
   let (window, context) = defaultSetup()
