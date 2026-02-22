@@ -50,13 +50,12 @@ makeRunExamples(
   tetris,
   noise_landscape, 
   octree, 
-  # player_controls, 
+  player_controls, 
   # iqm_mesh_loading, 
   # sandbox, 
   # retro_tiling, 
   # kdtree, 
   # deferred_shading, 
   # console, 
-
 )
   

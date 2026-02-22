@@ -2,13 +2,6 @@ import ../fancygl
 
 import sequtils
 
-let (window, context) = defaultSetup()
-
-
-let windowsize = window.size
-let projection_mat : Mat4f = perspective(45'f32, windowsize.x / windowsize.y, 0.1, 100.0)
-let inv_projection_mat = inverse(projection_mat)
-
 proc `*`(a: Mat4f; b: seq[Vec4f]): seq[Vec4f] =
   result.newSeq(b.len)
   for i in 0 ..< len(b):
@@ -52,7 +45,9 @@ type
 
 var meshes: array[IdMesh, SimpleMesh]
 
-block init:
+var floorVertices: ArrayBuffer[Vec4f]
+
+proc initMeshes(): void =
   const numSegments = 32
 
   var verticesSeq = newSeq[Vec4f](0)
@@ -154,7 +149,14 @@ block init:
   colors = arrayBuffer(colorsSeq)
   indices = elementArrayBuffer(indicesSeq)
 
-proc renderMesh(id: IdMesh, viewMat: Mat4f; modelMat: Mat4f): void =
+  floorVertices = arrayBuffer([
+    vec4f(0,0,0,1), vec4f( 1, 0,0,0), vec4f( 0, 1,0,0),
+    vec4f(0,0,0,1), vec4f( 0, 1,0,0), vec4f(-1, 0,0,0),
+    vec4f(0,0,0,1), vec4f(-1, 0,0,0), vec4f( 0,-1,0,0),
+    vec4f(0,0,0,1), vec4f( 0,-1,0,0), vec4f( 1, 0,0,0)
+  ])
+
+proc renderMesh(id: IdMesh, projMat: Mat4f, viewMat: Mat4f; modelMat: Mat4f): void =
   let mesh = meshes[id]
 
   shadingDsl:
@@ -165,7 +167,7 @@ proc renderMesh(id: IdMesh, viewMat: Mat4f; modelMat: Mat4f): void =
     indices = indices
 
     uniforms:
-      proj = projection_mat
+      proj = projMat
       modelView = viewMat * modelMat
 
     attributes:
@@ -191,14 +193,9 @@ proc renderMesh(id: IdMesh, viewMat: Mat4f; modelMat: Mat4f): void =
       color = v_color * v_normal.z;
       """
 
-var floorVertices = arrayBuffer([
-  vec4f(0,0,0,1), vec4f( 1, 0,0,0), vec4f( 0, 1,0,0),
-  vec4f(0,0,0,1), vec4f( 0, 1,0,0), vec4f(-1, 0,0,0),
-  vec4f(0,0,0,1), vec4f(-1, 0,0,0), vec4f( 0,-1,0,0),
-  vec4f(0,0,0,1), vec4f( 0,-1,0,0), vec4f( 1, 0,0,0)
-])
 
-proc renderFloor(viewMat: Mat4f): void =
+
+proc renderFloor(projection_mat, viewMat: Mat4f, windowSize: Vec2i): void =
   # shapes with infinitely far away points, can't interpolate alon the vertices,
   # therefore so varyings don't work.
   # The matrix transformation of can be inverted in the fragment shader, so that that in this case
@@ -251,95 +248,106 @@ proc renderFloor(viewMat: Mat4f): void =
       }
 
       """
+      
+proc main*(window: Window): void =
+  initMeshes()
+  
+  let windowsize = window.size
+  let projection_mat : Mat4f = perspective(45'f32, windowsize.x / windowsize.y, 0.1, 100.0)
+  let inv_projection_mat = inverse(projection_mat)
 
-var cameraNode = newWorldNode(5.1, 6.2, 4)
-var playerNode = newWorldNode(0.1, 0.2, 0)
-var runGame: bool = true
-var frame = 0
+  var cameraNode = newWorldNode(5.1, 6.2, 4)
+  var playerNode = newWorldNode(0.1, 0.2, 0)
+  var runGame: bool = true
+  var frame = 0
 
-var joy: Joystick
+  var joy: Joystick
 
-var gameTimer = newStopWatch(true)
+  var gameTimer = newStopWatch(true)
 
-while runGame:
-  frame += 1
+  while runGame:
+    frame += 1
 
-  var axisInput: Vec2f
-  axisInput.x = -float32(joystickGetAxis(joy, 0)) / 32767
-  axisInput.y = -float32(joystickGetAxis(joy, 1)) / 32767
-  if axisInput.length2 > 1:
-    # clamp range
-    axisInput = axisInput.normalize
+    var axisInput: Vec2f
+    axisInput.x = -float32(joystickGetAxis(joy, 0)) / 32767
+    axisInput.y = -float32(joystickGetAxis(joy, 1)) / 32767
+    if axisInput.length2 > 1:
+      # clamp range
+      axisInput = axisInput.normalize
 
-  for evt in events():
-    case evt.kind
-    of QUIT:
-      runGame = false
-      break
-    of KEY_DOWN:
-      case evt.key.keysym.scancode
-      of SCANCODE_ESCAPE:
+    for evt in events():
+      case evt.kind
+      of QUIT:
         runGame = false
         break
+      of KEY_DOWN:
+        case evt.key.keysym.scancode
+        of SCANCODE_ESCAPE:
+          runGame = false
+          break
 
-      of SCANCODE_F10:
-        window.screenshot
+        of SCANCODE_F10:
+          window.screenshot
 
+        else:
+          discard
+
+      of JOY_DEVICE_ADDED:
+        joy = joystickOpen(evt.jdevice.which)
       else:
         discard
 
-    of JOY_DEVICE_ADDED:
-      joy = joystickOpen(evt.jdevice.which)
-    else:
-      discard
+
+    let time = gameTimer.time.float32
+
+    cameraNode.pos.x = sin(time) * 7 + playerNode.pos.x
+    cameraNode.pos.y = cos(time) * 7 + playerNode.pos.y
+    cameraNode.lookAt(playerNode)
+
+    let cameraDir2D = (cameraNode.modelMat * vec4f(0,0,-1,0)).xy.normalize
+    let cameraDir2DRight = vec2(-cameraDir2D.y, cameraDir2D.x)
+
+    let axisMovement = mat2(cameraDir2DRight, cameraDir2D) * axisInput
+    playerNode.pos.xy += axisMovement.xy * 0.05
+
+    var mousePos: Vec2i
+    let mouseState = getMouseState(mousePos.x.addr, mousePos.y.addr)
+    let relativeMousePos = (vec2f(mousePos) / vec2f(windowSize) * 2 - 1) * vec2f(1,-1)
+
+    let p0 = cameraNode.pos
+    var p1 = cameraNode.modelMat * inv_projection_mat * vec4f(relativeMousePos, -1, 1)
+    p1 /= p1.w # normalize extended coordinates
+
+    # project the mouse on the ground
+    let mousePosWs = mix(p0, p1, -p0.z / (p1.z - p0.z))
+
+    var tmpNode = newWorldNode(mousePosWs)
+    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
 
-  let time = gameTimer.time.float32
+    let viewMat = cameraNode.viewMat
 
-  cameraNode.pos.x = sin(time) * 7 + playerNode.pos.x
-  cameraNode.pos.y = cos(time) * 7 + playerNode.pos.y
-  cameraNode.lookAt(playerNode)
+    for id, node in worldNodes:
+      renderMesh(id, projection_mat, viewMat, node.modelMat)
 
-  let cameraDir2D = (cameraNode.modelMat * vec4f(0,0,-1,0)).xy.normalize
-  let cameraDir2DRight = vec2(-cameraDir2D.y, cameraDir2D.x)
-
-  let axisMovement = mat2(cameraDir2DRight, cameraDir2D) * axisInput
-  playerNode.pos.xy += axisMovement.xy * 0.05
-
-  var mousePos: Vec2i
-  let mouseState = getMouseState(mousePos.x.addr, mousePos.y.addr)
-  let relativeMousePos = (vec2f(mousePos) / vec2f(windowSize) * 2 - 1) * vec2f(1,-1)
-
-  let p0 = cameraNode.pos
-  var p1 = cameraNode.modelMat * inv_projection_mat * vec4f(relativeMousePos, -1, 1)
-  p1 /= p1.w # normalize extended coordinates
-
-  # project the mouse on the ground
-  let mousePosWs = mix(p0, p1, -p0.z / (p1.z - p0.z))
-
-  var tmpNode = newWorldNode(mousePosWs)
-  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+    renderMesh(IdPyramid, projection_mat, viewMat, tmpNode.modelMat)
+    renderMesh(IdPyramid, projection_mat, viewMat, playerNode.modelMat)
 
 
-  let viewMat = cameraNode.viewMat
+    let modelViewProj = projection_mat * cameraNode.viewMat
 
-  for id, node in worldNodes:
-    renderMesh(id, viewMat, node.modelMat)
+    renderFloor(projection_mat, viewMat, windowSize)
 
-  renderMesh(IdPyramid, viewMat, tmpNode.modelMat)
-  renderMesh(IdPyramid, viewMat, playerNode.modelMat)
+    renderText( s"axisMovement: $axisMovement", vec2i(22) )
+    renderText( s"axisInput: $axisInput", vec2i(22,44) )
+    renderText( s"mouseInput: ${tmpNode.pos - playerNode.pos}", vec2i(22,66))
 
+    glSwapWindow(window)
 
-  let modelViewProj = projection_mat * cameraNode.viewMat
-
-  renderFloor(viewMat)
-
-  renderText( s"axisMovement: $axisMovement", vec2i(22) )
-  renderText( s"axisInput: $axisInput", vec2i(22,44) )
-  renderText( s"mouseInput: ${tmpNode.pos - playerNode.pos}", vec2i(22,66))
-
-  glSwapWindow(window)
-
+when isMainModule:
+  let (window, context) = defaultSetup()
+  main(window)
+  
 # Local Variables:
 # compile-command: "cd examples; nim c -r player_controls.nim"
 # End:

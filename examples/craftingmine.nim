@@ -79,9 +79,9 @@ proc main*(window: Window): void =
     for j in 0 ..< TileDataSize:
       for k in 0 ..< TileDataSize:
         let
-          x = float32(i) + 0.5
-          y = float32(j) + 0.5
-          z = float32(k) + 0.5
+          x = float32(i) + 0.5f
+          y = float32(j) + 0.5f
+          z = float32(k) + 0.5f
           res = worldProc(vec3f(x,y,z))
         if worldProc(vec3f(x,y,z)) > 0:
           tileData[i][j][k] = 3
@@ -459,7 +459,6 @@ proc main*(window: Window): void =
     let deltaTime = float32(time-lastTime)
     update(player.node, cameraControls, deltaTime)
 
-
     if not flymode:
       clampToTileDataSize(player.node)
       player.snapToGround
@@ -468,7 +467,6 @@ proc main*(window: Window): void =
     var cameraNode = player.node;
     cameraNode.moveAbsolute(vec3f(0, 0, 1.7))
     let ray = Ray(pos: cameraNode.pos.xyz, dir: cameraNode.dirVec.xyz)
-
 
     let mouseTarget = raytracer(ray, player.activeTile >= 0 , 5)
 
@@ -549,7 +547,7 @@ proc main*(window: Window): void =
 
 
       if player.activeTile >= 0:
-        let pos = player.node.pos.xyz + vec3f(0,0,3)
+        let pos = player.node.pos.xyz + vec3f(-0.5f,-0.5f,2.5f)
         drawCube(mvp.translate(pos), float32(player.activeTile), vec4f(0.5f))
 
       glDisable(GL_CULL_FACE)
