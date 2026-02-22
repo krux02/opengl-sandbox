@@ -3,7 +3,7 @@ import memfiles, ../fancygl, sdl2/sdl_ttf as ttf, strutils, sequtils, macros
 template glslPrefix(t: typedesc[uint8]): string = ""
 
 # Set this value true, if you want to use AntTweakBar as UI.
-const useAntTweakBar = false
+const useAntTweakBar = true
 
 when useAntTweakBar:
   import AntTweakBar
@@ -30,8 +30,7 @@ else:
     while pollEvent(event.addr) != 0:
       yield event
 
-proc main() =
-  let (window, context) = defaultSetup()
+proc main*(window: Window) =
   let WindowSize = window.size
 
   defer: fancygl.quit()
@@ -673,4 +672,6 @@ proc main() =
       discard TwDraw()
     window.glSwapWindow()
 
-main()
+when isMainModule:
+  let (window, context) = defaultSetup()
+  main(window)

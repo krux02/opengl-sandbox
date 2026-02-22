@@ -51,7 +51,7 @@ makeRunExamples(
   noise_landscape, 
   octree, 
   player_controls, 
-  # iqm_mesh_loading, 
+  iqm_mesh_loading, 
   # sandbox, 
   # retro_tiling, 
   # kdtree, 
