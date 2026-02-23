@@ -101,7 +101,7 @@ proc screenshot*(window : sdl.Window; basename : string) : bool {.discardable.} 
 proc screenshot*(window : sdl.Window) : bool {.discardable.} =
   window.screenshot(window.title)
 
-proc newSurface(texture: Texture2D): Surface =
+proc newSurface(texture: Texture2D | TextureRectangle): Surface =
   var
     size = texture.size
     stride = size.x * 4
@@ -121,7 +121,7 @@ proc saveBMP*(texture: Texture2D; filename: string): void =
   defer: surface.freeSurface
   discard surface.saveBMP(filename)
 
-proc savePNG*(texture: Texture2D; filename: string): void =
+proc savePNG*(texture: Texture2D | TextureRectangle; filename: string): void =
   let surface = newSurface(texture)
   defer: surface.freeSurface
   discard surface.savePNG(filename)

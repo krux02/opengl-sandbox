@@ -7,7 +7,6 @@ proc setup(): void =
   #glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
   glProvokingVertex(GL_FIRST_VERTEX_CONVENTION)
 
-
 var rogue = false
 ## change ``rogue`` to true if you want font tiles :P ( toggle by pressing 1 )
 
@@ -63,13 +62,12 @@ proc loadMapFromFile(mapFilename: string): TextureRectangle =
   assert( not surface.isNil, s"can't load texture $mapFilename: ${fancygl.getError()}" )
   defer: freeSurface(surface)
 
-  assert surface.format.BitsPerPixel == 8
   glCreateTextures(GL_TEXTURE_RECTANGLE, 1, result.handle.addr)
-  glTextureStorage2D(result.handle, 1, GL_R8, surface.w, surface.h)
+  glTextureStorage2D(result.handle, 1, GL_RGBA8, surface.w, surface.h)
   glTextureSubImage2D(
     result.handle, 0, 0, 0,
     surface.w, surface.h,
-    GL_RED, GL_UNSIGNED_BYTE, surface.pixels)
+    GL_RGBA, GL_UNSIGNED_BYTE, surface.pixels)
 
 let tileSelectionMap = newTextureRectangle(vec2i(16), internalFormat = GL_RGBA8)
 
@@ -112,8 +110,8 @@ type
     tileSizeLogical: Vec2i
     scaling: int32
     tilePalette: Texture2DArray
-    tileMapPath: string
-    tileMapModificationTime: times.Time
+    tilePalettePath: string
+    tilePaletteModificationTime: times.Time
     gridSize, gridHalfSize: Vec2f
     gridVertices: ArrayBuffer[Vec4f]
     gridVerticesLen: int
@@ -122,19 +120,18 @@ type
     mapSize: Vec2i
 
 const mapwidth  = 1024
-const mapFilename = "map.bmp"
 
-from os import getLastModificationTime
+from os import getLastModificationTime, fileExists
 
-proc newTileMap(tileSize: Vec2i, tileSizeLogical: Vec2i, scaling: int32, tileMapFilename: string, windowSize: Vec2i): TileMap =
+proc newTileMap(tileSize: Vec2i, tileSizeLogical: Vec2i, scaling: int32, tilePalettePath: string, windowSize: Vec2i): TileMap =
   result.tileSize = tileSize
   result.tileSizeLogical = tileSizeLogical
   result.scaling = scaling
   result.tilePalette = newTexture2DArray(tileSize, numTiles, levels = 1)
-  result.tileMapPath = getResourcePath(tileMapFilename)
-  echo result.tileMapPath
-  result.tileMapModificationTime = getLastModificationTime(result.tileMapPath)
-  result.tilePalette.updateTilePaletteFromFile(result.tileMapPath, result.tileSize)
+  result.tilePalettePath = getResourcePath(tilePalettePath)
+  echo result.tilePalettePath
+  result.tilePaletteModificationTime = getLastModificationTime(result.tilePalettePath)
+  result.tilePalette.updateTilePaletteFromFile(result.tilePalettePath, result.tileSize)
   result.tilePalette.parameter(GL_TEXTURE_MIN_FILTER, GL_NEAREST)
   result.tilePalette.parameter(GL_TEXTURE_MAG_FILTER, GL_NEAREST)
   result.gridSize = vec2f(windowSize) / vec2f(result.tileSizeLogical * result.scaling)
@@ -149,12 +146,13 @@ proc newTileMap(tileSize: Vec2i, tileSizeLogical: Vec2i, scaling: int32, tileMap
 
 
 proc resourceReloading(this: var TileMap): void =
-  let newTileMapModificationTime = getLastModificationTime(this.tileMapPath)
-  if this.tileMapModificationTime < newTileMapModificationTime:
-    this.tilePalette.updateTilePaletteFromFile(this.tileMapPath, this.tileSize)
+  let newTileMapModificationTime = getLastModificationTime(this.tilePalettePath)
+  if this.tilePaletteModificationTime < newTileMapModificationTime:
+    this.tilePalette.updateTilePaletteFromFile(this.tilePalettePath, this.tileSize)
 
-#proc saveMap(this: TileMap): void {.noconv.} =
-#  this.map.saveToGrayscaleBmpFile(this.mapFilename)
+proc saveMap(this: TileMap; mapFilename: string): void {.noconv.} =
+  # this.map.saveToGrayscaleBmpFile(mapFilename)
+  this.map.savePng(mapFileName)
 #addQuitProc( saveMap )
 
 proc pixelToWorldSpace(this: TileMap; cameraPos: Vec2f; pos: Vec2i): Vec2f =
@@ -257,13 +255,6 @@ var dragRightStartPos: Vec2i
 
 setup()
 
-var tileMapA = newTileMap(vec2i(16), vec2i(16), 2, "tiles.gif", window.size)
-var tileMapB = newTileMap(vec2i(8,12), vec2i(8,4), 4, "pixelfont.png", window.size)
-
-tileMapA.map = noiseTextureRectangle(vec2i(mapwidth), false)
-tileMapA.mapSize = vec2i(mapwidth)
-tileMapB.map = noiseTextureRectangle(vec2i(mapwidth), true)
-tileMapB.mapSize = vec2i(mapwidth)
 
 var tileLeft  : Color = Color(r:255'u8, g:255'u8, b:255'u8, a:128'u8)
 var tileRight : Color = Color(r:255'u8, g:255'u8, b:255'u8, a:0'u8)
@@ -324,89 +315,124 @@ proc mouseDragged(tileMap: TileMap, evt: MouseMotionEventObj): void =
     movement.y = -evt.yrel / (tileMap.tileSizeLogical.y * tileMap.scaling)
     cameraPos -= movement
 
-while running:
+
+proc main*(window: Window): void =
+
+  var tileMapA = newTileMap(vec2i(16), vec2i(16), 2, "tiles.gif", window.size)
+  var tileMapB = newTileMap(vec2i(8,12), vec2i(8,4), 4, "pixelfont.png", window.size)
+
+  let pathA = "tileMapA.png"
+  let pathB = "tileMapB.png"
+
+  let loading = true
+  
+  # tileMapA.mapSize = vec2i(mapwidth)
+  if fileExists(pathA) and loading:
+    tileMapA.map = loadMapFromFile(pathA)
+  else:
+    tileMapA.map = noiseTextureRectangle(vec2i(mapwidth), false)
+  tileMapA.mapSize = vec2i(mapwidth)
+
+  if fileExists(pathB) and loading:
+    tileMapB.map = loadMapFromFile(pathB)
+  else:
+    tileMapB.map = noiseTextureRectangle(vec2i(mapwidth), true)  
+  tileMapB.mapSize = vec2i(mapwidth)
+
   defer:
-    frame += 1
+    saveMap(tileMapA, pathA)
+    saveMap(tileMapB, pathB)
+    
+  while running:
+    defer:
+      frame += 1
 
-  let tileMap = if rogue: tileMapB else: tileMapA
+    let tileMap = if rogue: tileMapB else: tileMapA
 
-  for evt in events():
-    if evt.kind == QUIT:
-      running = false
-      break
-
-    elif evt.kind == KEY_DOWN:
-      case evt.key.keysym.scancode:
-      of SCANCODE_ESCAPE:
+    for evt in events():
+      if evt.kind == QUIT:
         running = false
         break
-      of SCANCODE_F10:
-        window.screenshot
-      of SCANCODE_1:
-        rogue = not rogue
-      of SCANCODE_SPACE:
-        tileSelection = not tileSelection
+
+      elif evt.kind == KEY_DOWN:
+        case evt.key.keysym.scancode:
+        of SCANCODE_ESCAPE:
+          running = false
+          break
+        of SCANCODE_F10:
+          window.screenshot
+        of SCANCODE_1:
+          rogue = not rogue
+        of SCANCODE_SPACE:
+          tileSelection = not tileSelection
+        else:
+          discard
+
+      elif evt.kind == MouseButtonDown:
+        if evt.button.button == ButtonLeft:
+          mouseLeftDown = true
+          dragLeftStartPos = vec2i(evt.button.x, evt.button.y)
+        elif evt.button.button == ButtonRight:
+          mouseRightDown = true
+          dragRightStartPos = vec2i(evt.button.x, evt.button.y)
+
+      elif evt.kind == MouseButtonUp:
+
+        if evt.button.button == ButtonLeft:
+          if not mouseLeftDrag:
+            tileMap.mouseClicked(evt.button)
+
+          mouseLeftDrag = false
+          mouseLeftDown = false
+
+        if evt.button.button == ButtonRight:
+          if not mouseRightDown:
+            tileMap.mouseClicked(evt.button)
+
+          mouseRightDrag = false
+          mouseRightDown = false
+
+      elif evt.kind == MouseMotion:
+        let mousePos = vec2i(evt.motion.x, evt.motion.y)
+
+        if mouseLeftDown:
+          let dist = abs(dragLeftStartPos - mousePos);
+          if dist.x + dist.y > dragThreshold:
+            mouseLeftDrag = true
+            tileMap.mouseDragged(evt.motion)
+
+        if mouseRightDown:
+          let dist = abs(dragRightStartPos - mousePos);
+          if dist.x + dist.y > dragThreshold:
+            mouseRightDrag = true
+            tileMap.mouseDragged(evt.motion)
+
       else:
         discard
 
-    elif evt.kind == MouseButtonDown:
-      if evt.button.button == ButtonLeft:
-        mouseLeftDown = true
-        dragLeftStartPos = vec2i(evt.button.x, evt.button.y)
-      elif evt.button.button == ButtonRight:
-        mouseRightDown = true
-        dragRightStartPos = vec2i(evt.button.x, evt.button.y)
+    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-    elif evt.kind == MouseButtonUp:
+    var mousePos : Vec2i
 
-      if evt.button.button == ButtonLeft:
-        if not mouseLeftDrag:
-          tileMap.mouseClicked(evt.button)
+    discard getMouseState(mousePos.x.addr, mousePos.y.addr)
 
-        mouseLeftDrag = false
-        mouseLeftDown = false
+    let time = gameTimer.time
 
-      if evt.button.button == ButtonRight:
-        if not mouseRightDown:
-          tileMap.mouseClicked(evt.button)
-
-        mouseRightDrag = false
-        mouseRightDown = false
-
-    elif evt.kind == MouseMotion:
-      let mousePos = vec2i(evt.motion.x, evt.motion.y)
-
-      if mouseLeftDown:
-        let dist = abs(dragLeftStartPos - mousePos);
-        if dist.x + dist.y > dragThreshold:
-          mouseLeftDrag = true
-          tileMap.mouseDragged(evt.motion)
-
-      if mouseRightDown:
-        let dist = abs(dragRightStartPos - mousePos);
-        if dist.x + dist.y > dragThreshold:
-          mouseRightDrag = true
-          tileMap.mouseDragged(evt.motion)
-
+    if tileSelection:
+      tileMap.drawTiles(tileMap.pixelToWorldSpace(vec2f(8), mousePos).floor.vec2i, tileSelectionMap, vec2f(8), time)
     else:
-      discard
+      tileMap.drawTiles(tileMap.pixelToWorldSpace(cameraPos, mousePos).floor.vec2i, tileMap.map, cameraPos, time)
 
-  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+    #drawCrosshair()
+    tileMapA.resourceReloading()
+    tileMapB.resourceReloading()
 
-  var mousePos : Vec2i
+    glSwapWindow(window)
 
-  discard getMouseState(mousePos.x.addr, mousePos.y.addr)
+when isMainModule:
+  # let (window, context) = defaultSetup()
+  main(window)
 
-  let time = gameTimer.time
-
-  if tileSelection:
-    tileMap.drawTiles(tileMap.pixelToWorldSpace(vec2f(8), mousePos).floor.vec2i, tileSelectionMap, vec2f(8), time)
-  else:
-    tileMap.drawTiles(tileMap.pixelToWorldSpace(cameraPos, mousePos).floor.vec2i, tileMap.map, cameraPos, time)
-
-
-  #drawCrosshair()
-  tileMapA.resourceReloading()
-  tileMapB.resourceReloading()
-
-  glSwapWindow(window)
+# Local Variables:
+# compile-command: "cd examples; nim c -r retro_tiling.nim"
+# End:

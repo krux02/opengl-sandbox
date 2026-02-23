@@ -14,6 +14,7 @@ proc resetState(): void =
   glBlendFunc(GL_ONE, GL_ZERO)
   glDisable(GL_STENCIL_TEST)
   glDisable(GL_PROGRAM_POINT_SIZE)
+  # glProvokingVertex(GL_FIRST_VERTEX_CONVENTION) what is the default?
   
   discard setRelativeMouseMode(false)
 

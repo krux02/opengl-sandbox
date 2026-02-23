@@ -341,7 +341,7 @@ proc saveToBmpFile*(tex: Texture2D | TextureRectangle; filename: string): void =
   var surface = createRGBSurface(0, s.x.int32, s.y.int32, 32, 0xff000000.uint32, 0x00ff0000, 0x0000ff00, 0x000000ff)  # no alpha, rest default
   let bufferSize = GLsizei(s.x * s.y * 4)
   glGetTextureImage(tex.handle, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, bufferSize, surface.pixels)
-  surface.saveBMP(filename)
+  discard surface.saveBMP(filename)
 
 proc saveToGrayscaleBmpFile*(tex: Texture2D | TextureRectangle; filename: string): void =
   var colors: array[256,Color]
@@ -464,13 +464,6 @@ proc newDepthTexture2D*(size: Vec2i, internalFormat: GLenum = GL_DEPTH_COMPONENT
 
   result.parameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR)
   result.parameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-
-proc saveToBmpFile*(tex: TextureRectangle, filename: string): void =
-  let s = tex.size
-  var surface = createRGBSurface(0, s.x.int32, s.y.int32, 32, 0xff000000.uint32, 0x00ff0000, 0x0000ff00, 0x000000ff)  # no alpha, rest default
-  let bufferSize = GLsizei(s.x * s.y * 4)
-  glGetTextureImage(tex.handle, 0, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, bufferSize, surface.pixels)
-  discard surface.saveBMP(filename)
 
 ## glsl only procs
 
