@@ -559,7 +559,8 @@ proc main*(window: Window): void =
 
           of SCANCODE_SPACE, SCANCODE_RETURN:
             mainMenuActions[mainMenuSelection]()
-
+          of SCANCODE_ESCAPE:
+            action_quit()
           else:
             discard
 

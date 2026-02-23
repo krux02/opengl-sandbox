@@ -632,7 +632,7 @@ proc drawForces(proj, modelView: Mat4f; a_vertex: ArrayBufferView[Vec3f], a_colo
 var camera = newWorldNode()
 var cameraControls: CameraControls
 cameraControls.speed = 300
-addEventWatch(cameraControlEventWatch, cameraControls.addr)
+
 
 var neighborSearchResult: seq[(int32,int32)]
 var neighborSearchResultBuffer: ElementArrayBuffer[int32]
@@ -712,6 +712,11 @@ proc main*(window: Window): void =
 
   var searchRadius = 10'f32
 
+  addEventWatch(cameraControlEventWatch, cameraControls.addr)
+  defer:
+    delEventWatch(cameraControlEventWatch, cameraControls.addr)
+  
+  
   var bar = TwNewBar("TwBar")
   defer:
     discard TwDeleteBar(bar);

@@ -273,6 +273,9 @@ proc main*(window: Window): void =
     onGround: bool
 
   addEventWatch(cameraControlEventWatch, cameraControls.addr)
+  defer:
+    delEventWatch(cameraControlEventWatch, cameraControls.addr)
+  
   player.node.pos = vec4f(9.803473472595215, 32.1359748840332, 32.0, 1.0)
   player.activeTile = -1
 
