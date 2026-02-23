@@ -55,7 +55,7 @@ makeRunExamples(
   player_controls, 
   iqm_mesh_loading, 
   sandbox, 
-  # retro_tiling, 
+  retro_tiling, 
   # kdtree, 
   # deferred_shading, 
   # console, 

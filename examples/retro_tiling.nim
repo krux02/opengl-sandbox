@@ -1,7 +1,5 @@
 import ../fancygl, sdl2/sdl_image as img, times
 
-let (window, context) = defaultSetup()
-
 proc setup(): void =
   glEnable(GL_DEPTH_TEST)
   #glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
@@ -69,24 +67,9 @@ proc loadMapFromFile(mapFilename: string): TextureRectangle =
     surface.w, surface.h,
     GL_RGBA, GL_UNSIGNED_BYTE, surface.pixels)
 
-let tileSelectionMap = newTextureRectangle(vec2i(16), internalFormat = GL_RGBA8)
-
-block:
-  var selectionTiles = newSeq[Color](16 * 16)
-
-  for i, tile in selectionTiles.mpairs:
-    let x = i mod 16
-    let y = 15 - i div 16
-    tile.r = 255
-    tile.g = 255
-    tile.b = 255
-    tile.a = uint8(x + y * 16)
-
-  tileSelectionMap.setData(selectionTiles)
+var tileSelectionMap: TextureRectangle
 
 var cameraPos = vec2f(512)
-let windowsize = window.size
-
 
 proc gridTrianglesPosition*(size: Vec2i; offset: Vec2f, tileSize: Vec2i, tileSizeLogical: Vec2i) : seq[Vec4f] =
   result = newSeqOfCap[Vec4f](size.x * size.y * 6)
@@ -155,7 +138,7 @@ proc saveMap(this: TileMap; mapFilename: string): void {.noconv.} =
   this.map.savePng(mapFileName)
 #addQuitProc( saveMap )
 
-proc pixelToWorldSpace(this: TileMap; cameraPos: Vec2f; pos: Vec2i): Vec2f =
+proc pixelToWorldSpace(this: TileMap; cameraPos: Vec2f; windowsize, pos: Vec2i): Vec2f =
   let tileSizeLogical = this.tileSizeLogical
   let scaling = this.scaling
   (-vec2f(windowsize) * 0.5 + vec2f(pos.x.float32, float32(windowsize.y - pos.y))) / vec2f(tileSizeLogical * scaling) + cameraPos
@@ -218,15 +201,16 @@ proc drawTiles(this: TileMap, highlightPos: Vec2i; map: TextureRectangle, camera
       """
 
 
-let crosshairVertices = arrayBuffer(
-    [
-      vec2f(-1,0), vec2f(1,0),
-      vec2f(0,-1), vec2f(0,1)
-    ]
-)
-
+var crosshairVertices: ArrayBuffer[Vec2f]
 
 proc drawCrosshair(): void =
+
+  if crosshairVertices.handle == 0:
+    crosshairVertices = arrayBuffer([
+      vec2f(-1,0), vec2f(1,0),
+      vec2f(0,-1), vec2f(0,1)
+    ])
+
 
   shadingDsl:
     primitiveMode = GL_LINES
@@ -253,19 +237,17 @@ var mouseLeftDown, mouseRightDown = false
 var dragLeftStartPos: Vec2i
 var dragRightStartPos: Vec2i
 
-setup()
-
 
 var tileLeft  : Color = Color(r:255'u8, g:255'u8, b:255'u8, a:128'u8)
 var tileRight : Color = Color(r:255'u8, g:255'u8, b:255'u8, a:0'u8)
 var tileSelection : bool = false
 
-proc mouseClicked(tileMap: TileMap, evt: MouseButtonEventObj): void =
+proc mouseClicked(tileMap: TileMap, windowsize: Vec2i, evt: MouseButtonEventObj): void =
   echo "mouseClicked"
   let tileSizeLogical = tileMap.tileSizeLogical
   let scaling         = tileMap.scaling
   if tileSelection:
-    let mousePos = tileMap.pixelToWorldSpace(vec2f(8), vec2i(evt.x, evt.y))
+    let mousePos = tileMap.pixelToWorldSpace(vec2f(8), windowsize, vec2i(evt.x, evt.y))
     let gridPos = vec2i(mousePos.floor)
     let pixel: Color =
       Color(r: 255'u8, g: 255'u8, b: 255'u8,
@@ -280,7 +262,7 @@ proc mouseClicked(tileMap: TileMap, evt: MouseButtonEventObj): void =
 
     tileSelection = false
   else:
-    let mousePos = tileMap.pixelToWorldSpace(cameraPos, vec2i(evt.x, evt.y))
+    let mousePos = tileMap.pixelToWorldSpace(cameraPos, windowsize, vec2i(evt.x, evt.y))
     let gridPos = vec2i(mousePos.floor)
 
     if fancygl.any( gridPos .< vec2i(0) ) or fancygl.any(gridPos .>= vec2i(mapwidth)):
@@ -296,12 +278,12 @@ proc mouseClicked(tileMap: TileMap, evt: MouseButtonEventObj): void =
 
     tileMap.map.setPixel(gridPos, pixel)
 
-proc mouseDragged(tileMap: TileMap, evt: MouseMotionEventObj): void =
+proc mouseDragged(tileMap: TileMap, windowsize: Vec2i, evt: MouseMotionEventObj): void =
   if tileSelection:
     return
 
   if mouseLeftDown:
-    let mousePos = tileMap.pixelToWorldSpace(cameraPos, vec2i(evt.x, evt.y))
+    let mousePos = tileMap.pixelToWorldSpace(cameraPos, windowsize, vec2i(evt.x, evt.y))
     let gridPos = vec2i(mousePos.floor)
 
     if fancygl.any( gridPos .< vec2i(0) ) or fancygl.any(gridPos .>= vec2i(mapwidth)):
@@ -317,6 +299,26 @@ proc mouseDragged(tileMap: TileMap, evt: MouseMotionEventObj): void =
 
 
 proc main*(window: Window): void =
+  
+  setup()
+  
+  tileSelectionMap = newTextureRectangle(vec2i(16), internalFormat = GL_RGBA8)
+
+  block:
+    var selectionTiles = newSeq[Color](16 * 16)
+
+    for i, tile in selectionTiles.mpairs:
+      let x = i mod 16
+      let y = 15 - i div 16
+      tile.r = 255
+      tile.g = 255
+      tile.b = 255
+      tile.a = uint8(x + y * 16)
+
+    tileSelectionMap.setData(selectionTiles)
+
+  
+  let windowsize = window.size
 
   var tileMapA = newTileMap(vec2i(16), vec2i(16), 2, "tiles.gif", window.size)
   var tileMapB = newTileMap(vec2i(8,12), vec2i(8,4), 4, "pixelfont.png", window.size)
@@ -380,14 +382,14 @@ proc main*(window: Window): void =
 
         if evt.button.button == ButtonLeft:
           if not mouseLeftDrag:
-            tileMap.mouseClicked(evt.button)
+            tileMap.mouseClicked(windowsize, evt.button)
 
           mouseLeftDrag = false
           mouseLeftDown = false
 
         if evt.button.button == ButtonRight:
           if not mouseRightDown:
-            tileMap.mouseClicked(evt.button)
+            tileMap.mouseClicked(windowsize, evt.button)
 
           mouseRightDrag = false
           mouseRightDown = false
@@ -399,13 +401,13 @@ proc main*(window: Window): void =
           let dist = abs(dragLeftStartPos - mousePos);
           if dist.x + dist.y > dragThreshold:
             mouseLeftDrag = true
-            tileMap.mouseDragged(evt.motion)
+            tileMap.mouseDragged(windowsize, evt.motion)
 
         if mouseRightDown:
           let dist = abs(dragRightStartPos - mousePos);
           if dist.x + dist.y > dragThreshold:
             mouseRightDrag = true
-            tileMap.mouseDragged(evt.motion)
+            tileMap.mouseDragged(windowsize, evt.motion)
 
       else:
         discard
@@ -419,9 +421,9 @@ proc main*(window: Window): void =
     let time = gameTimer.time
 
     if tileSelection:
-      tileMap.drawTiles(tileMap.pixelToWorldSpace(vec2f(8), mousePos).floor.vec2i, tileSelectionMap, vec2f(8), time)
+      tileMap.drawTiles(tileMap.pixelToWorldSpace(vec2f(8), windowsize, mousePos).floor.vec2i, tileSelectionMap, vec2f(8), time)
     else:
-      tileMap.drawTiles(tileMap.pixelToWorldSpace(cameraPos, mousePos).floor.vec2i, tileMap.map, cameraPos, time)
+      tileMap.drawTiles(tileMap.pixelToWorldSpace(cameraPos, windowsize, mousePos).floor.vec2i, tileMap.map, cameraPos, time)
 
     #drawCrosshair()
     tileMapA.resourceReloading()
@@ -430,7 +432,7 @@ proc main*(window: Window): void =
     glSwapWindow(window)
 
 when isMainModule:
-  # let (window, context) = defaultSetup()
+  let (window, context) = defaultSetup()
   main(window)
 
 # Local Variables:
