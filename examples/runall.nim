@@ -14,6 +14,8 @@ proc resetState(): void =
   glBlendFunc(GL_ONE, GL_ZERO)
   glDisable(GL_STENCIL_TEST)
   glDisable(GL_PROGRAM_POINT_SIZE)
+  glDisable(GL_RASTERIZER_DISCARD) 
+
   glPointSize(1)
   # glProvokingVertex(GL_FIRST_VERTEX_CONVENTION) what is the default?
   

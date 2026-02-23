@@ -1,9 +1,12 @@
 import ../fancygl
 
-## Transform Feedback is not yet properly integrated
+# it would be nice to have Transform Feedback as part of runall, but for some
+# reason, moving this code into a main function causes invalid C code
+# generation. This is just one instance of the infinite struggle to fight the
+# nim compiler bugs that never end.
 
 const
-  numParticles   = 2000
+  numParticles   = 9001 # what?! It's over 9000!!!!
   maxParticleAge = 16.0'f32
 
 type
@@ -80,7 +83,7 @@ template blockBindTransformFeedback*(name, blok: untyped): untyped =
     #const transformFeedbackVaryings {.inject.} = fragmentOutputSe
     blok
   glBindTransformFeedback(GL_TRANSFORM_FEEDBACK, cast[GLuint](tfOuter))
-
+  
 while running:
   let time = gameTimer.time.float32
 
@@ -272,3 +275,7 @@ while running:
       """
 
   glSwapWindow(window)
+  
+# Local Variables:
+# compile-command: "cd examples; nim c -r particles_transform_feedback.nim"
+# End:
