@@ -21,7 +21,7 @@ type
 
 proc split(box: Box; value: float32; dim: DimIndex): tuple[left,right: Box] =
   if value < box.min[dim] or box.max[dim] < value:
-    echo s"illigal split ${box.min[dim]} < $value < ${box.max[dim]}"
+    echo s"PROBLEM: illegal split ${box.min[dim]} < $value < ${box.max[dim]}"
 
   result.left  = box
   result.right = box
@@ -38,7 +38,7 @@ proc leafNodeBoxes(this: KdTree, node: KdNode, boundingBox: Box, dim: DimIndex; 
 
   let value = node.pos[dim]
   if value < boundingBox.min[dim] or boundingBox.max[dim] < value:
-    echo s"illigal split ${boundingBox.min[dim]} < $value < ${boundingBox.max[dim]}"
+    echo s"illegal split ${boundingBox.min[dim]} < $value < ${boundingBox.max[dim]}"
     dest.add boundingBox
     return
 
@@ -171,72 +171,53 @@ proc testKdTree(): void =
   echo s"$error_count errors of $test_runs runs"
   echo s"visited $sum nodes for $test_runs random findings (${sum/test_runs} per lookup)"
 
-testKdTree()
-
-
-let (window, context) = defaultSetup()
-
-glPointSize(5)
-
-
-
 let tree = rand_tree(1000)
-
-let posBuffer = arrayBuffer(tree.data).view(pos)
-
-var colors = newSeq[Vec3f](1000)
-for v in colors.mitems():
-  v.x = rand_f32()
-  v.y = rand_f32()
-  v.z = rand_f32()
-
-let colorsBuffer = arrayBuffer(colors)
-
 
 var evt: Event
 var runGame: bool = true
 
 let timer = newStopWatch(true)
 
-let aspect = window.aspectRatio.float32
-let proj : Mat4f = frustum(-aspect * 0.01f, aspect * 0.01f, -0.01f, 0.01f, 0.01f, 100.0)
-
 var queryPos: Vec4f = vec4f(0,0,0,1)
 
+var cubeVertices : ArrayBuffer[Vec4f]
+var cubeLineIndices : ElementArrayBuffer[int8]
 
-let cubeVertices = arrayBuffer([
-  vec4f( 1, 1, 1, 1),
-  vec4f( 0, 1, 1, 1),
-  vec4f( 1, 0, 1, 1),
-  vec4f( 0, 0, 1, 1),
-  vec4f( 1, 1, 0, 1),
-  vec4f( 0, 1, 0, 1),
-  vec4f( 1, 0, 0, 1),
-  vec4f( 0, 0, 0, 1)
-])
-
-let cubeLineIndices = elementArrayBuffer([
-  0'i8, 1,
-  2, 3,
-  4,5,
-  6,7,
-  0,2,
-  1,3,
-  4,6,
-  5,7,
-  0,4,
-  1,5,
-  2,6,
-  3,7
-])
-
-var linePositions = createArrayBuffer[Vec4f](1000)
-
-let boxesBuffer = createArrayBuffer[Box](1000)
-let boxesMinView = boxesBuffer.view(min)
-let boxesMaxView = boxesBuffer.view(max)
+var boxesBuffer: ArrayBuffer[Box]
 
 proc drawBoxes(proj,modelView: Mat4f, maxDepth: int): void =
+  if cubeVertices.handle == 0:
+    cubeVertices = arrayBuffer([
+      vec4f( 1, 1, 1, 1),
+      vec4f( 0, 1, 1, 1),
+      vec4f( 1, 0, 1, 1),
+      vec4f( 0, 0, 1, 1),
+      vec4f( 1, 1, 0, 1),
+      vec4f( 0, 1, 0, 1),
+      vec4f( 1, 0, 0, 1),
+      vec4f( 0, 0, 0, 1)
+    ])
+
+    cubeLineIndices = elementArrayBuffer([
+      0'i8, 1,
+      2, 3,
+      4,5,
+      6,7,
+      0,2,
+      1,3,
+      4,6,
+      5,7,
+      0,4,
+      1,5,
+      2,6,
+      3,7
+    ])
+
+    boxesBuffer = createArrayBuffer[Box](1000, GL_STREAM_DRAW)
+
+  let boxesMinView = boxesBuffer.view(min)
+  let boxesMaxView = boxesBuffer.view(max)
+
   let boxes = tree.leafNodeBoxes(maxDepth)
   boxesBuffer.setData(boxes)
 
@@ -262,9 +243,10 @@ proc drawBoxes(proj,modelView: Mat4f, maxDepth: int): void =
       color = vec4(1);
       """
 
-
-
+var linePositions: ArrayBuffer[Vec4f]
 proc lines(mvp: Mat4f; vertices: openarray[Vec4f]): void =
+  if linePositions.handle == 0:
+    linePositions = createArrayBuffer[Vec4f](1000)
   linePositions.setData(vertices)
 
   shadingDsl:
@@ -283,127 +265,146 @@ proc lines(mvp: Mat4f; vertices: openarray[Vec4f]): void =
       color = vec4(1);
       """
 
+proc main*(window: Window): void =
+  glPointSize(5)
+  
+  var rotationX, rotationY: float32
+  var maxDepth = 0
 
-var rotationX, rotationY: float32
-var maxDepth = 0
+  let posBuffer = arrayBuffer(tree.data).view(pos)
 
-while runGame:
+  var colorsBuffer = block:
+    var colors = newSeq[Vec3f](1000)
+    for v in colors.mitems():
+      v.x = rand_f32()
+      v.y = rand_f32()
+      v.z = rand_f32()
+                       
+    arrayBuffer(colors)
+  defer:
+    delete(colorsBuffer)
 
-  for evt in events():
-    if evt.kind == QUIT:
-      runGame = false
-      break
-    if evt.kind == KEY_DOWN:
-      if evt.key.keysym.scancode == SCANCODE_ESCAPE:
+  let aspect = window.aspectRatio.float32
+  let proj : Mat4f = frustum(-aspect * 0.01f, aspect * 0.01f, -0.01f, 0.01f, 0.01f, 100.0)
+  
+  while runGame:
+
+    for evt in events():
+      if evt.kind == QUIT:
         runGame = false
-      if evt.key.keysym.scancode == SCANCODE_KP_PLUS:
-        maxDepth += 1
-      if evt.key.keysym.scancode == SCANCODE_KP_MINUS:
-        maxDepth -= 1
+        break
+      if evt.kind == KEY_DOWN:
+        if evt.key.keysym.scancode == SCANCODE_ESCAPE:
+          runGame = false
+        if evt.key.keysym.scancode == SCANCODE_KP_PLUS:
+          maxDepth += 1
+        if evt.key.keysym.scancode == SCANCODE_KP_MINUS:
+          maxDepth -= 1
 
-    if evt.kind == MOUSE_MOTION:
-      queryPos.x =     (evt.motion.x / window.size.x) * 2 - 1
-      queryPos.y = 1 - (evt.motion.y / window.size.y) * 2
+      if evt.kind == MOUSE_MOTION:
+        queryPos.x =     (evt.motion.x / window.size.x) * 2 - 1
+        queryPos.y = 1 - (evt.motion.y / window.size.y) * 2
 
-      rotationY += float32(evt.motion.xrel) * 0.001f
-      rotationX += float32(evt.motion.yrel) * 0.001f
+        rotationY += float32(evt.motion.xrel) * 0.001f
+        rotationX += float32(evt.motion.yrel) * 0.001f
 
-  let time = timer.time.float32
+    let time = timer.time.float32
 
-  let viewMat = mat4f(1)
-    .translate(0,1,5)            # position camera at position 0,1,5
-    .rotateX(Pi * -0.05)         # look a bit down
-    .inverse                     # the camera matrix needs to be inverted
+    let viewMat = mat4f(1)
+      .translate(0,1,5)            # position camera at position 0,1,5
+      .rotateX(Pi * -0.05)         # look a bit down
+      .inverse                     # the camera matrix needs to be inverted
 
-  let modelMat = mat4f(1)
-    .rotateY(rotationY)    # rotate the triangle
-    .rotateX(rotationX)
-    .scale(3)                    # scale the triangle to be big enough on screen
+    let modelMat = mat4f(1)
+      .rotateY(rotationY)    # rotate the triangle
+      .rotateX(rotationX)
+      .scale(3)                    # scale the triangle to be big enough on screen
 
-  glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
+    glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-  var selected = 0
-  var selected_dist = float32(Inf)
+    var selected = 0
+    var selected_dist = float32(Inf)
 
-  for i, node in tree.data:
-    let dist = length(node.pos.xyz - queryPos.xyz)
-    if dist < selected_dist:
-      selected = i
-      selected_dist = dist
+    for i, node in tree.data:
+      let dist = length(node.pos.xyz - queryPos.xyz)
+      if dist < selected_dist:
+        selected = i
+        selected_dist = dist
 
-  shadingDsl:
-    primitiveMode = GL_POINTS
-    numVertices = 1000
-    uniforms:
-      modelView = viewMat * modelMat
-      proj
-      select    = int32(selected)
-    attributes:
-      a_vertex = posBuffer
-      a_color  = colorsBuffer
-    vertexMain:
-      """
-      gl_Position = proj * modelView * vec4(a_vertex, 1);
-      //gl_Position = a_vertex;
-      if (select == gl_VertexID) {
-        v_color = vec4(1);
-      } else {
-        v_color = vec4(a_color, 1);
-      }
-      """
-    vertexOut:
-      "out vec4 v_color"
-    fragmentMain:
-      """
-      color = v_color;
-      """
+    shadingDsl:
+      primitiveMode = GL_POINTS
+      numVertices = 1000
+      uniforms:
+        modelView = viewMat * modelMat
+        proj
+        select    = int32(selected)
+      attributes:
+        a_vertex = posBuffer
+        a_color  = colorsBuffer
+      vertexMain:
+        """
+        gl_Position = proj * modelView * vec4(a_vertex, 1);
+        //gl_Position = a_vertex;
+        if (select == gl_VertexID) {
+          v_color = vec4(1);
+        } else {
+          v_color = vec4(a_color, 1);
+        }
+        """
+      vertexOut:
+        "out vec4 v_color"
+      fragmentMain:
+        """
+        color = v_color;
+        """
 
-  #[
-  shadingDsl:
-    primitiveMode = GL_LINES
-    numVertices = 24
-    indices = cubeLineIndices
-    uniforms:
-      modelView = viewMat * modelMat
-      proj
-      select    = int32(selected)
-    attributes:
-      a_vertex = cubeVertices
-    vertexMain:
-      """
-      gl_Position = proj * modelView * a_vertex;
-      """
-    fragmentMain:
-      """
-      color = vec4(1);
-      """
-  ]#
+    #[
+    shadingDsl:
+      primitiveMode = GL_LINES
+      numVertices = 24
+      indices = cubeLineIndices
+      uniforms:
+        modelView = viewMat * modelMat
+        proj
+        select    = int32(selected)
+      attributes:
+        a_vertex = cubeVertices
+      vertexMain:
+        """
+        gl_Position = proj * modelView * a_vertex;
+        """
+      fragmentMain:
+        """
+        color = vec4(1);
+        """
+    ]#
 
-  drawBoxes(proj, viewMat * modelMat, maxDepth)
-
-
-  let mvp = proj * viewMat * modelMat
-
-  var a,b,c,d,e: Vec4f = queryPos
-  a.x = -1
-  b.x =  1
-  c.y = -1
-  d.y =  1
-  e.xy = tree.data[selected].pos.xy
-
-  #[
-  lines(mvp, [
-    vec4f( 1, 1, queryPos.z, 1), vec4f(-1, 1, queryPos.z, 1),
-    vec4f(-1, 1, queryPos.z, 1), vec4f(-1,-1, queryPos.z, 1),
-    vec4f(-1,-1, queryPos.z, 1), vec4f( 1,-1, queryPos.z, 1),
-    vec4f( 1,-1, queryPos.z, 1), vec4f( 1, 1, queryPos.z, 1),
-    a,b,c,d, queryPos, e, e, vec4f(tree.data[selected].pos, 1), vec4f(tree.data[selected].pos, 1), queryPos
-  ])
-  ]#
-
-  glSwapWindow(window)
+    drawBoxes(proj, viewMat * modelMat, maxDepth)
 
 
+    let mvp = proj * viewMat * modelMat
 
-#when isMainModule:
-#  main()
+    var a,b,c,d,e: Vec4f = queryPos
+    a.x = -1
+    b.x =  1
+    c.y = -1
+    d.y =  1
+    e.xy = tree.data[selected].pos.xy
+
+    #[
+    lines(mvp, [
+      vec4f( 1, 1, queryPos.z, 1), vec4f(-1, 1, queryPos.z, 1),
+      vec4f(-1, 1, queryPos.z, 1), vec4f(-1,-1, queryPos.z, 1),
+      vec4f(-1,-1, queryPos.z, 1), vec4f( 1,-1, queryPos.z, 1),
+      vec4f( 1,-1, queryPos.z, 1), vec4f( 1, 1, queryPos.z, 1),
+      a,b,c,d, queryPos, e, e, vec4f(tree.data[selected].pos, 1), vec4f(tree.data[selected].pos, 1), queryPos
+    ])
+    ]#
+    renderText("this example is incomplete and might actually be very unhelpful in current state",       vec2i(20, 20))
+
+    glSwapWindow(window)
+  
+when isMainModule:
+  testKdTree()
+  let (window, context) = defaultSetup()
+  main(window)

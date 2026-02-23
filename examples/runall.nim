@@ -14,6 +14,7 @@ proc resetState(): void =
   glBlendFunc(GL_ONE, GL_ZERO)
   glDisable(GL_STENCIL_TEST)
   glDisable(GL_PROGRAM_POINT_SIZE)
+  glPointSize(1)
   # glProvokingVertex(GL_FIRST_VERTEX_CONVENTION) what is the default?
   
   discard setRelativeMouseMode(false)
@@ -48,7 +49,7 @@ makeRunExamples(
   # particles_transform_feedback,  # this is bugged, can't be integrated right now
   fractalworld, 
   craftingmine, 
-  # waves,  TODO this causes sometimes segfaults for some reason
+  waves,  # TODO this causes sometimes segfaults for some reason
   tetris,
   noise_landscape, 
   octree, 
@@ -56,8 +57,11 @@ makeRunExamples(
   iqm_mesh_loading, 
   sandbox, 
   retro_tiling, 
-  # kdtree, 
+  kdtree, 
   # deferred_shading, 
   # console, 
 )
   
+# Local Variables:
+# compile-command: "cd examples; nim c -r -d:release --passC:-g --debuginfo:on runall.nim"
+# End:
