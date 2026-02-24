@@ -98,7 +98,6 @@ proc render(framebuffer0: RenderTarget, renderTargetSize: Vec2i, windowSize: Vec
   lastWeightsTexture.setDataRGBA(lastWeights_d0)
 
   blockBindFramebuffer(framebuffer0):
-
     glViewport(0,0,renderTargetSize.x, renderTargetSize.y)
 
     shadingDsl:

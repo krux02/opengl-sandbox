@@ -3,6 +3,10 @@
 # from shadertoy in here
 import ../fancygl
 
+declareFramebuffer(RenderTarget(renderTargetSize: Vec2i)):  
+  depth  = newDepthRenderBuffer(renderTargetSize)
+  color  = newTexture2D(renderTargetSize, GL_RGBA8)
+
 const sharedCode = """
 // Remnant X
 // by David Hoskins.
@@ -349,6 +353,14 @@ proc main*(window: Window): void =
   var centerScale = vec3f(0,0,1)
   var mousePos: Vec2i
 
+  let windowSize = window.size
+  # rendering at full resolution costs a lot of performance. This renders at
+  # half the fullscreen resolution to upscale later. This is worth it on laptop
+  # hardware.
+  let framebufferSize = window.size / 2
+  
+  let fb1 = newRenderTarget(framebufferSize)
+
   while runGame:
     #var buttonStates:uint32 =
     discard getMouseState(mousePos.x.addr, mousePos.y.addr)
@@ -373,18 +385,29 @@ proc main*(window: Window): void =
 
     glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
+    blockBindFramebuffer(fb1): 
+      glViewport(0, 0, framebufferSize.x, framebufferSize.y)
+      shadingDsl:
+        uniforms:
+          iChannel0
+          iChannelResolution0
+          iMouse = mousePos
+          iResolution = vec2f(framebufferSize)
+          iTime = float32(timer.time)
+        includes:
+          sharedCode
+        fragmentMain:
+          """
+          mainImage(color, gl_FragCoord.xy);
+          """
+
+    glViewport(0,0,windowsize.x, windowsize.y)
     shadingDsl:
       uniforms:
-        iChannel0
-        iChannelResolution0
-        iMouse = mousePos
-        iResolution = vec2f(window.size)
-        iTime = float32(timer.time)
-      includes:
-        sharedCode
+        tex = fb1.color
       fragmentMain:
         """
-        mainImage(color, gl_FragCoord.xy);
+        color = texture(tex, texCoord);
         """
 
     glSwapWindow(window)
