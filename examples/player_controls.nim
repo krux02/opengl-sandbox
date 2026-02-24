@@ -338,9 +338,12 @@ proc main*(window: Window): void =
 
     renderFloor(projection_mat, viewMat, windowSize)
 
-    renderText( s"axisMovement: $axisMovement", vec2i(22) )
-    renderText( s"axisInput: $axisInput", vec2i(22,44) )
-    renderText( s"mouseInput: ${tmpNode.pos - playerNode.pos}", vec2i(22,66))
+    renderText( s"axisMovement: $axisMovement", vec2i(22, 22) )
+    renderText( s"axisInput: $axisInput", vec2i(22,64) )
+    renderText( s"mouseInput: ${tmpNode.pos - playerNode.pos}", vec2i(22,106))
+    
+    renderText("this example is incomplete and might actually be very unhelpful in current state",       vec2i(22, 146))
+    # renderText()
 
     glSwapWindow(window)
 

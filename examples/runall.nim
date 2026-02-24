@@ -40,12 +40,13 @@ macro makeRunExamples(args: varargs[untyped]): untyped =
         
 makeRunExamples(
   hello_triangle, 
+  forward_vertex_shader, 
+  sandbox, 
+  skew_box, 
   shooty, 
   openmesh, 
-  forward_vertex_shader, 
   neuralnetwork, 
   hello_shapes, 
-  skew_box, 
   mandelbrot, 
   particles, 
   # particles_transform_feedback,  # this is bugged, can't be integrated right now
@@ -57,10 +58,9 @@ makeRunExamples(
   octree, 
   player_controls, 
   iqm_mesh_loading, 
-  sandbox, 
   retro_tiling, 
   kdtree, 
-  # deferred_shading, 
+  deferred_shading, 
   # console, 
 )
   

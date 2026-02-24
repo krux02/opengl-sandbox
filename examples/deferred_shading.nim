@@ -1,43 +1,61 @@
 import ../fancygl
 
-#var windowsize = vec2i(640,480)
-#let (window, context) = defaultSetup(windowsize = vec2i(640,480))
-let (window, context) = defaultSetup()
+const numLights = 500
 
 var hm = newHeightMap(128,64)
 hm.DiamondSquare(64)
 
-let windowsize = window.size
-var viewport = vec4f(0,0,window.size.vec2f)
+var
+  crateTexture: Texture2D
+  starTexture: Texture2D
 
-let
+  hmVertices: ArrayBuffer[Vec4f]
+  hmNormals: ArrayBuffer[Vec4f]
+  hmTexCoords: ArrayBuffer[Vec2f]
+  hmIndices: ElementArrayBuffer[int32]
+
+  sphereVertices: ArrayBuffer[Vec4f]
+  sphereNormals: ArrayBuffer[Vec4f]
+  #sphereTexCoords = uvSphereTexCoords(32,16).arrayBuffer
+  sphereIndices: ElementArrayBuffer[int16]
+
+  lightPositions: ArrayBuffer[Vec3f]
+  lightColors: ArrayBuffer[Vec3f]
+  
+  
+proc initTexturesAndBuffers(): void =
+  if crateTexture.handle != 0:
+    # ensure this function is executed just once. Not the best way to do this
+    return
+
   crateTexture = loadTexture2DFromFile(getResourcePath("crate.png"))
   starTexture = loadTexture2DFromFile(getResourcePath("star_symmetric_gray.png"))
 
-  hmVertices = hm.vertices.arrayBuffer(GL_STATIC_DRAW)
-  hmNormals = hm.normals.arrayBuffer(GL_STATIC_DRAW)
-  hmTexCoords = hm.texCoords.arrayBuffer(GL_STATIC_DRAW)
-  hmIndices = hm.indicesTriangles.elementArrayBuffer(GL_STATIC_DRAW)
+  hmVertices = arrayBuffer(hm.vertices, GL_STATIC_DRAW)
+  hmNormals = arrayBuffer(hm.normals, GL_STATIC_DRAW)
+  hmTexCoords = arrayBuffer(hm.texCoords, GL_STATIC_DRAW)
+  hmIndices = elementArrayBuffer(hm.indicesTriangles, GL_STATIC_DRAW)
 
-  sphereVertices = uvSphereVertices(32,16).arrayBuffer
-  sphereNormals = uvSphereNormals(32,16).arrayBuffer
+  sphereVertices = arrayBuffer(uvSphereVertices(32,16))
+  sphereNormals = arrayBuffer(uvSphereNormals(32,16))
   #sphereTexCoords = uvSphereTexCoords(32,16).arrayBuffer
-  sphereIndices = uvSphereIndices(32,16).elementArrayBuffer
+  sphereIndices = elementArrayBuffer(uvSphereIndices(32,16))
+  
+  lightPositions = createArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW, "lightPositions")
+  lightColors = createArrayBuffer[Vec3f](numLights, GL_STATIC_DRAW, "lightColors")
+
+  for color in lightColors.mitems:
+    color = vec3f(rand_f32(), rand_f32(), rand_f32())
+
 
 var hideNormals, hideDeferredShading, flatShading, wireframe: bool
 
 ## TODO: extend framebuffer makro with glsl types, and handle costructor arguments (size)
 
-declareFramebuffer(FirstFramebuffer):
+declareFramebuffer(FirstFramebuffer(windowsize: Vec2i)):
   depth = newDepthTexture2D(windowsize)
   color = newTexture2D(windowsize, GL_RGBA8)
   normal = newTexture2D(windowsize, GL_RGBA16F)
-
-let fb1 = newFirstFramebuffer()
-
-let projMat : Mat4f = perspective(45.0f, float32(windowsize.x / windowsize.y), 0.1f, 1000.0f)
-
-const numLights = 500
 
 var
   runGame = true
@@ -51,16 +69,8 @@ var
   camera = newWorldNode()
   cameraControls : CameraControls
 
-  lightPositions = createArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW, "lightPositions")
-  lightColors = createArrayBuffer[Vec3f](numLights, GL_DYNAMIC_DRAW, "lightColors")
-
 camera.pos.z   = hm[0,0] + 10
 cameraControls.speed = 24'f32
-
-addEventWatch(cameraControlEventWatch, cameraControls.addr)
-
-for color in lightColors.mitems:
-  color = vec3f(rand_f32(), rand_f32(), rand_f32())
 
 var
   effectOrigin = camera.pos.xy
@@ -106,11 +116,10 @@ proc showNormals(mvp: Mat4f, positions: ArrayBuffer[Vec4f], normals: ArrayBuffer
       """
 
 var time, lastTime: float64
-    
-proc render() =
+var viewport: Vec4f
+var projMat: Mat4f
 
-  
-
+proc render(fb1: FirstFramebuffer): void =
   let viewMat = camera.viewMat()
 
   let lightDir_cs = view_mat * vec4f(vec3f(0.577f),0)
@@ -278,8 +287,8 @@ proc render() =
     fb1.handle.bindRead
 
     glBlitFramebuffer(
-      0,0, windowSize.x.int32, windowSize.y.int32,
-      0,0, windowSize.x.int32, windowSize.y.int32,
+      viewport.x.int32, viewport.y.int32, viewport.z.int32, viewport.w.int32,
+      viewport.x.int32, viewport.y.int32, viewport.z.int32, viewport.w.int32,
       GL_DEPTH_BUFFER_BIT,
       GL_NEAREST.GLenum
     )
@@ -460,10 +469,8 @@ proc render() =
   if not hideNormals:
     showNormals(projMat * viewMat, sphereVertices, sphereNormals, 0.3f)
 
-  glSwapWindow(window)
 
-
-proc mainLoopFunc(): void =
+proc mainLoopFunc(window: Window, fb1: FirstFramebuffer): void =
 
   lastTime = time
   time = gameTimer.time
@@ -523,12 +530,33 @@ proc mainLoopFunc(): void =
 
   update(camera, cameraControls, deltaTime)
 
-  render()
+  render(fb1)
+  glSwapWindow(window)
+  
   frame += 1
 
-while runGame:
-  mainLoopFunc()
 
+proc main*(window: Window): void =
+  
+  addEventWatch(cameraControlEventWatch, cameraControls.addr)
+  defer:
+    delEventWatch(cameraControlEventWatch, cameraControls.addr)
+
+  let windowsize = window.size
+  viewport = vec4f(0,0,window.size.vec2f)
+  
+  let fb1 = newFirstFramebuffer(windowsize)
+
+  projMat = perspective(45.0f, float32(windowsize.x / windowsize.y), 0.1f, 1000.0f)
+
+  initTexturesAndBuffers()
+  while runGame:
+    mainLoopFunc(window, fb1)
+
+when isMainModule:
+  let (window, context) = defaultSetup()
+  main(window)
+    
 # Local Variables:
 # compile-command: "cd examples; nim c -r deferred_shading.nim"
 # End:

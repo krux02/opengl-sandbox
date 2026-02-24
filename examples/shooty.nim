@@ -2,6 +2,7 @@ import ../fancygl
 
 import sequtils
 import math
+import strformat
 
 proc `*`(a: Mat4f; b: seq[Vec4f]): seq[Vec4f] =
   result.newSeq(b.len)
@@ -393,12 +394,16 @@ proc main*(window: Window): void =
         renderMesh(IdSphere, projMat, viewMat, mat4f(1).translate(bullet.pos).scale(0.1))
 
     renderFloor(projMat, viewMat, viewport, floorVertices)
-
-    renderText( s"axisInput: $axisInput", vec2i(22,44) )
-    renderText( s"mouseInput: ${tmpNode.pos - playerNode.pos}", vec2i(22,66))
+    renderText(fmt"axisInput: {axisInput.x:5.2f} {axisInput.y:5.2f}", vec2i(22,44))
+    let value = tmpNode.pos - playerNode.pos
+    renderText(fmt"mouseInput: {value.x:5.1f} {value.y:5.1f}", vec2i(22,88))
 
     glSwapWindow(window)
 
+when isMainModule:
+  let (window, _) = defaultSetup()
+  main(window)
+    
 # Local Variables:
 # compile-command: "cd examples; nim c -r shooty.nim"
 # End:

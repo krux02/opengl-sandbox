@@ -20,8 +20,6 @@ proc init(self: ptr TextRenderer; textHeight: int): void =
   self.fontPath = getResourcePath("Inconsolata-Regular.ttf")
   self.font = ttf.openFont(self.fontPath, self.textHeight.cint)
 
-  self.fontPath = getResourcePath("Inconsolata-Regular.ttf")
-
   if self.font.isNil:
     var msg = newString(0)
     msg.add "could not load font: "
@@ -42,7 +40,7 @@ proc textRenderer(): ptr TextRenderer =
   var this {.global.}: ptr TextRenderer = nil
   if this.isNil:
     this = create(TextRenderer)
-    this.init(14) # this is a little bit small :-(
+    this.init(32)
   result = this
 
 # proc textRendererLarge(): var TextRenderer =
@@ -110,7 +108,7 @@ proc text(this: var TextRenderer; str: string; pixelPos: Vec2i): void =
   let textSize = surface.size
 
   let rectPixelPos = vec2i(pixelPos.x, vpSize.y - pixelPos.y)
-  let rectPos  = vec2f(rectPixelPos-vpPos) / vec2f(vpSize) * 2.0f - vec2f(1)
+  let rectPos  = vec2f(rectPixelPos) / vec2f(vpSize) * 2.0f - vec2f(1)
   let rectSize = vec2f(textSize) / vec2f(vpSize) * 2.0f
 
   shadingDsl:
@@ -122,6 +120,7 @@ proc text(this: var TextRenderer; str: string; pixelPos: Vec2i): void =
       rectPixelPos
       rectPos
       rectSize
+      vpPos
       tex = this.texture
 
     attributes:
@@ -136,7 +135,7 @@ proc text(this: var TextRenderer; str: string; pixelPos: Vec2i): void =
     fragmentMain:
       """
       ivec2 texcoord;
-      texcoord.x = int(gl_FragCoord.x) - rectPixelPos.x;
+      texcoord.x = int(gl_FragCoord.x) - rectPixelPos.x - vpPos.x;
       texcoord.y = rectPixelPos.y - int(gl_FragCoord.y);
       color = texelFetch(tex, texcoord, 0).rrrr;
       """

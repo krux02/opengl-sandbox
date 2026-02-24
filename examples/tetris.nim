@@ -478,10 +478,10 @@ var mainMenuSelection : 0..mainMenuEntries.high
 
 proc mainMenu(): void =
   for i, entry in mainMenuEntries:
-    let y = int32(i * 20 + 20)
-    let x = int32(40)
+    let y = int32(i * 40 + 30)
+    let x = int32(60)
     if i == mainMenuSelection:
-      renderText("> ", vec2i(x - 20, y))
+      renderText("> ", vec2i(x - 40, y))
     renderText(entry, vec2i(x,y))
 
 proc main*(window: Window): void =
@@ -713,9 +713,9 @@ proc main*(window: Window): void =
 
       glClear(GL_COLOR_BUFFER_BIT or GL_DEPTH_BUFFER_BIT)
 
-      renderText("score: " & $score,       vec2i(20, 20))
-      renderText("level: " & $level,       vec2i(20, 40))
-      renderText("lines: " & $clearedRows, vec2i(20, 60))
+      renderText("score: " & $score,       vec2i(20,  30))
+      renderText("level: " & $level,       vec2i(20,  70))
+      renderText("lines: " & $clearedRows, vec2i(20, 110))
       
       iterator allBlockPositions(): tuple[pos:Vec2f; typ: int] =
         for y, row in fieldRows:

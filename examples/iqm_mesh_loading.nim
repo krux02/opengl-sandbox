@@ -47,9 +47,6 @@ proc main*(window: Window) =
     vec2f(1,1)
   ], label = "quadTexCoords")
 
-  let textHeight = 16
-  var font = ttf.openFont(getResourcePath("Inconsolata-Regular.ttf"), textHeight.cint)
-
   var file = memfiles.open(getResourcePath("mrfixit.iqm"))
   defer:
     close(file)
@@ -69,6 +66,8 @@ proc main*(window: Window) =
     createArrayBuffer[Vec2i](texts.len, GL_DYNAMIC_DRAW, "textPixelPositions")
 
   #[
+  let textHeight = 32
+  var font = ttf.openFont(getResourcePath("Inconsolata-Regular.ttf"), textHeight.cint)
   block:
     var i = 0
     for text in texts:
@@ -676,4 +675,5 @@ proc main*(window: Window) =
 when isMainModule:
   let (window, context) = defaultSetup()
   main(window)
+
 
