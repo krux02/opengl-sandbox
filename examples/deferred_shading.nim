@@ -545,7 +545,9 @@ proc main*(window: Window): void =
   let windowsize = window.size
   viewport = vec4f(0,0,window.size.vec2f)
   
-  let fb1 = newFirstFramebuffer(windowsize)
+  var fb1 = newFirstFramebuffer(windowsize)
+  defer:
+    fb1.delete
 
   projMat = perspective(45.0f, float32(windowsize.x / windowsize.y), 0.1f, 1000.0f)
 

@@ -48,8 +48,11 @@ proc bindRead*(fb: FrameBuffer): void =
   glBindFramebuffer(GL_READ_FRAMEBUFFER, fb.handle)
 
 proc newFrameBuffer*(): FrameBuffer =
-  glCreateFramebuffers(1, cast[ptr GLuint](result.addr));
+  glCreateFramebuffers(1, cast[ptr GLuint](result.handle.addr));
 
+proc delete*(arg: var FrameBuffer): void =
+  glDeleteFramebuffers(1, cast[ptr GLuint](arg.handle.addr));
+     
 proc setRenderbuffer*(fb: FrameBuffer, attachment, renderbuffertarget: GLenum, renderbuffer: GLuint) =
   glNamedFramebufferRenderbuffer(fb.handle, attachment, renderbuffertarget, renderbuffer)
 
@@ -133,10 +136,13 @@ macro declareFramebuffer*(typeNameAndArgs,arg:untyped) : untyped =
       `typename` = object
         handle*: FrameBuffer
         depth*: `depthType`
-
+        
+    proc delete*(arg: var `typename`): void =
+      delete(arg.handle)
+            
   for fragOut in fragmentOutputs:
 
-    result[^1][0][2][2].add newExpIdentDef(fragOut, bindSym"Texture2D")
+    result[0][0][0][2][2].add newExpIdentDef(fragOut, bindSym"Texture2D")
 
   let fragmentOutputsSeqNode = newLit(fragmentOutputs)
   result.add(quote do:
