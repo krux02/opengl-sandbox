@@ -1,6 +1,285 @@
-import ../fancygl, sdl2/sdl_image as img, times
+import ../fancygl, sdl2/sdl_image as img, times, strformat
 
 from os import getLastModificationTime, fileExists
+
+import rdstdin, strutils, parseutils, macros, typetraits
+import osproc
+import os
+
+proc readLine*(texture: TextureRectangle; line, lineWidth: int, dst: var seq[Color]): void =
+  dst.setLen(lineWidth)
+  glGetTextureSubImage(
+    texture = texture.handle,
+    level = 0,
+    xoffset = 0,
+    yoffset = GLint(line),
+    zoffset = 0,
+    width = GLint(lineWidth),
+    height = 1,
+    depth = 1,
+    format = GL_RGBA,
+    `type` = GL_UNSIGNED_BYTE,
+    bufSize = GLsizei(sizeof(Color) * dst.len),
+    pixels = pointer(dst[0].addr));
+
+proc parseArg[T](arg: string): tuple[couldParse: bool, value: T] =
+  when T is int:
+    let processedChars = parseutils.parseInt(arg, result.value)
+    if processedChars == arg.len:
+      result.couldParse = true
+  elif T is string:
+    result.couldParse = true
+    result.value = arg
+
+macro parseArgument(argsIdent: untyped; argIdent: untyped; typ: typed;
+                    argId: static[int]): untyped =
+  let idLit      = newLit(argId)
+  let typeStrLit = newLit(typ.repr)
+  result = quote do:
+    let (parseOk, `argIdent`) = parseArg[`typ`](`argsIdent`[`idLit`])
+    if not parseOk:
+      stderr.writeLine(
+        "argument ", `idLit`, " (", `argsIdent`[`idLit`],
+        ") cannot be parsed as type ", `typeStrLit`
+      )
+      return
+
+macro parseVarargs(argsIdent, argIdent: untyped;
+                   typ: typed; argId: static[int]): untyped =
+  let idLit      = newLit(argId)
+  let typeStrLit = newLit(typ.repr)
+  result = quote do:
+    var `argIdent` = newSeq[`typ`](0)
+    for i in `argId` ..< `argsIdent`.len:
+      let (parseOk, value) = parseArg[`typ`](`argsIdent`[i])
+      if not parseOk:
+        stderr.writeLine(
+          "argument ", `idLit`, " (", `argsIdent`[`idLit`],
+          ") cannot be parsed as type ", `typeStrLit`
+        )
+        return
+      `argIdent`.add value
+
+type CommandProc = proc(args: openarray[string]): void
+
+var registeredCommands = newSeq[tuple[
+  name: string,
+  callback: CommandProc,
+  comment: string,
+  lineinfo: LineInfo
+]]()
+
+proc registerCommand(
+    name: string;
+    callback: CommandProc,
+    comment: string,
+    lineinfo: LineInfo): void =
+
+  registeredCommands.add((
+    name: name,
+    callback: callback,
+    comment: comment,
+    lineinfo: lineinfo
+  ))
+
+proc callCommand(
+    cmdname: string;
+    arguments: openarray[string]): void =
+
+  var cmdFound = false
+  for name, callback, _, _ in registeredCommands.items:
+    if name == cmdname:
+      callback(arguments)
+      cmdFound = true
+      break
+
+  if not cmdFound:
+    stderr.writeLine("could not find command: ", cmdname)
+
+proc stripPrefix(arg, prefix: string): string =
+  if arg.startsWith prefix:
+    result = arg.substr(prefix.len, arg.len - 1)
+  else:
+    result = arg
+
+macro interpreterCommand(impl: typed): untyped =
+  ## Inteded to be called as a pragma on a procedure.  Generates the
+  ## wrapper code so that the procedure can be called from the
+  ## interpreter
+  let comment =
+    if impl.body.kind == nnkStmtList and
+       impl.body[0].kind == nnkCommentStmt:
+      $impl.body[0]
+    else:
+      "<no comment>"
+
+  let commentLit = newLit(comment)
+  let arg = impl[0]
+  let name = $impl[0]
+
+  let commandNameLit = newLit(name.stripPrefix("command_"))
+  var paramTypes    = newSeq[NimNode](0)
+  let params = impl[3]
+  let argsIdent = genSym(nskParam, "args")
+  var hasVarargs = newLit(false)
+
+  for i in 1 ..< params.len:
+    let identDefs = params[i]
+    for j in 0 ..< identDefs.len - 2:
+      paramTypes.add identDefs[identDefs.len - 2]
+
+  let parseArgumentCalls = newStmtList()
+
+  let commandCall = newCall(arg)
+
+  for i, paramType in paramTypes:
+    # varargs
+    if paramType.kind == nnkBracketExpr and
+       paramType[0] == bindSym"varargs":
+      if i != paramTypes.high:
+        error("varargs needs to be last", paramType)
+      let paramIdent = genSym(nskVar, "arg" & $(i+1))
+      parseArgumentCalls.add newCall(
+        bindSym"parseVarargs", argsIdent,
+        paramIdent, paramType[1], newLit(i+1)
+      )
+      commandCall.add paramIdent
+      hasVarargs = newLit(true)
+    else:
+      let paramIdent = genSym(nskLet, "arg" & $(i+1))
+      parseArgumentCalls.add newCall(
+        bindSym"parseArgument", argsIdent,
+        paramIdent, paramType, newLit(i+1)
+      )
+      commandCall.add paramIdent
+
+  let numParamsLit = newLit(paramTypes.len)
+  let facadeSym = genSym(nskProc, name & "_facade")
+  let lineInfoLit = newLit(impl.lineinfoObj)
+  result = quote do:
+    proc `facadeSym`(`argsIdent`: openarray[string]): void =
+      when `hasVarargs`:
+        if `argsIdent`.len - 1  < `numParamsLit` - 1:
+          stderr.writeLine(
+            "expect at least ", `numParamsLit` - 1,
+            " arguments, got ", `argsIdent`.len - 1,
+            " arguments"
+          )
+          return
+      else:
+        if `argsIdent`.len - 1 != `numParamsLit`:
+          stderr.writeLine(
+            "expect ", `numParamsLit`, " arguments, got ",
+            `argsIdent`.len - 1, " arguments"
+          )
+          return
+
+      `parseArgumentCalls`
+      `commandCall`
+
+    registerCommand(
+      `commandNameLit`, `facadeSym`,
+      `commentLit`, `lineInfoLit`
+    )
+
+  #echo result.repr
+var myEcho: (proc(arg: string): void)
+    
+proc add(arg1: int; arg2: int): void {.interpreterCommand.} =
+  ## adds two numbers
+  let res = arg1 + arg2
+  myEcho fmt"{arg1} + {arg2} = {res}"
+
+proc mult(arg1,arg2: int): void {.interpreterCommand.} =
+  ## multiplies two numbers
+  let res = arg1 * arg2
+  myEcho fmt"{arg1} * {arg2} = {res}"
+
+# if the last argument is varargs, it also works in the interpreter
+proc sum(args: varargs[int]): void {.interpreterCommand.} =
+  ## sum up all arguments, at least one
+  var accum: int
+  for arg in args:
+    accum += arg
+  myEcho fmt"sum: {accum}"
+  
+# if the last argument is varargs, it also works in the interpreter
+proc prod(args: varargs[int]): void {.interpreterCommand.} =
+  ## multiply up all arguments
+  var accum: int = 1
+  for arg in args:
+    accum *= arg
+    
+  myEcho fmt"prod: {accum}"
+
+proc greet(arg: string): void {.interpreterCommand.} =
+  ## greets the person you call it to greet
+  myEcho fmt"Hello {arg}"
+  
+proc ls(): void {.interpreterCommand.} =
+  ## lists content of current folder
+  for kind, path in walkDir("."):
+    if kind == pcDir:
+      myEcho fmt"{path[2..^1]}/"
+    else:
+      myEcho fmt"{path[2..^1]}"
+
+proc exit(): void {.interpreterCommand.} =
+  ## exit command interpreter (alias to quit)
+  myEcho "Bye!"
+  system.quit()
+
+proc quit(): void {.interpreterCommand.} =
+  ## quit command interpreter (alias to exit)
+  myEcho "Ciao!"
+  system.quit() # TODO this quits the runall
+
+proc commands(): void {.interpreterCommand.} =
+  ## list all functions
+  for name, _, comment, _ in registeredCommands.items:
+    myEcho fmt"{name}: {comment}"
+
+proc help(arg: string): void {.interpreterCommand.} =
+  ## prints documentation of a single function
+  for name, _, comment, lineinfo in registeredCommands.items:
+    if name == arg:
+      myEcho fmt"location: {lineinfo}"
+      myEcho comment
+      return
+  myEcho "ERROR: no such function found"
+
+proc ecedit(arg: string): void {.interpreterCommand.} =
+  ## Edit file in emacsclient
+  let processOptions = {poStdErrToStdOut, poUsePath}
+  for name, _, _, lineinfo in registeredCommands.items:
+    if name == arg:
+      let location = "+" & $lineinfo.line & ":" & $lineinfo.column
+      var filename: string = lineinfo.filename
+
+      try:
+        # if you don't know how emacsclient works, it connects to an
+        # already running instance of emacs that is tagged as a
+        # server. Then it brings this editor to the foreground and
+        # blocks until the user says from the editor that he/she is
+        # done editing the file. Then the emacsclient process
+        # terminates. For other editors the integration would of
+        # course look a bit different but similar.
+        echo ["emacsclient", location, filename].join(" ")
+        let process = startProcess(
+          "emacsclient",
+          args = [location, filename],
+          options = processOptions,
+        )
+        discard process.waitForExit
+        # from here on we know, that editing from emacs has been
+        # done. In theory one could recompile and reload the nim
+        # functions for the interpreter now. But that is not supported
+        # yet.
+      except OSError:
+        let msg = getCurrentExceptionMsg()
+        echo "OSError: ", msg
+      return
+  echo "Error: could not find command ", arg
 
 # this is supposded to take over the console example, but with actual rendering
 proc setup(): void =
@@ -48,8 +327,6 @@ proc randomColor(): Color =
   result.b = rand_u8()
   result.a = rand_u8()
 
-  
-
 proc noiseTextureRectangle(size: Vec2i): TextureRectangle =
   var randomTiles = newSeq[Color](size.x * size.y)
   for tile in randomTiles.mitems:
@@ -73,8 +350,6 @@ proc loadMapFromFile(mapFilename: string): TextureRectangle =
     result.handle, 0, 0, 0,
     surface.w, surface.h,
     GL_RGBA, GL_UNSIGNED_BYTE, surface.pixels)
-
-var tileSelectionMap: TextureRectangle
 
 var cameraPos = vec2f(0)
 
@@ -259,28 +534,33 @@ proc mouseClicked(tileMap: TileMap, windowsize: Vec2i, evt: MouseButtonEventObj)
 
   tileMap.map.setPixel(gridPos, pixel)
 
+#[
+block main:
+  echo(
+    "This is the command interpreter, to get a list of possible " &
+    "commands, type \"commands\". To get help for a specific " &
+    "command, type \"help <command>\"."
+  )
+  var line: string = ""
+
+  # if readPasswordFromStdin("gimme your password> ", line):
+  #   echo "got your password, it is: ", line
+  # else:
+  #   echo "got no password, quitting now"
+  #   break main
+
+  while readLineFromStdin("> ", line):
+]#
+
+
+  
 proc main*(window: Window): void =  
   setup()
   
-  tileSelectionMap = newTextureRectangle(vec2i(16), internalFormat = GL_RGBA8)
-
   var cursorPos: Vec2i
+  cursorPos.x = 2
   cursorPos.y = mapwidth-1
-  
-  block:
-    var selectionTiles = newSeq[Color](16 * 16)
-
-    for i, tile in selectionTiles.mpairs:
-      let x = i mod 16
-      let y = 15 - i div 16
-      tile.r = 255
-      tile.g = 255
-      tile.b = 255
-      tile.a = uint8(x + y * 16)
-
-    tileSelectionMap.setData(selectionTiles)
-
-  
+    
   let windowsize = window.size
 
   var tileMap = newTileMap(vec2i(8,12), vec2i(8,12), 4, "pixelfont.png", window.size)
@@ -298,7 +578,22 @@ proc main*(window: Window): void =
   tileMap.mapSize = vec2i(mapwidth)
   defer:
     saveMap(tileMap, tileMapPath)
-    
+
+  myEcho = proc(arg: string): void =
+            for c in arg:            
+              let color = Color(
+                r: currentTextColor.r,
+                g: currentTextColor.g,
+                b: currentTextColor.b, 
+                a: uint8(c),
+              )
+              tileMap.map.setPixel(cursorPos, color)
+              cursorPos.x += 1
+            cursorPos.x = 0
+            cursorPos.y -= 1
+
+               
+  
   while running:
     defer:
       frame += 1
@@ -316,18 +611,47 @@ proc main*(window: Window): void =
           break
         of SCANCODE_F10:
           window.screenshot
-        of SCANCODE_UP:
-          cursorPos.y += 1
-        of SCANCODE_DOWN:
-          cursorPos.y -= 1
+        # of SCANCODE_UP:
+        #   cursorPos.y += 1
+        # of SCANCODE_DOWN:
+        #   cursorPos.y -= 1
         of SCANCODE_LEFT:
           cursorPos.x -= 1
         of SCANCODE_RIGHT:
           cursorPos.x += 1
         of SCANCODE_RETURN:
+
+          var line: seq[Color]
+          readLine(tileMap.map, cursorPos.y, mapwidth, line)
+          var lineStr: string
+          for i in 2 ..< cursorPos.x:
+            lineStr.add(char(line[i].a))
+
+          var arguments = newSeq[string](0)
+          for arg in split(lineStr):
+            if arg != "":
+              arguments.add arg
+          
           cursorPos.x = 0
           cursorPos.y -= 1
           currentTextColor = randomColor() # just for fun, no particular reason
+
+          if arguments.len > 0:
+            let command = arguments[0]
+            if command.len > 0:
+              callCommand(command, arguments)
+          
+
+          for c in "> ":            
+            let color = Color(
+              r: currentTextColor.r,
+              g: currentTextColor.g,
+              b: currentTextColor.b, 
+              a: uint8(c),
+            )
+            tileMap.map.setPixel(cursorPos, color)
+            cursorPos.x += 1
+            
         of SCANCODE_BACKSPACE:
           let color = Color(
             r: 255'u8,
@@ -336,10 +660,10 @@ proc main*(window: Window): void =
             a: 0
           )
           cursorPos.x -= 1
-          if cursorPos.x >= 0:
+          if cursorPos.x >= 2:
             tileMap.map.setPixel(cursorPos, color)
           else:
-            cursorPos.x = 0
+            cursorPos.x = 2
 
         of SCANCODE_HOME:
           cursorPos.x = 0
