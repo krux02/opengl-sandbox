@@ -22,14 +22,20 @@ proc readLine*(texture: TextureRectangle; line, lineWidth: int, dst: var seq[Col
     bufSize = GLsizei(sizeof(Color) * dst.len),
     pixels = pointer(dst[0].addr));
 
+var myEcho: (proc(arg: string): void)
+     
 proc parseArg[T](arg: string): tuple[couldParse: bool, value: T] =
-  when T is int:
-    let processedChars = parseutils.parseInt(arg, result.value)
-    if processedChars == arg.len:
+  try: 
+    when T is int:
+      let processedChars = parseutils.parseInt(arg, result.value)
+      if processedChars == arg.len:
+        result.couldParse = true
+    elif T is string:
       result.couldParse = true
-  elif T is string:
-    result.couldParse = true
-    result.value = arg
+      result.value = arg
+  except:
+    myEcho getCurrentExceptionMsg()
+    return
 
 macro parseArgument(argsIdent: untyped; argIdent: untyped; typ: typed;
                     argId: static[int]): untyped =
@@ -38,10 +44,10 @@ macro parseArgument(argsIdent: untyped; argIdent: untyped; typ: typed;
   result = quote do:
     let (parseOk, `argIdent`) = parseArg[`typ`](`argsIdent`[`idLit`])
     if not parseOk:
-      stderr.writeLine(
-        "argument ", `idLit`, " (", `argsIdent`[`idLit`],
-        ") cannot be parsed as type ", `typeStrLit`
-      )
+      let arg1 {.inject.} = `idLit`
+      let arg2 {.inject.} = `argsIdent`[`idLit`]
+      let arg3 {.inject.} = `typeStrLit`
+      myEcho fmt"argument {arg1} ({arg2}) cannot be parsed as type {arg3}"
       return
 
 macro parseVarargs(argsIdent, argIdent: untyped;
@@ -53,10 +59,10 @@ macro parseVarargs(argsIdent, argIdent: untyped;
     for i in `argId` ..< `argsIdent`.len:
       let (parseOk, value) = parseArg[`typ`](`argsIdent`[i])
       if not parseOk:
-        stderr.writeLine(
-          "argument ", `idLit`, " (", `argsIdent`[`idLit`],
-          ") cannot be parsed as type ", `typeStrLit`
-        )
+        let arg1 {.inject.} = `idLit`
+        let arg2 {.inject.} = `argsIdent`[`idLit`]
+        let arg3 {.inject.} = `typeStrLit`
+        myEcho fmt"argument {arg1} ({arg2}) cannot be parsed as type {arg3}"
         return
       `argIdent`.add value
 
@@ -81,7 +87,7 @@ proc registerCommand(
     comment: comment,
     lineinfo: lineinfo
   ))
-
+  
 proc callCommand(
     cmdname: string;
     arguments: openarray[string]): void =
@@ -94,7 +100,7 @@ proc callCommand(
       break
 
   if not cmdFound:
-    stderr.writeLine("could not find command: ", cmdname)
+    myEcho fmt"could not find command: {cmdname}"
 
 proc stripPrefix(arg, prefix: string): string =
   if arg.startsWith prefix:
@@ -160,18 +166,15 @@ macro interpreterCommand(impl: typed): untyped =
     proc `facadeSym`(`argsIdent`: openarray[string]): void =
       when `hasVarargs`:
         if `argsIdent`.len - 1  < `numParamsLit` - 1:
-          stderr.writeLine(
-            "expect at least ", `numParamsLit` - 1,
-            " arguments, got ", `argsIdent`.len - 1,
-            " arguments"
-          )
+          let arg1 {.inject.} = `numParamsLit` - 1
+          let arg2 {.inject.} = `argsIdent`.len - 1
+          myEcho fmt"expect at least {arg1} arguments, got {arg2} arguments"
           return
       else:
         if `argsIdent`.len - 1 != `numParamsLit`:
-          stderr.writeLine(
-            "expect ", `numParamsLit`, " arguments, got ",
-            `argsIdent`.len - 1, " arguments"
-          )
+          let arg1 {.inject.} = `numParamsLit`
+          let arg2 {.inject.} = `argsIdent`.len - 1
+          myEcho fmt"expect {arg1} arguments, got {arg2} arguments"
           return
 
       `parseArgumentCalls`
@@ -183,7 +186,6 @@ macro interpreterCommand(impl: typed): untyped =
     )
 
   #echo result.repr
-var myEcho: (proc(arg: string): void)
     
 proc add(arg1: int; arg2: int): void {.interpreterCommand.} =
   ## adds two numbers
@@ -329,8 +331,8 @@ proc randomColor(): Color =
 
 proc noiseTextureRectangle(size: Vec2i): TextureRectangle =
   var randomTiles = newSeq[Color](size.x * size.y)
-  for tile in randomTiles.mitems:
-    tile = randomColor()
+  # for tile in randomTiles.mitems:
+  #   tile = randomColor()
     # tile.r = rand_u8()
     # tile.g = rand_u8()
     # tile.b = rand_u8()
@@ -445,6 +447,8 @@ proc drawTiles(this: TileMap, highlightPos: Vec2i; map: TextureRectangle, camera
     vertexMain:
       """
       ivec2 gridPos = ivec2(pos.xy + floor(cameraPos));
+      gridPos.x = gridPos.x & 1023;
+      gridPos.y = gridPos.y & 1023;
       highlight = int(highlightPos == gridPos);
 
       tileId =  int(round(255 * texelFetch(map, gridPos).a));
@@ -558,8 +562,7 @@ proc main*(window: Window): void =
   setup()
   
   var cursorPos: Vec2i
-  cursorPos.x = 2
-  cursorPos.y = mapwidth-1
+  cursorPos.y = mapwidth
     
   let windowsize = window.size
 
@@ -592,8 +595,26 @@ proc main*(window: Window): void =
             cursorPos.x = 0
             cursorPos.y -= 1
 
-               
-  
+  proc newLine(): void =
+    cursorPos.x = 0
+    cursorPos.y -= 1
+    
+  proc prompt(): void =
+    currentTextColor = randomColor() # just for fun, no particular reason
+    
+    for c in "> ":            
+      let color = Color(
+        r: currentTextColor.r,
+        g: currentTextColor.g,
+        b: currentTextColor.b, 
+        a: uint8(c),
+      )
+      tileMap.map.setPixel(cursorPos, color)
+      cursorPos.x += 1         
+
+  newLine()
+  prompt()
+      
   while running:
     defer:
       frame += 1
@@ -631,26 +652,15 @@ proc main*(window: Window): void =
           for arg in split(lineStr):
             if arg != "":
               arguments.add arg
+              
+          newLine()
           
-          cursorPos.x = 0
-          cursorPos.y -= 1
-          currentTextColor = randomColor() # just for fun, no particular reason
-
           if arguments.len > 0:
             let command = arguments[0]
             if command.len > 0:
               callCommand(command, arguments)
-          
-
-          for c in "> ":            
-            let color = Color(
-              r: currentTextColor.r,
-              g: currentTextColor.g,
-              b: currentTextColor.b, 
-              a: uint8(c),
-            )
-            tileMap.map.setPixel(cursorPos, color)
-            cursorPos.x += 1
+              
+          prompt()      
             
         of SCANCODE_BACKSPACE:
           let color = Color(
@@ -674,11 +684,6 @@ proc main*(window: Window): void =
           if (evt.key.keysym.mods and (uint16)KMOD_CTRL) != 0:
             cursorPos.y = tileMap.mapSize.y
         else:
-          #echo (int)
-          # tileMap.map.setPixel(cursorPos, (uint8)evt.key.keysym.sym)
-          # cursorPos.x += 1
-          # echo evt.key.keysym
-          # echo evt.key
           discard
 
       of TextInput:
