@@ -226,15 +226,17 @@ proc ls(): void {.interpreterCommand.} =
     else:
       myEcho fmt"{path[2..^1]}"
 
+var running = true
+      
 proc exit(): void {.interpreterCommand.} =
   ## exit command interpreter (alias to quit)
   myEcho "Bye!"
-  system.quit()
+  running = false
 
 proc quit(): void {.interpreterCommand.} =
   ## quit command interpreter (alias to exit)
   myEcho "Ciao!"
-  system.quit() # TODO this quits the runall
+  running = false
 
 proc commands(): void {.interpreterCommand.} =
   ## list all functions
@@ -510,7 +512,6 @@ proc drawCrosshair(): void =
       """
 
 
-var running = true
 var frame = 0
 var gameTimer = newStopWatch(true)
 var mouseLeftDown, mouseRightDown = false
@@ -537,26 +538,6 @@ proc mouseClicked(tileMap: TileMap, windowsize: Vec2i, evt: MouseButtonEventObj)
     return
 
   tileMap.map.setPixel(gridPos, pixel)
-
-#[
-block main:
-  echo(
-    "This is the command interpreter, to get a list of possible " &
-    "commands, type \"commands\". To get help for a specific " &
-    "command, type \"help <command>\"."
-  )
-  var line: string = ""
-
-  # if readPasswordFromStdin("gimme your password> ", line):
-  #   echo "got your password, it is: ", line
-  # else:
-  #   echo "got no password, quitting now"
-  #   break main
-
-  while readLineFromStdin("> ", line):
-]#
-
-
   
 proc main*(window: Window): void =  
   setup()
@@ -569,6 +550,7 @@ proc main*(window: Window): void =
   var tileMap = newTileMap(vec2i(8,12), vec2i(8,12), 4, "pixelfont.png", window.size)
 
   let tileMapPath = "consoleLog.png"
+  let configPath =  "console2.config"
 
   let loading = true
   var currentTextColor = randomColor()
@@ -581,6 +563,15 @@ proc main*(window: Window): void =
   tileMap.mapSize = vec2i(mapwidth)
   defer:
     saveMap(tileMap, tileMapPath)
+
+  if fileExists(configPath) and loading:
+    for line in configPath.lines:
+      cursorPos.y = parseInt(line)
+      echo cursorPos.y
+  defer:
+    var file = open(configPath, fmWrite)
+    file.writeLine(cursorPos.y)
+    file.close();
 
   myEcho = proc(arg: string): void =
             for c in arg:            

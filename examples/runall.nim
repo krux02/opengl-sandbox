@@ -61,7 +61,7 @@ makeRunExamples(
   retro_tiling, 
   kdtree, 
   deferred_shading, 
-  # console, 
+  console2, 
 )
   
 # Local Variables:
