@@ -226,6 +226,11 @@ proc ls(): void {.interpreterCommand.} =
     else:
       myEcho fmt"{path[2..^1]}"
 
+proc cat(args: varargs[string]): void {.interpreterCommand.} =
+  for arg in args:
+    for line in lines(arg):
+      myEcho line
+      
 var running = true
       
 proc exit(): void {.interpreterCommand.} =
@@ -538,6 +543,12 @@ proc mouseClicked(tileMap: TileMap, windowsize: Vec2i, evt: MouseButtonEventObj)
     return
 
   tileMap.map.setPixel(gridPos, pixel)
+
+let helpText =
+    "This is the command interpreter, to get a list of possible " &
+    "commands, type \"commands\". To get help for a specific " &
+    "command, type \"help <command>\"."
+
   
 proc main*(window: Window): void =  
   setup()
@@ -585,7 +596,8 @@ proc main*(window: Window): void =
               cursorPos.x += 1
             cursorPos.x = 0
             cursorPos.y -= 1
-
+  myEcho(helpText)
+            
   proc newLine(): void =
     cursorPos.x = 0
     cursorPos.y -= 1
@@ -723,10 +735,44 @@ proc main*(window: Window): void =
 
     glSwapWindow(window)
 
-when isMainModule:
-  let (window, context) = defaultSetup()
-  main(window)
 
+proc terminalMain(): void =
+  var line: string = ""
+
+  echo helpText
+
+  myEcho = proc(arg: string): void =
+               echo arg
+
+  # if readPasswordFromStdin("gimme your password> ", line):
+  #   echo "got your password, it is: ", line
+  # else:
+  #   echo "got no password, quitting now"
+  #   break main
+
+  while running and readLineFromStdin("> ", line):
+    #echo "got line: ", line
+    var arguments = newSeq[string](0)
+    for arg in split(line):
+      if arg != "":
+        arguments.add arg
+
+    if arguments.len > 0:
+      let command = arguments[0]
+      if command.len > 0:
+        callCommand(command, arguments)
+
+    
+when isMainModule:
+  # echo "param Count: ", os.paramCount()
+  # for i in 1 .. os.paramCount():
+  #    echo os.paramStr(i)       
+  if os.paramCount() == 1 and os.paramStr(1) == "term":
+    terminalMain()
+  else:
+    let (window, context) = defaultSetup()
+    main(window)
+  
 # Local Variables:
 # compile-command: "cd examples; nim c -r console2.nim"
 # End:
