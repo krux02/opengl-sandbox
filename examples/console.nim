@@ -422,7 +422,7 @@ proc resourceReloading(this: var TileMap): void =
 
 proc saveMap(this: TileMap; mapFilename: string): void {.noconv.} =
   # this.map.saveToGrayscaleBmpFile(mapFilename)
-  this.map.savePng(mapFileName)
+  this.map.savePNG(mapFileName)
 #addQuitProc( saveMap )
 
 proc pixelToWorldSpace(this: TileMap; cameraPos: Vec2f; windowsize, pos: Vec2i): Vec2f =

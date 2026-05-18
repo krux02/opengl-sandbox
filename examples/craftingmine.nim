@@ -2,6 +2,7 @@ import ../fancygl
 import options
 import glm/noise
 import sdl2/sdl_image as img
+import os
 
 type Ray = object
   pos: Vec3f
@@ -74,34 +75,49 @@ proc main*(window: Window): void =
     else:
       return -1
 
-  var idx = 0
-  for i in 0 ..< TileDataSize:
-    for j in 0 ..< TileDataSize:
-      for k in 0 ..< TileDataSize:
-        let
-          x = float32(i) + 0.5f
-          y = float32(j) + 0.5f
-          z = float32(k) + 0.5f
-          res = worldProc(vec3f(x,y,z))
-        if worldProc(vec3f(x,y,z)) > 0:
-          tileData[i][j][k] = 3
-        else:
-          tileData[i][j][k] = -1
+  if os.fileexists("world.png"):
+    let surface = img.load("world.png")
+    discard lockSurface(surface)
 
-  for i in 0 ..< 64:
-    for j in 0 ..< 64:
-      for k in countdown(62,0): # skip top layer
-        if tiledata[i][j][k] == 3:
-          if getTileData(i, j, k+1) == -1:
-            if k < 32:
-              tiledata[i][j][k] = 7
-            else:
-              tiledata[i][j][k] = 0
-          elif getTileData(i, j, k+1) == 0:
-            tiledata[i][j][k] = 1
-          elif getTileData(i, j, k+1) == 1:
-            tiledata[i][j][k] = 13
+    var surfacePixel = cast[ptr UncheckedArray[uint8]](surface.pixels)
+    var dstPixel = cast[ptr UncheckedArray[uint8]](addr tileData[0][0][0])
 
+    for i in 0 ..< TileDataSize*TileDataSize*TileDataSize:
+      dstPixel[i] = surfacePixel[i]
+
+    unlockSurface(surface)
+    freeSurface(surface)
+
+  else:
+    var idx = 0
+    for i in 0 ..< TileDataSize:
+      for j in 0 ..< TileDataSize:
+        for k in 0 ..< TileDataSize:
+          let
+            x = float32(i) + 0.5f
+            y = float32(j) + 0.5f
+            z = float32(k) + 0.5f
+            res = worldProc(vec3f(x,y,z))
+          if worldProc(vec3f(x,y,z)) > 0:
+            tileData[i][j][k] = 3
+          else:
+            tileData[i][j][k] = -1
+
+    for i in 0 ..< 64:
+      for j in 0 ..< 64:
+        for k in countdown(62,0): # skip top layer
+          if tiledata[i][j][k] == 3:
+            if getTileData(i, j, k+1) == -1:
+              if k < 32:
+                tiledata[i][j][k] = 7
+              else:
+                tiledata[i][j][k] = 0
+            elif getTileData(i, j, k+1) == 0:
+              tiledata[i][j][k] = 1
+            elif getTileData(i, j, k+1) == 1:
+              tiledata[i][j][k] = 13
+    
+  
 
   let singleBoxVertices = arrayBuffer([
     vec4f(1, 0, 1, 1.0), vec4f(1, 1, 0, 1.0), vec4f(1, 0, 0, 1.0),
@@ -385,6 +401,36 @@ proc main*(window: Window): void =
 
   var flymode = false
 
+  defer:
+    # (Uint32 flags, int width, int height, int depth, Uint32 format);
+    let surface = createRGBSurfaceWithFormat(0, TileDataSize, TileDataSize*TileDataSize, 8, PIXELFORMAT_INDEX8)
+
+    let palette = surface.format.palette;
+
+    var colors: array[256, Color];
+
+    for i in 0 ..< 256:
+        colors[i].r = (uint8)i;
+        colors[i].g = (uint8)i;
+        colors[i].b = (uint8)i;
+        colors[i].a = (uint8)255;
+
+    discard setPaletteColors(palette, addr(colors[0]), 0, 256);
+
+
+    discard lockSurface(surface)
+    
+    var surfacePixel = cast[ptr UncheckedArray[uint8]](surface.pixels)
+    var sourcePixel = cast[ptr UncheckedArray[uint8]](addr tileData[0][0][0])
+
+    for i in 0 ..< TileDataSize*TileDataSize*TileDataSize:
+      surfacePixel[i] = sourcePixel[i]
+    
+    unlockSurface(surface)
+
+    discard savePNG(surface, "world.png")
+    freeSurface(surface)
+  
   # glDisable(GL_CLIP_DISTANCE0)
   glEnable(GL_DEPTH_CLAMP)
 
