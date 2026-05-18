@@ -279,10 +279,10 @@ while runGame:
       of SCANCODE_SPACE:
         toggleB = not toggleB
 
-      of SCANCODE_KP_PLUS:
+      of SCANCODE_KP_PLUS, SCANCODE_PAGEUP:
         nextSky()
 
-      of SCANCODE_KP_MINUS:
+      of SCANCODE_KP_MINUS, SCANCODE_PAGEDOWN:
         prevSky()
 
       else:

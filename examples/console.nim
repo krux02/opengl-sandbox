@@ -516,11 +516,9 @@ proc drawCrosshair(): void =
       color = vec4(1,1,1,1);
       """
 
-
 var frame = 0
 var gameTimer = newStopWatch(true)
 var mouseLeftDown, mouseRightDown = false
-
 
 var tileLeft  : Color = Color(r:255'u8, g:255'u8, b:255'u8, a:128'u8)
 var tileRight : Color = Color(r:255'u8, g:255'u8, b:255'u8, a:0'u8)

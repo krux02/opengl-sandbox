@@ -5,6 +5,10 @@ template glslPrefix(t: typedesc[uint8]): string = ""
 # Set this value true, if you want to use AntTweakBar as UI.
 const useAntTweakBar = true
 
+# used to load matrices into a texture. Only useful, if the texture is internally a real floating point number
+proc subImage*( texture : TextureRectangle; data : var seq[Mat4f] ) =
+  glTextureSubImage2D(texture.handle, 0, 0, 0, 4, data.len.GLsizei, GL_RGBA, cGL_FLOAT, data[0].addr.pointer )
+
 when useAntTweakBar:
   import AntTweakBar
 

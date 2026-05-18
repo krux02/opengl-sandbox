@@ -81,3 +81,6 @@ when isMainModule:
   let (window, context) = defaultSetup()
   main(window)
 
+# Local Variables:
+# compile-command: "cd examples; nim c -r hello_triangle.nim"
+# End:

@@ -45,14 +45,16 @@
 ** PONSTPHONED generic texture/sampler setData
 ** PONSTPHONED add support for OpenMesh
 
-* examples [1/3]
+* examples [0/3]
 
 ** PONSTPHONED let mrfixit use the easy text renderer
 *** PONSTPHONED fix bug that text is rendered too wide with uninitialized memory
 ** PONSTPHONED cubical marching squares example
-** DONE fix portal rendering in example
+** TODO fix portal rendering in example
 
 * other [1/2]
 
 ** DONE script to clear all binaries from the project
 ** PONSTPHONED code reloading
+
+

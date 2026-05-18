@@ -207,7 +207,7 @@ proc setData*[T](texture: Texture2D, data: seq[T]; level: int = 0) =
     h = s.y.GLint
     lev = level.GLint
 
-  glTextureSubImage2D(texture.handle, lev, 0, 0, w, h, typeConst[T.attribSize-1], T.attribType, data[0].unsafeAddr)
+  glTextureSubImage2D(texture.handle, lev, 0, 0, w, h, typeConst[attribSize(T)-1], attribType(T), data[0].unsafeAddr)
 
 proc newTexture2DArray*(size: Vec2i; depth: int; levels: int; internalFormat: GLenum = GL_RGBA8): Texture2DArray =
   glCreateTextures(GL_TEXTURE_2D_ARRAY, 1, result.handle.addr)
@@ -308,9 +308,6 @@ proc size*(tex: TextureRectangle): Vec2i =
   glGetTextureLevelParameteriv(tex.handle, 0, GL_TEXTURE_HEIGHT, h.addr)
   result = vec2i(w,h)
 
-proc subImage*( texture : TextureRectangle; data : var seq[Mat4f] ) =
-  glTextureSubImage2D(texture.handle, 0, 0, 0, 4, data.len.GLsizei, GL_RGBA, cGL_FLOAT, data[0].addr.pointer )
-
 proc setData*[T](texture: TextureRectangle; data: seq[T]) =
   mixin attribSize
   let
@@ -326,6 +323,14 @@ proc setPixel*[T](texture: TextureRectangle; pos: Vec2i; pixel: T) =
 #proc readPixel*[T](texture: TextureRectangle; pos: Vec2i): T =
 #  glGetTextureSubImage(texture.handle, 0, pos.x, pos.y, 0, 1, 1, 1, typeConst[T.attribSize-1], T.attribType, result.addr)
 
+proc fill*[T](texture: TextureRectangle; pos: Vec2i; pixel: T) =
+  var w, h: GLint
+  glGetTextureLevelParameteriv(texture.handle, 0, GL_TEXTURE_WIDTH, w.addr)
+  glGetTextureLevelParameteriv(texture.handle, 0, GL_TEXTURE_HEIGHT, h.addr)
+  var data = newSeq[T](w*h)
+  data.fill(pixel)
+  glTextureSubImage2D(texture.handle, 0, pos.x, pos.y, w, h, typeConst[attribSize(T)-1], attribType(T), unsafeAddr(data[0]))
+  
 proc loadTexture2DFromFile*(filename: string): Texture2D =
   var surface = img.load(filename)
   if surface.isNil:

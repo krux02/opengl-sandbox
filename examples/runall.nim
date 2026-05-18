@@ -58,7 +58,7 @@ makeRunExamples(
   octree, 
   player_controls, 
   iqm_mesh_loading, 
-  retro_tiling, 
+  retro_tiling,
   kdtree, 
   deferred_shading, 
   console, 
